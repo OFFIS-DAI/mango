@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+message ACLMessage {
+    string sender_id = 1;
+    string sender_addr = 2;
+    string receiver_id = 3;
+    string receiver_addr = 4;
+    string conversation_id = 5;
+    enum Performative {
+        accept_proposal = 0;
+        agree = 1;
+        cancel = 2;
+        call_for_proposal = 3;
+        confirm = 4;
+        disconfirm = 5;
+        failure = 6;
+        inform = 7;
+        not_understood = 8;
+        propose = 9;
+        query_if = 10;
+        query_ref = 11;
+        refuse = 12;
+        reject_proposal = 13;
+        request = 14;
+        request_when = 15;
+        request_whenever = 16;
+        subscribe = 17;
+        inform_if = 18;
+        proxy = 19;
+        propagate = 20;
+    }
+    Performative performative = 6;
+    bytes content = 7;
+    string message_type = 8;
+    string protocol = 9;
+    string language = 10;
+    string encoding = 11;
+    string ontology = 12;
+    string reply_with = 13;
+    string reply_by = 14;
+    string in_reply_to = 15;
+    string content_class = 16;
+}
