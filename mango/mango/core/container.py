@@ -94,8 +94,8 @@ class Container(ABC):
             # expected as a dict:
             # {ca_certs, certfile, keyfile, cert_eqs, tls_version, ciphers}
             tls_kwargs = mqtt_kwargs.pop('tls_kwargs', None)
-            if tls_options:
-                mqtt_messenger.tls_set(**tls_options)
+            if tls_kwargs:
+                mqtt_messenger.tls_set(**tls_kwargs)
 
             # Future that is triggered, on successful connection
             connected = asyncio.Future()
