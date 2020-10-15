@@ -90,6 +90,13 @@ class Container(ABC):
             # create paho.Client object for mqtt communication
             mqtt_messenger: paho.Client = paho.Client(client_id=client_id)
 
+            # set TLS options if provided
+            # expected as a dict:
+            # {ca_certs, certfile, keyfile, cert_eqs, tls_version, ciphers}
+            tls_kwargs = mqtt_kwargs.pop('tls_kwargs', None)
+            if tls_options:
+                mqtt_messenger.tls_set(**tls_options)
+
             # Future that is triggered, on successful connection
             connected = asyncio.Future()
             # callbacks to check for successful connection
