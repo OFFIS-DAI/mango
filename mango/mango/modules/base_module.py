@@ -58,10 +58,13 @@ class BaseModule:
         if exception is not None:
             tb = traceback.format_exc()
             print(tb)
+            print(f'exception in {self.name}')
+            print(f'exception: {exception}')
             raise exception
 
-    # def log(self, client, userdata, level, buf):
-    #     pass
-    #     # self.logger.info(
-    #     #     f"log: client: {str(client._client_id.decode('utf-8'))}
-    #     - {buf}")
+    # def handle_exception(loop, context):
+    #     # context["message"] will always be there; but context["exception"] may not
+    #     msg = context.get("exception", context["message"])
+    #     logging.error(f"Caught exception: {msg}")
+    #     logging.info("Shutting down...")
+    #     asyncio.create_task(shutdown(loop))
