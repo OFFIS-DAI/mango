@@ -4,7 +4,7 @@
 from .mqtt_module import MQTTModule
 from .rabbit_module import RabbitModule
 from .zero_module import ZeroModule
-
+import traceback
 
 class BaseModule:
     """An agent can have multiple specialized modules which inherit
@@ -56,6 +56,8 @@ class BaseModule:
         """
         exception = result.exception()
         if exception is not None:
+            tb = traceback.format_exc()
+            print(tb)
             raise exception
 
     # def log(self, client, userdata, level, buf):
