@@ -700,7 +700,7 @@ class MQTTContainer(Container):
             encoded_msg = message.SerializeToString()
         else:
             raise ValueError('Unknown codec')
-        self.logger.debug(f'Sending {message} to the broker')
+        self.logger.debug(f'Sending {message} to with topic {topic} the broker')
         self.mqtt_client.publish(topic, encoded_msg)
 
     async def subscribe_for_agent(self, *, aid: str, topic: str, qos: int = 0,
