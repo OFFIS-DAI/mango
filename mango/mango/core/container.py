@@ -101,6 +101,7 @@ class Container(ABC):
             connected = asyncio.Future()
             # callbacks to check for successful connection
             def on_con(client, userdata, flags, returncode):
+                print(f'Connection Callback with the following flags: {flags}')
                 loop.call_soon_threadsafe(connected.set_result, returncode)
             mqtt_messenger.on_connect = on_con
 
@@ -117,17 +118,17 @@ class Container(ABC):
                 if len(broker_addr) > 2 and not isinstance(broker_addr[2],
                                                            int):
                     raise ValueError('Invalid broker address')
-                mqtt_messenger.connect(*broker_addr)
+                mqtt_messenger.connect(*broker_addr, **mqtt_kwargs)
 
             elif isinstance(broker_addr, dict):
                 if not 'hostname' in broker_addr.keys():
                     raise ValueError('Invalid broker address')
-                mqtt_messenger.connect(**broker_addr)
+                mqtt_messenger.connect(**broker_addr, **mqtt_kwargs)
 
             else:
                 if not isinstance(broker_addr, str):
                     raise ValueError('Invalid broker address')
-                mqtt_messenger.connect(broker_addr)
+                mqtt_messenger.connect(broker_addr, **mqtt_kwargs)
 
             print(f'[{client_id}]: Going to connect to broker '
                   f'at {broker_addr}... ', end='')
