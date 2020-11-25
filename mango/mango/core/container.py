@@ -16,6 +16,7 @@ from ..util import m_util as ut
 
 class Container(ABC):
     """Superclass for a mango container"""
+
     @classmethod
     async def factory(cls, *, connection_type: str = 'tcp', codec: str = 'json',
                       addr: Optional[Union[str, Tuple[str, int]]] = None,
@@ -95,7 +96,6 @@ class Container(ABC):
                     init_kwargs[possible_kwarg] = \
                         mqtt_kwargs.pop(possible_kwarg)
 
-
             # check if addr is a valid topic without wildcards
             if addr is not None and \
                     (not isinstance(addr, str) or '#' in addr or '+' in addr):
@@ -117,10 +117,12 @@ class Container(ABC):
 
             # Future that is triggered, on successful connection
             connected = asyncio.Future()
+
             # callbacks to check for successful connection
             def on_con(client, userdata, flags, returncode):
                 print(f'Connection Callback with the following flags: {flags}')
                 loop.call_soon_threadsafe(connected.set_result, returncode)
+
             mqtt_messenger.on_connect = on_con
 
             # check broker_addr input and connect
@@ -179,9 +181,11 @@ class Container(ABC):
 
                 # create Future that is triggered on successful subscription
                 subscribed = asyncio.Future()
+
                 # set up subscription callback
                 def on_sub(*args):
                     loop.call_soon_threadsafe(subscribed.set_result, True)
+
                 mqtt_messenger.on_subscribe = on_sub
 
                 # subscribe topic
@@ -209,15 +213,11 @@ class Container(ABC):
             mqtt_messenger.on_subscribe = None
             mqtt_messenger.on_connect = None
 
-
             return MQTTContainer(client_id=client_id, addr=addr,
                                  log_level=log_level,
                                  logging_kwargs=logging_kwargs, loop=loop,
                                  mqtt_client=mqtt_messenger, codec=codec,
                                  proto_msgs_module=proto_msgs_module)
-
-
-
 
     def __init__(self, *, addr, log_level, logging_kwargs, name, codec,
                  proto_msgs_module=None, loop):
@@ -322,7 +322,7 @@ class Container(ABC):
             message.content = content
 
         elif self.codec == 'protobuf':
-            #create protobuf message
+            # create protobuf message
             message = proto_ACLMessage()
             receiver_meta = acl_metadata['receiver_addr']
             if isinstance(receiver_meta, (tuple, list)):
@@ -343,7 +343,7 @@ class Container(ABC):
         return message
 
     def split_content_and_meta_from_acl(
-            self, acl_message: Union[json_ACLMessage, proto_ACLMessage],):
+            self, acl_message: Union[json_ACLMessage, proto_ACLMessage], ):
         """
         This function takes the content and meta information from an
         acl message.
@@ -500,7 +500,7 @@ class MQTTContainer(Container):
         def on_discon(client, userdata, rc):
             if rc != 0:
                 self.logger.warning('Unexpected disconnect from broker.'
-                                 'Trying to reconnect')
+                                    'Trying to reconnect')
             else:
                 self.logger.debug('Successfully disconnected from broker.')
 
@@ -643,7 +643,7 @@ class MQTTContainer(Container):
                            create_acl: bool = False,
                            acl_metadata: Optional[Dict[str, Any]] = None,
                            mqtt_kwargs: Dict[str, Any] = None,
-                          ):
+                           ):
         """
         container sends the message of one of its own agents to a specific
         topic
@@ -659,6 +659,9 @@ class MQTTContainer(Container):
             qos: The quality of service to use for publishing
             retain: Indicates, weather the retain flag should be set
         """
+        self.logger.debug(
+            f"got message to send: content: {content} receiver_addr: {receiver_addr}, receiver_id: {receiver_id},"
+            f" create_acl:{create_acl}, acl_metadata: {acl_metadata}, mqtt_kwargs: {mqtt_kwargs}")
 
         if create_acl:
             message = self._create_acl(
@@ -673,7 +676,7 @@ class MQTTContainer(Container):
         mqtt_kwargs = {} if mqtt_kwargs is None else mqtt_kwargs
         if self.addr and receiver_addr == self.addr and \
                 not mqtt_kwargs.get('retain', False):
-            # self.logger.debug(f'Going to forward internal message at {topic}')
+            self.logger.debug(f'Going to forward internal message at {receiver_addr}')
             meta = {'topic': self.addr,
                     'qos': mqtt_kwargs.get('qos', 0),
                     'retain': False,
@@ -685,6 +688,7 @@ class MQTTContainer(Container):
             self.inbox.put_nowait((0, content, meta))
 
         else:
+            self.logger.debug(f'Going to forward external message at {receiver_addr}')
             self._send_external_message(topic=receiver_addr, message=message)
 
     def _send_external_message(self, *, topic: str, message):
@@ -700,7 +704,7 @@ class MQTTContainer(Container):
             encoded_msg = message.SerializeToString()
         else:
             raise ValueError('Unknown codec')
-        self.logger.debug(f'Sending {message} to with topic {topic} the broker')
+        self.logger.debug(f'Sending {message} with topic {topic} to the broker')
         self.mqtt_client.publish(topic, encoded_msg)
 
     async def subscribe_for_agent(self, *, aid: str, topic: str, qos: int = 0,
@@ -768,11 +772,13 @@ class MQTTContainer(Container):
             self.additional_subscriptions.pop(subscription)
             self.mqtt_client.unsubscribe(topic=subscription)
 
+
 class TCPContainer(Container):
     """
     This is a container that communicate directly with other containers
     via tcp
     """
+
     def __init__(self, *, addr: Tuple[str, int], codec: str,
                  loop: asyncio.AbstractEventLoop, log_level: int,
                  logging_kwargs: Dict[str, Any] = None,
@@ -800,7 +806,6 @@ class TCPContainer(Container):
         self.logger.debug(f'Start running...')
         self._check_inbox_task = asyncio.create_task(self._check_inbox())
         self.running = True
-
 
     async def _handle_msg(self, *,
                           priority: int, msg_content, meta: Dict[str, Any]):
