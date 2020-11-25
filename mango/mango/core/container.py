@@ -659,10 +659,9 @@ class MQTTContainer(Container):
             qos: The quality of service to use for publishing
             retain: Indicates, weather the retain flag should be set
         """
-        self.logger.debug(
-            f"got message to send: content: {content} receiver_addr: {receiver_addr}, receiver_id: {receiver_id},"
-            f" create_acl:{create_acl}, acl_metadata: {acl_metadata}, mqtt_kwargs: {mqtt_kwargs}")
-
+        # self.logger.debug(
+        #     f"got message to send: content: {content} receiver_addr: {receiver_addr}, receiver_id: {receiver_id},"
+        #     f" create_acl:{create_acl}, acl_metadata: {acl_metadata}, mqtt_kwargs: {mqtt_kwargs}")
         if create_acl:
             message = self._create_acl(
                 content=content, receiver_addr=receiver_addr,
@@ -676,7 +675,7 @@ class MQTTContainer(Container):
         mqtt_kwargs = {} if mqtt_kwargs is None else mqtt_kwargs
         if self.addr and receiver_addr == self.addr and \
                 not mqtt_kwargs.get('retain', False):
-            self.logger.debug(f'Going to forward internal message at {receiver_addr}')
+            #self.logger.debug(f'Going to forward internal message at {receiver_addr}')
             meta = {'topic': self.addr,
                     'qos': mqtt_kwargs.get('qos', 0),
                     'retain': False,
@@ -688,7 +687,7 @@ class MQTTContainer(Container):
             self.inbox.put_nowait((0, content, meta))
 
         else:
-            self.logger.debug(f'Going to forward external message at {receiver_addr}')
+            #self.logger.debug(f'Going to forward external message at {receiver_addr}')
             self._send_external_message(topic=receiver_addr, message=message)
 
     def _send_external_message(self, *, topic: str, message):
