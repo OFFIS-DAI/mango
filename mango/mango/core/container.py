@@ -19,7 +19,9 @@ class Container(ABC):
     @classmethod
     async def factory(cls, *, connection_type: str = 'tcp', codec: str = 'json',
                       addr: Optional[Union[str, Tuple[str, int]]] = None,
-                      log_level: int = logging.DEBUG, proto_msgs_module=None,
+                      log_level: int = logging.DEBUG,
+                      logging_kwargs: Dict[str, Any] = None,
+                      proto_msgs_module=None,
                       mqtt_kwargs: Dict[str, Any] = None):
         """
         This method is called to instantiate a container instance, either
@@ -34,6 +36,9 @@ class Container(ABC):
         optionally define an inbox_topic that is used similarly than
         a tcp address.
         :param log_level: The log level to use
+        :param logging_kwargs: Dictionary, in which logging details can be
+        specified. Kwargs are passed to m_util.configure_logger(). Possible
+        kwargs are 'log_file': str, 'csv_format': bool, 'log_file_mode': str
         :param mqtt_kwargs: If connection_type == 'mqtt':
         Dictionary of keyword arguments for connection to the broker. At least
         the keys 'broker_addr' and 'client_id' have to be included.
@@ -56,6 +61,7 @@ class Container(ABC):
             # initialize TCPcontainer
             container = TCPContainer(
                 addr=addr, codec=codec, loop=loop, log_level=log_level,
+                logging_kwargs=logging_kwargs,
                 proto_msgs_module=proto_msgs_module
             )
 
@@ -205,17 +211,21 @@ class Container(ABC):
 
 
             return MQTTContainer(client_id=client_id, addr=addr,
-                                 log_level=log_level, loop=loop,
+                                 log_level=log_level,
+                                 logging_kwargs=logging_kwargs, loop=loop,
                                  mqtt_client=mqtt_messenger, codec=codec,
                                  proto_msgs_module=proto_msgs_module)
 
 
 
 
-    def __init__(self, *, addr, log_level, name, codec,
+    def __init__(self, *, addr, log_level, logging_kwargs, name, codec,
                  proto_msgs_module=None, loop):
         self.name = name
-        self.logger = ut.configure_logger(f'{name}', log_level)
+        if logging_kwargs is None:
+            logging_kwargs = {}
+        self.logger = ut.configure_logger(f'{name}', log_level,
+                                          **logging_kwargs)
         self.addr = addr
         self.log_level: int = log_level
         self.codec: str = codec.lower()
@@ -430,7 +440,8 @@ class MQTTContainer(Container):
     """
 
     def __init__(self, *, client_id: str, addr: Optional[str],
-                 log_level: int, loop: asyncio.AbstractEventLoop,
+                 log_level: int, logging_kwargs: Dict[str, Any] = None,
+                 loop: asyncio.AbstractEventLoop,
                  mqtt_client: paho.Client, codec: str = 'json',
                  proto_msgs_module=None):
         """
@@ -441,6 +452,9 @@ class MQTTContainer(Container):
         :param addr: A string of the unique inbox topic to use.
         No wildcards are allowed. If None, no inbox topic will be set
         :param log_level: The log level to use
+        :param logging_kwargs: Dictionary, in which logging details can be
+        specified. Kwargs are passed to m_util.configure_logger(). Possible
+        kwargs are 'log_file': str, 'csv_format': bool, 'log_file_mode': str
         :param mqtt_client: The paho.Client object that is used for the
         communication with the broker
         :param codec: The codec to use. Currently only 'json' or 'protobuf' are
@@ -448,7 +462,8 @@ class MQTTContainer(Container):
         :param proto_msgs: The compiled python module where the
          additional proto msgs are defined
         """
-        super().__init__(log_level=log_level, codec=codec, addr=addr,
+        super().__init__(log_level=log_level, logging_kwargs=logging_kwargs,
+                         codec=codec, addr=addr,
                          proto_msgs_module=proto_msgs_module, loop=loop,
                          name=client_id)
 
@@ -760,6 +775,7 @@ class TCPContainer(Container):
     """
     def __init__(self, *, addr: Tuple[str, int], codec: str,
                  loop: asyncio.AbstractEventLoop, log_level: int,
+                 logging_kwargs: Dict[str, Any] = None,
                  proto_msgs_module=None):
         """
         Initializes a TCP container. Do not directly call this method but use
@@ -768,10 +784,14 @@ class TCPContainer(Container):
         :param codec: The codec to use
         :param loop: Current event loop
         :param log_level: The log level to use
+        :param logging_kwargs: Dictionary, in which logging details can be
+        specified. Kwargs are passed to m_util.configure_logger(). Possible
+        kwargs are 'log_file': str, 'csv_format': bool, 'log_file_mode': str
         :param proto_msgs_module: The module for proto msgs in case of
         proto as codec
         """
-        super().__init__(addr=addr, log_level=log_level, codec=codec,
+        super().__init__(addr=addr, log_level=log_level,
+                         logging_kwargs=logging_kwargs, codec=codec,
                          proto_msgs_module=proto_msgs_module, loop=loop,
                          name=f'{addr[0]}:{addr[1]}')
 

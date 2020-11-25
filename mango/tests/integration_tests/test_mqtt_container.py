@@ -232,9 +232,11 @@ async def simple_mqtt_agents_setup(no_container, broker, inbox_1='inbox_1',
         'broker_addr': broker,
         'clean_session': False,
     }
-    container1 = await Container.factory(connection_type='mqtt',
-        log_level=logging.DEBUG, addr=inbox_1, codec=codec,
-        proto_msgs_module=proto_msgs, mqtt_kwargs=mqtt_kwargs_1)
+
+    container1 = await Container.factory(
+        connection_type='mqtt',
+        log_level=logging.DEBUG, addr=inbox_1,
+        codec=codec, proto_msgs_module=proto_msgs, mqtt_kwargs=mqtt_kwargs_1)
 
 
     agent_a = SimpleMQTTAgent(container1, codec=codec, acl=acl)
