@@ -5,6 +5,9 @@ import pytest
 from mango.core.container import Container
 from mango.core.agent import Agent
 from mango.messages import other_proto_msgs_pb2 as other_proto_msg
+from mango.messages import acl_message_pb2 as acl_proto_msg
+from mango.messages.message import ACLMessage as ACLMessage, \
+    Performatives
 
 FIRST_GREETING_META = {
     'reply_by': 'greeting',
@@ -222,10 +225,12 @@ async def simple_mqtt_agents_setup(no_container, broker, inbox_1='inbox_1',
     mqtt_kwargs_1 = {
         'client_id': 'container_1',
         'broker_addr': broker,
+        'transport': 'tcp',
     }
     mqtt_kwargs_2 = {
         'client_id': 'container_2',
         'broker_addr': broker,
+        'clean_session': False,
     }
     container1 = await Container.factory(connection_type='mqtt',
         log_level=logging.DEBUG, addr=inbox_1, codec=codec,
