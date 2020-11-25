@@ -1,74 +1,52 @@
 """This module contains all helper function for the mango framework"""
+import csv
 import logging
+import io
+from datetime import datetime
 
-FIELD_STYLES = dict(
-    asctime=dict(color='cyan'),
-    hostname=dict(color='magenta'),
-    levelname=dict(color='blue', bold=False),
-    programname=dict(color='cyan'),
-    name=dict(color='magenta'),
-    module=dict(color='cyan'),
-    lineno=dict(color='magenta'),
-    process=dict(color='blue'),
-    message=dict(color='white'),
-    message_type=dict(color='green')
-)
-MESSAGE_TYPES = ['received', 'handling', 'request', 'sending']
-
-LEVEL_STYLES = {
-    'DEBUG': {"color": "blue"},
-    'INFO': {"color": "black"},
-    'WARNING': {"color": "yellow"},
-    'ERROR': {"color": "red"},
-    'CRITICAL': {"color": 'red'}
-}
-
-LEVEL_FORMATS = {
-    "INFO": "%(asctime)s - %(process)d: %(name)s  %(message_type)s  %("
-            "message)s",
-    # "INFO": "%(levelname)s - %(message)s",
-    # "INFO": '%(asctime)s %(hostname)s %(name)s[%(process)d] %(levelname)s
-    # %(message)s',
-    "DEBUG": "%(asctime)s - %(levelname)s - "
-             "%(module)s::%(funcName)s @ %(lineno)d - %(message)s",
-    "WARNING": "%(message)s",
-    "SIMULATION": "%(message)s",
-}
-
-
-def configure_logger(name, log_level):
+def configure_logger(name, log_level, log_file=None,
+                     csv_format=False, log_file_mode='w'):
     """
-    configure a custom python logger
+    Configure a custom python logger
     :param name: name of the logger
     :param log_level: current log level
-    :return:
+    param log_file: file the log should be written to, if not specified the
+    log will only be displayed in the terminal
+    :param log_file: file the log should be written to, if not specified the
+    log will only be displayed in the terminal
+    :param csv_format: if true use a csv Formatter
+    :param log_file_mode: mode to open log file. (Also set by env variable.)
+    :return: the logger object
     """
-    log_format = LEVEL_FORMATS[logging.getLevelName(log_level)]
     log = logging.getLogger(name)
     log.setLevel(log_level)
 
-    field_styles = FIELD_STYLES.copy()
-    m_type_filter = ContextFilter(MESSAGE_TYPES)
-    log.addFilter(m_type_filter)
+    if log_file is not None:
+        for handler in logging.root.handlers[:]:
+            logging.root.removeHandler(handler)
+
+        hdlr = logging.FileHandler(log_file, mode=log_file_mode)
+        if csv_format:
+            hdlr.setFormatter(CsvFormatter())
+        log.addHandler(hdlr)
     return log
 
-
-class ContextFilter(logging.Filter):
+class CsvFormatter(logging.Formatter):
     """
-    This is a filter which injects contextual information into the log.
+    Formats logging messages in a csv style
     """
-
-    def __init__(self, custom_fields):
+    def __init__(self):
         super().__init__()
-        self.custom_fields = custom_fields
+        self.output = io.StringIO()
+        self.writer = csv.writer(self.output, delimiter=';')
 
-    def filter(self, record):
-        has_message_type = False
-        for message_type in self.custom_fields:
-            if message_type in record.msg.lower():
-                has_message_type = True
-                record.message_type = message_type
-                break
-        if not has_message_type:
-            record.message_type = ''
-        return True
+    def format(self, record):
+        msg = record.msg.split(';')
+        # put time stamp and datetime as first two items in seconds
+        row = [int(record.created), datetime.fromtimestamp(record.created)]
+        row.extend(msg)
+        self.writer.writerow(row)
+        data = self.output.getvalue()
+        self.output.truncate(0)
+        self.output.seek(0)
+        return data.strip()
