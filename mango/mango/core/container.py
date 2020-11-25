@@ -499,7 +499,7 @@ class MQTTContainer(Container):
 
         def on_discon(client, userdata, rc):
             if rc != 0:
-                self.logger.info('Unexpected disconnect from broker.'
+                self.logger.warning('Unexpected disconnect from broker.'
                                  'Trying to reconnect')
             else:
                 self.logger.debug('Successfully disconnected from broker.')
@@ -609,7 +609,7 @@ class MQTTContainer(Container):
         """
 
         topic = meta['topic']
-
+        self.logger.debug(f"recived message {msg_content} with meta {meta}")
         if topic == self.inbox_topic:
             # General inbox topic, so no receiver is speciefied by the topic
             # try to find the receiver from meta
