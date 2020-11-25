@@ -80,6 +80,16 @@ class Container(ABC):
             if not broker_addr:
                 raise ValueError('broker_addr is requested within mqtt_kwargs')
 
+            # get parameters for Client.init()
+            init_kwargs = {}
+            possible_init_kwargs = ('clean_session', 'userdata', 'protocol',
+                                    'transport')
+            for possible_kwarg in possible_init_kwargs:
+                if possible_kwarg in mqtt_kwargs.keys():
+                    init_kwargs[possible_kwarg] = \
+                        mqtt_kwargs.pop(possible_kwarg)
+
+
             # check if addr is a valid topic without wildcards
             if addr is not None and \
                     (not isinstance(addr, str) or '#' in addr or '+' in addr):
@@ -88,7 +98,9 @@ class Container(ABC):
                                  'any wildcards (\'#\' or \'+\')')
 
             # create paho.Client object for mqtt communication
-            mqtt_messenger: paho.Client = paho.Client(client_id=client_id)
+            mqtt_messenger: paho.Client = paho.Client(
+                client_id=client_id,
+                **init_kwargs)
 
             # set TLS options if provided
             # expected as a dict:
