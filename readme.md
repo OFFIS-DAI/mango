@@ -41,8 +41,8 @@ Also, an agent does not hav to use function modules.
 Virtualenv:
 
 ```sh
-pip install -r <YOURPATH>\mango\requirements.txt
-pip install -e <YOURPATH>\mango
+pip install -r <YOURPATH>/mango/requirements.txt
+pip install -e <YOURPATH>/mango
 ```
 
 Requirements:
