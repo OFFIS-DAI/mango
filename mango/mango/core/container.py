@@ -801,9 +801,6 @@ class TCPContainer(Container):
                          name=f'{addr[0]}:{addr[1]}')
 
         self.server = None  # will be set within the factory method
-
-        self.logger.debug(f'Start running...')
-        self._check_inbox_task = asyncio.create_task(self._check_inbox())
         self.running = True
 
     async def _handle_msg(self, *,
