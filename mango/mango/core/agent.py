@@ -7,7 +7,7 @@ Every agent must live in a container. Containers are responsible for making
 import asyncio
 from abc import ABC, abstractmethod
 from typing import Any, Dict
-
+# import mango.core.container
 from ..util import m_util as ut
 
 
@@ -16,37 +16,32 @@ class Agent(ABC):
 
     def __init__(self, container):
         """Initialize an agent and register it with its container
-        :param container:
+        :param container: The container that the agent lives in. Must be a Container
         """
-        # if not isinstance(container, Container):
+        # if not isinstance(container, mango.core.container.Container):
         #     raise TypeError('"container" must be a "Container" instance but '
         #                     'is {}'.format(container))
-        aid = container.register_agent(self)
+        aid = container._register_agent(self)
         self._container = container
         self._aid = aid
 
         # get customized logger
         self.agent_logger = ut.configure_logger(f'{self._aid}',
                                                 self._container.log_level)
-
         self.inbox = asyncio.Queue()
-
         self._check_inbox_task = asyncio.create_task(self._check_inbox())
-
         self._check_inbox_task.add_done_callback(self.raise_exceptions)
-
         self.stopped = asyncio.Future()
-        self.agent_logger.debug('Start running')
+        self.agent_logger.info('Agent starts running')
 
-    def raise_exceptions(self, result):
+    def raise_exceptions(self, fut: asyncio.Future):
         """
         Inline function used as a callback to raise exceptions
-        :param result: result of the task
+        :param fut: The Future object of the task
         """
-        exception = result.exception()
-        if exception is not None:
-            self.agent_logger.info('Caught exception in _check_inbox.')
-            raise exception
+        if fut.exception() is not None:
+            self.agent_logger.error('Caught the following exception in _check_inbox: %s', fut.exception())
+            raise fut.exception()
 
     @property
     def aid(self):
