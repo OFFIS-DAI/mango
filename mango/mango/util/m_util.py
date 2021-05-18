@@ -4,6 +4,7 @@ import logging
 import io
 from datetime import datetime
 
+
 def configure_logger(name, log_level, log_file=None,
                      csv_format=False, log_file_mode='w'):
     """
@@ -30,6 +31,7 @@ def configure_logger(name, log_level, log_file=None,
             hdlr.setFormatter(CsvFormatter())
         log.addHandler(hdlr)
     return log
+
 
 class CsvFormatter(logging.Formatter):
     """
