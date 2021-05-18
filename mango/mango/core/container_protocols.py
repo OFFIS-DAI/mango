@@ -78,8 +78,7 @@ class ContainerProtocol(asyncio.Protocol):
             # We may have more then one message in the buffer,
             # so we loop over the buffer until we got all complete messages.
 
-            if self._required_read_size is None and len(
-                self._buffer) >= HEADER.size:
+            if self._required_read_size is None and len(self._buffer) >= HEADER.size:
                 # Received the complete header of a new message
                 # self.log.debug('Received complete header')
 
