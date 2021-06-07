@@ -1,0 +1,16 @@
+image: python:3.8.10
+
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+
+before_script:
+  - pip3 install -r mango/requirements.txt
+  - pip3 install -e mango
+  - pip3 install pytest
+
+check-job:
+  stage: test
+  script:
+  - cd mango 
+  - pytest
+
