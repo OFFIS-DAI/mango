@@ -818,7 +818,7 @@ class TCPContainer(Container):
         :param meta:
         :return:
         """
-        self.logger.debug(f'Received msg with content and meta;{json.dumps(msg_content)};{json.dumps(meta)}')
+        self.logger.debug(f'Received msg with content and meta;{msg_content};{meta}')
         receiver_id = meta.get('receiver_id', None)
         if receiver_id and receiver_id in self._agents.keys():
             receiver = self._agents[receiver_id]
