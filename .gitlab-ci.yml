@@ -4,16 +4,29 @@ variables:
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
 
 before_script:
-  - pip3 install -r mango/requirements.txt
-  - pip3 install -e mango
+  - cd mango 
   - pip3 install pytest
+  - pip3 install pylint
+  - pip3 install flake8
   - apt update
   - apt install --assume-yes mosquitto
   - service mosquitto start
 
+build-job:
+  stage: build
+  script:
+  - pip3 install -r mango/requirements.txt
+  - pip3 install -e mango
+
 check-job:
   stage: test
   script:
-  - cd mango 
   - pytest
 
+pylint-job:
+  stage: test
+  script:         
+    - pylint mango
+  allow_failure: 
+    exit_codes: 
+      - 1
