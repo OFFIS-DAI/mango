@@ -3,8 +3,16 @@ image: python:3.8.10
 variables:
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
 
+cache:
+  paths:
+    - .cache/pip
+    - venv/
+
 before_script:
   - cd mango 
+  - pip install virtualenv
+  - virtualenv venv
+  - source venv/bin/activate
   - pip3 install pytest
   - pip3 install pylint
   - pip3 install flake8
