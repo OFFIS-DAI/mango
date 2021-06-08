@@ -15,8 +15,8 @@ before_script:
 build-job:
   stage: build
   script:
-  - pip3 install -r mango/requirements.txt
-  - pip3 install -e mango
+  - pip3 install -r requirements.txt
+  - pip3 install -e 
 
 check-job:
   stage: test
