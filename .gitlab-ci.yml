@@ -16,7 +16,7 @@ build-job:
   stage: build
   script:
   - pip3 install -r requirements.txt
-  - pip3 install -e 
+  - pip3 install -e .
 
 check-job:
   stage: test
