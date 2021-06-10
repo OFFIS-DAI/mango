@@ -51,7 +51,7 @@ class PingRole(ReactiveRole):
         return content == 'pong'
 
     def setup(self, agent_context : RoleAgentContext):
-        for task in list(map(lambda a: DateTimeScheduledTask(datetime.datetime.now(), self.send_ping_to_other(a[0], a[1], agent_context)), self._addr)):
+        for task in list(map(lambda a: DateTimeScheduledTask(self.send_ping_to_other(a[0], a[1], agent_context), datetime.datetime.now()), self._addr)):
             agent_context.schedule_task(task)
 
     async def send_ping_to_other(self, other_addr, other_id, agent_context):

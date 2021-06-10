@@ -32,21 +32,21 @@ class PeriodicScheduledTask(ScheduledTask):
     which will get executed periodically with a specified delay.
     """
 
-    def __init__(self, coroutine, delay):
+    def __init__(self, coroutine_func, delay):
         self._stopped = False
-        self._coroutine = coroutine
+        self._coroutine_func = coroutine_func
         self._delay = delay
 
     async def run(self):
         while not self._stopped:
-            await self._coroutine
-            asyncio.sleep(self._delay)
+            await self._coroutine_func()
+            await asyncio.sleep(self._delay)
 
 class DateTimeScheduledTask(ScheduledTask):
     """DateTime based one-shot task. This task will get executed using a given datetime-object.
     """
 
-    def __init__(self, dt: datetime, coroutine):
+    def __init__(self, coroutine, dt: datetime):
         self._delay = dt
         self._coro = coroutine
         
@@ -74,6 +74,7 @@ class Scheduler:
         l_task.add_done_callback(task.on_stop)
         l_task.add_done_callback(self._remove_task)
         self._scheduled_tasks.append(l_task)
+        return l_task
 
     def _remove_task(self, fut = asyncio.Future):
         self._scheduled_tasks.remove(fut)
