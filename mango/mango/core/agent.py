@@ -9,6 +9,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict
 # import mango.core.container
 from ..util import m_util as ut
+from ..util.scheduling import ScheduledTask, Scheduler
 
 
 class Agent(ABC):
@@ -32,7 +33,24 @@ class Agent(ABC):
         self._check_inbox_task = asyncio.create_task(self._check_inbox())
         self._check_inbox_task.add_done_callback(self.raise_exceptions)
         self.stopped = asyncio.Future()
+        self._scheduled_tasks = []
+        self._scheduler = Scheduler()
         self.agent_logger.info('Agent starts running')
+
+    def schedule_task(self, task: ScheduledTask):
+        """Schedule a task with asyncio. When the task is finished, if finite, its automatically removed afterwards. 
+        For scheduling options see the subclasses of ScheduledTask.
+
+        Args:
+            task (ScheduledTask): task to be scheduled
+        """
+        l_task = asyncio.create_task(task.run())
+        l_task.add_done_callback(task.on_stop)
+        l_task.add_done_callback(lambda: self._scheduled_tasks.remove(l_task))
+        self._scheduled_tasks.append(l_task)
+
+    async def tasks_complete(self, timeout=1):
+        await self._scheduler.tasks_complete()
 
     def raise_exceptions(self, fut: asyncio.Future):
         """
@@ -91,9 +109,12 @@ class Agent(ABC):
         if self._container.running:
             self._container.deregister_agent(self._aid)
         try:
+            # Shutdown reactive inbox task
             self._check_inbox_task.remove_done_callback(self.raise_exceptions)
             self._check_inbox_task.cancel()
             await self._check_inbox_task
+
+            await self._scheduler.stop()
         except asyncio.CancelledError:
             pass
         finally:
