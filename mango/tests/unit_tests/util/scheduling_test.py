@@ -19,6 +19,7 @@ async def test_periodic():
     assert len(l) == 2
 
 @pytest.mark.asyncio
+@pytest.mark.filterwarnings('ignore::RuntimeWarning') # this test will stop the coro before scheduler awaits for it
 async def test_one_shot_timeouted():
     scheduler = Scheduler()
     l = []
