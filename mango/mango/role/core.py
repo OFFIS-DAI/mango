@@ -15,9 +15,10 @@ class RoleHandler:
         self._role_model_type_to_subs = {}
 
     def get_or_create_model(self, cls):
-        if self._role_models[cls] is not None:
+        if cls in self._role_models:
             return self._role_models[cls]
         
+        print(type(RoleHandler())())
         self._role_models[cls] = cls()
         return self._role_models[cls]
 
@@ -26,19 +27,21 @@ class RoleHandler:
         self._role_models[role_model_type] = role_model
 
         # Notify all subscribing agents
-        for role in list(filter(lambda r: r in self._role_model_type_to_subs[role_model_type])):
-            role.on_change_model(role_model, self, context)
+        if role_model_type in self._role_model_type_to_subs:
+            for role in self._role_model_type_to_subs[role_model_type]:
+                role.on_change_model(role_model, context)
 
     def subscribe(self, role, role_model_type):
-        if self._role_model_type_to_subs[role_model_type] is not None:
+        if role_model_type in self._role_model_type_to_subs:
             self._role_model_type_to_subs[role_model_type].append(role)
         else: 
             self._role_model_type_to_subs[role_model_type] = [role]
 
-    def _add_role(self, role):
+    def add_role(self, role):
         self._roles.append(role)
 
-    def _get_roles(self):
+    @property
+    def roles(self):
         return self._roles
 
     async def _on_stop(self):
@@ -64,10 +67,10 @@ class RoleAgentContext:
         self._role_handler.subscribe(role, role_model_type)
 
     def _add_role(self, role):
-        self._role_handler._add_role(role)
+        self._role_handler.add_role(role)
 
     def handle_msg(self, content, meta: Dict[str, Any]):
-        for role in list(filter(lambda r: r.is_applicable(content, meta), self._role_handler._get_roles())):
+        for role in list(filter(lambda r: r.is_applicable(content, meta), self._role_handler.roles)):
             role.handle_msg(content, meta, self)
 
     def schedule_task(self, task):
@@ -118,8 +121,9 @@ class RoleAgent(Agent):
         # Setup role
         role.setup(self._agent_context)
 
-    def get_roles(self):
-        return self._role_handler._get_roles()
+    @property
+    def roles(self):
+        return self._role_handler.roles()
 
     def handle_msg(self, content, meta: Dict[str, Any]):
         self._agent_context.handle_msg(content, meta)
