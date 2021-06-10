@@ -29,7 +29,7 @@ check-job:
     - service mosquitto start
     - pip3 install pytest
     - pip3 install coverage
-    - coverage run -m pytest
+    - coverage run --source ./mango -m pytest
     - coverage report
 
 pylint-job:
