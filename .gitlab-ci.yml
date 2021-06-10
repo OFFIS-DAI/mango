@@ -28,7 +28,9 @@ check-job:
     - apt install --assume-yes mosquitto
     - service mosquitto start
     - pip3 install pytest
-    - pytest
+    - pip3 install coverage
+    - coverage run -m pytest
+    - coverage report
 
 pylint-job:
   stage: test
