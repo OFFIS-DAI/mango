@@ -57,6 +57,10 @@ class DateTimeScheduledTask(ScheduledTask):
         await self._wait(self._delay)
         return await self._coro
 
+class InstantScheduledTask(DateTimeScheduledTask):
+
+    def __init__(self, coroutine):
+        super().__init__(coroutine, datetime.datetime.now())
 
 class Scheduler:
 

@@ -4,8 +4,9 @@
 
 from typing import Any, Dict, Optional, Union, Tuple
 
+from ..util.scheduling import ScheduledTask
 from ..core.agent import Agent
-from .role import Role
+from .role import Role, RoleContext
 
 class RoleHandler:
 
@@ -49,13 +50,14 @@ class RoleHandler:
             await role.on_stop()
 
 
-class RoleAgentContext:
+class RoleAgentContext(RoleContext):
 
     def __init__(self, container, role_handler: RoleHandler, aid, scheduler):
         self._role_handler = role_handler
         self._container = container
         self._aid = aid
         self._scheduler = scheduler
+        self._message_subs = {}
 
     def get_or_create_model(self, cls):
         return self._role_handler.get_or_create_model(cls)
@@ -63,17 +65,26 @@ class RoleAgentContext:
     def update(self, role_model):
         self._role_handler.update(role_model, self)
 
-    def subscribe(self, role, role_model_type):
+    def subscribe_model(self, role, role_model_type):
         self._role_handler.subscribe(role, role_model_type)
+
+    def subscribe_message(self, role, method, message_condition):
+        if role in self._message_subs:
+            self._message_subs[role].append((message_condition, method))
+        else:    
+            self._message_subs[role] = [(message_condition, method)]
 
     def _add_role(self, role):
         self._role_handler.add_role(role)
 
     def handle_msg(self, content, meta: Dict[str, Any]):
-        for role in list(filter(lambda r: r.is_applicable(content, meta), self._role_handler.roles)):
-            role.handle_msg(content, meta, self)
+        for role in self._role_handler.roles:
+            if role in self._message_subs:
+                for (condition, method) in self._message_subs[role]:
+                    if (condition(content, meta)):
+                        method(content, meta)
 
-    def schedule_task(self, task):
+    def schedule_task(self, task : ScheduledTask):
         self._scheduler.schedule_task(task)
 
     async def send_message(self, content,
@@ -100,10 +111,12 @@ class RoleAgentContext:
                                      acl_metadata = acl_metadata, 
                                      mqtt_kwargs = mqtt_kwargs)
 
-    def get_addr(self):
+    @property
+    def addr(self):
         return self._container.addr
 
-    def get_aid(self):
+    @property
+    def aid(self):
         return self._aid
 
 
@@ -116,10 +129,11 @@ class RoleAgent(Agent):
         self._agent_context = RoleAgentContext(container, self._role_handler, self.aid, self._scheduler)
         
     def add_role(self, role: Role):
+        role.bind(self._agent_context)
         self._agent_context._add_role(role)
         
         # Setup role
-        role.setup(self._agent_context)
+        role.setup()
 
     @property
     def roles(self):

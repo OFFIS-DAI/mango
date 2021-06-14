@@ -3,25 +3,25 @@ import pytest
 import asyncio
 from typing import Dict, Any
 from mango.core.container import Container
-from mango.role.role import ReactiveRole
+from mango.role.role import RoleContext, SimpleReactiveRole
 from mango.role.core import RoleAgent, RoleAgentContext
 from mango.util.scheduling import DateTimeScheduledTask
 
-class PongRole(ReactiveRole):
+class PongRole(SimpleReactiveRole):
     def __init__(self):
         self.sending_tasks = []
 
-    def handle_msg(self, content, meta: Dict[str, Any], context):
+    def handle_msg(self, content, meta: Dict[str, Any]):
         assert 'sender_addr' in meta.keys() and 'sender_id' in meta.keys()
 
         # get addr and id from sender
         receiver_host, receiver_port = meta['sender_addr']
         receiver_id = meta['sender_id']
         # send back pong, providing your own details
-        t = asyncio.create_task(context.send_message(
+        t = asyncio.create_task(self.context.send_message(
             content='pong', receiver_addr=(receiver_host, receiver_port), receiver_id=receiver_id,
-            acl_metadata={'sender_addr': context.get_addr(),
-                            'sender_id': context.get_aid()},
+            acl_metadata={'sender_addr': self.context.addr,
+                            'sender_id': self.context.aid},
             create_acl=True)
         )        
         print("PING RECEIVE")
@@ -31,12 +31,12 @@ class PongRole(ReactiveRole):
     def is_applicable(self, content, meta):
         return content == 'ping'
 
-class PingRole(ReactiveRole):
+class PingRole(SimpleReactiveRole):
     def __init__(self, addr):
         self.open_ping_requests = {}
         self._addr = addr
 
-    def handle_msg(self, content, meta: Dict[str, Any], context):
+    def handle_msg(self, content, meta: Dict[str, Any]):
         assert 'sender_addr' in meta.keys() and 'sender_id' in meta.keys()
         # get host, port and id from sender
         sender_host, sender_port = meta['sender_addr']
@@ -50,16 +50,17 @@ class PingRole(ReactiveRole):
     def is_applicable(self, content, meta):
         return content == 'pong'
 
-    def setup(self, agent_context : RoleAgentContext):
-        for task in list(map(lambda a: DateTimeScheduledTask(self.send_ping_to_other(a[0], a[1], agent_context), datetime.datetime.now()), self._addr)):
-            agent_context.schedule_task(task)
+    def setup(self):
+        super().setup()
+        for task in list(map(lambda a: DateTimeScheduledTask(self.send_ping_to_other(a[0], a[1], self.context), datetime.datetime.now()), self._addr)):
+            self.context.schedule_task(task)
 
-    async def send_ping_to_other(self, other_addr, other_id, agent_context):
+    async def send_ping_to_other(self, other_addr, other_id, agent_context : RoleContext):
         # create
         self.open_ping_requests[(other_addr, other_id)] = asyncio.Future()
         success = await agent_context.send_message(
             content='ping', receiver_addr=other_addr, receiver_id=other_id,
-            acl_metadata={'sender_addr': agent_context.get_addr(), 'sender_id': agent_context.get_aid()},
+            acl_metadata={'sender_addr': agent_context.addr, 'sender_id': agent_context.aid},
             create_acl=True)
         assert success
 
