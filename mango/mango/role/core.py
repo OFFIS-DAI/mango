@@ -4,7 +4,7 @@
 
 from typing import Any, Dict, Optional, Union, Tuple
 
-from ..util.scheduling import ScheduledTask
+from ..util.scheduling import ScheduledTask, Scheduler
 from ..core.agent import Agent
 from .role import Role, RoleContext
 
@@ -52,12 +52,17 @@ class RoleHandler:
 
 class RoleAgentContext(RoleContext):
 
-    def __init__(self, container, role_handler: RoleHandler, aid, scheduler):
+    def __init__(self, container, role_handler: RoleHandler, aid: str, inbox, scheduler: Scheduler):
         self._role_handler = role_handler
         self._container = container
         self._aid = aid
         self._scheduler = scheduler
         self._message_subs = {}
+        self._send_msg_subs = {}
+        self._inbox = inbox
+
+    def inbox_length(self):
+        return len(self._inbox)
 
     def get_or_create_model(self, cls):
         return self._role_handler.get_or_create_model(cls)
@@ -73,6 +78,13 @@ class RoleAgentContext(RoleContext):
             self._message_subs[role].append((message_condition, method))
         else:    
             self._message_subs[role] = [(message_condition, method)]
+
+    @abstractmethod
+    def subscribe_send(self, role, method):
+        if role in self._send_msg_subs:
+            self._send_msg_subs[role].append(method)
+        else:    
+            self._send_msg_subs[role] = [method]
 
     def _add_role(self, role):
         self._role_handler.add_role(role)
@@ -104,7 +116,9 @@ class RoleAgentContext(RoleContext):
             acl_metadata (Optional[Dict[str, Any]], optional): Metadata of the acl. Defaults to None.
             mqtt_kwargs (Dict[str, Any], optional): Args for mqtt. Defaults to None.
         """
-        return await self._container.send_message(content = content, 
+            for role in self._send_msg_subs:
+                self._send_msg_subs[role](content, receiver_addr, receiver_id, create_acl, acl_metadata, mqtt_kwargs)
+            return await self._container.send_message(content = content, 
                                      receiver_addr = receiver_addr, 
                                      receiver_id = receiver_id, 
                                      create_acl = create_acl, 
@@ -126,7 +140,7 @@ class RoleAgent(Agent):
         super(RoleAgent, self).__init__(container)
 
         self._role_handler = RoleHandler()
-        self._agent_context = RoleAgentContext(container, self._role_handler, self.aid, self._scheduler)
+        self._agent_context = RoleAgentContext(container, self._role_handler, self.aid, self.inbox, self._scheduler)
         
     def add_role(self, role: Role):
         role.bind(self._agent_context)

@@ -24,6 +24,10 @@ class RoleContext(ABC):
         pass
 
     @abstractmethod
+    def subscribe_send(self, obj, method):
+        pass
+
+    @abstractmethod
     def schedule_task(self, task : ScheduledTask):
         pass
 
@@ -45,6 +49,9 @@ class RoleContext(ABC):
     def aid(self):
         pass
 
+    @abstractmethod
+    def inbox_length(self):
+        pass
 
 class Role(ABC):
 
@@ -77,7 +84,7 @@ class SimpleReactiveRole(Role):
         self.context.subscribe_message(self, self.handle_msg, self.is_applicable)
 
     @abstractmethod
-    def handle_msg(self, content, meta: Dict[str, Any], agent_context) -> None:
+    def handle_msg(self, content, meta: Dict[str, Any]) -> None:
         pass
 
     @abstractmethod
