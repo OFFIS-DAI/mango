@@ -1,6 +1,6 @@
 from mango.cohda.coalition import CoalitionModel
-from ..role.role import ProactiveRole, ReactiveRole, SimpleReactiveRole
-from typing import Dict, Any, List
+from ..role.role import ProactiveRole, SimpleReactiveRole
+from typing import Dict, Any, Tuple
 import copy
 from uuid import UUID
 from ..util.scheduling import InstantScheduledTask
@@ -15,6 +15,10 @@ class SolutionCandidate:
     @property
     def agent_id(self):
         return self._agent_id
+
+    @agent_id.setter
+    def agent_id(self, new_id):
+        self._agent_id = new_id
 
     @property
     def candidate(self):
@@ -56,12 +60,24 @@ class WorkingMemory:
     def solution_candidate(self):
         return self._solution_candidate
 
+    @solution_candidate.setter
+    def solution_candidate(self, new_solution_candidate):
+        self._solution_candidate = new_solution_candidate
+
 class CohdaMessage:
 
     def __init__(self, working_memory: WorkingMemory, coalition_id: UUID):
-        self.working_memory = working_memory
-        self.coalition_id = coalition_id
+        self._working_memory = working_memory
+        self._coalition_id = coalition_id
 
+    @property
+    def working_memory(self):
+        return self._working_memory
+
+    @property
+    def coalition_id(self):
+        return self._coalition_id
+        
 class CohdaNegotiationStarterRole(ProactiveRole):
 
     def __init__(self, target_schedule) -> None:
@@ -78,40 +94,42 @@ class CohdaNegotiationStarterRole(ProactiveRole):
         # Assume there is a exactly one coalition
         for neighbor in coalition_model.assignments[0].neighbors:
             await self.context.send_message(
-                content=CohdaMessage(WorkingMemory(self._target_schedule, {}, []), coalition_model.assignments[0].coalition_id), receiver_addr=neighbor[1], receiver_id=neighbor[2],
+                content=CohdaMessage(WorkingMemory(self._target_schedule, {}, SolutionCandidate(self.context.aid, {})), coalition_model.assignments[0].coalition_id), receiver_addr=neighbor[1], receiver_id=neighbor[2],
                 acl_metadata={'sender_addr': self.context.addr, 'sender_id': self.context.aid},
                 create_acl=True)
 
-class CohdaRole(SimpleReactiveRole):
 
-    def __init__(self, schedules_provider, local_acceptable_func):
-        self._schedules_provider = schedules_provider
-        self._is_local_acceptable = local_acceptable_func
-        self._selection_counter_map = {}
-        self._working_memory_map = {}
+class COHDA:
 
-    def handle_msg(self, content: CohdaMessage, meta: Dict[str, Any]):
-        if not self.context.get_or_create_model(CoalitionModel).exists(content.coalition_id):
-            return
+    def __init__(self, weights, schedule_provider, is_local_acceptable, part_id):
+        self._schedule_provider = schedule_provider
+        self._weights = weights
+        self._is_local_acceptable = is_local_acceptable
+        self._memory = WorkingMemory(None, {}, SolutionCandidate(part_id, {}))
+        self._counter = 0
+        self._part_id = part_id
 
-        assignment = self.context.get_or_create_model(CoalitionModel).by_id(content.coalition_id)
-        memory = self._working_memory_map[assignment.coalition_id]
-        selection_counter = self._selection_counter_map[assignment.coalition_id]
+    def decide(self, content: CohdaMessage) -> Tuple[WorkingMemory, WorkingMemory]:
+        memory = self._memory
+        selection_counter = self._counter
 
         if memory.target_schedule is None:
             memory.target_schedule = content.working_memory.target_schedule
 
-        message_system_config = content.working_memory.system_config
         message_solution_candidate = content.working_memory.solution_candidate
         our_solution_candidate = memory.solution_candidate
 
         old_working_memory = copy.deepcopy(memory)
-        own_schedule_selection_wm = memory.system_config[assignment.part_id]
 
-        known_part_ids = memory.system_config.keys()
-        given_part_ids = content.working_memory.system_config.keys()
+        if self._part_id not in memory.system_config:
+            memory.system_config[self._part_id] = ScheduleSelection(None, self._counter)
+            
+        own_schedule_selection_wm = memory.system_config[self._part_id]
 
-        for agent_id, their_selection in content.working_memory.system_config.iteritems():
+        known_part_ids = set(memory.system_config.keys())
+        given_part_ids = set(content.working_memory.system_config.keys())
+
+        for agent_id, their_selection in content.working_memory.system_config.items():
             if agent_id in memory.system_config:
                 our_selection = memory.system_config[agent_id]
                 if their_selection.counter > our_selection.counter:
@@ -132,11 +150,11 @@ class CohdaRole(SimpleReactiveRole):
             elif objective_message_candidate == objective_our_candidate and message_solution_candidate.agent_id > our_solution_candidate.agent_id:
                 our_solution_candidate = message_solution_candidate
 
-        possible_schedules = self._schedules_provider()
-        our_selected_schedule_in_solution = our_solution_candidate.candidate[assignment.part_id]
+        possible_schedules = self._schedule_provider()
+        our_selected_schedule_in_solution = our_solution_candidate.candidate[self._part_id] if self._part_id in our_solution_candidate.candidate else None
         found_new = False
         for schedule in possible_schedules:
-            our_solution_candidate.candidate[assignment.part_id] = schedule
+            our_solution_candidate.candidate[self._part_id] = schedule
             objective_tryout_candidate = self.objective_function(our_solution_candidate.candidate, memory.target_schedule)
             if objective_tryout_candidate > objective_our_candidate and self._is_local_acceptable(schedule):
                 our_selected_schedule_in_solution = schedule
@@ -147,27 +165,56 @@ class CohdaRole(SimpleReactiveRole):
             our_selected_schedule_in_solution = own_schedule_selection_wm
             found_new = True
         
-        memory.system_config[assignment.part_id] = our_selected_schedule_in_solution
+
         if found_new:
-            our_solution_candidate.agent_id = assignment.part_id
-            our_solution_candidate.counter += 1
+            memory.system_config[self._part_id] = ScheduleSelection(our_selected_schedule_in_solution, selection_counter + 1)
+            memory.solution_candidate = our_solution_candidate
+            our_solution_candidate.agent_id = self._part_id
+            our_solution_candidate.candidate[self._part_id] = our_selected_schedule_in_solution 
+            self._counter += 1
+        return (old_working_memory, memory)
 
-        if old_working_memory != memory:
-            for neighbor in assignment.neighbors:
-                asyncio.create_task(self.context.send_message(
-                    content=CohdaMessage(memory, assignment.coalition_id), receiver_addr=neighbor[1], receiver_id=neighbor[2],
-                    acl_metadata={'sender_addr': self.context.addr, 'sender_id': self.context.aid},
-                    create_acl=True))
 
-    def objective_function(self, cluster_schedule, target_schedule):
+    def objective_function(self, candidate, target_schedule):
         # Return the negative(!) sum of all deviations, because bigger scores
         # mean better plans (e.g., -1 is better then -10).
         # print('objective_function: ')
+        cluster_schedule = np.array(list(map(lambda item: item[1], candidate.items())))
         sum_cs = cluster_schedule.sum(axis=0)  # sum for each interval
         diff = np.abs(target_schedule - sum_cs)  # deviation to the target schedeule
-        w_diff = diff * self.weights  # multiply with weight vector
+        w_diff = diff * self._weights  # multiply with weight vector
         result = -np.sum(w_diff)
         return result
+
+
+class COHDARole(SimpleReactiveRole):
+
+    def __init__(self, schedules_provider, weights, local_acceptable_func):
+        self._schedules_provider = schedules_provider
+        self._is_local_acceptable = local_acceptable_func
+        self._weights = weights
+        self._cohda = {}
+
+    def create_cohda(self, part_id):
+        return COHDA(self._weights, self._schedules_provider, self._is_local_acceptable, part_id)
+
+    def handle_msg(self, content: CohdaMessage, meta: Dict[str, Any]):
+        if not self.context.get_or_create_model(CoalitionModel).exists(content.coalition_id):
+            return
+
+        assignment = self.context.get_or_create_model(CoalitionModel).by_id(content.coalition_id)
+
+        if content.coalition_id not in self._cohda:
+            self._cohda[content.coalition_id] = self.create_cohda(assignment.part_id)
+
+        (old, new) = self._cohda[content.coalition_id].decide(content)
+
+        if old != new:
+            for neighbor in assignment.neighbors:
+                asyncio.create_task(self.context.send_message(
+                    content=CohdaMessage(new, assignment.coalition_id), receiver_addr=neighbor[1], receiver_id=neighbor[2],
+                    acl_metadata={'sender_addr': self.context.addr, 'sender_id': self.context.aid},
+                    create_acl=True))
 
     def is_applicable(self, content, meta):
         return type(content) == CohdaMessage 

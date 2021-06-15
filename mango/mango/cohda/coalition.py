@@ -160,9 +160,12 @@ class CoalitionParticipantRole(Role):
 
     def handle_invite(self, content, meta: Dict[str, Any]) -> None:
         asyncio.create_task(self.context.send_message(
-                content=CoaltitionResponse(True), receiver_addr=meta['sender_addr'], receiver_id=meta['sender_id'],
+                content=CoaltitionResponse(self.want_to_join()), receiver_addr=meta['sender_addr'], receiver_id=meta['sender_id'],
                 acl_metadata={'sender_addr': self.context.addr, 'sender_id': self.context.aid},
                 create_acl=True))
+
+    def want_to_join(self):
+        return True
 
     def handle_assignment(self, content: CoalitionAssignment, meta: Dict[str, Any]) -> None:
         assignment = self.context.get_or_create_model(CoalitionModel)
