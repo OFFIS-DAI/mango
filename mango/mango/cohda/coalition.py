@@ -2,16 +2,24 @@ from uuid import UUID
 import asyncio, uuid
 from mango.role.role import ProactiveRole, Role, RoleContext
 
-from typing import Dict, Any
+from typing import Dict, Any, List
 from mango.util.scheduling import InstantScheduledTask
 
 class CoalitionAssignment:
 
-    def __init__(self, coalition_id: UUID, neighbors: list((int, str, str)), topic: str, part_id: int):
+    def __init__(self, 
+                 coalition_id: UUID, 
+                 neighbors: list((int, str, str)), 
+                 topic: str, 
+                 part_id: int,
+                 controller_agent_id: str,
+                 controller_agent_addr):
         self._coalition_id = coalition_id
         self._neighbors = neighbors
         self._topic = topic
         self._part_id = part_id
+        self._controler_agent_id = controller_agent_id
+        self._controler_agent_addr = controller_agent_addr
 
     @property
     def coalition_id(self):
@@ -22,12 +30,20 @@ class CoalitionAssignment:
         return self._neighbors
 
     @property
-    def neighbors(self):
+    def topic(self):
         return self._topic
 
     @property
     def part_id(self):
         return self._part_id
+
+    @property
+    def controller_agent_id(self):
+        return self._controler_agent_id
+
+    @property
+    def controller_agent_addr(self):
+        return self._controler_agent_addr
 
 
 class CoalitionModel:
@@ -36,11 +52,11 @@ class CoalitionModel:
         self._assignments = {}
 
     @property
-    def assignments(self) -> list(CoalitionAssignment):
+    def assignments(self) -> Dict[UUID, CoalitionAssignment]:
         return self._assignments
 
     def add(self, id: UUID, assignment: CoalitionAssignment):
-        self._assignments.append(assignment)
+        self._assignments[id] = assignment
 
     def by_id(self, id: UUID) -> CoalitionAssignment:
         return self._assignments[id]
@@ -78,7 +94,7 @@ class CoaltitionResponse:
         return self._accept
 
 
-def clique_creator(participants: list(tuple(str, str))):
+def clique_creator(participants: List):
     part_to_neighbors = {}
     for part in participants:
         part_to_neighbors[part] = list(filter(lambda p: p != part, participants)) 
@@ -86,7 +102,7 @@ def clique_creator(participants: list(tuple(str, str))):
 
 class CoalitionInitiatorRole(ProactiveRole):
 
-    def __init__(self, participants: list((str, str)), topic: str, details, topology_creator = clique_creator):
+    def __init__(self, participants: List, topic: str, details: str, topology_creator = clique_creator):
         self._participants = participants
         self._topic = topic
         self._details = details
@@ -107,7 +123,7 @@ class CoalitionInitiatorRole(ProactiveRole):
         for participant in self._participants:
             await agent_context.send_message(
                 content=CoalitionInvite(self._coal_id, self._topic), receiver_addr=participant[0], receiver_id=participant[1],
-                acl_metadata={'sender_addr': agent_context.get_addr(), 'sender_id': agent_context.get_aid()},
+                acl_metadata={'sender_addr': agent_context.addr, 'sender_id': agent_context.aid},
                 create_acl=True)
 
     def handle_msg(self, content : CoaltitionResponse, meta: Dict[str, Any]) -> None:
@@ -123,12 +139,12 @@ class CoalitionInitiatorRole(ProactiveRole):
         for part in self._participants:
             if part in self._part_to_state and self._part_to_state[part]:
                 part_id += 1
-                accepted_participants.append(part_id + part)
+                accepted_participants.append((part_id, part[0], part[1]))
 
         part_to_neighbors = self._topology_creator(accepted_participants)
         for part in accepted_participants:
             asyncio.create_task(agent_context.send_message(
-                content=CoalitionAssignment(self._coal_id, part_to_neighbors[part], self._topic), receiver_addr=part[0], receiver_id=part[1],
+                content=CoalitionAssignment(self._coal_id, part_to_neighbors[part], self._topic, part[0], agent_context.aid, agent_context.addr), receiver_addr=part[1], receiver_id=part[2],
                 acl_metadata={'sender_addr': agent_context.addr, 'sender_id': agent_context.aid},
                 create_acl=True))
 
@@ -150,5 +166,5 @@ class CoalitionParticipantRole(Role):
 
     def handle_assignment(self, content: CoalitionAssignment, meta: Dict[str, Any]) -> None:
         assignment = self.context.get_or_create_model(CoalitionModel)
-        assignment.add(content.coalition_id, assignment)
+        assignment.add(content.coalition_id, content)
         self.context.update(assignment)

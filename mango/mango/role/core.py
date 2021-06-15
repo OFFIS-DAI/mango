@@ -19,7 +19,6 @@ class RoleHandler:
         if cls in self._role_models:
             return self._role_models[cls]
         
-        print(type(RoleHandler())())
         self._role_models[cls] = cls()
         return self._role_models[cls]
 
@@ -79,7 +78,6 @@ class RoleAgentContext(RoleContext):
         else:    
             self._message_subs[role] = [(message_condition, method)]
 
-    @abstractmethod
     def subscribe_send(self, role, method):
         if role in self._send_msg_subs:
             self._send_msg_subs[role].append(method)
@@ -116,14 +114,14 @@ class RoleAgentContext(RoleContext):
             acl_metadata (Optional[Dict[str, Any]], optional): Metadata of the acl. Defaults to None.
             mqtt_kwargs (Dict[str, Any], optional): Args for mqtt. Defaults to None.
         """
-            for role in self._send_msg_subs:
-                self._send_msg_subs[role](content, receiver_addr, receiver_id, create_acl, acl_metadata, mqtt_kwargs)
-            return await self._container.send_message(content = content, 
-                                     receiver_addr = receiver_addr, 
-                                     receiver_id = receiver_id, 
-                                     create_acl = create_acl, 
-                                     acl_metadata = acl_metadata, 
-                                     mqtt_kwargs = mqtt_kwargs)
+        for role in self._send_msg_subs:
+            self._send_msg_subs[role](content, receiver_addr, receiver_id, create_acl, acl_metadata, mqtt_kwargs)
+        return await self._container.send_message(content = content, 
+                                    receiver_addr = receiver_addr, 
+                                    receiver_id = receiver_id, 
+                                    create_acl = create_acl, 
+                                    acl_metadata = acl_metadata, 
+                                    mqtt_kwargs = mqtt_kwargs)
 
     @property
     def addr(self):
@@ -151,7 +149,7 @@ class RoleAgent(Agent):
 
     @property
     def roles(self):
-        return self._role_handler.roles()
+        return self._role_handler.roles
 
     def handle_msg(self, content, meta: Dict[str, Any]):
         self._agent_context.handle_msg(content, meta)
