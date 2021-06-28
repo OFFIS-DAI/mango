@@ -113,6 +113,7 @@ class CoalitionInitiatorRole(ProactiveRole):
     def setup(self):
         # subscriptions
         self.context.subscribe_message(self, self.handle_msg, lambda c, m: type(c) == CoaltitionResponse)
+        self.context.subscribe_message(self, self.handle_msg, lambda c, m: type(c) == CoaltitionResponse)
 
         # tasks
         self.context.schedule_task(InstantScheduledTask(self.send_invitiations(self.context)))
