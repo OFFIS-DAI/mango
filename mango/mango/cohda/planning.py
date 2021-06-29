@@ -1,12 +1,8 @@
-from mango.cohda.coalition import CoalitionModel
-from mango.cohda.negotiation import *
-from ..role.role import ProactiveRole, SimpleReactiveRole
+from mango.cohda.negotiation import NegotiationParticipant, NegotiationStarterRole, Negotiation
+from mango.cohda.coalition import CoalitionAssignment
 from typing import Dict, Any, Tuple
 import copy
-from uuid import UUID
-from ..util.scheduling import InstantScheduledTask
 import numpy as np
-import asyncio
 
 class SolutionCandidate:
     def __init__(self, agent_id: int, candidate: Dict[int, np.array]) -> None:
@@ -86,7 +82,7 @@ class CohdaMessage:
 class CohdaNegotiationStarterRole(NegotiationStarterRole):
 
     def __init__(self, target_schedule) -> None:
-        super.__init__(lambda assignment: CohdaMessage(WorkingMemory(target_schedule, {}, SolutionCandidate(assignment.part_id, {}))))
+        super().__init__(lambda assignment: CohdaMessage(WorkingMemory(target_schedule, {}, SolutionCandidate(assignment.part_id, {}))))
 
 class COHDA:
 
@@ -193,13 +189,10 @@ class COHDARole(NegotiationParticipant):
 
     def handle(self, content: CohdaMessage, assignment: CoalitionAssignment, negotiation: Negotiation, meta: Dict[str, Any]):
 
-        if content.coalition_id not in self._cohda:
-            self._cohda[content.coalition_id] = self.create_cohda(assignment.part_id)
+        if negotiation.coalition_id not in self._cohda:
+            self._cohda[negotiation.coalition_id] = self.create_cohda(assignment.part_id)
 
-        (old, new) = self._cohda[content.coalition_id].decide(content)
+        (old, new) = self._cohda[negotiation.coalition_id].decide(content)
 
         if old != new:
             self.send_to_neighbors(assignment, negotiation, CohdaMessage(new))
-
-    def is_applicable(self, content, meta):
-        return type(content) == CohdaMessage 

@@ -1,9 +1,10 @@
 
-from mango.cohda.coalition import CoalitionAssignment
+from mango.cohda.coalition import CoalitionAssignment, CoalitionModel
 import pytest, uuid
 from mango.core.container import Container
 from mango.role.core import RoleAgent
 from mango.cohda.planning import *
+import asyncio
 
 def test_cohda_init():
     cohda = COHDA([1, 1, 1], lambda: [[0, 1, 2], [1, 2, 3]], lambda s: True, 1)
@@ -12,14 +13,13 @@ def test_cohda_init():
     
     assert new.target_schedule == [1, 2, 3]
 
-def test_cohda_selection_multi():
+def test_cohda_selection_multi():   
     cohda = COHDA([1, 1, 1], lambda: [[0, 1, 2], [1, 2, 3], [1, 1, 1], [4, 2, 3]], lambda s: True, 1)
     cohda_message = CohdaMessage(WorkingMemory([1, 2, 1], {}, SolutionCandidate(1, {})))
     old, new = cohda.decide(cohda_message)
     
     assert new.solution_candidate.candidate[1] == [1, 1, 1]
     assert new.system_config[1].counter == 1
-
 
 @pytest.mark.asyncio
 async def test_optimize_simple_test_case():

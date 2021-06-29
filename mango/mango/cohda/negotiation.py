@@ -14,6 +14,14 @@ class Negotiation:
         self._coalition_id = coalition_id
         self._active = active
 
+    @property
+    def negotiation_id(self):
+        return self._negotiation_id
+        
+    @property
+    def coalition_id(self):
+        return self._coalition_id
+
 class NegotiationModel:
 
     def __init__(self, negotiations: Dict[uuid.UUID, Negotiation] = {}) -> None:
@@ -65,7 +73,7 @@ class NegotiationStarterRole(ProactiveRole):
         first_assignment = list(coalition_model.assignments.values())[0]
         for neighbor in first_assignment.neighbors:
             await self.context.send_message(
-                content=NegotiationMessage(first_assignment.assignment.coalition_id, uuid.uuid1(), self._message_creator(first_assignment)), 
+                content=NegotiationMessage(first_assignment.coalition_id, uuid.uuid1(), self._message_creator(first_assignment)), 
                 receiver_addr=neighbor[1], 
                 receiver_id=neighbor[2],
                 acl_metadata={'sender_addr': self.context.addr, 'sender_id': self.context.aid},
@@ -88,12 +96,12 @@ class NegotiationParticipant(SimpleReactiveRole, ABC):
         negotiation_model = self.context.get_or_create_model(NegotiationModel)
 
         if not negotiation_model.exists(content.negotiation_id):
-            negotiation_model.add(Negotiation(content.coalition_id, content.negotiation_id))
+            negotiation_model.add(content.negotiation_id, Negotiation(content.coalition_id, content.negotiation_id))
 
-        self.handle(self, content.messsage, assignment, negotiation_model.by_id(content.negotiation_id), meta)
+        self.handle(content.messsage, assignment, negotiation_model.by_id(content.negotiation_id), meta)
 
     @abstractmethod    
-    def handle(self, message, assignment, meta):
+    def handle(self, message, assignment, negotiation, meta):
         pass
 
     def send_to_neighbors(self, assignment: CoalitionAssignment, negotation: NegotiationMessage, message):
