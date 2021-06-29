@@ -23,7 +23,7 @@ An integration test is everything what aims to test more than one unit.
 We aim to reach a code coverage of > 90%. Currently we measure the **statement** coverage at the 'check' job of the CI/CD pipeline.
 
 ## Reviews
-Tests are great but do not lead to better readability and maintainability. One part that will is the review process. In mango we come to an undestanding that we want to review **every** change, which should be merged into the development branch. There are no exceptions to this. The idea is not only to check the code for error, bad smells and security flaws, its part of generating a common understanding of good coding. 
+Tests are great but do not lead to better readability and maintainability. One part that will is the review process. In mango we came to the undestanding that we want to review **every** change, which should be merged into the development branch. There are no exceptions to this. The idea is not only to check the code for errors, bad smells and security flaws, its part of generating a common understanding of good coding. 
 
 ## Linting
 Another approach to improve the code quality is static code analysis, or better known as linting. Linting is an easy to setup possibility to make sure that a certain code standard is fullfiled. There are many useful rules, which can be checked automatically, so we have another line of defence and spare some time when reviewing. 
