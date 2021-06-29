@@ -1,3 +1,4 @@
+from sys import int_info
 from uuid import UUID
 import asyncio, uuid
 from mango.role.role import ProactiveRole, Role, RoleContext
@@ -5,8 +6,9 @@ from mango.role.role import ProactiveRole, Role, RoleContext
 from typing import Dict, Any, List
 from mango.util.scheduling import InstantScheduledTask
 
-class CoalitionAssignment:
 
+class CoalitionAssignment:
+    
     def __init__(self, 
                  coalition_id: UUID, 
                  neighbors: list((int, str, str)), 
@@ -44,7 +46,6 @@ class CoalitionAssignment:
     @property
     def controller_agent_addr(self):
         return self._controler_agent_addr
-
 
 class CoalitionModel:
 
@@ -159,13 +160,13 @@ class CoalitionParticipantRole(Role):
         self.context.subscribe_message(self, self.handle_invite, lambda c, m: type(c) == CoalitionInvite)
         self.context.subscribe_message(self, self.handle_assignment, lambda c, m: type(c) == CoalitionAssignment)
 
-    def handle_invite(self, content, meta: Dict[str, Any]) -> None:
+    def handle_invite(self, content: CoalitionInvite, meta: Dict[str, Any]) -> None:
         asyncio.create_task(self.context.send_message(
-                content=CoaltitionResponse(self.want_to_join()), receiver_addr=meta['sender_addr'], receiver_id=meta['sender_id'],
+                content=CoaltitionResponse(self.want_to_join(content)), receiver_addr=meta['sender_addr'], receiver_id=meta['sender_id'],
                 acl_metadata={'sender_addr': self.context.addr, 'sender_id': self.context.aid},
                 create_acl=True))
 
-    def want_to_join(self):
+    def want_to_join(self, content: CoalitionInvite):
         return True
 
     def handle_assignment(self, content: CoalitionAssignment, meta: Dict[str, Any]) -> None:

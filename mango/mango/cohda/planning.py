@@ -1,4 +1,5 @@
 from mango.cohda.coalition import CoalitionModel
+from mango.cohda.negotiation import *
 from ..role.role import ProactiveRole, SimpleReactiveRole
 from typing import Dict, Any, Tuple
 import copy
@@ -75,41 +76,17 @@ class WorkingMemory:
 
 class CohdaMessage:
 
-    def __init__(self, working_memory: WorkingMemory, coalition_id: UUID):
+    def __init__(self, working_memory: WorkingMemory):
         self._working_memory = working_memory
-        self._coalition_id = coalition_id
 
     @property
     def working_memory(self):
         return self._working_memory
-
-    @property
-    def coalition_id(self):
-        return self._coalition_id
         
-class CohdaNegotiationStarterRole(ProactiveRole):
+class CohdaNegotiationStarterRole(NegotiationStarterRole):
 
     def __init__(self, target_schedule) -> None:
-        self._target_schedule = target_schedule
-
-    def setup(self):
-        super().setup()
-
-        self.context.schedule_task(InstantScheduledTask(self.start()))
-
-    async def start(self):
-        coalition_model = self.context.get_or_create_model(CoalitionModel)
-
-        # Assume there is a exactly one coalition
-        first_assignment = list(coalition_model.assignments.values())[0]
-        for neighbor in first_assignment.neighbors:
-            await self.context.send_message(
-                content=CohdaMessage(WorkingMemory(self._target_schedule, {}, SolutionCandidate(first_assignment.part_id, {})), first_assignment.coalition_id), 
-                receiver_addr=neighbor[1], 
-                receiver_id=neighbor[2],
-                acl_metadata={'sender_addr': self.context.addr, 'sender_id': self.context.aid},
-                create_acl=True)
-
+        super.__init__(lambda assignment: CohdaMessage(WorkingMemory(target_schedule, {}, SolutionCandidate(assignment.part_id, {}))))
 
 class COHDA:
 
@@ -203,7 +180,7 @@ class COHDA:
         return result
 
 
-class COHDARole(SimpleReactiveRole):
+class COHDARole(NegotiationParticipant):
 
     def __init__(self, schedules_provider, weights, local_acceptable_func):
         self._schedules_provider = schedules_provider
@@ -214,11 +191,7 @@ class COHDARole(SimpleReactiveRole):
     def create_cohda(self, part_id):
         return COHDA(self._weights, self._schedules_provider, self._is_local_acceptable, part_id)
 
-    def handle_msg(self, content: CohdaMessage, meta: Dict[str, Any]):
-        if not self.context.get_or_create_model(CoalitionModel).exists(content.coalition_id):
-            return
-
-        assignment = self.context.get_or_create_model(CoalitionModel).by_id(content.coalition_id)
+    def handle(self, content: CohdaMessage, assignment: CoalitionAssignment, negotiation: Negotiation, meta: Dict[str, Any]):
 
         if content.coalition_id not in self._cohda:
             self._cohda[content.coalition_id] = self.create_cohda(assignment.part_id)
@@ -226,11 +199,7 @@ class COHDARole(SimpleReactiveRole):
         (old, new) = self._cohda[content.coalition_id].decide(content)
 
         if old != new:
-            for neighbor in assignment.neighbors:
-                asyncio.create_task(self.context.send_message(
-                    content=CohdaMessage(new, assignment.coalition_id), receiver_addr=neighbor[1], receiver_id=neighbor[2],
-                    acl_metadata={'sender_addr': self.context.addr, 'sender_id': self.context.aid},
-                    create_acl=True))
+            self.send_to_neighbors(assignment, negotiation, CohdaMessage(new))
 
     def is_applicable(self, content, meta):
         return type(content) == CohdaMessage 
