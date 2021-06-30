@@ -2,7 +2,7 @@ import uuid
 import asyncio
 
 from abc import ABC, abstractmethod
-from ..role.role import ProactiveRole, SimpleReactiveRole
+from ..role.api import ProactiveRole, SimpleReactiveRole
 from ..util.scheduling import InstantScheduledTask
 from mango.cohda.coalition import CoalitionAssignment, CoalitionModel
 from typing import *

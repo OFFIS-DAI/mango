@@ -1,14 +1,17 @@
 """
-...
+Internal module, which implements the framework API of the role package. Provides an implementation of the :class:`RoleContext`, the RoleAgent and some internal handlers
+for the communication between roles.
 """
 
-from typing import Any, Dict, Optional, Union, Tuple
+from typing import Any, Dict, Optional, Union, Tuple, List
 
 from ..util.scheduling import ScheduledTask, Scheduler
 from ..core.agent import Agent
-from .role import Role, RoleContext
+from .api import Role, RoleContext
 
 class RoleHandler:
+    """Contains all roles and their models. Implements the communication between roles.
+    """
 
     def __init__(self):
         self._role_models = {}
@@ -16,40 +19,70 @@ class RoleHandler:
         self._role_model_type_to_subs = {}
 
     def get_or_create_model(self, cls):
+        """Creates or return (when already created) a central role model.
+
+        Returns:
+            [type]: the model
+        """
         if cls in self._role_models:
             return self._role_models[cls]
         
         self._role_models[cls] = cls()
         return self._role_models[cls]
 
-    def update(self, role_model, context):
+    def update(self, role_model) -> None:
+        """Notifies all subscribers of an update of the given role_model.
+
+        Args:
+            role_model ([type]): the role model to notify about
+        """
         role_model_type = type(role_model)
         self._role_models[role_model_type] = role_model
 
         # Notify all subscribing agents
         if role_model_type in self._role_model_type_to_subs:
             for role in self._role_model_type_to_subs[role_model_type]:
-                role.on_change_model(role_model, context)
+                role.on_change_model(role_model)
 
-    def subscribe(self, role, role_model_type):
+    def subscribe(self, role: Role, role_model_type) -> None:
+        """Subscibe a role to change events of a specific role model type
+
+        Args:
+            role ([type]): the role
+            role_model_type ([type]): the type of the role model
+        """
         if role_model_type in self._role_model_type_to_subs:
             self._role_model_type_to_subs[role_model_type].append(role)
         else: 
             self._role_model_type_to_subs[role_model_type] = [role]
 
-    def add_role(self, role):
+    def add_role(self, role: Role) -> None:
+        """Add a new role
+
+        Args:
+            role ([type]): the role
+        """
         self._roles.append(role)
 
     @property
-    def roles(self):
+    def roles(self) -> List[Role]:
+        """Returns all roles
+
+        Returns:
+            List[Role]: the roles hold by this handler
+        """
         return self._roles
 
     async def _on_stop(self):
+        """Notifiy all roles when the container is shut down
+        """
         for role in self._roles:
             await role.on_stop()
 
 
 class RoleAgentContext(RoleContext):
+    """Implementation of the RoleContext-API.
+    """
 
     def __init__(self, container, role_handler: RoleHandler, aid: str, inbox, scheduler: Scheduler):
         self._role_handler = role_handler
@@ -67,7 +100,7 @@ class RoleAgentContext(RoleContext):
         return self._role_handler.get_or_create_model(cls)
 
     def update(self, role_model):
-        self._role_handler.update(role_model, self)
+        self._role_handler.update(role_model)
 
     def subscribe_model(self, role, role_model_type):
         self._role_handler.subscribe(role, role_model_type)
@@ -133,6 +166,9 @@ class RoleAgentContext(RoleContext):
 
 
 class RoleAgent(Agent):
+    """Agent, which support the role API-system. When you want to use the role-api you always need
+    a RoleAgent as base for your agents. A role can be added with :func:`RoleAgent.add_role`.
+    """
 
     def __init__(self, container):
         super(RoleAgent, self).__init__(container)
@@ -141,6 +177,11 @@ class RoleAgent(Agent):
         self._agent_context = RoleAgentContext(container, self._role_handler, self.aid, self.inbox, self._scheduler)
         
     def add_role(self, role: Role):
+        """Add a role to the agent. This will lead to the call of :func:`Role.setup`.
+
+        Args:
+            role (Role): the role to add
+        """
         role.bind(self._agent_context)
         self._agent_context._add_role(role)
         
@@ -148,7 +189,12 @@ class RoleAgent(Agent):
         role.setup()
 
     @property
-    def roles(self):
+    def roles(self) -> List[Role]:
+        """Returns list of roles
+
+        Returns:
+            [List[Role]]: list of roles
+        """
         return self._role_handler.roles
 
     def handle_msg(self, content, meta: Dict[str, Any]):

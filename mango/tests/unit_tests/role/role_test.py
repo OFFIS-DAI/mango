@@ -1,6 +1,6 @@
 
 from mango.role.core import RoleHandler
-from mango.role.role import Role
+from mango.role.api import Role
 
 class RoleModel:
     def __init__(self):
@@ -11,10 +11,9 @@ class SubRole(Role):
     def __init__(self):
         self.counter = 1
 
-    def on_change_model(self, model, agent_context):
+    def on_change_model(self, model):
         self.counter = self.counter + 1
         self.last_model = model
-        self.last_context = agent_context
 
 def test_subscription():
     # GIVEN
@@ -27,13 +26,12 @@ def test_subscription():
     role_handler.subscribe(ex_role, RoleModel)
     role_handler.subscribe(ex_role2, RoleModel)
     role_model.model_property_a = 2
-    role_handler.update(role_model, None)
+    role_handler.update(role_model)
 
     # THEN
     assert ex_role.counter == 2
     assert ex_role2.counter == 2
     assert ex_role.last_model == role_model
-    assert ex_role.last_context == None
     
 def test_no_subscription_update():
     # GIVEN
@@ -43,7 +41,7 @@ def test_no_subscription_update():
 
     # WHEN
     role_model.model_property_a = 2
-    role_handler.update(role_model, None)
+    role_handler.update(role_model)
 
     # THEN
     assert ex_role.counter == 1

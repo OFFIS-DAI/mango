@@ -1,7 +1,7 @@
 from sys import int_info
 from uuid import UUID
 import asyncio, uuid
-from mango.role.role import ProactiveRole, Role, RoleContext
+from mango.role.api import ProactiveRole, Role, RoleContext
 
 from typing import Dict, Any, List
 from mango.util.scheduling import InstantScheduledTask

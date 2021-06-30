@@ -3,7 +3,7 @@ import pytest
 import asyncio
 from typing import Dict, Any
 from mango.core.container import Container
-from mango.role.role import RoleContext, SimpleReactiveRole
+from mango.role.api import RoleContext, SimpleReactiveRole
 from mango.role.core import RoleAgent, RoleAgentContext
 from mango.util.scheduling import DateTimeScheduledTask
 

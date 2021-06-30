@@ -1,5 +1,5 @@
 from mango.cohda.coalition import CoalitionModel
-from ..role.role import *
+from ..role.api import *
 from typing import *
 
 import asyncio
