@@ -96,7 +96,7 @@ class RoleAgentContext(RoleContext):
         self._inbox = inbox
 
     def inbox_length(self):
-        return len(self._inbox)
+        return self._inbox.qsize()
 
     def get_or_create_model(self, cls):
         return self._role_handler.get_or_create_model(cls)
@@ -161,8 +161,12 @@ class RoleAgentContext(RoleContext):
             mqtt_kwargs (Dict[str, Any], optional): Args for mqtt. Defaults to None.
         """
         for role in self._send_msg_subs:
-            self._send_msg_subs[role](
-                content, receiver_addr, receiver_id, create_acl, acl_metadata, mqtt_kwargs)
+            for sub in self._send_msg_subs[role]:
+                sub(content=content,receiver_addr=receiver_addr,
+                                                  receiver_id=receiver_id,
+                                                  create_acl=create_acl,
+                                                  acl_metadata=acl_metadata,
+                                                  mqtt_kwargs=mqtt_kwargs)
         return await self._container.send_message(content=content,
                                                   receiver_addr=receiver_addr,
                                                   receiver_id=receiver_id,

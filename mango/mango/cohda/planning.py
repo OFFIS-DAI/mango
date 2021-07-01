@@ -329,3 +329,7 @@ class COHDARole(NegotiationParticipant):
 
         if old != new:
             self.send_to_neighbors(assignment, negotiation, CohdaMessage(new))
+
+            # set agent as idle
+            if self.context.inbox_length() == 0:
+                negotiation.active = False

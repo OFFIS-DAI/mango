@@ -228,7 +228,6 @@ class SimpleReactiveRole(Role):
             meta (Dict[str, Any]): the meta-dict.
         """
 
-    @abstractmethod
     def is_applicable(self, content, meta: Dict[str, Any]) -> bool:
         """Defines which messages can be handled by the role.
 

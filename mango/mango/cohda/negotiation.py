@@ -19,7 +19,7 @@ from typing import Dict, Any
 from abc import ABC, abstractmethod
 
 from mango.role.api import ProactiveRole, SimpleReactiveRole
-from mango.util.scheduling import InstantScheduledTask
+from mango.util.scheduling import ConditionalTask
 from mango.cohda.coalition import CoalitionAssignment, CoalitionModel
 
 
@@ -50,6 +50,24 @@ class Negotiation:
             [uuid.UUID]: the UUID
         """
         return self._coalition_id
+
+    @property
+    def active(self) -> bool:
+        """Is seen as active
+
+        Returns:
+            bool: if active
+        """
+        return self._active
+
+    @active.setter
+    def active(self, is_active) -> None:
+        """Set is active
+
+        Args:
+            is_active (bool): active
+        """
+        self._active = is_active
 
 
 class NegotiationModel:
@@ -140,7 +158,13 @@ class NegotiationStarterRole(ProactiveRole):
     def setup(self):
         super().setup()
 
-        self.context.schedule_task(InstantScheduledTask(self.start()))
+        self.context.schedule_task(ConditionalTask(self.start(), self.is_startable))
+
+    def is_startable(self):
+        coalition_model = self.context.get_or_create_model(CoalitionModel)
+
+        # check there is an assignment
+        return len(coalition_model.assignments.values()) > 0
 
     async def start(self):
         """Start a negotiation. Send all neighbors a starting negotiation message.
@@ -149,10 +173,10 @@ class NegotiationStarterRole(ProactiveRole):
 
         # Assume there is a exactly one coalition
         first_assignment = list(coalition_model.assignments.values())[0]
+        negotiation_uuid = uuid.uuid1()
         for neighbor in first_assignment.neighbors:
             await self.context.send_message(
-                content=NegotiationMessage(first_assignment.coalition_id, uuid.uuid1(
-                ), self._message_creator(first_assignment)),
+                content=NegotiationMessage(first_assignment.coalition_id, negotiation_uuid, self._message_creator(first_assignment)),
                 receiver_addr=neighbor[1],
                 receiver_id=neighbor[2],
                 acl_metadata={'sender_addr': self.context.addr,

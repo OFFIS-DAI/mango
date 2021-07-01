@@ -72,6 +72,24 @@ class InstantScheduledTask(DateTimeScheduledTask):
     def __init__(self, coroutine):
         super().__init__(coroutine, datetime.datetime.now())
 
+class ConditionalTask(ScheduledTask):
+    """Task which will get executed as soon as the given condition is fullfiled.
+    """
+    def __init__(self, coroutine, condition_func, lookup_delay=0.1):
+        super().__init__()
+
+        self._condition = condition_func
+        self._coro = coroutine
+        self._delay = lookup_delay
+
+    async def _wait(self, date_time: datetime):
+        await asyncio.sleep((date_time - datetime.datetime.now()).total_seconds())
+
+    async def run(self):
+        while not self._condition():
+            await asyncio.sleep(self._delay)
+
+        return await self._coro
 
 class Scheduler:
     """Scheduler for executing tasks.
