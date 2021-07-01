@@ -1,43 +1,54 @@
 """
-API classes for using the role system. The role system is based on the idea, that everything an agent can do, is descibed as role/responsibility and is implemented
-in one seperate class. For example particpating in a coalition would be a sepearte role, monitoring grid voltage another one. 
+API classes for using the role system. The role system is based on the idea, that
+everything an agent can do, is descibed as role/responsibility and is implemented in
+one seperate class. For example particpating in a coalition would be a sepearte role,
+monitoring grid voltage another one.
 
-A role is part of an agent, the :class:`RoleAgent`. Depending on what you need there are different role-classes:
+A role is part of an agent, the :class:`RoleAgent`. Depending on what you need there
+are different role-classes:
 * SimpleReactiveRole: handling a specific message (f.e. pong-Role)
 * ProactiveRole: for time dependent not reactive work loads (f.e. monitoring)
 * Role: generic interface for all possible behavioral styles
 
 There are essentially two APIs for acting resp reacting:
-* [Reacting] :func:`RoleContext.subscribe_message`, which allows you to subscribe to certain message types the agent receives, there is also the possibility to handle 
-* [Acting] :func:`RoleContext.schedule_task`, this allows you to schedule a task with delay/repeating/...
+* [Reacting] :func:`RoleContext.subscribe_message`, which allows you to subscribe to
+             certain message types the agent receives, there is also the possibility to handle
+* [Acting] :func:`RoleContext.schedule_task`, this allows you to schedule a task with
+            delay/repeating/...
 
-As there are often dependencies between different parts of an agent, there are options to interact with other roles: You have the possbility to
-use shared models and to describe on changes of these models. So you can essentially observe on every data other roles want you to get notified on. To do this
-the model has to be created via :func:`RoleContext.get_or_create_model`. To notify other roles the method :func:`RoleContext.update` have to be called. To observe
-a model you cant use :func:`subscribe_model`.
+As there are often dependencies between different parts of an agent, there are options to
+interact with other roles: You have the possbility to use shared models and to describe on
+changes of these models. So you can essentially observe on every data other roles want you
+to get notified on. To do this the model has to be created via
+:func:`RoleContext.get_or_create_model`. To notify other roles the method
+:func:`RoleContext.update` have to be called. To observe a model you can use
+:func:`subscribe_model`.
 
 Furthermore there are two lifecycle methods to know about:
-* :func:`Role.setup` is called when the Role is added to the agent, so its the perfect place for initialization and scheduling of tasks
+* :func:`Role.setup` is called when the Role is added to the agent, so its the perfect place
+                     for initialization and scheduling of tasks
 * :func:`Role.on_stop` is called when the container the agent lives in, is shut down
 """
 from abc import ABC, abstractmethod
-
-from ..util.scheduling import ScheduledTask
 from typing import Type, Union, Tuple, Optional, Any, Dict, TypeVar
+
+from mango.util.scheduling import ScheduledTask
 
 T = TypeVar('T')
 
 
 class RoleContext(ABC):
-    """Abstract class RoleContext. The context can be seen as the bridge to the agent and the container the agent lives in. Every interaction with the environment or other roles
-    will hapen through the context.
+    """Abstract class RoleContext. The context can be seen as the bridge to the agent and the
+    container the agent lives in. Every interaction with the environment or other roles will
+    hapen through the context.
     """
 
     @abstractmethod
     def get_or_create_model(self, cls: Type[T]) -> T:
-        """Returns (or creates) a model of the given type `cls`. The type must have an empty constructor. When using
-        this method a managed model will be accessed/created, this allows you to observe the model in other roles as well.
-        There is always exactly one instance per class.
+        """Returns (or creates) a model of the given type `cls`. The type must have an empty
+        constructor. When using this method a managed model will be accessed/created, this
+        allows you to observe the model in other roles as well. There is always exactly one instance
+        per class.
 
 
         Args:
@@ -46,39 +57,37 @@ class RoleContext(ABC):
         Returns:
             T: [description]
         """
-        pass
 
     @abstractmethod
     def update(self, role_model):
-        """Notifies the agent that the role_model parameter has been updated. Every role which subscribed to the model type will
-        get notified about the change.
+        """Notifies the agent that the role_model parameter has been updated. Every role which
+        subscribed to the model type will get notified about the change.
 
         Args:
-            role_model ([type]): the role model, which got updated 
+            role_model ([type]): the role model, which got updated
         """
-        pass
 
     @abstractmethod
     def subscribe_model(self, role, role_model_type):
-        """Subscribe the `role` to a model type. When the model is update with `update`, the role will get notified with invoking 
-        :func:`Role.on_change_model`
+        """Subscribe the `role` to a model type. When the model is update with `update`, the role
+        will get notified with invoking :func:`Role.on_change_model`
 
         Args:
             role ([type]): the role which want to subscribe
             role_model_type ([type]): type of the role model
         """
-        pass
 
     @abstractmethod
     def subscribe_message(self, role, method, message_condition):
-        """Subscribe to a specific message, given by `message_condition`. 
+        """Subscribe to a specific message, given by `message_condition`.
 
         Args:
             role ([type]): the role
-            method ([type]): the method, which should get invoked, have to match the correct signature (content, meta)
-            message_condition ([type]): the condition which have to be fullfiled to receive the message. (Object) -> bool
+            method ([type]): the method, which should get invoked, have to match the correct
+                             signature (content, meta)
+            message_condition ([type]): the condition which have to be fullfiled to receive the
+                                        message. (Object) -> bool
         """
-        pass
 
     @abstractmethod
     def subscribe_send(self, role, method):
@@ -86,9 +95,9 @@ class RoleContext(ABC):
 
         Args:
             role ([type]): the role
-            method ([type]): method, which should get called, when a message is sent (must match the signature of :func:RoleContext.send_message)
+            method ([type]): method, which should get called, when a message is sent (must match the
+                             signature of :func:RoleContext.send_message)
         """
-        pass
 
     @abstractmethod
     def schedule_task(self, task: ScheduledTask):
@@ -97,7 +106,6 @@ class RoleContext(ABC):
         Args:
             task (ScheduledTask): the task you want schedule, see :class:`ScheduledTask` for details
         """
-        pass
 
     @abstractmethod
     async def send_message(self, content,
@@ -112,12 +120,11 @@ class RoleContext(ABC):
         Args:
             content ([type]): the content
             receiver_addr (Union[str, Tuple[str, int]]): the address of the receiver
-            receiver_id (Optional[str], optional): [description]. id of the receiver
-            create_acl (bool, optional): [description]. whether you want to wrap the message in an ACL
-            acl_metadata (Optional[Dict[str, Any]], optional): [description]. the ACL-metadata
-            mqtt_kwargs (Dict[str, Any], optional): [description]. kwargs for MQTT
+            receiver_id (Optional[str], optional): id of the receiver
+            create_acl (bool, optional): whether you want to wrap the message in an ACL
+            acl_metadata (Optional[Dict[str, Any]], optional): the ACL-metadata
+            mqtt_kwargs (Dict[str, Any], optional): kwargs for MQTT
         """
-        pass
 
     @abstractmethod
     def addr(self) -> Union[str, Tuple[str, int]]:
@@ -126,7 +133,6 @@ class RoleContext(ABC):
         Returns:
             Union[str, Tuple[str, int]]: the address tuple (IP, PORT) or in MQTT (TOPIC)
         """
-        pass
 
     @abstractmethod
     def aid(self) -> str:
@@ -135,7 +141,6 @@ class RoleContext(ABC):
         Returns:
             str: the id as string
         """
-        pass
 
     @abstractmethod
     def inbox_length(self) -> int:
@@ -144,15 +149,16 @@ class RoleContext(ABC):
         Returns:
             int: inbox_length of the agent
         """
-        pass
 
 
 class Role(ABC):
-    """General role class, defining the API every role can use. A role implements one responsibility of an agent. 
-    
+    """General role class, defining the API every role can use. A role implements one responsibility
+    of an agent.
+
     Every role
     must be added to a :class:`RoleAgent` and is defined by some lifecycle methods:
-    * :func:`Role.setup` is called when the Role is added to the agent, so its the perfect place for initialization and scheduling of tasks
+    * :func:`Role.setup` is called when the Role is added to the agent, so its the perfect place for
+                         initialization and scheduling of tasks
     * :func:`Role.on_stop` is called when the container the agent lives in, is shut down
 
     To interact with the environment you have to use the context, accesible via :func:Role.context.
@@ -162,7 +168,7 @@ class Role(ABC):
         """Initialize the roles internals.
         !!Care!! the role context is unknown at this point!
         """
-        pass
+        self._context = None
 
     def bind(self, context: RoleContext) -> None:
         """Method used internal to set the context, do not override!
@@ -185,7 +191,6 @@ class Role(ABC):
         """Lifecycle hook in, which will be called on adding the role to agent. The role context
         is known from hereon.
         """
-        pass
 
     def on_change_model(self, model) -> None:
         """Will be invoked when a subscribed model changes via :func:`RoleContext.update`.
@@ -193,21 +198,20 @@ class Role(ABC):
         Args:
             model ([type]): the model
         """
-        pass
 
     async def on_stop(self) -> None:
         """Lifecycle hook in, which will be called when the container is shut down.
         """
-        pass
 
 
 class SimpleReactiveRole(Role):
-    """Special role for implementing a simple reactive behavior. In opposite to the normal role, you dont have to subscribe to message here, you can
-    just override :func:`SimpleReactiveRole.handle_msg` and you will receive every message. When you want to filter those messages, you cant just
-    override :func:`SimpleReactiveRole.is_applicable`.
+    """Special role for implementing a simple reactive behavior. In opposite to the normal role,
+    you dont have to subscribe to message here, you can just override
+    :func:`SimpleReactiveRole.handle_msg` and you will receive every message. When you want
+    to filter those messages, you cant just override :func:`SimpleReactiveRole.is_applicable`.
 
-    The role is made for reacting to messages in a simple uniform way, when you need to react to multiple different message, then the general generic Role class
-    might be the better choice.
+    The role is made for reacting to messages in a simple uniform way, when you need to react to
+    multiple different message, then the general generic Role class might be the better choice.
     """
 
     def setup(self):
@@ -216,13 +220,13 @@ class SimpleReactiveRole(Role):
 
     @abstractmethod
     def handle_msg(self, content, meta: Dict[str, Any]) -> None:
-        """Handle a message. The type of the messages is defined by :func:`SimpleReactiveRole.is_applicable`
+        """Handle a message. The type of the messages is defined
+        by :func:`SimpleReactiveRole.is_applicable`
 
         Args:
             content ([type]): the content
             meta (Dict[str, Any]): the meta-dict.
         """
-        pass
 
     @abstractmethod
     def is_applicable(self, content, meta: Dict[str, Any]) -> bool:
@@ -239,8 +243,11 @@ class SimpleReactiveRole(Role):
 
 
 class ProactiveRole(Role):
-    """Proactive role, which marks a role as pure active role, generally without reactive elements (its not checked technically!). 
-    The only difference to the generic Role is that you are forced to override :func:`Role.setup`, so the class is more of documentary nature.
+    """Proactive role, which marks a role as pure active role, generally without reactive
+    elements (its not checked technically!).
+
+    The only difference to the generic Role is that you are forced to override :func:`Role.setup`,
+    so the class is more of documentary nature.
     """
 
     @abstractmethod

@@ -38,8 +38,8 @@ class Agent(ABC):
         self.agent_logger.info('Agent starts running')
 
     def schedule_task(self, task: ScheduledTask):
-        """Schedule a task with asyncio. When the task is finished, if finite, its automatically removed afterwards. 
-        For scheduling options see the subclasses of ScheduledTask.
+        """Schedule a task with asyncio. When the task is finished, if finite, its automatically
+        removed afterwards. For scheduling options see the subclasses of ScheduledTask.
 
         Args:
             task (ScheduledTask): task to be scheduled
@@ -50,7 +50,12 @@ class Agent(ABC):
         self._scheduled_tasks.append(l_task)
 
     async def tasks_complete(self, timeout=1):
-        await self._scheduler.tasks_complete()
+        """Wait for all scheduled tasks to complete using a timeout.
+
+        Args:
+            timeout (int, optional): waiting timeout. Defaults to 1.
+        """
+        await self._scheduler.tasks_complete(timeout=timeout)
 
     def raise_exceptions(self, fut: asyncio.Future):
         """
@@ -58,7 +63,8 @@ class Agent(ABC):
         :param fut: The Future object of the task
         """
         if fut.exception() is not None:
-            self.agent_logger.error('Caught the following exception in _check_inbox: %s', fut.exception())
+            self.agent_logger.error(
+                'Caught the following exception in _check_inbox: %s', fut.exception())
             raise fut.exception()
 
     @property
@@ -73,7 +79,7 @@ class Agent(ABC):
         while True:
             # run in infinite loop until it is cancelled from outside
             msg = await self.inbox.get()
-            self.agent_logger.debug(f'Received {msg}.')
+            self.agent_logger.debug('Received %s.', msg)
 
             # msgs should be tuples of (priority, content)
             priority, content, meta = msg
