@@ -43,9 +43,7 @@ async def test_coalition_to_cohda_with_termination():
     for a in agents:
         await a.tasks_complete()
 
-    await asyncio.wait_for(wait_for_coalition_built(agents), timeout=15)
-
-    await asyncio.sleep(3)
+    await asyncio.wait_for(wait_for_term(agents), timeout=15)
 
     # gracefully shutdown
     for a in agents:
@@ -53,13 +51,16 @@ async def test_coalition_to_cohda_with_termination():
     await c.shutdown()
 
     assert len(asyncio.all_tasks()) == 1
-    assert next(iter(agents[0].roles[0]._cohda.values()))._memory.solution_candidate.candidate[1] == [11, 11, 11, 11, 11]
-    for i in range(10):
-        print(next(iter(agents[i].roles[2]._weight_map.values())))
-        
+    assert next(iter(agents[0].roles[0]._cohda.values()))._memory.solution_candidate.candidate[1] == [11, 11, 11, 11, 11]        
     assert next(iter(agents[0].roles[2]._weight_map.values())) == 1
 
 async def wait_for_coalition_built(agents):
     for agent in agents:
         while not agent.inbox.empty():
-            await asyncio.sleep(1)
+            await asyncio.sleep(5)
+
+async def wait_for_term(agents):
+    await asyncio.sleep(1)
+    for agent in agents:
+        while not agent.inbox.empty() or next(iter(agents[0].roles[2]._weight_map.values())) != 1:
+            await asyncio.sleep(5)
