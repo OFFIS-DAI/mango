@@ -70,7 +70,7 @@ class RoleAgentContext:
         self._role_handler.add_role(role)
 
     def handle_msg(self, content, meta: Dict[str, Any]):
-        for role in list(filter(lambda r: r.is_applicable(content, meta), self._role_handler.roles)):
+        for role in [r for r in self._role_handler.roles if r.is_applicable(content, meta)]:
             role.handle_msg(content, meta, self)
 
     def schedule_task(self, task):
