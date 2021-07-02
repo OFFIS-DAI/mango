@@ -19,8 +19,7 @@ class SolutionCandidate:
     def agent_id(self) -> str:
         """Return the agent id
 
-        Returns:
-            [str]: agent id
+        :return: agent id
         """
         return self._agent_id
 
@@ -28,8 +27,7 @@ class SolutionCandidate:
     def agent_id(self, new_id: str):
         """Set the agent id
 
-        Args:
-            new_id ([str]): agent id
+        :param new_id: agent id
         """
         self._agent_id = new_id
 
@@ -37,8 +35,7 @@ class SolutionCandidate:
     def candidate(self) -> Dict[int, np.array]:
         """Return the candidate schedule map (part_id -> schedule)
 
-        Returns:
-            [Dict[int, np.array]]: map part_id -> schedule
+        :return: map part_id -> schedule
         """
         return self._candidate
 
@@ -58,8 +55,7 @@ class ScheduleSelection:
     def counter(self) -> int:
         """The counter of the selection
 
-        Returns:
-            [int]: the counter
+        :return: the counter
         """
         return self._counter
 
@@ -67,8 +63,7 @@ class ScheduleSelection:
     def schedule(self) -> np.array:
         """The schedule as np.array
 
-        Returns:
-            np.array: scheduke
+        :return: scheduke
         """
         return self._schedule
 
@@ -89,8 +84,7 @@ class WorkingMemory:
     def target_schedule(self):
         """Return the target schedule
 
-        Returns:
-            [type]: the target schedule
+        :return: the target schedule
         """
         return self._target_schedule
 
@@ -98,8 +92,7 @@ class WorkingMemory:
     def target_schedule(self, new_target):
         """Set the target schedule
 
-        Args:
-            new_target ([type]): new target schedule
+        :param new_target: new target schedule
         """
         self._target_schedule = new_target
 
@@ -107,8 +100,7 @@ class WorkingMemory:
     def system_config(self) -> Dict[str, ScheduleSelection]:
         """Return the system config as map part_id -> selection
 
-        Returns:
-            Dict[str, ScheduleSelection]: the believed system state
+        :return: the believed system state
         """
         return self._system_config
 
@@ -116,8 +108,7 @@ class WorkingMemory:
     def solution_candidate(self) -> SolutionCandidate:
         """The current best known solution candidate for the planning
 
-        Returns:
-            SolutionCandidate: the solution candidate
+        :return: the solution candidate
         """
         return self._solution_candidate
 
@@ -125,8 +116,7 @@ class WorkingMemory:
     def solution_candidate(self, new_solution_candidate: SolutionCandidate):
         """Set the solution candidate
 
-        Args:
-            new_solution_candidate (SolutionCandidate): new solution candidate
+        :param new_solution_candidate: new solution candidate
         """
         self._solution_candidate = new_solution_candidate
 
@@ -145,8 +135,7 @@ class CohdaMessage:
     def working_memory(self) -> WorkingMemory:
         """Return the working memory of the sender agent
 
-        Returns:
-            [WorkingMemory]: the working memory of the sender
+        :return: the working memory of the sender
         """
         return self._working_memory
 
@@ -173,11 +162,9 @@ class COHDA:
     def decide(self, content: CohdaMessage) -> Tuple[WorkingMemory, WorkingMemory]:
         """Execute the COHDA decision process.
 
-        Args:
-            content (CohdaMessage): the incoming COHDA message
+        :param content: the incoming COHDA message
 
-        Returns:
-            Tuple[WorkingMemory, WorkingMemory]: old and new working memory
+        :return: old and new working memory
         """
         memory = self._memory
         selection_counter = self._counter
@@ -229,12 +216,10 @@ class COHDA:
                         memory: WorkingMemory):
         """Evalute the incoming message and update our candidate accordingly.
 
-        Args:
-            content (CohdaMessage): the incoming message
-            memory (WorkingMemory): our memory
+        :param content: the incoming message
+        :param memory: our memory
 
-        Returns:
-            [SolutionCandidate, int]: our new solution candidate and its objective
+        :return: our new solution candidate and its objective
         """
 
         msg_solution_cand = content.working_memory.solution_candidate
@@ -275,12 +260,10 @@ class COHDA:
         """Objective function of COHDA. Calculates the negative sum of all deviations of
         the candidate to the target schedule
 
-        Args:
-            candidate ([type]): candidate schedule
-            target_schedule ([type]): target schedule
+        :param candidate: candidate schedule
+        :param target_schedule: target schedule
 
-        Returns:
-            [type]: negative sum of all deviations
+        :return: negative sum of all deviations
         """
         # Return the negative(!) sum of all deviations, because bigger scores
         # mean better plans (e.g., -1 is better then -10).
@@ -308,11 +291,9 @@ class COHDARole(NegotiationParticipant):
     def create_cohda(self, part_id: int):
         """Create an instance of the COHDA-decider.
 
-        Args:
-            part_id ([int]): participant id
+        :param part_id: participant id
 
-        Returns:
-            [COHDA]: COHDA
+        :return: COHDA
         """
         return COHDA(self._weights, self._schedules_provider, self._is_local_acceptable, part_id)
 

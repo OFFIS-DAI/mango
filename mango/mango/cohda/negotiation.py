@@ -37,8 +37,7 @@ class Negotiation:
     def negotiation_id(self) -> uuid.UUID:
         """Return the negotiation id
 
-        Returns:
-            [uuid.UUID]: the UUID
+        :return: the UUID
         """
         return self._negotiation_id
 
@@ -46,8 +45,7 @@ class Negotiation:
     def coalition_id(self) -> uuid.UUID:
         """Return the coalition id
 
-        Returns:
-            [uuid.UUID]: the UUID
+        :return: the UUID
         """
         return self._coalition_id
 
@@ -55,8 +53,7 @@ class Negotiation:
     def active(self) -> bool:
         """Is seen as active
 
-        Returns:
-            bool: if active
+        :return: True if active, False otherwise
         """
         return self._active
 
@@ -64,8 +61,7 @@ class Negotiation:
     def active(self, is_active) -> None:
         """Set is active
 
-        Args:
-            is_active (bool): active
+        :param is_active: active
         """
         self._active = is_active
 
@@ -80,31 +76,26 @@ class NegotiationModel:
     def by_id(self, negotiation_id: uuid.UUID) -> Negotiation:
         """Get a negotiation by id
 
-        Args:
-            negotiation_id (uuid.UUID): id of the negotiation
+        :param negotiation_id: id of the negotiation
 
-        Returns:
-            Negotiation: the negotiation
+        :return: the negotiation
         """
         return self._negotiations[negotiation_id]
 
     def exists(self, negotiation_id: uuid.UUID) -> bool:
         """Checks whether a negotiation exists
 
-        Args:
-            negotiation_id (uuid.UUID): id of the negotiation
+        :param negotiation_id: id of the negotiation
 
-        Returns:
-            bool: True if it exists, False otherwise
+        :return: True if it exists, False otherwise
         """
         return negotiation_id in self._negotiations
 
     def add(self, negotiation_id: uuid.UUID, assignment: Negotiation):
         """Add a concrete negotiation
 
-        Args:
-            negotiation_id (uuid.UUID): the UUID of the negotiation
-            assignment (Negotiation): the assignment for the negotiation
+        :param negotiation_id: the UUID of the negotiation
+        :param assignment: the assignment for the negotiation
         """
         self._negotiations[negotiation_id] = assignment
 
@@ -122,8 +113,7 @@ class NegotiationMessage:
     def negotiation_id(self) -> uuid.UUID:
         """Id of the negotiation
 
-        Returns:
-            uuid.UUID: the id
+        :return: the id
         """
         return self._negotiation_id
 
@@ -131,8 +121,7 @@ class NegotiationMessage:
     def coalition_id(self) -> uuid.UUID:
         """Id of the coalition this negotiation belongs to
 
-        Returns:
-            [uuid.UUID]: UUID
+        :return: UUID
         """
         return self._coalition_id
 
@@ -140,8 +129,7 @@ class NegotiationMessage:
     def messsage(self):
         """Return the wrapped message
 
-        Returns:
-            [type]: wrapped message
+        :return: wrapped message
         """
         return self._message
 
@@ -195,9 +183,8 @@ class NegotiationParticipant(SimpleReactiveRole, ABC):
     def handle_msg(self, content: NegotiationMessage, meta: Dict[str, Any]):
         """Handles any NegotiationMessages, updating the internal model of the agent.
 
-        Args:
-            content (NegotiationMessage): the message
-            meta (Dict[str, Any]): meta
+        :param content: the message
+        :param meta: meta
         """
         if not self.context.get_or_create_model(CoalitionModel).exists(content.coalition_id):
             return
@@ -217,20 +204,18 @@ class NegotiationParticipant(SimpleReactiveRole, ABC):
     def handle(self, message, assignment: CoalitionAssignment, negotiation: Negotiation, meta: Dict[str, Any]):
         """Handle the message and execute the specific negotiation step.
 
-        Args:
-            message ([type]): the message
-            assignment ([type]): the assignment the negotiations is in
-            negotiation ([Negotiation]): the negotiation model
-            meta ([Dict[str, Any]]): meta data
+        :param message: the message
+        :param assignment: the assignment the negotiations is in
+        :param negotiation: the negotiation model
+        :param meta: meta data
         """
 
     def send_to_neighbors(self, assignment: CoalitionAssignment, negotation: Negotiation, message):
         """Send a message to all neighbors
 
-        Args:
-            assignment (CoalitionAssignment): the coalition you want to use the neighbors of
-            negotation (Negotiation): the negotiation message
-            message ([type]): the message you want to send
+        :param assignment: the coalition you want to use the neighbors of
+        :param negotation: the negotiation message
+        :param message: the message you want to send
         """
         for neighbor in assignment.neighbors:
             self.send(negotation, message, neighbor)
@@ -238,10 +223,9 @@ class NegotiationParticipant(SimpleReactiveRole, ABC):
     def send(self, negotation: Negotiation, message, neighbor) -> None:
         """Send a negotiation message to the specified neighbor
 
-        Args:
-            negotation (Negotiation): the negotiation
-            message ([type]): the content you want to send
-            neighbor ([type]): the neighbor
+        :param negotation: the negotiation
+        :param message: the content you want to send
+        :param neighbor: the neighbor
         """
         asyncio.create_task(self.context.send_message(
             content=NegotiationMessage(negotation.coalition_id, negotation.negotiation_id, message),

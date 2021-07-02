@@ -34,8 +34,7 @@ class TerminationMessage:
     def weight(self) -> float:
         """Return the remaining weight
 
-        Returns:
-            [float]: remaining weight
+        :return: remaining weight
         """
         return self._weight
 
@@ -43,8 +42,7 @@ class TerminationMessage:
     def coalition_id(self) -> UUID:
         """Return the coalition id the negotiation is referring to
 
-        Returns:
-            [UUID]: the coalition id
+        :return: the coalition id
         """
         return self._coalition_id
 
@@ -52,8 +50,7 @@ class TerminationMessage:
     def negotiation_id(self) -> UUID:
         """Return the negotiation id
 
-        Returns:
-            UUID: the negotiation id
+        :return: the negotiation id
         """
         return self._negotiation_id
 
@@ -77,9 +74,8 @@ class NegotiationTerminationRole(SimpleReactiveRole):
     def handle_term_msg(self, content: TerminationMessage, _: Dict[str, Any]) -> None:
         """Handle the termination message.
 
-        Args:
-            content ([TerminationMessage]): the message
-            meta (Dict[str, Any]): meta data
+        :param content: the message
+        :param meta: meta data
         """
         self._weight_map[content.negotiation_id] += content.weight
 
@@ -91,13 +87,12 @@ class NegotiationTerminationRole(SimpleReactiveRole):
                 mqtt_kwargs: Dict[str, Any] = None):
         """Add the weight to every coalition related message
 
-        Args:
-            content ([type]): [description]
-            receiver_addr (Union[str, Tuple[str, int]]): [description]
-            receiver_id (Optional[str], optional): [description]. Defaults to None.
-            create_acl (bool, optional): [description]. Defaults to False.
-            acl_metadata (Optional[Dict[str, Any]], optional): [description]. Defaults to None.
-            mqtt_kwargs (Dict[str, Any], optional): [description]. Defaults to None.
+        :param content: content of the message
+        :param receiver_addr: address
+        :param receiver_id: id of the receiver. Defaults to None.
+        :param create_acl: If you want to wrap the message in an ACL. Defaults to False.
+        :param acl_metadata: ACL meta data. Defaults to None.
+        :param mqtt_kwargs: Args for MQTT. Defaults to None.
         """
         if hasattr(content, 'negotiation_id'):
             if not content.negotiation_id in self._weight_map:
@@ -109,9 +104,8 @@ class NegotiationTerminationRole(SimpleReactiveRole):
         """Check whether a coalition related message has been received and manipulate the internal
         weight accordingly
 
-        Args:
-            content ([type]): the incoming message
-            meta (Dict[str, Any]): the meta data
+        :param content: the incoming message
+        :param meta: the meta data
         """
         if hasattr(content, 'negotiation_id'):
             if content.negotiation_id in self._weight_map:

@@ -122,17 +122,15 @@ class RoleAgentContext(RoleContext):
     def add_role(self, role: Role):
         """Add a role to the context.
 
-        Args:
-            role ([Role]): the Role
+        :param role: the Role
         """
         self._role_handler.add_role(role)
 
     def handle_msg(self, content, meta: Dict[str, Any]):
         """Handle an incoming message, delegating it to all applicable subscribers
 
-        Args:
-            content ([type]): content
-            meta (Dict[str, Any]): meta
+        :param content: content
+        :param meta (Dict[str, Any]): meta
         """
         for role in self._role_handler.roles:
             if role in self._message_subs:
@@ -152,13 +150,12 @@ class RoleAgentContext(RoleContext):
                            ):
         """Send a message to another agent. Delegates the call to the agent-container.
 
-        Args:
-            content (arbitrary class): the message you want to send
-            receiver_addr (Union[str, Tuple[str, int]]): address of the recipient
-            receiver_id (Optional[str], optional): ip of the recipient. Defaults to None.
-            create_acl (bool, optional): set true if you want to create an acl. Defaults to False.
-            acl_metadata (Optional[Dict[str, Any]], optional): Metadata of the acl. Defaults to None
-            mqtt_kwargs (Dict[str, Any], optional): Args for mqtt. Defaults to None.
+        :param content: the message you want to send
+        :param receiver_addr: address of the recipient
+        :param receiver_id: ip of the recipient. Defaults to None.
+        :param create_acl: set true if you want to create an acl. Defaults to False.
+        :param acl_metadata: Metadata of the acl. Defaults to None
+        :param mqtt_kwargs: Args for mqtt. Defaults to None.
         """
         for role in self._send_msg_subs:
             for sub in self._send_msg_subs[role]:
@@ -198,8 +195,7 @@ class RoleAgent(Agent):
     def add_role(self, role: Role):
         """Add a role to the agent. This will lead to the call of :func:`Role.setup`.
 
-        Args:
-            role (Role): the role to add
+        :param role: the role to add
         """
         role.bind(self._agent_context)
         self._agent_context.add_role(role)
@@ -211,8 +207,7 @@ class RoleAgent(Agent):
     def roles(self) -> List[Role]:
         """Returns list of roles
 
-        Returns:
-            [List[Role]]: list of roles
+        :return: list of roles
         """
         return self._role_handler.roles
 
