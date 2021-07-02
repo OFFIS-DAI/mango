@@ -77,13 +77,14 @@ class RoleAgentContext:
     def schedule_task(self, task):
         self._scheduler.schedule_task(task)
 
-    async def send_message(self, content,
-                receiver_addr: Union[str, Tuple[str, int]], *,
-                receiver_id: Optional[str] = None,
-                create_acl: bool = False,
-                acl_metadata: Optional[Dict[str, Any]] = None,
-                mqtt_kwargs: Dict[str, Any] = None,
-                ):
+    async def send_message(
+            self, content,
+            receiver_addr: Union[str, Tuple[str, int]], *,
+            receiver_id: Optional[str] = None,
+            create_acl: bool = False,
+            acl_metadata: Optional[Dict[str, Any]] = None,
+            mqtt_kwargs: Optional[Dict[str, Any]] = None,
+    ):
         """Send a message to another agent. Delegates the call to the agent-container.
 
         Args:
@@ -94,12 +95,13 @@ class RoleAgentContext:
             acl_metadata (Optional[Dict[str, Any]], optional): Metadata of the acl. Defaults to None.
             mqtt_kwargs (Dict[str, Any], optional): Args for mqtt. Defaults to None.
         """
-        return await self._container.send_message(content = content, 
-                                     receiver_addr = receiver_addr, 
-                                     receiver_id = receiver_id, 
-                                     create_acl = create_acl, 
-                                     acl_metadata = acl_metadata, 
-                                     mqtt_kwargs = mqtt_kwargs)
+        return await self._container.send_message(
+            content=content,
+            receiver_addr=receiver_addr,
+            receiver_id=receiver_id,
+            create_acl=create_acl,
+            acl_metadata=acl_metadata,
+            mqtt_kwargs=mqtt_kwargs)
 
     def get_addr(self):
         return self._container.addr
@@ -131,5 +133,4 @@ class RoleAgent(Agent):
 
     async def shutdown(self):
         await self._role_handler._on_stop()
-
         await super(RoleAgent, self).shutdown()
