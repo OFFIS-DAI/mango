@@ -13,6 +13,8 @@ from ..messages.message import ACLMessage as json_ACLMessage
 from ..messages.acl_message_pb2 import ACLMessage as proto_ACLMessage
 from ..util import m_util as ut
 
+logger = logging.getLogger(__name__)
+
 
 class Container(ABC):
     """Superclass for a mango container"""
@@ -225,8 +227,8 @@ class Container(ABC):
         self.name: str = name
         if logging_kwargs is None:
             logging_kwargs = {}
-        self.logger = ut.configure_logger(f'{name}', log_level,
-                                          **logging_kwargs)
+        # self.logger = ut.configure_logger(f'{name}', log_level,
+        #                                   **logging_kwargs)
         self.addr = addr
         self.log_level: int = log_level
         self.codec: str = codec.lower()
@@ -256,11 +258,11 @@ class Container(ABC):
         """
         if not self._no_agents_running or self._no_agents_running.done():
             self._no_agents_running = asyncio.Future()
-        self.logger.debug(f'Received a register request from %s' % agent)
+        logger.debug(f'Received a register request from %s' % agent)
         aid = f'agent{self._aid_counter}'
         self._aid_counter += 1
         self._agents[aid] = agent
-        self.logger.info(f'{aid} is registered.')
+        logger.info(f'{aid} is registered.')
         return aid
 
     def deregister_agent(self, aid):
@@ -389,16 +391,12 @@ class Container(ABC):
             """
             exception = result.exception()
             if exception is not None:
-                self.logger.warning('Exception in _check_inbox_task.')
+                logger.warning('Exception in _check_inbox_task.')
                 raise exception
-
-        # self.logger.debug(f'Start waiting for messages')
 
         while True:
             data = await self.inbox.get()
-            # self.logger.debug(f'Received {data}')
             priority, msg_content, meta = data
-            # self.logger.debug(f'Received a message {msg}')
             task = asyncio.create_task(
                 self._handle_msg(priority=priority, msg_content=msg_content,
                                  meta=meta))
@@ -428,7 +426,7 @@ class Container(ABC):
 
         # cancel check inbox task
         if self._check_inbox_task is not None:
-            self.logger.debug('check inbox task will be cancelled')
+            logger.debug('check inbox task will be cancelled')
             self._check_inbox_task.cancel()
             try:
                 await self._check_inbox_task
@@ -496,18 +494,17 @@ class MQTTContainer(Container):
 
         def on_con(client, userdata, flags, rc):
             if rc != 0:
-                self.logger.info('Connection attempt to broker failed')
+                logger.info('Connection attempt to broker failed')
             else:
-                self.logger.debug('Successfully reconnected to broker.')
+                logger.debug('Successfully reconnected to broker.')
 
         self.mqtt_client.on_connect = on_con
 
         def on_discon(client, userdata, rc):
             if rc != 0:
-                self.logger.warning('Unexpected disconnect from broker.'
-                                    'Trying to reconnect')
+                logger.warning('Unexpected disconnect from broker. Trying to reconnect')
             else:
-                self.logger.debug('Successfully disconnected from broker.')
+                logger.debug('Successfully disconnected from broker.')
 
         self.mqtt_client.on_disconnect = on_discon
 
@@ -539,7 +536,7 @@ class MQTTContainer(Container):
 
         self.mqtt_client.on_message = on_msg
 
-        self.mqtt_client.enable_logger(self.logger)
+        self.mqtt_client.enable_logger(logger)
 
     async def shutdown(self):
         """
@@ -596,8 +593,8 @@ class MQTTContainer(Container):
                         if field.name != 'content':
                             meta[field.name] = getattr(acl_msg, field.name)
                 else:
-                    self.logger.warning(f'got message {acl_msg} with undefined'
-                                        f' content class from topic {topic}')
+                    logger.warning(f'got message {acl_msg} with undefined'
+                                   f' content class from topic {topic}')
         else:
             raise ValueError('Unknown Codec')
 
@@ -614,7 +611,7 @@ class MQTTContainer(Container):
         """
 
         topic = meta['topic']
-        self.logger.debug(f"Received the following message and meta: "
+        logger.debug(f"Received the following message and meta: "
                           f"{msg_content} {meta}")
         if topic == self.inbox_topic:
             # General inbox topic, so no receiver is specified by the topic
@@ -624,7 +621,7 @@ class MQTTContainer(Container):
                 receiver = self._agents[receiver_id]
                 await receiver.inbox.put((priority, msg_content, meta))
             else:
-                self.logger.warning(f'Receiver ID {receiver_id} is unknown')
+                logger.warning(f'Receiver ID is unknown;%s' % json.dumps(receiver_id))
         else:
             # no inbox topic. Check who has subscribed the topic.
             receivers = set()
@@ -632,13 +629,11 @@ class MQTTContainer(Container):
                 if paho.topic_matches_sub(sub, topic):
                     receivers.update(rec)
             if not receivers:
-                self.logger.warning(
+                logger.warning(
                     f'Received a message at {topic} but there is no agent '
                     f'that subscribed this topic.')
             else:
                 for receiver_id in receivers:
-                    # self.logger.debug(
-                    # f'Going to put msg to inbox of {receiver_id}')
                     receiver = self._agents[receiver_id]
 
                     await receiver.inbox.put((priority, msg_content, meta))
@@ -665,9 +660,6 @@ class MQTTContainer(Container):
             qos: The quality of service to use for publishing
             retain: Indicates, weather the retain flag should be set
         """
-        # self.logger.debug(
-        #     f"got message to send: content: {content} receiver_addr: {receiver_addr}, receiver_id: {receiver_id},"
-        #     f" create_acl:{create_acl}, acl_metadata: {acl_metadata}, mqtt_kwargs: {mqtt_kwargs}")
         if create_acl:
             message = self._create_acl(
                 content=content, receiver_addr=receiver_addr,
@@ -709,7 +701,7 @@ class MQTTContainer(Container):
             encoded_msg = message.SerializeToString()
         else:
             raise ValueError('Unknown codec')
-        self.logger.debug(f'Sending {message} with topic {topic} to the broker')
+        logger.debug(f'Sending {message} with topic {topic} to the broker')
         self.mqtt_client.publish(topic, encoded_msg)
 
     async def subscribe_for_agent(self, *, aid: str, topic: str, qos: int = 0,
@@ -753,11 +745,10 @@ class MQTTContainer(Container):
         """
         if self.codec == 'json':
             if not getattr(expected_class(), 'decode', None):
-                self.logger.warning('Class {expected_class} does not'
-                                    'provide the method decode(), which is'
-                                    'needed for json decoding..')
+                logger.warning('Class {expected_class} does not provide the method decode(), which is'
+                               'needed for json decoding..')
         self.subscriptions_to_class[topic] = expected_class
-        self.logger.debug(f'Expected class updated {self.subscriptions_to_class}')
+        logger.debug(f'Expected class updated {self.subscriptions_to_class}')
 
     def deregister_agent(self, aid):
         """
@@ -818,14 +809,13 @@ class TCPContainer(Container):
         :param meta:
         :return:
         """
-        self.logger.debug(f'Received msg with content and meta;{json.dumps(msg_content)};{json.dumps(meta)}')
+        logger.debug('Received msg with content and meta;%s;%s' % (str(msg_content), str(meta)))
         receiver_id = meta.get('receiver_id', None)
         if receiver_id and receiver_id in self._agents.keys():
             receiver = self._agents[receiver_id]
             await receiver.inbox.put((priority, msg_content, meta))
         else:
-            self.logger.warning(f'Received a message for an unknown '
-                                f'receiver {receiver_id}')
+            logger.warning(f'Received a message for an unknown receiver {receiver_id}')
 
     async def send_message(self, content,
                            receiver_addr: Union[str, Tuple[str, int]], *,
@@ -848,11 +838,11 @@ class TCPContainer(Container):
         """
         if isinstance(receiver_addr, str):
             if ':' not in receiver_addr:
-                self.logger.warning('Address for sending message is not valid;%s' % json.dumps(receiver_addr))
+                logger.warning('Address for sending message is not valid;%s' % receiver_addr)
                 return False
             receiver_addr = receiver_addr.split(':')
         elif not isinstance(receiver_addr, (tuple, list)):
-            self.logger.warning('Address for sending message is not valid;%s' % json.dumps(receiver_addr))
+            logger.warning('Address for sending message is not valid;%s' % receiver_addr)
             return False
         receiver_addr = tuple(receiver_addr)
 
@@ -885,7 +875,7 @@ class TCPContainer(Container):
 
         receiver = self._agents.get(receiver_id, None)
         if receiver is None:
-            self.logger.warning('Could not send internal message, receiver id unknown;%s' % json.dumps(receiver_id))
+            logger.warning('Could not send internal message, receiver id unknown;%s' % receiver_id)
             return False
         # TODO priority assignment could be specified here,
         priority = 0
@@ -903,8 +893,7 @@ class TCPContainer(Container):
         """
         if addr is None or not isinstance(addr, (tuple, list)) \
                 or len(addr) != 2:
-            self.logger.warning(f'Sending external message not successful, invalid address;'
-                                f'{json.dumps(addr)}')
+            logger.warning('Sending external message not successful: invalid address;%s' % str(addr))
             return False
 
         try:
@@ -913,17 +902,16 @@ class TCPContainer(Container):
                                           codec=self.codec),
                 addr[0],
                 addr[1])
-            # self.logger.debug('Connection established')
+            logger.debug('Connection established to addr;%s' % str(addr))
             if self.codec == 'json':
                 protocol.write(message.encode())
             elif self.codec == 'protobuf':
                 protocol.write(message.SerializeToString())
 
-            # self.logger.debug('message sent')
+            logger.debug('Message sent to addr;%s' % str(addr))
             await protocol.shutdown()
-            # self.logger.debug('protocol shutdown complete')
         except OSError as e:
-            self.logger.warning('Could not establish connection to receiver of a message;%s' % json.dumps(addr))
+            logger.warning('Could not establish connection to receiver of a message;%s' % str(addr))
             return False
         return True
 
