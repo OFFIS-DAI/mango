@@ -5,6 +5,7 @@ from abc import abstractmethod
 import asyncio, datetime
 from abc import ABC, abstractmethod
 
+
 class ScheduledTask:
     """Base class for scheduled tasks in mango. Within this class its possible to 
     define what to do on exceution and on stop. In most cases the logic should get
@@ -27,6 +28,7 @@ class ScheduledTask:
         """
         pass
 
+
 class PeriodicScheduledTask(ScheduledTask):
     """Class for periodic scheduled tasks. It enables to create a scheduable task for an agent
     which will get executed periodically with a specified delay.
@@ -41,6 +43,7 @@ class PeriodicScheduledTask(ScheduledTask):
         while not self._stopped:
             await self._coroutine_func()
             await asyncio.sleep(self._delay)
+
 
 class DateTimeScheduledTask(ScheduledTask):
     """DateTime based one-shot task. This task will get executed using a given datetime-object.
