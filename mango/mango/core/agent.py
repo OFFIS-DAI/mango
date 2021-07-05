@@ -7,7 +7,7 @@ Every agent must live in a container. Containers are responsible for making
 import asyncio
 from abc import ABC, abstractmethod
 from typing import Any, Dict
-# import mango.core.container
+# import mango.core.container  # might lead to cycle imports, we have to rethink this
 from ..util import m_util as ut
 from ..util.scheduling import ScheduledTask, Scheduler
 

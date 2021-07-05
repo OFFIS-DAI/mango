@@ -128,6 +128,9 @@ class RoleAgentContext(RoleContext):
 
     def handle_msg(self, content, meta: Dict[str, Any]):
         """Handle an incoming message, delegating it to all applicable subscribers
+        for role in self._role_handler.roles:
+            if role.is_applicable(content, meta):
+                role.handle_msg(content, meta, self)
 
         :param content: content
         :param meta (Dict[str, Any]): meta
@@ -141,13 +144,14 @@ class RoleAgentContext(RoleContext):
     def schedule_task(self, task: ScheduledTask):
         self._scheduler.schedule_task(task)
 
-    async def send_message(self, content,
-                           receiver_addr: Union[str, Tuple[str, int]], *,
-                           receiver_id: Optional[str] = None,
-                           create_acl: bool = False,
-                           acl_metadata: Optional[Dict[str, Any]] = None,
-                           mqtt_kwargs: Dict[str, Any] = None,
-                           ):
+    async def send_message(
+            self, content,
+            receiver_addr: Union[str, Tuple[str, int]], *,
+            receiver_id: Optional[str] = None,
+            create_acl: bool = False,
+            acl_metadata: Optional[Dict[str, Any]] = None,
+            mqtt_kwargs: Optional[Dict[str, Any]] = None,
+    ):
         """Send a message to another agent. Delegates the call to the agent-container.
 
         :param content: the message you want to send
@@ -164,12 +168,13 @@ class RoleAgentContext(RoleContext):
                                                   create_acl=create_acl,
                                                   acl_metadata=acl_metadata,
                                                   mqtt_kwargs=mqtt_kwargs)
-        return await self._container.send_message(content=content,
-                                                  receiver_addr=receiver_addr,
-                                                  receiver_id=receiver_id,
-                                                  create_acl=create_acl,
-                                                  acl_metadata=acl_metadata,
-                                                  mqtt_kwargs=mqtt_kwargs)
+        return await self._container.send_message(
+            content=content,
+            receiver_addr=receiver_addr,
+            receiver_id=receiver_id,
+            create_acl=create_acl,
+            acl_metadata=acl_metadata,
+            mqtt_kwargs=mqtt_kwargs)
 
     @property
     def addr(self):
@@ -216,5 +221,4 @@ class RoleAgent(Agent):
 
     async def shutdown(self):
         await self._role_handler.on_stop()
-
         await super().shutdown()
