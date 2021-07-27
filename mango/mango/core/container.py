@@ -243,7 +243,6 @@ class Container(ABC):
         """
         if not self._no_agents_running or self._no_agents_running.done():
             self._no_agents_running = asyncio.Future()
-        logger.debug(f'Received a register request;{agent}')
         aid = f'agent{self._aid_counter}'
         self._aid_counter += 1
         self._agents[aid] = agent
