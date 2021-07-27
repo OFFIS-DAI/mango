@@ -40,7 +40,7 @@ T = TypeVar('T')
 class RoleContext(ABC):
     """Abstract class RoleContext. The context can be seen as the bridge to the agent and the
     container the agent lives in. Every interaction with the environment or other roles will
-    hapen through the context.
+    happen through the context.
     """
 
     @abstractmethod
@@ -85,7 +85,7 @@ class RoleContext(ABC):
             role ([type]): the role
             method ([type]): the method, which should get invoked, have to match the correct
                              signature (content, meta)
-            message_condition ([type]): the condition which have to be fullfiled to receive the
+            message_condition ([type]): the condition which have to be fulfilled to receive the
                                         message. (Object) -> bool
         """
 
@@ -161,7 +161,7 @@ class Role(ABC):
                          initialization and scheduling of tasks
     * :func:`Role.on_stop` is called when the container the agent lives in, is shut down
 
-    To interact with the environment you have to use the context, accesible via :func:Role.context.
+    To interact with the environment you have to use the context, accessible via :func:Role.context.
     """
 
     def __init__(self) -> None:
@@ -180,7 +180,7 @@ class Role(ABC):
 
     @property
     def context(self) -> RoleContext:
-        """Return the context of the role. This context can be seend as bridge to the agent.
+        """Return the context of the role. This context can be send as bridge to the agent.
 
         Returns:
             RoleContext: the context of the role
@@ -206,7 +206,7 @@ class Role(ABC):
 
 class SimpleReactiveRole(Role):
     """Special role for implementing a simple reactive behavior. In opposite to the normal role,
-    you dont have to subscribe to message here, you can just override
+    you don't have to subscribe to message here, you can just override
     :func:`SimpleReactiveRole.handle_msg` and you will receive every message. When you want
     to filter those messages, you cant just override :func:`SimpleReactiveRole.is_applicable`.
 
