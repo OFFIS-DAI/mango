@@ -7,23 +7,24 @@ import asyncio
 import logging
 from typing import Optional, Union, Tuple, Dict, Any, Set
 import paho.mqtt.client as paho
-from .agent import Agent
 from .container_protocols import ContainerProtocol
 from ..messages.message import ACLMessage as json_ACLMessage
 from ..messages.acl_message_pb2 import ACLMessage as proto_ACLMessage
-from ..util import m_util as ut
+
+logger = logging.getLogger(__name__)
 
 
 class Container(ABC):
     """Superclass for a mango container"""
+
     @classmethod
     async def factory(cls, *, connection_type: str = 'tcp', codec: str = 'json',
                       addr: Optional[Union[str, Tuple[str, int]]] = None,
-                      log_level: int = logging.DEBUG, proto_msgs_module=None,
+                      proto_msgs_module=None,
                       mqtt_kwargs: Dict[str, Any] = None):
         """
         This method is called to instantiate a container instance, either
-        a TCPContainer or a MQTTCOntainer, depending on the parameter
+        a TCPContainer or a MQTTContainer, depending on the parameter
         connection_type.
         :param connection_type: Defines the connection type. So far only 'tcp'
         or 'mqtt' are allowed
@@ -33,11 +34,11 @@ class Container(ABC):
         to be a tuple of (host, port). If connection_type == 'mqtt' this can
         optionally define an inbox_topic that is used similarly than
         a tcp address.
-        :param log_level: The log level to use
-        :param mqtt_kwargs: If connection_type == 'mqtt':
-        Dictionary of keyword arguments for connection to the broker. At least
-        the keys 'broker_addr' and 'client_id' have to be included.
-        Ignored if connection_type == 'tcp'
+        :param proto_msgs_module: The compiled python module where the
+         additional proto msgs are defined. Ignored if codec != 'protobuf'
+        :param mqtt_kwargs: Dictionary of keyword arguments for connection to a mqtt broker. At least
+        the keys 'broker_addr' and 'client_id' have to be provided.
+        Ignored if connection_type != 'mqtt'
         :return: The instance of a MQTTContainer or a TCPContainer
         """
         connection_type = connection_type.lower()
@@ -53,9 +54,9 @@ class Container(ABC):
         loop = asyncio.get_running_loop()
 
         if connection_type == 'tcp':
-            # initialize TCPcontainer
+            # initialize TCPContainer
             container = TCPContainer(
-                addr=addr, codec=codec, loop=loop, log_level=log_level,
+                addr=addr, codec=codec, loop=loop,
                 proto_msgs_module=proto_msgs_module
             )
 
@@ -80,6 +81,15 @@ class Container(ABC):
             if not broker_addr:
                 raise ValueError('broker_addr is requested within mqtt_kwargs')
 
+            # get parameters for Client.init()
+            init_kwargs = {}
+            possible_init_kwargs = ('clean_session', 'userdata', 'protocol',
+                                    'transport')
+            for possible_kwarg in possible_init_kwargs:
+                if possible_kwarg in mqtt_kwargs.keys():
+                    init_kwargs[possible_kwarg] = \
+                        mqtt_kwargs.pop(possible_kwarg)
+
             # check if addr is a valid topic without wildcards
             if addr is not None and \
                     (not isinstance(addr, str) or '#' in addr or '+' in addr):
@@ -88,7 +98,9 @@ class Container(ABC):
                                  'any wildcards (\'#\' or \'+\')')
 
             # create paho.Client object for mqtt communication
-            mqtt_messenger: paho.Client = paho.Client(client_id=client_id)
+            mqtt_messenger: paho.Client = paho.Client(
+                client_id=client_id,
+                **init_kwargs)
 
             # set TLS options if provided
             # expected as a dict:
@@ -99,9 +111,12 @@ class Container(ABC):
 
             # Future that is triggered, on successful connection
             connected = asyncio.Future()
+
             # callbacks to check for successful connection
             def on_con(client, userdata, flags, returncode):
+                print(f'Connection Callback with the following flags: {flags}')
                 loop.call_soon_threadsafe(connected.set_result, returncode)
+
             mqtt_messenger.on_connect = on_con
 
             # check broker_addr input and connect
@@ -117,17 +132,17 @@ class Container(ABC):
                 if len(broker_addr) > 2 and not isinstance(broker_addr[2],
                                                            int):
                     raise ValueError('Invalid broker address')
-                mqtt_messenger.connect(*broker_addr)
+                mqtt_messenger.connect(*broker_addr, **mqtt_kwargs)
 
             elif isinstance(broker_addr, dict):
-                if not 'hostname' in broker_addr.keys():
+                if 'hostname' not in broker_addr.keys():
                     raise ValueError('Invalid broker address')
-                mqtt_messenger.connect(**broker_addr)
+                mqtt_messenger.connect(**broker_addr, **mqtt_kwargs)
 
             else:
                 if not isinstance(broker_addr, str):
                     raise ValueError('Invalid broker address')
-                mqtt_messenger.connect(broker_addr)
+                mqtt_messenger.connect(broker_addr, **mqtt_kwargs)
 
             print(f'[{client_id}]: Going to connect to broker '
                   f'at {broker_addr}... ', end='')
@@ -160,9 +175,11 @@ class Container(ABC):
 
                 # create Future that is triggered on successful subscription
                 subscribed = asyncio.Future()
+
                 # set up subscription callback
                 def on_sub(*args):
                     loop.call_soon_threadsafe(subscribed.set_result, True)
+
                 mqtt_messenger.on_subscribe = on_sub
 
                 # subscribe topic
@@ -186,46 +203,39 @@ class Container(ABC):
                         f'did not succeed after {counter * 0.1} seconds.')
                 print('done.')
 
-            # connection and subscription is sucessful, remove callbacks
+            # connection and subscription is successful, remove callbacks
             mqtt_messenger.on_subscribe = None
             mqtt_messenger.on_connect = None
 
-
-            return MQTTContainer(client_id=client_id, addr=addr,
-                                 log_level=log_level, loop=loop,
+            return MQTTContainer(client_id=client_id, addr=addr, loop=loop,
                                  mqtt_client=mqtt_messenger, codec=codec,
                                  proto_msgs_module=proto_msgs_module)
 
-
-
-
-    def __init__(self, *, addr, log_level, name, codec,
+    def __init__(self, *, addr, name: str, codec,
                  proto_msgs_module=None, loop):
-        self.name = name
-        self.logger = ut.configure_logger(f'{name}', log_level)
+        self.name: str = name
         self.addr = addr
-        self.log_level: int = log_level
+
         self.codec: str = codec.lower()
         if codec == 'protobuf':
             self.other_msgs = proto_msgs_module
         self.loop: asyncio.AbstractEventLoop = loop
 
         # dict of agents. aid: agent instance
-        self._agents: Dict[str: Agent] = {}
+        self._agents: Dict = {}
         self._aid_counter: int = 0  # counter for aids
+
+        self.running: bool = True  # True until self.shutdown() is called
+        self._no_agents_running: asyncio.Future = asyncio.Future()
+        self._no_agents_running.set_result(True)  # signals that currently no agent lives in this container
 
         # inbox for all incoming messages
         self.inbox: asyncio.Queue = asyncio.Queue()
 
-        # task that processes the inbox. Will be started in run()
-        self._check_inbox_task: Optional[asyncio.Task] = None
-        self.running: bool = True  # True until self.shutdown() is called
-        self._no_agents_running: asyncio.Future = asyncio.Future().set_result(
-            True)  # signals that currently no agent lives in this container
+        # task that processes the inbox.
+        self._check_inbox_task: asyncio.Task = asyncio.create_task(self._check_inbox())
 
-        self._check_inbox_task = asyncio.create_task(self._check_inbox())
-
-    def register_agent(self, agent):
+    def _register_agent(self, agent):
         """
         Register *agent* and return the agent id
         :param agent: The agent instance
@@ -233,11 +243,10 @@ class Container(ABC):
         """
         if not self._no_agents_running or self._no_agents_running.done():
             self._no_agents_running = asyncio.Future()
-        # self.logger.debug('got a register request')
         aid = f'agent{self._aid_counter}'
         self._aid_counter += 1
-        self.logger.info(f'{aid} is registered now')
         self._agents[aid] = agent
+        logger.info(f'Successfully registered agent;{aid}')
         return aid
 
     def deregister_agent(self, aid):
@@ -258,7 +267,7 @@ class Container(ABC):
                            create_acl: bool = False,
                            acl_metadata: Optional[Dict[str, Any]] = None,
                            mqtt_kwargs: Dict[str, Any] = None,
-                           ):
+                           ) -> bool:
         """
         container sends the message of one of its own agents to a specific topic
         :param content: The content of the message
@@ -269,6 +278,11 @@ class Container(ABC):
         content.
         :param acl_metadata: metadata for the acl_header.
         Ignored if create_acl == False
+        :param mqtt_kwargs: Dict with possible kwargs for publishing to a mqtt broker
+            Possible fields:
+            qos: The quality of service to use for publishing
+            retain: Indicates, weather the retain flag should be set
+            Ignored if connection_type != 'mqtt'
         """
         raise NotImplementedError
 
@@ -299,7 +313,7 @@ class Container(ABC):
             message.content = content
 
         elif self.codec == 'protobuf':
-            #create protobuf message
+            # create protobuf message
             message = proto_ACLMessage()
             receiver_meta = acl_metadata['receiver_addr']
             if isinstance(receiver_meta, (tuple, list)):
@@ -320,7 +334,7 @@ class Container(ABC):
         return message
 
     def split_content_and_meta_from_acl(
-            self, acl_message: Union[json_ACLMessage, proto_ACLMessage],):
+            self, acl_message: Union[json_ACLMessage, proto_ACLMessage], ):
         """
         This function takes the content and meta information from an
         acl message.
@@ -361,16 +375,12 @@ class Container(ABC):
             """
             exception = result.exception()
             if exception is not None:
-                self.logger.warning('Exception in _check_inbox_task.')
+                logger.warning('Exception in _check_inbox_task.')
                 raise exception
-
-        # self.logger.debug(f'Start waiting for messages')
 
         while True:
             data = await self.inbox.get()
-            # self.logger.debug(f'Received {data}')
             priority, msg_content, meta = data
-            # self.logger.debug(f'Received a message {msg}')
             task = asyncio.create_task(
                 self._handle_msg(priority=priority, msg_content=msg_content,
                                  meta=meta))
@@ -400,12 +410,14 @@ class Container(ABC):
 
         # cancel check inbox task
         if self._check_inbox_task is not None:
-            self.logger.debug('check inbox task will be cancelled')
+            logger.debug('check inbox task will be cancelled')
             self._check_inbox_task.cancel()
             try:
                 await self._check_inbox_task
             except asyncio.CancelledError:
                 pass
+            finally:
+                logger.info('Successfully shutdown')
 
 
 class MQTTContainer(Container):
@@ -417,7 +429,7 @@ class MQTTContainer(Container):
     """
 
     def __init__(self, *, client_id: str, addr: Optional[str],
-                 log_level: int, loop: asyncio.AbstractEventLoop,
+                 loop: asyncio.AbstractEventLoop,
                  mqtt_client: paho.Client, codec: str = 'json',
                  proto_msgs_module=None):
         """
@@ -427,15 +439,14 @@ class MQTTContainer(Container):
         to the broker
         :param addr: A string of the unique inbox topic to use.
         No wildcards are allowed. If None, no inbox topic will be set
-        :param log_level: The log level to use
         :param mqtt_client: The paho.Client object that is used for the
         communication with the broker
         :param codec: The codec to use. Currently only 'json' or 'protobuf' are
          allowed
-        :param proto_msgs: The compiled python module where the
+        :param proto_msgs_module: The compiled python module where the
          additional proto msgs are defined
         """
-        super().__init__(log_level=log_level, codec=codec, addr=addr,
+        super().__init__(codec=codec, addr=addr,
                          proto_msgs_module=proto_msgs_module, loop=loop,
                          name=client_id)
 
@@ -448,7 +459,7 @@ class MQTTContainer(Container):
         # dict mapping subscribed topics to the expected class
         self.subscriptions_to_class: Dict[str, Any] = {}
         # Future for pending sub requests
-        self.pending_sub_request: asyncio.Future = None
+        self.pending_sub_request: Optional[asyncio.Future] = None
 
         # set the callbacks
         self._set_mqtt_callbacks()
@@ -463,18 +474,17 @@ class MQTTContainer(Container):
 
         def on_con(client, userdata, flags, rc):
             if rc != 0:
-                self.logger.info('Connection attempt to broker failed')
+                logger.info('Connection attempt to broker failed')
             else:
-                self.logger.debug('Successfully reconnected to broker.')
+                logger.debug('Successfully reconnected to broker.')
 
         self.mqtt_client.on_connect = on_con
 
         def on_discon(client, userdata, rc):
             if rc != 0:
-                self.logger.info('Unexpected disconnect from broker.'
-                                 'Trying to reconnect')
+                logger.warning('Unexpected disconnect from broker. Trying to reconnect')
             else:
-                self.logger.debug('Successfully disconnected from broker.')
+                logger.debug('Successfully disconnected from broker.')
 
         self.mqtt_client.on_disconnect = on_discon
 
@@ -506,7 +516,7 @@ class MQTTContainer(Container):
 
         self.mqtt_client.on_message = on_msg
 
-        self.mqtt_client.enable_logger(self.logger)
+        self.mqtt_client.enable_logger(logger)
 
     async def shutdown(self):
         """
@@ -563,17 +573,17 @@ class MQTTContainer(Container):
                         if field.name != 'content':
                             meta[field.name] = getattr(acl_msg, field.name)
                 else:
-                    self.logger.warning(f'got message {acl_msg} with undefined'
-                                        f' content class from topic {topic}')
+                    logger.warning(f'got message with undefined'
+                                   f' content class from topic;{acl_msg};{topic}')
         else:
-            raise ValueError('Unknown Codec')
+            logger.warning(f'Unable to use codec;{self.codec}')
 
         return content, meta
 
     async def _handle_msg(self, *,
                           priority: int, msg_content, meta: Dict[str, Any]):
         """
-        This is called as a seperate task for every message that is read
+        This is called as a separate task for every message that is read
         :param priority: priority of the msg
         :param msg_content: Deserialized content of the message
         :param meta: Dict with additional information (e.g. topic)
@@ -581,16 +591,16 @@ class MQTTContainer(Container):
         """
 
         topic = meta['topic']
-
+        logger.debug(f'Received msg with content and meta;{str(msg_content)};{str(meta)}')
         if topic == self.inbox_topic:
-            # General inbox topic, so no receiver is speciefied by the topic
+            # General inbox topic, so no receiver is specified by the topic
             # try to find the receiver from meta
             receiver_id = meta.get('receiver_id', None)
             if receiver_id and receiver_id in self._agents.keys():
                 receiver = self._agents[receiver_id]
                 await receiver.inbox.put((priority, msg_content, meta))
             else:
-                self.logger.warning(f'Receiver ID {receiver_id} is unknown')
+                logger.warning(f'Receiver ID is unknown;{receiver_id}')
         else:
             # no inbox topic. Check who has subscribed the topic.
             receivers = set()
@@ -598,13 +608,9 @@ class MQTTContainer(Container):
                 if paho.topic_matches_sub(sub, topic):
                     receivers.update(rec)
             if not receivers:
-                self.logger.warning(
-                    f'Received a message at {topic} but there is no agent '
-                    f'that subscribed this topic.')
+                logger.warning(f'Received a message at a topic which no agent subscribed;{topic}')
             else:
                 for receiver_id in receivers:
-                    # self.logger.debug(
-                    # f'Going to put msg to inbox of {receiver_id}')
                     receiver = self._agents[receiver_id]
 
                     await receiver.inbox.put((priority, msg_content, meta))
@@ -615,7 +621,7 @@ class MQTTContainer(Container):
                            create_acl: bool = False,
                            acl_metadata: Optional[Dict[str, Any]] = None,
                            mqtt_kwargs: Dict[str, Any] = None,
-                          ):
+                           ):
         """
         container sends the message of one of its own agents to a specific
         topic
@@ -631,7 +637,6 @@ class MQTTContainer(Container):
             qos: The quality of service to use for publishing
             retain: Indicates, weather the retain flag should be set
         """
-
         if create_acl:
             message = self._create_acl(
                 content=content, receiver_addr=receiver_addr,
@@ -645,7 +650,6 @@ class MQTTContainer(Container):
         mqtt_kwargs = {} if mqtt_kwargs is None else mqtt_kwargs
         if self.addr and receiver_addr == self.addr and \
                 not mqtt_kwargs.get('retain', False):
-            # self.logger.debug(f'Going to forward internal message at {topic}')
             meta = {'topic': self.addr,
                     'qos': mqtt_kwargs.get('qos', 0),
                     'retain': False,
@@ -655,9 +659,11 @@ class MQTTContainer(Container):
             content, msg_meta = self.split_content_and_meta_from_acl(message)
             meta.update(msg_meta)
             self.inbox.put_nowait((0, content, meta))
+            return True
 
         else:
             self._send_external_message(topic=receiver_addr, message=message)
+            return True
 
     def _send_external_message(self, *, topic: str, message):
         """
@@ -672,7 +678,7 @@ class MQTTContainer(Container):
             encoded_msg = message.SerializeToString()
         else:
             raise ValueError('Unknown codec')
-        self.logger.debug(f'Sending {message} to the broker')
+        logger.debug(f'Sending message;{message};{topic}')
         self.mqtt_client.publish(topic, encoded_msg)
 
     async def subscribe_for_agent(self, *, aid: str, topic: str, qos: int = 0,
@@ -686,7 +692,7 @@ class MQTTContainer(Container):
         to ACL
         :return: A boolean signaling if subscription was true or not
         """
-        if not aid in self._agents.keys():
+        if aid not in self._agents.keys():
             raise ValueError('Given aid is not known')
         if expected_class:
             self.subscriptions_to_class[topic] = expected_class
@@ -716,11 +722,10 @@ class MQTTContainer(Container):
         """
         if self.codec == 'json':
             if not getattr(expected_class(), 'decode', None):
-                self.logger.warning('Class {expected_class} does not'
-                                    'provide the method decode(), which is'
-                                    'needed for json decoding..')
+                logger.warning('Class does not provide the method decode(), which is'
+                               f'needed for json decoding;{expected_class}')
         self.subscriptions_to_class[topic] = expected_class
-        self.logger.debug(f'Expected class updated {self.subscriptions_to_class}')
+        logger.debug(f'Expected class updated;{self.subscriptions_to_class}')
 
     def deregister_agent(self, aid):
         """
@@ -740,13 +745,15 @@ class MQTTContainer(Container):
             self.additional_subscriptions.pop(subscription)
             self.mqtt_client.unsubscribe(topic=subscription)
 
+
 class TCPContainer(Container):
     """
     This is a container that communicate directly with other containers
     via tcp
     """
+
     def __init__(self, *, addr: Tuple[str, int], codec: str,
-                 loop: asyncio.AbstractEventLoop, log_level: int,
+                 loop: asyncio.AbstractEventLoop,
                  proto_msgs_module=None):
         """
         Initializes a TCP container. Do not directly call this method but use
@@ -754,20 +761,15 @@ class TCPContainer(Container):
         :param addr: The container address
         :param codec: The codec to use
         :param loop: Current event loop
-        :param log_level: The log level to use
         :param proto_msgs_module: The module for proto msgs in case of
         proto as codec
         """
-        super().__init__(addr=addr, log_level=log_level, codec=codec,
+        super().__init__(addr=addr, codec=codec,
                          proto_msgs_module=proto_msgs_module, loop=loop,
                          name=f'{addr[0]}:{addr[1]}')
 
         self.server = None  # will be set within the factory method
-
-        self.logger.debug(f'Start running...')
-        self._check_inbox_task = asyncio.create_task(self._check_inbox())
         self.running = True
-
 
     async def _handle_msg(self, *,
                           priority: int, msg_content, meta: Dict[str, Any]):
@@ -778,15 +780,13 @@ class TCPContainer(Container):
         :param meta:
         :return:
         """
-        # self.logger.debug(f'going to handle {msg_content}')
-        self.logger.debug(f'Received msg with meta: {meta}')
+        logger.debug(f'Received msg with content and meta;{str(msg_content)};{str(meta)}')
         receiver_id = meta.get('receiver_id', None)
         if receiver_id and receiver_id in self._agents.keys():
             receiver = self._agents[receiver_id]
             await receiver.inbox.put((priority, msg_content, meta))
         else:
-            self.logger.warning(f'Received a message for an unknown '
-                                f'receiver {receiver_id}')
+            logger.warning(f'Received a message for an unknown receiver;{receiver_id}')
 
     async def send_message(self, content,
                            receiver_addr: Union[str, Tuple[str, int]], *,
@@ -794,7 +794,7 @@ class TCPContainer(Container):
                            create_acl: bool = False,
                            acl_metadata: Optional[Dict[str, Any]] = None,
                            mqtt_kwargs: Dict[str, Any] = None,
-                           ):
+                           ) -> bool:
         """
         container sends the message of one of its own agents to a specific topic
         :param content: The content of the message
@@ -805,16 +805,15 @@ class TCPContainer(Container):
         :param acl_metadata: metadata for the acl_header.
         Ignored if create_acl == False
         :param mqtt_kwargs: Ignored in this class
+        :return boolean indicating whether  sending was successful or not
         """
-        if isinstance(receiver_addr, str):
-            if ':' not in receiver_addr:
-                raise ValueError(f'addr must be tuple of (host, port)'
-                                 f' or a string \'host:port\', '
-                                 f'but is {receiver_addr}.')
+        if isinstance(receiver_addr, str) and ':' in receiver_addr:
             receiver_addr = receiver_addr.split(':')
-        elif not isinstance(receiver_addr, (tuple, list)):
-            raise TypeError(f'{receiver_addr} is not a valid adress')
-        receiver_addr = tuple(receiver_addr)
+        elif isinstance(receiver_addr, (tuple, list)) and len(receiver_addr) == 2:
+            receiver_addr = tuple(receiver_addr)
+        else:
+            logger.warning(f'Address for sending message is not valid;{receiver_addr}')
+            return False
 
         if create_acl:
             message = self._create_acl(content=content,
@@ -828,31 +827,33 @@ class TCPContainer(Container):
             if not receiver_id:
                 receiver_id = message.receiver_id
             # internal message
-            self._send_internal_message(receiver_id, message)
-        else:
-            await self._send_external_message(receiver_addr, message)
 
-    def _send_internal_message(self, receiver_id, message):
+            success = self._send_internal_message(receiver_id, message)
+        else:
+            success = await self._send_external_message(receiver_addr, message)
+
+        return success
+
+    def _send_internal_message(self, receiver_id, message) -> bool:
         """
         Sends a message to an agent that lives in the same container
-        :param receiver_id: ID of the reciever
+        :param receiver_id: ID of the receiver
         :param message:
-        :return:
+        :return: boolean indicating whether sending was successful
         """
 
         receiver = self._agents.get(receiver_id, None)
         if receiver is None:
-            raise KeyError(
-                f'Receiver ID {receiver_id} is not known to the container '
-                f'at {self.addr}')
+            logger.warning(f'Sending internal message not successful, receiver id unknown;{receiver_id}')
+            return False
         # TODO priority assignment could be specified here,
         priority = 0
-        # self.logger.debug(f'Container will send an internal message')
         content, meta = self.split_content_and_meta_from_acl(message)
         meta['network_protocol'] = 'tcp'
         receiver.inbox.put_nowait((priority, content, meta))
+        return True
 
-    async def _send_external_message(self, addr, message):
+    async def _send_external_message(self, addr, message) -> bool:
         """
         Sends *message* to another container at *addr*
         :param addr: Tuple of (host, port)
@@ -861,8 +862,8 @@ class TCPContainer(Container):
         """
         if addr is None or not isinstance(addr, (tuple, list)) \
                 or len(addr) != 2:
-            raise TypeError(f'addr must be a tuple '
-                            f'of (host, port) but is {addr},')
+            logger.warning(f'Sending external message not successful, invalid address;{str(addr)}')
+            return False
 
         try:
             transport, protocol = await self.loop.create_connection(
@@ -870,22 +871,22 @@ class TCPContainer(Container):
                                           codec=self.codec),
                 addr[0],
                 addr[1])
-            # self.logger.debug('Connection established')
+            logger.debug(f'Connection established to addr;{str(addr)}')
             if self.codec == 'json':
                 protocol.write(message.encode())
             elif self.codec == 'protobuf':
                 protocol.write(message.SerializeToString())
 
-            # self.logger.debug('message sent')
+            logger.debug(f'Message sent to addr;{str(addr)}')
             await protocol.shutdown()
-            # self.logger.debug('protocol shutdown complete')
-        except Exception:
-            print(f'address {addr} is not valid')
-            # TODO: handle properly (send notification to agent?)
+        except OSError as e:
+            logger.warning(f'Could not establish connection to receiver of a message;{str(addr)}')
+            return False
+        return True
 
     async def shutdown(self):
         """
-        calles shutdown() from super class Container and closes the server
+        calls shutdown() from super class Container and closes the server
         """
         await super().shutdown()
         self.server.close()
