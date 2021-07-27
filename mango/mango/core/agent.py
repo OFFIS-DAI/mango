@@ -7,7 +7,7 @@ Every agent must live in a container. Containers are responsible for making
 import asyncio
 from abc import ABC, abstractmethod
 from typing import Any, Dict
-# import mango.core.container
+# import mango.core.container  # might lead to cycle imports, we have to rethink this
 from ..util import m_util as ut
 from ..util.scheduling import ScheduledTask, Scheduler
 
@@ -41,8 +41,7 @@ class Agent(ABC):
         """Schedule a task with asyncio. When the task is finished, if finite, its automatically
         removed afterwards. For scheduling options see the subclasses of ScheduledTask.
 
-        Args:
-            task (ScheduledTask): task to be scheduled
+        :param task: task to be scheduled
         """
         l_task = asyncio.create_task(task.run())
         l_task.add_done_callback(task.on_stop)
@@ -52,8 +51,7 @@ class Agent(ABC):
     async def tasks_complete(self, timeout=1):
         """Wait for all scheduled tasks to complete using a timeout.
 
-        Args:
-            timeout (int, optional): waiting timeout. Defaults to 1.
+        :param timeout: waiting timeout. Defaults to 1.
         """
         await self._scheduler.tasks_complete(timeout=timeout)
 

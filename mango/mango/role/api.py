@@ -51,11 +51,9 @@ class RoleContext(ABC):
         per class.
 
 
-        Args:
-            cls (Type[T]): type of the model you want to get/create
+        :param cls: type of the model you want to get/create
 
-        Returns:
-            T: [description]
+        :return: role model
         """
 
     @abstractmethod
@@ -63,8 +61,7 @@ class RoleContext(ABC):
         """Notifies the agent that the role_model parameter has been updated. Every role which
         subscribed to the model type will get notified about the change.
 
-        Args:
-            role_model ([type]): the role model, which got updated
+        :param role_model: the role model, which got updated
         """
 
     @abstractmethod
@@ -72,20 +69,18 @@ class RoleContext(ABC):
         """Subscribe the `role` to a model type. When the model is update with `update`, the role
         will get notified with invoking :func:`Role.on_change_model`
 
-        Args:
-            role ([type]): the role which want to subscribe
-            role_model_type ([type]): type of the role model
+        :param role: the role which want to subscribe
+        :param role_model_type: type of the role model
         """
 
     @abstractmethod
     def subscribe_message(self, role, method, message_condition):
         """Subscribe to a specific message, given by `message_condition`.
 
-        Args:
-            role ([type]): the role
-            method ([type]): the method, which should get invoked, have to match the correct
+        :param role: the role
+        :param method: the method, which should get invoked, have to match the correct
                              signature (content, meta)
-            message_condition ([type]): the condition which have to be fulfilled to receive the
+        :param message_condition: the condition which have to be fulfilled to receive the
                                         message. (Object) -> bool
         """
 
@@ -93,9 +88,8 @@ class RoleContext(ABC):
     def subscribe_send(self, role, method):
         """Subscribe to all messages sent in the agent.
 
-        Args:
-            role ([type]): the role
-            method ([type]): method, which should get called, when a message is sent (must match the
+        :param role: the role
+        :param method: method, which should get called, when a message is sent (must match the
                              signature of :func:RoleContext.send_message)
         """
 
@@ -103,8 +97,7 @@ class RoleContext(ABC):
     def schedule_task(self, task: ScheduledTask):
         """Schedule a task using the agents scheduler.
 
-        Args:
-            task (ScheduledTask): the task you want schedule, see :class:`ScheduledTask` for details
+        :param task: the task you want schedule, see :class:`ScheduledTask` for details
         """
 
     @abstractmethod
@@ -117,37 +110,33 @@ class RoleContext(ABC):
                            ):
         """Delegate to :func:`Container.send_message`.
 
-        Args:
-            content ([type]): the content
-            receiver_addr (Union[str, Tuple[str, int]]): the address of the receiver
-            receiver_id (Optional[str], optional): id of the receiver
-            create_acl (bool, optional): whether you want to wrap the message in an ACL
-            acl_metadata (Optional[Dict[str, Any]], optional): the ACL-metadata
-            mqtt_kwargs (Dict[str, Any], optional): kwargs for MQTT
+        :param content: the content
+        :param receiver_addr: the address of the receiver
+        :param receiver_id: id of the receiver
+        :param create_acl: whether you want to wrap the message in an ACL
+        :param acl_metadata: the ACL-metadata
+        :param mqtt_kwargs: kwargs for MQTT
         """
 
     @abstractmethod
     def addr(self) -> Union[str, Tuple[str, int]]:
         """Return the address of the agent, the role is running in
 
-        Returns:
-            Union[str, Tuple[str, int]]: the address tuple (IP, PORT) or in MQTT (TOPIC)
+        :return: the address tuple (IP, PORT) or in MQTT (TOPIC)
         """
 
     @abstractmethod
     def aid(self) -> str:
         """Return the id of the agent, the role is running in
 
-        Returns:
-            str: the id as string
+        :return: the id as string
         """
 
     @abstractmethod
     def inbox_length(self) -> int:
         """return the overall inbox length of the agent
 
-        Returns:
-            int: inbox_length of the agent
+        :return: inbox_length of the agent
         """
 
 
@@ -173,8 +162,7 @@ class Role(ABC):
     def bind(self, context: RoleContext) -> None:
         """Method used internal to set the context, do not override!
 
-        Args:
-            context (RoleContext): the role context
+        :param context: the role context
         """
         self._context = context
 
@@ -182,8 +170,7 @@ class Role(ABC):
     def context(self) -> RoleContext:
         """Return the context of the role. This context can be send as bridge to the agent.
 
-        Returns:
-            RoleContext: the context of the role
+        :return: the context of the role
         """
         return self._context
 
@@ -195,8 +182,7 @@ class Role(ABC):
     def on_change_model(self, model) -> None:
         """Will be invoked when a subscribed model changes via :func:`RoleContext.update`.
 
-        Args:
-            model ([type]): the model
+        :param model: the model
         """
 
     async def on_stop(self) -> None:
@@ -223,20 +209,17 @@ class SimpleReactiveRole(Role):
         """Handle a message. The type of the messages is defined
         by :func:`SimpleReactiveRole.is_applicable`
 
-        Args:
-            content ([type]): the content
-            meta (Dict[str, Any]): the meta-dict.
+        :param content: the content
+        :param meta: the meta-dict.
         """
 
     def is_applicable(self, content, meta: Dict[str, Any]) -> bool:
         """Defines which messages can be handled by the role.
 
-        Args:
-            content ([type]): the content of the message
-            meta (Dict[str, Any]): the meta of the message
+        :param content: the content of the message
+        :param meta: the meta of the message
 
-        Returns:
-            [bool]: True, when the message should be handled, False otherwise
+        :return: True, when the message should be handled, False otherwise
         """
         return True
 

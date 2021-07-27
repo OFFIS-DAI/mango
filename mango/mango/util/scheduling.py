@@ -6,6 +6,7 @@ import asyncio
 import datetime
 
 
+
 class ScheduledTask:
     """Base class for scheduled tasks in mango. Within this class its possible to
     define what to do on exceution and on stop. In most cases the logic should get
@@ -27,6 +28,7 @@ class ScheduledTask:
     def on_stop(self, fut: asyncio.Future = None):
         """Called when the task is cancelled of finished.
         """
+
 
 
 class PeriodicScheduledTask(ScheduledTask):
