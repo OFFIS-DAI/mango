@@ -5,7 +5,6 @@ TCPContainer and MQTTContainer
 from abc import ABC, abstractmethod
 import asyncio
 import logging
-import json
 from typing import Optional, Union, Tuple, Dict, Any, Set
 import paho.mqtt.client as paho
 from .container_protocols import ContainerProtocol
