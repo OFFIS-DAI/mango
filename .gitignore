@@ -95,3 +95,6 @@ ENV/
 
 # PyCharm
 .idea/
+
+# rtd
+docs/build/
