@@ -14,7 +14,7 @@ CI/CD
 
 To monitor the quality, issues found by linters, code coverage and correctness of the tests, we need an automated process triggered on every branch for every commit. That is done by our CI/CD pipeline. You can find the code-coverage, linting and the test-reports there.
 
-Continous deployment to PyPi is planned but not ready yet.
+Continuous deployment to PyPi is planned but not ready yet.
 
 Quality guidelines
 ##################
