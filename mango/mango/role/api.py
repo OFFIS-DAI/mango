@@ -1,27 +1,27 @@
 """
 API classes for using the role system. The role system is based on the idea, that
-everything an agent can do, is descibed as role/responsibility and is implemented in
-one seperate class. For example particpating in a coalition would be a sepearte role,
+everything an agent can do, is described as role/responsibility and is implemented in
+one separate class. For example participating in a coalition would be a separate role,
 monitoring grid voltage another one.
 
-A role is part of an agent, the :class:`RoleAgent`. Depending on what you need there
-are different role-classes:
-* SimpleReactiveRole: handling a specific message (f.e. pong-Role)
-* ProactiveRole: for time dependent not reactive work loads (f.e. monitoring)
+A role is part a :class:`RoleAgent` which inherits from :class:`Agent`.
+Depending on what you need there are different role classes:
+* SimpleReactiveRole: handling a specific message (e.g. pong-Role)
+* ProactiveRole: for time dependent not reactive work loads (e.g. monitoring)
 * Role: generic interface for all possible behavioral styles
 
 There are essentially two APIs for acting resp reacting:
 * [Reacting] :func:`RoleContext.subscribe_message`, which allows you to subscribe to
-             certain message types the agent receives, there is also the possibility to handle
+             certain message types and lets you handle the message
 * [Acting] :func:`RoleContext.schedule_task`, this allows you to schedule a task with
             delay/repeating/...
 
 As there are often dependencies between different parts of an agent, there are options to
-interact with other roles: You have the possbility to use shared models and to describe on
-changes of these models. So you can essentially observe on every data other roles want you
-to get notified on. To do this the model has to be created via
-:func:`RoleContext.get_or_create_model`. To notify other roles the method
-:func:`RoleContext.update` have to be called. To observe a model you can use
+interact with other roles: Roles have the possibility to use shared models and to act on
+changes of these models. So a role can essentially subscribe specific data that another role provides.
+To set this up, a model has to be created via
+:func:`RoleContext.get_or_create_model`. To notify other roles
+:func:`RoleContext.update` has to be called. In order to let a Role subscribe to a model you can use
 :func:`subscribe_model`.
 
 Furthermore there are two lifecycle methods to know about:
@@ -40,7 +40,7 @@ T = TypeVar('T')
 class RoleContext(ABC):
     """Abstract class RoleContext. The context can be seen as the bridge to the agent and the
     container the agent lives in. Every interaction with the environment or other roles will
-    hapen through the context.
+    happen through the context.
     """
 
     def __init__(self) -> None:
@@ -97,7 +97,7 @@ class RoleContext(ABC):
         :param role: the role
         :param method: the method, which should get invoked, have to match the correct
                              signature (content, meta)
-        :param message_condition: the condition which have to be fullfiled to receive the
+        :param message_condition: the condition which have to be fulfilled to receive the
                                         message. (Object) -> bool
         """
 
@@ -183,7 +183,7 @@ class Role(ABC):
                          initialization and scheduling of tasks
     * :func:`Role.on_stop` is called when the container the agent lives in, is shut down
 
-    To interact with the environment you have to use the context, accesible via :func:Role.context.
+    To interact with the environment you have to use the context, accessible via :func:Role.context.
     """
 
     def __init__(self) -> None:
@@ -201,7 +201,7 @@ class Role(ABC):
 
     @property
     def context(self) -> RoleContext:
-        """Return the context of the role. This context can be seend as bridge to the agent.
+        """Return the context of the role. This context can be send as bridge to the agent.
 
         :return: the context of the role
         """
@@ -229,7 +229,7 @@ class Role(ABC):
 
 class SimpleReactiveRole(Role):
     """Special role for implementing a simple reactive behavior. In opposite to the normal role,
-    you dont have to subscribe to message here, you can just override
+    you don't have to subscribe to message here, you can just override
     :func:`SimpleReactiveRole.handle_msg` and you will receive every message. When you want
     to filter those messages, you cant just override :func:`SimpleReactiveRole.is_applicable`.
 
