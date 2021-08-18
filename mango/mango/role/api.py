@@ -43,6 +43,23 @@ class RoleContext(ABC):
     hapen through the context.
     """
 
+    def __init__(self) -> None:
+        super().__init__()
+        self.data = self._create_container()
+
+    @abstractmethod
+    def _get_container(self):
+        pass
+
+    @property
+    def data(self):
+        """Return data container of the agent
+
+        :return: the data container
+        :rtype: DataContainer
+        """
+        return self._get_container()
+
     @abstractmethod
     def get_or_create_model(self, cls: Type[T]) -> T:
         """Returns (or creates) a model of the given type `cls`. The type must have an empty
@@ -139,6 +156,22 @@ class RoleContext(ABC):
         :return: inbox_length of the agent
         """
 
+    @abstractmethod
+    def deactivate(self, role) -> None:
+        """Deactivate the given role. As a consequence, the roles task will be paused and
+        no messages will be handled any more.
+
+        :param role: the role to deactivate
+        :type role: Role
+        """
+
+    @abstractmethod
+    def activate(self, role) -> None:
+        """Activate the given role.
+
+        :param role: the role to activate
+        :type role: Role
+        """
 
 class Role(ABC):
     """General role class, defining the API every role can use. A role implements one responsibility
@@ -185,8 +218,12 @@ class Role(ABC):
         :param model: the model
         """
 
+    def on_deactivation(self, src) -> None:
+        """Hook in, which will be called when another role deactivates this instance (temporarily)
+        """
+
     async def on_stop(self) -> None:
-        """Lifecycle hook in, which will be called when the container is shut down.
+        """Lifecycle hook in, which will be called when the container is shut down or if the role got removed.
         """
 
 

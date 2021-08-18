@@ -37,16 +37,13 @@ class Agent(ABC):
         self._scheduler = Scheduler()
         self.agent_logger.info('Agent starts running')
 
-    def schedule_task(self, task: ScheduledTask):
+    def schedule_task(self, task: ScheduledTask, src = None):
         """Schedule a task with asyncio. When the task is finished, if finite, its automatically
         removed afterwards. For scheduling options see the subclasses of ScheduledTask.
 
         :param task: task to be scheduled
         """
-        l_task = asyncio.create_task(task.run())
-        l_task.add_done_callback(task.on_stop)
-        l_task.add_done_callback(lambda: self._scheduled_tasks.remove(l_task))
-        self._scheduled_tasks.append(l_task)
+        self._scheduler.schedule_task(task, src=src)
 
     async def tasks_complete(self, timeout=1):
         """Wait for all scheduled tasks to complete using a timeout.
