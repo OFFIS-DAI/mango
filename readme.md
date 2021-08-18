@@ -262,7 +262,7 @@ However, if the codec is json, classes must have the method `encode()` and `deco
 
 ## Meta
 
-Please report bugs and ideas for improvement via mail at mango@offis.com
+Please report bugs and ideas for improvement via mail at mango@offis.de
 
 Distributed under the MIT license. 
 

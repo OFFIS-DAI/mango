@@ -5,11 +5,14 @@ Every agent must live in a container. Containers are responsible for making
  connections to other agents.
 """
 import asyncio
+import logging
 from abc import ABC, abstractmethod
 from typing import Any, Dict
 # import mango.core.container  # might lead to cycle imports, we have to rethink this
-from ..util import m_util as ut
 from ..util.scheduling import ScheduledTask, Scheduler
+# import mango.core.container
+
+logger = logging.getLogger(__name__)
 
 
 class Agent(ABC):
@@ -25,17 +28,13 @@ class Agent(ABC):
         aid = container._register_agent(self)
         self._container = container
         self._aid = aid
-
-        # get customized logger
-        self.agent_logger = ut.configure_logger(f'{self._aid}',
-                                                self._container.log_level)
         self.inbox = asyncio.Queue()
         self._check_inbox_task = asyncio.create_task(self._check_inbox())
         self._check_inbox_task.add_done_callback(self.raise_exceptions)
         self.stopped = asyncio.Future()
         self._scheduled_tasks = []
         self._scheduler = Scheduler()
-        self.agent_logger.info('Agent starts running')
+        logger.info('Agent starts running')
 
     def schedule_task(self, task: ScheduledTask, src = None):
         """Schedule a task with asyncio. When the task is finished, if finite, its automatically
@@ -58,8 +57,7 @@ class Agent(ABC):
         :param fut: The Future object of the task
         """
         if fut.exception() is not None:
-            self.agent_logger.error(
-                'Caught the following exception in _check_inbox: %s', fut.exception())
+            logger.error('Caught the following exception in _check_inbox: %s', fut.exception())
             raise fut.exception()
 
     @property
@@ -70,11 +68,11 @@ class Agent(ABC):
     async def _check_inbox(self):
         """Task for waiting on new message in the inbox"""
 
-        # self.agent_logger.debug('Start waiting for msgs')
+        logger.debug('Start waiting for msgs')
         while True:
             # run in infinite loop until it is cancelled from outside
             msg = await self.inbox.get()
-            self.agent_logger.debug('Received %s.', msg)
+            logger.debug(f'Received message;{str(msg)}')
 
             # msgs should be tuples of (priority, content)
             priority, content, meta = msg
@@ -119,4 +117,4 @@ class Agent(ABC):
         except asyncio.CancelledError:
             pass
         finally:
-            self.agent_logger.info('Have successfully shutdown.')
+            logger.info('Shutdown successful')

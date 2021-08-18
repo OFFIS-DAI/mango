@@ -62,7 +62,6 @@ class SimpleMQTTAgent(Agent):
         message_meta.update(FIRST_GREETING_META)
         if self.connection_type == 'mqtt':
             message_meta.update({'sender_addr': self.my_topic})
-            self.agent_logger.debug(f'Going to send a message: {message_content}')
             if self.acl:
                 await self._container.send_message(
                     content=message_content, receiver_addr=self.other_addr,
@@ -72,8 +71,6 @@ class SimpleMQTTAgent(Agent):
                 await self._container.send_message(
                     content=message_content, receiver_addr=self.other_addr
                 )
-            self.agent_logger.debug(
-                f'Done sending a message: {message_content}')
 
         elif self.connection_type == 'tcp':
             pass
@@ -92,8 +89,6 @@ class SimpleMQTTAgent(Agent):
             assert meta['topic'] == self.my_topic
             assert meta['qos'] == 0
             assert meta['retain'] == False
-            self.agent_logger.debug(
-                f'Received message: {content} on topic {self.my_topic}')
             if self.codec == 'protobuf':
                 content_text = content.text
             else:
@@ -234,8 +229,7 @@ async def simple_mqtt_agents_setup(no_container, broker, inbox_1='inbox_1',
     }
 
     container1 = await Container.factory(
-        connection_type='mqtt',
-        log_level=logging.DEBUG, addr=inbox_1,
+        connection_type='mqtt', addr=inbox_1,
         codec=codec, proto_msgs_module=proto_msgs, mqtt_kwargs=mqtt_kwargs_1)
 
 
@@ -245,8 +239,7 @@ async def simple_mqtt_agents_setup(no_container, broker, inbox_1='inbox_1',
     if sender_addr_1:
         agent_a.set_sender_addr(sender_addr_1)
     if no_container > 1:
-        container2 = await Container.factory(connection_type='mqtt',
-            log_level=logging.DEBUG, addr=inbox_2, codec=codec,
+        container2 = await Container.factory(connection_type='mqtt', addr=inbox_2, codec=codec,
             proto_msgs_module=proto_msgs, mqtt_kwargs=mqtt_kwargs_2)
     else:
         container2 = container1

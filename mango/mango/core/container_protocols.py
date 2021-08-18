@@ -5,10 +5,6 @@ import struct
 from ..messages.message import ACLMessage as JsonAcl
 from ..messages.acl_message_pb2 import ACLMessage as ProtoAcl
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='PID %(process)5s %(name)18s: %(message)s'
-)
 
 # The struct module performs conversions between python values and
 # C structs represented as Python bytes objects.
@@ -16,6 +12,8 @@ logging.basicConfig(
 # 'L' refers to the c type 'unsigned long' and is a python uint32
 # The header stores the number of bytes in the payload
 HEADER = struct.Struct('!L')
+
+logger = logging.getLogger(__name__)
 
 
 class ContainerProtocol(asyncio.Protocol):
@@ -41,7 +39,6 @@ class ContainerProtocol(asyncio.Protocol):
 
         self._out_msgs = asyncio.Queue()
         self._task_process_out_msg = None
-        self.log = logging.getLogger('Protocol')
 
     def connection_made(self, transport):
         """
@@ -72,7 +69,6 @@ class ContainerProtocol(asyncio.Protocol):
         :return:
         """
 
-        # self.log.debug('Data_received called')
         self._buffer.extend(data)
         while True:
             # We may have more then one message in the buffer,
@@ -80,7 +76,7 @@ class ContainerProtocol(asyncio.Protocol):
 
             if self._required_read_size is None and len(self._buffer) >= HEADER.size:
                 # Received the complete header of a new message
-                # self.log.debug('Received complete header')
+                logger.debug('Received complete header of a message')
 
                 self._required_read_size = HEADER.unpack_from(self._buffer)[0]
                 # Unpack from buffer, according to the format of the struct.
@@ -89,9 +85,8 @@ class ContainerProtocol(asyncio.Protocol):
                 # The header is also in the buffer
                 self._required_read_size += HEADER.size
 
-            if self._required_read_size is not None and len(
-                self._buffer) >= self._required_read_size:
-                # self.log.debug('Received complete message')
+            if self._required_read_size is not None and len(self._buffer) >= self._required_read_size:
+                logger.debug('Received complete message')
                 # At least one complete message is in the buffer
                 # read the payload of the message
                 data = self._buffer[HEADER.size:self._required_read_size]
