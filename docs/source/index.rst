@@ -10,6 +10,7 @@ Welcome to mango's documentation!
    :maxdepth: 2
    :caption: Contents:
 
+   role-api
    development
    privacy
    legals
