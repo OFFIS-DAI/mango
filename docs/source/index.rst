@@ -11,11 +11,11 @@ Welcome to mango's documentation!
 
 Features
 =================================
-- Agents and containers
-- Messages based on the FIPA ACL standard
+- Container mechanism to speedup local message exchange
+- Message definition based on the FIPA ACL standard
 - Structuring complex agents with loose coupling and agent roles
 - Built-in codecs: `JSON <https://www.json.org>`_ and `protobuf <https://developers.google.com/protocol-buffers>`_
-- Agent communication directly via TCP or with MQTT
+- Supports communication directly via TCP or with an MQTT broker
 
 .. toctree::
    :maxdepth: 2
