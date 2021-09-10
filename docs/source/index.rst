@@ -22,6 +22,8 @@ Features
    :caption: Contents:
 
    agents-container
+   message exchange
+   ACL messages
    role-api
    development
    privacy
