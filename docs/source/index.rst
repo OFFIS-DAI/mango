@@ -21,6 +21,7 @@ Features
    :maxdepth: 2
    :caption: Contents:
 
+   agents-container
    role-api
    development
    privacy
