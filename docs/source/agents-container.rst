@@ -61,7 +61,7 @@ Custom agents that inherit from the ``Agent`` class have to call ``super().__ini
 
     asyncio.run(init_and_run_container_and_agent())
 
-IN XXX its is explained, how messages cnab e exchanged between agents.
+IN XXX its is explained, how messages can be exchanged between agents.
 
 
 
