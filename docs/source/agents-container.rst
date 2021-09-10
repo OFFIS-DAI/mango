@@ -42,7 +42,7 @@ mango agents
 ***************
 mango agents can be implemented by inheriting from the abstract class ``mango.core.agent.Agent``. This class provides
 basic functionality such as to register the agent at the container or to constantly check the inbox for incoming messages. Every agent lives in exactly one container and therefore an instance of a container has to be provided when instanciating an agent.
-Custom agents that inherit from the ``Agent`` class have to call ``super().__init__(container)__``on initialization. This will register the agent at the provided container instance and will assign a unique agent id (``self._aid``) to the agent. It will also create the task to check for incoming messages. The following code will instantiate a container and a simple, non-active agent, will then sleep for 3 seconds and then shutdown: 
+Custom agents that inherit from the ``Agent`` class have to call ``super().__init__(container)__`` on initialization. This will register the agent at the provided container instance and will assign a unique agent id (``self._aid``) to the agent. It will also create the task to check for incoming messages. The following code will instantiate a container and a simple, non-active agent, will then sleep for 3 seconds and then shutdown: 
 
 
 .. code-block:: python3
