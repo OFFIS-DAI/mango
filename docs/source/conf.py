@@ -17,8 +17,8 @@ import sphinx_rtd_theme
 # -- Project information -----------------------------------------------------
 
 project = 'mango'
-copyright = '2021, Mango Team'
-author = 'Mango Team'
+copyright = '2021, mango team'
+author = 'mango team'
 
 # The full version, including alpha/beta/rc tags
 release = '0.1'
