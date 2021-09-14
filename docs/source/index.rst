@@ -12,6 +12,7 @@ Welcome to mango's documentation!
 
    role-api
    development
+   api_ref/index
    privacy
    legals
    datenschutz
