@@ -12,10 +12,12 @@ from mango.util.scheduling import ScheduledTask, Scheduler
 from mango.core.agent import Agent
 from mango.role.api import Role, RoleContext
 
+
 class DataContainer:
 
     def __getitem__(self, key):
         return self.__getattribute__(key)
+
 
 class RoleHandler:
     """Contains all roles and their models. Implements the communication between roles.
@@ -60,7 +62,7 @@ class RoleHandler:
                     role.on_change_model(role_model)
 
     def subscribe(self, role: Role, role_model_type) -> None:
-        """Subscibe a role to change events of a specific role model type
+        """Subscribe a role to change events of a specific role model type
 
         Args:
             role ([type]): the role
@@ -113,7 +115,7 @@ class RoleHandler:
         return True
 
     async def on_stop(self):
-        """Notifiy all roles when the container is shut down
+        """Notify all roles when the container is shutdown
         """
         for role in self._roles:
             await role.on_stop()
@@ -125,7 +127,7 @@ class RoleHandler:
                 role.handle_msg(content, meta, self)
 
         :param content: content
-        :param meta (Dict[str, Any]): meta
+        :param meta: meta
         """
         for role in self.roles:
             if role in self._message_subs and self._is_role_active(role):
@@ -153,11 +155,11 @@ class RoleHandler:
         for role in self._send_msg_subs:
             for sub in self._send_msg_subs[role]:
                 if self._is_role_active(role):
-                    sub(content=content,receiver_addr=receiver_addr,
-                                                    receiver_id=receiver_id,
-                                                    create_acl=create_acl,
-                                                    acl_metadata=acl_metadata,
-                                                    mqtt_kwargs=mqtt_kwargs)
+                    sub(content=content, receiver_addr=receiver_addr,
+                        receiver_id=receiver_id,
+                        create_acl=create_acl,
+                        acl_metadata=acl_metadata,
+                        mqtt_kwargs=mqtt_kwargs)
         return await self._container.send_message(
             content=content,
             receiver_addr=receiver_addr,
@@ -225,7 +227,7 @@ class RoleAgentContext(RoleContext):
                 role.handle_msg(content, meta, self)
 
         :param content: content
-        :param meta (Dict[str, Any]): meta
+        :param meta: meta
         """
         self._role_handler.handle_msg(content, meta)
 
@@ -249,7 +251,8 @@ class RoleAgentContext(RoleContext):
         :param acl_metadata: Metadata of the acl. Defaults to None
         :param mqtt_kwargs: Args for mqtt. Defaults to None.
         """
-        return await self._role_handler.send_message(content=content,
+        return await self._role_handler.send_message(
+            content=content,
             receiver_addr=receiver_addr,
             receiver_id=receiver_id,
             create_acl=create_acl,
@@ -269,6 +272,7 @@ class RoleAgentContext(RoleContext):
 
     def activate(self, role) -> None:
         self._role_handler.activate(role)
+
 
 class RoleAgent(Agent):
     """Agent, which support the role API-system. When you want to use the role-api you always need
