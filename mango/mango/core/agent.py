@@ -41,6 +41,7 @@ class Agent(ABC):
         removed afterwards. For scheduling options see the subclasses of ScheduledTask.
 
         :param task: task to be scheduled
+        :param src: object, which represents the source of the task (for example the object in which the task got created)
         """
         self._scheduler.schedule_task(task, src=src)
 

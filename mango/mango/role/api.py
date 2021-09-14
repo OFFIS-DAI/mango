@@ -16,13 +16,19 @@ There are essentially two APIs for acting resp reacting:
 * [Acting] :func:`RoleContext.schedule_task`, this allows you to schedule a task with
             delay/repeating/...
 
-As there are often dependencies between different parts of an agent, there are options to
+To interact with the environment an instance of the role context is provided. This context
+provides methods to share data with other roles and to communicate with other agents. 
+
+A message can be send using the method :func:`RoleContext.send_message`.
+
+There are often dependencies between different parts of an agent, there are options to
 interact with other roles: Roles have the possibility to use shared models and to act on
 changes of these models. So a role can essentially subscribe specific data that another role provides.
 To set this up, a model has to be created via
 :func:`RoleContext.get_or_create_model`. To notify other roles
 :func:`RoleContext.update` has to be called. In order to let a Role subscribe to a model you can use
 :func:`subscribe_model`.
+If you prefer a lightweight variant you can use :func:`RoleContext.data` to assign/access shared data.
 
 Furthermore there are two lifecycle methods to know about:
 * :func:`Role.setup` is called when the Role is added to the agent, so its the perfect place

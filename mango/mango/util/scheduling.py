@@ -20,17 +20,20 @@ class Suspendable:
         while True:
             try:
                 while not self._can_run.is_set():
+                    # essentially same as 'await self._can_run.wait()', not allowed here as this is not an async method
                     yield from self._can_run.wait().__await__()
             except BaseException as err:
                 send, message = iter_throw, err
 
             try:
+                # throw error or resume coroutine
                 signal = send(message)
             except StopIteration as err:
                 return err.value
             else:
                 send = iter_send
             try:
+                # pass signal via yielding it
                 message = yield signal
             except BaseException as err:
                 send, message = iter_throw, err
