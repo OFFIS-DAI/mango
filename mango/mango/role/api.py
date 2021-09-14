@@ -4,7 +4,7 @@ everything an agent can do, is described as role/responsibility and is implement
 one separate class. For example participating in a coalition would be a separate role,
 monitoring grid voltage another one.
 
-A role is part a :class:`RoleAgent` which inherits from :class:`Agent`.
+A role is part of a :class:`RoleAgent` which inherits from :class:`Agent`.
 Depending on what you need there are different role classes:
 * SimpleReactiveRole: handling a specific message (e.g. pong-Role)
 * ProactiveRole: for time dependent not reactive work loads (e.g. monitoring)
@@ -18,7 +18,7 @@ There are essentially two APIs for acting resp reacting:
 
 As there are often dependencies between different parts of an agent, there are options to
 interact with other roles: Roles have the possibility to use shared models and to act on
-changes of these models. So a role can essentially subscribe specific data that another role provides.
+changes of these models. A role can subscribe specific data that another role provides.
 To set this up, a model has to be created via
 :func:`RoleContext.get_or_create_model`. To notify other roles
 :func:`RoleContext.update` has to be called. In order to let a Role subscribe to a model you can use
