@@ -1,0 +1,42 @@
+image: python:3.8.10
+
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+
+cache:
+  paths:
+    - .cache/pip
+    - venv/
+
+before_script:
+  - cd mango 
+  - pip install virtualenv
+  - virtualenv venv
+  - source venv/bin/activate
+  - pip3 install -r requirements.txt
+  - pip3 install -e .
+
+build-job:
+  stage: build
+  script:
+    - echo "Build success"
+
+check-job:
+  stage: test
+  script:
+    - apt update
+    - apt install --assume-yes mosquitto
+    - service mosquitto start
+    - pip3 install pytest
+    - pip3 install coverage
+    - coverage run --source ./mango -m pytest
+    - coverage report
+
+pylint-job:
+  stage: test
+  script:         
+    - pip3 install pylint
+    - pylint mango
+  allow_failure: 
+    exit_codes: 
+      - 1

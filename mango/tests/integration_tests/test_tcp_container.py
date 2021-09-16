@@ -47,9 +47,6 @@ class SimpleAgent(Agent):
         :param content: the content of the mssage
         :param meta: meta information
         """
-        self.agent_logger.info(
-            f'Received message: {content} with meta {meta}')
-
         # so far we only expect and react to greetings
         t = asyncio.create_task(self.react_to_greeting(content, meta))
         t.add_done_callback(self.raise_exceptions)
@@ -105,7 +102,6 @@ class SimpleAgent(Agent):
                 sub_msg.text = message_out_content
                 message.content_class = type(sub_msg).__name__
                 message.content = sub_msg.SerializeToString()
-            self.agent_logger.debug(f'Going to send {message}')
             await self._container.send_message(message, sender_addr)
 
         # shutdown if no more open conversations
