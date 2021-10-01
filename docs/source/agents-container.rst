@@ -1,11 +1,12 @@
 ========
 Agents and container
 ========
-You can think of agents as independent pieces of software running in parallel. Agents are able to perceive their environment, receive some input and create some output. In order to speed up message exchange between agents that run on the same physical hardware,
+You can think of agents as independent pieces of software running in parallel.
+Agents are able to perceive their environment, receive some input and create some output.
+In order to speed up message exchange between agents that run on the same physical hardware,
 agents live in a ``container``.
-This structure allows agents from the same container to exchange messages without having
-to send it through the network. A container is responsible for
-the message distribution (sending and receiving) of its agents.
+Agents living in one container can exchange messages without having to send it through the network.
+A container is responsible for the message distribution (sending and receiving) of its agents.
 
 ***************
 mango container
