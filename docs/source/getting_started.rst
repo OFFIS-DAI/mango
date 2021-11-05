@@ -1,78 +1,100 @@
 ========
 Getting started
 ========
-In this section you will
-***************
-Creating your first agent
-***************
+In this section you will step by step create a simple multi-agent system using *mango*
 
-The following code will instantiate a container
-and a simple agent, which prints the string representation of the content of all incoming matches:
+***************
+Creating an agent
+***************
+In our first example, we'll create a very simple agent that simply prints the content of
+all messages it receives:
 
 .. code-block:: python3
 
     from mango.core.agent import Agent
 
-
     class RepeatingAgent(Agent):
         def __init__(self, container):
+            # We must pass a ref. to the container to "mango.Agent":
             super().__init__(container)
+            print(f"Hello world! My id is {self._aid}.")
 
         def handle_msg(self, content, meta):
+            # This method defines what the agent will do with incoming messages.
             print(f"Received a message with the following content: {content}")
 
+Agents must be a subclass of :class:`Agent`. This base class needs
+a reference to the container the agents live in, so you must forward
+a *container* argument to it if you override ``__init__()``.
+
 ***************
-Creating your first container
+Creating a container
 ***************
 
-In order to let an agent run, it has to be located within a container.
-The following code will create a simple container that is running on 'localhost' and listening on port 5555.
+Agents live in a container, so we need to know how to create a mango container.
+The container is responsible for message exchange between agents.
 
 .. code-block:: python3
 
-    from mango.core.container import Container
+    # Containers need to be started via a factory function.
+    # This method is a coroutine so it needs to be called using the
+    # await statement
+    first_container = await Container.factory(addr=('localhost', 5555))
 
+This is how a container is created. Since the method :py:meth:`Container.factory()` is a
+coroutine__ we need to await its result.
 
-    first_container = asyncio.run(await Container.factory(addr=('localhost', 5555))
+__ https://docs.python.org/3.9/library/asyncio-task.html
 
 ***************
 Running your first agent within a container
 ***************
-
-The following script will create a RepeatingAgent and let it run within a container for three seconds and
+To put it all together we will wrap the creation of a container and the agent into a coroutine
+and execute it using :py:meth:`asyncio.run()`.
+The following script will create a RepeatingAgent
+and let it run within a container for three seconds and
 then shutdown the container:
 
 .. code-block:: python3
 
+    import asyncio
     from mango.core.agent import Agent
     from mango.core.container import Container
 
-        class RepeatingAgent(Agent):
+    class RepeatingAgent(Agent):
             def __init__(self, container):
+                # We must pass a ref. to the container to "mango.Agent":
                 super().__init__(container)
+                print(f"Hello world! My id is {self._aid}.")
 
-            def handle_msg(self, content, meta: Dict[str, Any]):
+            def handle_msg(self, content, meta):
+                # This method defines what the agent will do with incoming messages.
                 print(f"Received a message with the following content: {content}")
 
-        async def init_and_run_container_and_agent():
-            first_container = await Container.factory(addr=('localhost', 5555))
-            first_agent = RepeatingAgent(first_container)
-            await asyncio.sleep(3)
-            await first_container.shutdown()
+    async def run_container_and_agent(addr, duration):
+        first_container = await Container.factory(addr=addr)
+        first_agent = RepeatingAgent(first_container)
+        await asyncio.sleep(duration)
+        await first_container.shutdown()
 
-        asyncio.run(init_and_run_container_and_agent())
+    asyncio.run(run_container_and_agent(addr=('localhost', 5555), duration=3))
 
-There should be no outputs as there are no messages that your fist agent has received.
+The only output you should see is "Hello world! My id is agent0.", because
+the agent does not receive any other messages.
 
 ***************
-Exchanging messages between agents
+Creating a proactive Agent
 ***************
 
-Let's implement another agent that sends a hello world message to another agent:
+Let's implement another agent that is able to send a hello world message
+to another agent:
+
+**TODO use the schedule here**
 
 .. code-block:: python3
 
-    from mango.core.agent import Agent, Container
+    from mango.core.agent import Agent
+
         class HelloWorldAgent(Agent):
             def __init__(self, container, other_addr, other_id):
                 super().__init__(container)
@@ -85,6 +107,8 @@ Let's implement another agent that sends a hello world message to another agent:
 
             def handle_msg(self, content, meta: Dict[str, Any]):
                 print(f"Received a message with the following content: {content}")
+
+
 
 
 
