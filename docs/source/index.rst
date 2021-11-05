@@ -17,7 +17,7 @@ Features
 - Message definition based on the FIPA ACL standard
 - Structuring complex agents with loose coupling and agent roles
 - Built-in codecs: `JSON <https://www.json.org>`_ and `protobuf <https://developers.google.com/protocol-buffers>`_
-- Supports communication directly via TCP or with an MQTT broker
+- Supports communication between agents directly via TCP or via an external MQTT broker in the middle
 
 .. toctree::
    :maxdepth: 2
@@ -25,7 +25,6 @@ Features
 
    installation
    getting_started
-
    agents-container
    message exchange
    ACL messages
