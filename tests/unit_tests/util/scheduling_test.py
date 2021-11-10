@@ -23,6 +23,24 @@ async def test_periodic():
     assert len(l) == 2
 
 @pytest.mark.asyncio
+async def test_periodic_conv():
+    # GIVEN
+    scheduler = Scheduler()
+    l = []
+    async def increase_counter():
+        l.append(1)
+
+    # WHEN
+    t = scheduler.schedule_periodic_task(increase_counter, 2)
+    try: 
+        await asyncio.wait_for(t, timeout=3)
+    except asyncio.exceptions.TimeoutError:
+        pass
+
+    # THEN
+    assert len(l) == 2
+
+@pytest.mark.asyncio
 @pytest.mark.filterwarnings('ignore::RuntimeWarning') # this test will stop the coro before scheduler awaits for it
 async def test_one_shot_timeouted():
     # GIVEN
@@ -41,6 +59,24 @@ async def test_one_shot_timeouted():
     # THEN
     assert len(l) == 0
 
+@pytest.mark.asyncio
+@pytest.mark.filterwarnings('ignore::RuntimeWarning') # this test will stop the coro before scheduler awaits for it
+async def test_one_shot_timeouted_conv():
+    # GIVEN
+    scheduler = Scheduler()
+    l = []
+    async def increase_counter():
+        l.append(1)
+
+    # WHEN
+    t = scheduler.schedule_instant_task(increase_counter(), datetime.datetime.now() + datetime.timedelta(0,3))
+    try: 
+        await asyncio.wait_for(t, timeout=2)
+    except asyncio.exceptions.TimeoutError:
+        pass
+
+    # THEN
+    assert len(l) == 0
 
 @pytest.mark.asyncio
 async def test_one_shot():

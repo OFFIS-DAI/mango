@@ -37,6 +37,7 @@ Furthermore there are two lifecycle methods to know about:
 """
 from abc import ABC, abstractmethod
 from typing import Type, Union, Tuple, Optional, Any, Dict, TypeVar
+from datetime import datetime
 
 from mango.util.scheduling import ScheduledTask
 
@@ -117,10 +118,61 @@ class RoleContext(ABC):
         """
 
     @abstractmethod
-    def schedule_task(self, task: ScheduledTask):
+    def schedule_conditional_task(self, coroutine, condition_func, lookup_delay=0.1, src = None):
+        """Schedule a task when a specified condition is met.
+
+        :param coroutine: coroutine to be scheduled
+        :type coroutine: Coroutine
+        :param condition_func: function for determining whether the confition is fullfiled
+        :type confition_func: lambda () -> bool
+        :param lookup_delay: delay between checking the condition
+        :type lookup_delay: float
+        :param src: creator of the task
+        :type src: Object
+        """
+
+    @abstractmethod
+    def schedule_datetime_task(self, coroutine, date_time: datetime, src = None):
+        """Schedule a task at specified datetime.
+
+        :param coroutine: coroutine to be scheduled
+        :type coroutine: Coroutine
+        :param date_time: datetime defining when the task should start
+        :type date_time: datetime
+        :param src: creator of the task
+        :type src: Object
+        """
+
+    @abstractmethod
+    def schedule_periodic_task(self, coroutine_func, delay, src = None):
+        """Schedule an open end peridocally executed task.
+
+        :param coroutine_func: coroutine function creating coros to be scheduled
+        :type coroutine_func:  Coroutine Function
+        :param delay: delay in between the cycles
+        :type dealy: float
+        :param src: creator of the task
+        :type src: Object
+        """
+
+    @abstractmethod
+    def schedule_instant_task(self, coroutine, src = None):
+        """Schedule an instantly executed task.
+
+        :param coroutine: coroutine to be scheduled
+        :type coroutine: 
+        :param src: creator of the task
+        :type src: Object
+        """
+
+    @abstractmethod
+    def schedule_task(self, task: ScheduledTask, src=None):
         """Schedule a task using the agents scheduler.
 
-        :param task: the task you want schedule, see :class:`ScheduledTask` for details
+        :param task: task to be scheduled
+        :type task: ScheduledTask
+        :param src: creator of the task
+        :type: Object
         """
 
     @abstractmethod
