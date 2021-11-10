@@ -22,7 +22,7 @@ VERSION = '0.1'
 
 # What packages are required for this module to be executed?
 REQUIRED = [
-    # 'requests', 'maya', 'records',
+    'paho-mqtt==1.5.1', 'protobuf==3.13.0'
 ]
 
 # What packages are optional?
