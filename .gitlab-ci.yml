@@ -53,7 +53,7 @@ upload-job:
     - pip3 install twine
     - python setup.py sdist bdist_wheel
     - twine check dist/*
-    - twine upload dist/* -u "$TWINE_USERNAME" -p "$TWINE_PASSWORD"
+    - twine upload dist/* -u $TWINE_USERNAME -p $TWINE_PASSWORD
 
 
 
