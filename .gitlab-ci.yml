@@ -50,6 +50,10 @@ upload-job:
 #  except:
 #    - branches
   script:         
+    - echo $TWINE_USERNAME
+    - echo TWINE_USERNAME
+    - echo TWINE_PASSWORD
+    - echo $TWINE_PASSWORD
     - pip3 install twine
     - python setup.py sdist bdist_wheel
     - twine check dist/*
