@@ -45,15 +45,11 @@ upload-job:
   variables:
     TWINE_USERNAME: $TWINE_USERNAME
     TWINE_PASSWORD: $TWINE_PASSWORD
-#  only:
-#    - tags
-#  except:
-#    - branches
-  script:         
-    - echo $TWINE_USERNAME
-    - echo TWINE_USERNAME
-    - echo TWINE_PASSWORD
-    - echo $TWINE_PASSWORD
+  only:
+    - tags
+  except:
+    - branches
+  script:
     - pip3 install twine
     - python setup.py sdist bdist_wheel
     - twine check dist/*
