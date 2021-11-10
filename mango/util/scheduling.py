@@ -183,7 +183,7 @@ class Scheduler:
         :param src: creator of the task
         :type src: Object
         """
-        return self.schedule_task(PeriodicScheduledTask(coroutine=coroutine, date_time=date_time), src=src)
+        return self.schedule_task(DateTimeScheduledTask(coroutine=coroutine, date_time=date_time), src=src)
 
     def schedule_periodic_task(self, coroutine_func, delay, src = None):
         """Schedule an open end peridocally executed task.
