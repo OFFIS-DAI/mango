@@ -41,16 +41,19 @@ pylint-job:
       - 1
 
 upload-job:
-  stage: production
-#  only:
-#    - tags
-#  except:
-#    - branches
-  script:         
+  stage: deploy
+  variables:
+    TWINE_USERNAME: $TWINE_USERNAME
+    TWINE_PASSWORD: $TWINE_PASSWORD
+  only:
+    - tags
+  except:
+    - branches
+  script:
     - pip3 install twine
     - python setup.py sdist bdist_wheel
     - twine check dist/*
-    - twine upload dist/*
+    - twine upload dist/* -u $TWINE_USERNAME -p $TWINE_PASSWORD
 
 
 
