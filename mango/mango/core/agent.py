@@ -5,10 +5,14 @@ Every agent must live in a container. Containers are responsible for making
  connections to other agents.
 """
 import asyncio
+import logging
 from abc import ABC, abstractmethod
 from typing import Any, Dict
+# import mango.core.container  # might lead to cycle imports, we have to rethink this
+from ..util.scheduling import ScheduledTask, Scheduler
 # import mango.core.container
-from ..util import m_util as ut
+
+logger = logging.getLogger(__name__)
 
 
 class Agent(ABC):
@@ -24,15 +28,29 @@ class Agent(ABC):
         aid = container._register_agent(self)
         self._container = container
         self._aid = aid
-
-        # get customized logger
-        self.agent_logger = ut.configure_logger(f'{self._aid}',
-                                                self._container.log_level)
         self.inbox = asyncio.Queue()
         self._check_inbox_task = asyncio.create_task(self._check_inbox())
         self._check_inbox_task.add_done_callback(self.raise_exceptions)
         self.stopped = asyncio.Future()
-        self.agent_logger.info('Agent starts running')
+        self._scheduled_tasks = []
+        self._scheduler = Scheduler()
+        logger.info('Agent starts running')
+
+    def schedule_task(self, task: ScheduledTask, src = None):
+        """Schedule a task with asyncio. When the task is finished, if finite, its automatically
+        removed afterwards. For scheduling options see the subclasses of ScheduledTask.
+
+        :param task: task to be scheduled
+        :param src: object, which represents the source of the task (for example the object in which the task got created)
+        """
+        self._scheduler.schedule_task(task, src=src)
+
+    async def tasks_complete(self, timeout=1):
+        """Wait for all scheduled tasks to complete using a timeout.
+
+        :param timeout: waiting timeout. Defaults to 1.
+        """
+        await self._scheduler.tasks_complete(timeout=timeout)
 
     def raise_exceptions(self, fut: asyncio.Future):
         """
@@ -40,7 +58,7 @@ class Agent(ABC):
         :param fut: The Future object of the task
         """
         if fut.exception() is not None:
-            self.agent_logger.error('Caught the following exception in _check_inbox: %s', fut.exception())
+            logger.error('Caught the following exception in _check_inbox: %s', fut.exception())
             raise fut.exception()
 
     @property
@@ -51,11 +69,11 @@ class Agent(ABC):
     async def _check_inbox(self):
         """Task for waiting on new message in the inbox"""
 
-        # self.agent_logger.debug('Start waiting for msgs')
+        logger.debug('Start waiting for msgs')
         while True:
             # run in infinite loop until it is cancelled from outside
             msg = await self.inbox.get()
-            self.agent_logger.debug(f'Received {msg}.')
+            logger.debug(f'Received message;{str(msg)}')
 
             # msgs should be tuples of (priority, content)
             priority, content, meta = msg
@@ -91,10 +109,13 @@ class Agent(ABC):
         if self._container.running:
             self._container.deregister_agent(self._aid)
         try:
+            # Shutdown reactive inbox task
             self._check_inbox_task.remove_done_callback(self.raise_exceptions)
             self._check_inbox_task.cancel()
             await self._check_inbox_task
+
+            await self._scheduler.stop()
         except asyncio.CancelledError:
             pass
         finally:
-            self.agent_logger.info('Have successfully shutdown.')
+            logger.info('Shutdown successful')
