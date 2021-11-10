@@ -41,7 +41,7 @@ pylint-job:
       - 1
 
 upload-job:
-  stage: production
+  stage: deploy
 #  only:
 #    - tags
 #  except:
