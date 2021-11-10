@@ -82,6 +82,10 @@ celerybeat-schedule
 .venv/
 venv/
 ENV/
+mango/mango/bin
+mango/mango/lib64
+mango/mango/pyvenv.cfg
+mango/mango/share
 
 # Spyder project settings
 .spyderproject
