@@ -69,7 +69,7 @@ async def test_one_shot_timeouted_conv():
         l.append(1)
 
     # WHEN
-    t = scheduler.schedule_instant_task(increase_counter(), datetime.datetime.now() + datetime.timedelta(0,3))
+    t = scheduler.schedule_datetime_task(increase_counter(), datetime.datetime.now() + datetime.timedelta(0,3))
     try: 
         await asyncio.wait_for(t, timeout=2)
     except asyncio.exceptions.TimeoutError:
