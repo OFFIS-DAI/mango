@@ -27,6 +27,7 @@ Features
    getting_started
    agents-container
    message exchange
+   scheduling
    ACL messages
    role-api
    development
