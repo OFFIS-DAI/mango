@@ -1,8 +1,6 @@
 ========
 Agents and container
 ========
-You can think of agents as independent pieces of software running in parallel.
-Agents are able to perceive their environment, receive some input and create some output.
 In order to speed up message exchange between agents that run on the same physical hardware,
 agents live in a ``container``.
 Agents living in one container can exchange messages without having to send it through the network.
@@ -38,7 +36,9 @@ A simple container, that uses plain tcp for message exchange can be created as f
 
 A container can be parametrized regarding its connection type ('tcp' or 'MQTT') and
 regarding the codec that is used for message serialization ('json' or 'protobuf').
-More information regarding these topics can be found in XXX and YYY.
+
+..
+    More information regarding these topics can be found in XXX and YYY. TODO
 
 After a container is created, it is waiting for incoming messages on the given address.
 As soon as the container has some agents, it will distribute incoming messages
@@ -55,32 +55,9 @@ mango agents can be implemented by inheriting from the abstract class ``mango.co
 This class provides basic functionality such as to register the agent at the container or
 to constantly check the inbox for incoming messages.
 Every agent lives in exactly one container and therefore an instance of a container has to be
-provided when __init__() of an agent is called.
+provided when :py:meth:`__init__()` of an agent is called.
 Custom agents that inherit from the ``Agent`` class have to call ``super().__init__(container)__``
 on initialization.
 This will register the agent at the provided container instance and will assign a unique agent id
 (``self._aid``) to the agent.
 It will also create the task to check for incoming messages.
-
-***************
-Simple example
-***************
-The following code will instantiate a container and a simple, non-active agent,
-will then sleep for 3 seconds and then shutdown:
-
-
-.. code-block:: python3
-
-    from mango.core.agent import Agent, Container
-
-    class NonActiveAgent(Agent):
-        def __init__(self, container):
-            super().__init__(container)
-    
-    async def init_and_run_container_and_agent():
-        container = await Container.factory(addr=('localhost', 5555))
-        agent = NonActiveAgent(container)
-        await asyncio.sleep(3)
-        await container.shutdown()
-
-    asyncio.run(init_and_run_container_and_agent())

@@ -14,7 +14,17 @@ Custom agents that inherit from the ``Agent`` class are able to receive messages
 
         raise NotImplementedError
 
-Once a message arrives at a container, the container is responsible to deserialize the message and to split the content from all meta information. While the meta information may include e. g.  information about the sender of the message or about the performative, the content parameter holds the actual content of the message. The exact structure of the ``ACL-messages`` that are exchanged within mango is described here ZZZ.
+Once a message arrives at a container,
+the container is responsible to deserialize the message and
+to split the content from all meta information.
+While the meta information may include e. g.
+information about the sender of the message or about the performative,
+the content parameter holds the actual content of the message.
+
+..
+    **COMMENT**
+    The exact structure of the ``ACL-messages`` that are exchanged within
+    mango is described here ZZZ. **TODO**
 
 A simple agent, that just prints the content and meta information of incoming messages could look like this:
 
@@ -47,15 +57,29 @@ Agents are able to send messages to other agents via the container method send_m
                             mqtt_kwargs: Dict[str, Any] = None,
                             ) -> bool:
 
-To send a tcp_message, the receiver address and receiver id (the agent id of the receiving agent) has to be provided. This is how a simple 'hello world' message could be within an agent:
+
+To send a tcp message, the receiver address and receiver id (the agent id of the receiving agent)
+has to be provided.
+`content` defines the content of the message.
+This will appear as the `content` argument at the receivers handle_message() method.
+
+
+By setting the parameter ``create_acl`` the container automatically
+wraps all provided information into an acl message.
+The argument ``acl_metadata`` enables to set all meta information of an acl message.
+It expects a dictionary with the field name as string as a key and the field value as key.
+For example:
 
 .. code-block:: python3
 
-    self.container.send_message(content='hello world', receiver_addr=('localhost',5556), receiver_id='agent_0, create_acl=True)
+    from mango.messages.message import Performatives
 
-By setting the parameter ``create_acl`` the container autmatically wraps all provided information into an acl message.
+    example_acl_metadata = {
+        'performative': Performatives.inform,
+        'sender_id': 'agent0',
+        'sender_addr': ('localhost', 5555),
+        'conversation_id': 'conversation01'
+    }
 
-
-
-
-
+The argument ``mqtt_kwargs`` can be used to set specific configs, if the container is connected via MQTT
+to a message broker.
