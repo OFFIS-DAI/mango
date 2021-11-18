@@ -89,8 +89,6 @@ Creating a proactive Agent
 Let's implement another agent that is able to send a hello world message
 to another agent:
 
-**TODO use the schedule here**
-
 .. code-block:: python3
 
     from mango.core.agent import Agent
@@ -98,7 +96,7 @@ to another agent:
         class HelloWorldAgent(Agent):
             def __init__(self, container, other_addr, other_id):
                 super().__init__(container)
-                asyncio.create_task(self._container.send_message(
+                self.schedule_instant_task(coroutine=self._container.send_message(
                     receiver_addr=other_addr,
                     receiver_id=other_id,
                     content="Hello world!",
