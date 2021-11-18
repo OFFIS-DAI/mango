@@ -6,7 +6,8 @@
 **Note:** _This project is still in an early development stage. 
 We appreciate constructive feedback and suggestions for improvement._
 
-mango (**m**odul**a**r pytho**n** a**g**ent framew**o**rk) is a python library for multi-agent systems (MAS). It is written on top of asyncio and is releassed under the MIT license.
+mango (**m**odul**a**r pytho**n** a**g**ent framew**o**rk) is a python library for multi-agent systems (MAS).
+It is written on top of asyncio and is released under the MIT license.
 
 mango allows the user to create simple agents with little effort and in the same time offers options 
 to structure agents with complex behaviour.
