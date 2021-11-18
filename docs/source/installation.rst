@@ -12,8 +12,6 @@ __ https://virtualenvwrapper.readthedocs.io/en/latest/index.html
 
 Installation with pip
 -----------------------
-**TODO auf pypi hochladen**
-
 Once you have created a virtual environment you can just run pip__ to install it:
 
 .. code-block:: console
@@ -22,9 +20,10 @@ Once you have created a virtual environment you can just run pip__ to install it
 
 __ https://pip.pypa.io/en/stable/
 
-Installation from source
------------------------
-**TODO write this section**
+..
+    Installation from source
+    -----------------------
+    **TODO write this section**
 
 
 Using a local message broker
@@ -40,10 +39,11 @@ We recommend Mosquitto__. On Ubuntu it can be installed as follows:
 __ https://mosquitto.org/
 
 
-Using protobuf
------------------------
-The protobuf codec is an optional feature that you need to explicity install if you need it.
+..
+    Using protobuf
+    -----------------------
+    The protobuf codec is an optional feature that you need to explicity install if you need it.
 
-**TODO: make protobuf optional**
+    **TODO: make protobuf optional**
 
 
