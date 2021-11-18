@@ -18,7 +18,7 @@ DESCRIPTION = 'Modular Python Agent Framework'
 EMAIL = 'mango@offis.de'
 AUTHOR = 'Mango Team'
 REQUIRES_PYTHON = '>=3.7.0'
-VERSION = '0.1.1'
+VERSION = '0.1.2'
 
 # What packages are required for this module to be executed?
 REQUIRED = [
