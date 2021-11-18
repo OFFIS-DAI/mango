@@ -18,11 +18,11 @@ DESCRIPTION = 'Modular Python Agent Framework'
 EMAIL = 'mango@offis.de'
 AUTHOR = 'Mango Team'
 REQUIRES_PYTHON = '>=3.7.0'
-VERSION = '0.1'
+VERSION = '0.1.2'
 
 # What packages are required for this module to be executed?
 REQUIRED = [
-    # 'requests', 'maya', 'records',
+    'paho-mqtt==1.5.1', 'protobuf==3.13.0', 'networkx==2.5'
 ]
 
 # What packages are optional?

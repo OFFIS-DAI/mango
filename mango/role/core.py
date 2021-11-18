@@ -7,11 +7,11 @@ for the communication between roles.
 import asyncio
 
 from typing import Any, Dict, Optional, Union, Tuple, List
+import datetime
 
 from mango.util.scheduling import ScheduledTask, Scheduler
 from mango.core.agent import Agent
 from mango.role.api import Role, RoleContext
-
 
 class DataContainer:
 
@@ -196,7 +196,7 @@ class RoleAgentContext(RoleContext):
         return self._role_handler._data
 
     def inbox_length(self):
-        return self._inbox.size()
+        return self._inbox.qsize()
 
     def get_or_create_model(self, cls):
         return self._role_handler.get_or_create_model(cls)
@@ -231,8 +231,20 @@ class RoleAgentContext(RoleContext):
         """
         self._role_handler.handle_msg(content, meta)
 
+    def schedule_conditional_task(self, coroutine, condition_func, lookup_delay=0.1, src = None):
+        return self._scheduler.schedule_conditional_task(coroutine=coroutine, condition_func=condition_func, lookup_delay=lookup_delay, src=src)
+
+    def schedule_datetime_task(self, coroutine, date_time: datetime.datetime, src = None):
+        return self._scheduler.schedule_datetime_task(coroutine=coroutine, date_time=date_time, src=src)
+
+    def schedule_periodic_task(self, coroutine_func, delay, src = None):
+        return self._scheduler.schedule_periodic_task(coroutine_func=coroutine_func, delay=delay, src=src)
+
+    def schedule_instant_task(self, coroutine, src = None):
+        return self._scheduler.schedule_instant_task(coroutine=coroutine, src=src)
+
     def schedule_task(self, task: ScheduledTask):
-        self._scheduler.schedule_task(task)
+        return self._scheduler.schedule_task(task)
 
     async def send_message(
             self, content,

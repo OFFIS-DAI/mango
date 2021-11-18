@@ -99,3 +99,7 @@ mango/mango/share
 
 # PyCharm
 .idea/
+
+# rtd
+docs/build/
+docs/source/_build

@@ -7,6 +7,7 @@ Every agent must live in a container. Containers are responsible for making
 import asyncio
 import logging
 from abc import ABC, abstractmethod
+from datetime import datetime
 from typing import Any, Dict
 # import mango.core.container  # might lead to cycle imports, we have to rethink this
 from ..util.scheduling import ScheduledTask, Scheduler
@@ -36,6 +37,54 @@ class Agent(ABC):
         self._scheduler = Scheduler()
         logger.info('Agent starts running')
 
+    def schedule_conditional_task(self, coroutine, condition_func, lookup_delay=0.1, src = None):
+        """Schedule a task when a specified condition is met.
+
+        :param coroutine: coroutine to be scheduled
+        :type coroutine: Coroutine
+        :param condition_func: function for determining whether the confition is fullfiled
+        :type confition_func: lambda () -> bool
+        :param lookup_delay: delay between checking the condition
+        :type lookup_delay: float
+        :param src: creator of the task
+        :type src: Object
+        """
+        return self._scheduler.schedule_conditional_task(coroutine=coroutine, condition_func=condition_func, lookup_delay=lookup_delay, src=src)
+
+    def schedule_datetime_task(self, coroutine, date_time: datetime, src = None):
+        """Schedule a task at specified datetime.
+
+        :param coroutine: coroutine to be scheduled
+        :type coroutine: Coroutine
+        :param date_time: datetime defining when the task should start
+        :type date_time: datetime
+        :param src: creator of the task
+        :type src: Object
+        """
+        return self._scheduler.schedule_datetime_task(coroutine=coroutine, date_time=date_time, src=src)
+
+    def schedule_periodic_task(self, coroutine_func, delay, src = None):
+        """Schedule an open end peridocally executed task.
+
+        :param coroutine_func: coroutine function creating coros to be scheduled
+        :type coroutine_func:  Coroutine Function
+        :param delay: delay in between the cycles
+        :type dealy: float
+        :param src: creator of the task
+        :type src: Object
+        """
+        return self._scheduler.schedule_periodic_task(coroutine_func=coroutine_func, delay=delay, src=src)
+
+    def schedule_instant_task(self, coroutine, src = None):
+        """Schedule an instantly executed task.
+
+        :param coroutine: coroutine to be scheduled
+        :type coroutine: 
+        :param src: creator of the task
+        :type src: Object
+        """
+        return self._scheduler.schedule_instant_task(coroutine=coroutine, src=src)
+
     def schedule_task(self, task: ScheduledTask, src = None):
         """Schedule a task with asyncio. When the task is finished, if finite, its automatically
         removed afterwards. For scheduling options see the subclasses of ScheduledTask.
@@ -43,7 +92,7 @@ class Agent(ABC):
         :param task: task to be scheduled
         :param src: object, which represents the source of the task (for example the object in which the task got created)
         """
-        self._scheduler.schedule_task(task, src=src)
+        return self._scheduler.schedule_task(task, src=src)
 
     async def tasks_complete(self, timeout=1):
         """Wait for all scheduled tasks to complete using a timeout.
