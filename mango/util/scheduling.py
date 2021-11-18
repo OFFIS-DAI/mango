@@ -151,6 +151,7 @@ class ConditionalTask(ScheduledTask):
 
         return await self._coro
 
+
 class Scheduler:
     """Scheduler for executing tasks.
     """
@@ -158,12 +159,62 @@ class Scheduler:
     def __init__(self):
         self._scheduled_tasks = []
 
+    def schedule_conditional_task(self, coroutine, condition_func, lookup_delay=0.1, src = None):
+        """Schedule a task when a specified condition is met.
+
+        :param coroutine: coroutine to be scheduled
+        :type coroutine: Coroutine
+        :param condition_func: function for determining whether the confition is fullfiled
+        :type confition_func: lambda () -> bool
+        :param lookup_delay: delay between checking the condition
+        :type lookup_delay: float
+        :param src: creator of the task
+        :type src: Object
+        """
+        return self.schedule_task(ConditionalTask(coroutine=coroutine, condition_func=condition_func, lookup_delay=lookup_delay), src=src)
+
+    def schedule_datetime_task(self, coroutine, date_time: datetime, src = None):
+        """Schedule a task at specified datetime.
+
+        :param coroutine: coroutine to be scheduled
+        :type coroutine: Coroutine
+        :param date_time: datetime defining when the task should start
+        :type date_time: datetime
+        :param src: creator of the task
+        :type src: Object
+        """
+        return self.schedule_task(DateTimeScheduledTask(coroutine=coroutine, date_time=date_time), src=src)
+
+    def schedule_periodic_task(self, coroutine_func, delay, src = None):
+        """Schedule an open end peridocally executed task.
+
+        :param coroutine_func: coroutine function creating coros to be scheduled
+        :type coroutine_func:  Coroutine Function
+        :param delay: delay in between the cycles
+        :type dealy: float
+        :param src: creator of the task
+        :type src: Object
+        """
+        return self.schedule_task(PeriodicScheduledTask(coroutine_func=coroutine_func, delay=delay), src=src)
+
+    def schedule_instant_task(self, coroutine, src = None):
+        """Schedule an instantly executed task.
+
+        :param coroutine: coroutine to be scheduled
+        :type coroutine: 
+        :param src: creator of the task
+        :type src: Object
+        """
+        return self.schedule_task(InstantScheduledTask(coroutine=coroutine), src=src)
+
     def schedule_task(self, task: ScheduledTask, src = None):
         """Schedule a task with asyncio. When the task is finished, if finite, its automatically
         removed afterwards. For scheduling options see the subclasses of ScheduledTask.
 
-        Args:
-            task (ScheduledTask): task to be scheduled
+        :param task: task to be scheduled
+        :type task: ScheduledTask
+        :param src: creator of the task
+        :type: Object
         """
         susp_coro = Suspendable(task.run())
         l_task = asyncio.ensure_future(susp_coro)
