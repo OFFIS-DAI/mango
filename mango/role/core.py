@@ -196,7 +196,7 @@ class RoleAgentContext(RoleContext):
         return self._role_handler._data
 
     def inbox_length(self):
-        return self._inbox.size()
+        return self._inbox.qsize()
 
     def get_or_create_model(self, cls):
         return self._role_handler.get_or_create_model(cls)
