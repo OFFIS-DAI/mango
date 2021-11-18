@@ -9,7 +9,6 @@ cache:
     - venv/
 
 before_script:
-  - cd mango 
   - pip install virtualenv
   - virtualenv venv
   - source venv/bin/activate
@@ -40,3 +39,22 @@ pylint-job:
   allow_failure: 
     exit_codes: 
       - 1
+
+upload-job:
+  stage: deploy
+  variables:
+    TWINE_USERNAME: $TWINE_USERNAME
+    TWINE_PASSWORD: $TWINE_PASSWORD
+  only:
+    - tags
+  except:
+    - branches
+  script:
+    - pip3 install twine
+    - python setup.py sdist bdist_wheel
+    - twine check dist/*
+    - twine upload dist/* -u $TWINE_USERNAME -p $TWINE_PASSWORD
+
+
+
+
