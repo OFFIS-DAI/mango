@@ -11,15 +11,13 @@ from ..messages.acl_message_pb2 import ACLMessage as ProtoAcl
 # '!' refers to network byte order(= big-endian)
 # 'L' refers to the c type 'unsigned long' and is a python uint32
 # The header stores the number of bytes in the payload
-HEADER = struct.Struct('!L')
+HEADER = struct.Struct("!L")
 
 logger = logging.getLogger(__name__)
 
 
 class ContainerProtocol(asyncio.Protocol):
-    """
-
-    """
+    """ """
 
     def __init__(self, *, container, loop, codec):
         """
@@ -28,8 +26,6 @@ class ContainerProtocol(asyncio.Protocol):
         :param loop:
         """
         super().__init__()
-        if codec.lower() not in ('json', 'protobuf'):
-            raise ValueError('Only json or protobuf supported')
         self.codec = codec
         self.transport = None
         self.container = container
@@ -49,8 +45,7 @@ class ContainerProtocol(asyncio.Protocol):
         self.transport = transport  # store transport object
 
         # start task for writing outgoing messages
-        self._task_process_out_msg = self._loop.create_task(
-            self._process_out_msgs())
+        self._task_process_out_msg = self._loop.create_task(self._process_out_msgs())
 
     def connection_lost(self, exc):
         """
@@ -76,7 +71,7 @@ class ContainerProtocol(asyncio.Protocol):
 
             if self._required_read_size is None and len(self._buffer) >= HEADER.size:
                 # Received the complete header of a new message
-                logger.debug('Received complete header of a message')
+                logger.debug("Received complete header of a message")
 
                 self._required_read_size = HEADER.unpack_from(self._buffer)[0]
                 # Unpack from buffer, according to the format of the struct.
@@ -85,24 +80,21 @@ class ContainerProtocol(asyncio.Protocol):
                 # The header is also in the buffer
                 self._required_read_size += HEADER.size
 
-            if self._required_read_size is not None and len(self._buffer) >= self._required_read_size:
-                logger.debug('Received complete message')
+            if (
+                self._required_read_size is not None
+                and len(self._buffer) >= self._required_read_size
+            ):
+                logger.debug("Received complete message")
                 # At least one complete message is in the buffer
                 # read the payload of the message
-                data = self._buffer[HEADER.size:self._required_read_size]
-                self._buffer = self._buffer[self._required_read_size:]
+                data = self._buffer[HEADER.size : self._required_read_size]
+                self._buffer = self._buffer[self._required_read_size :]
                 self._required_read_size = None
-                if self.codec == 'json':
-                    message = JsonAcl()
-                    message.decode(data)
 
-                else:
-                    message = ProtoAcl()
-                    message.ParseFromString(data)
+                message = self.codec.decode(data)
 
-                content, acl_meta = \
-                    self.container.split_content_and_meta_from_acl(message)
-                acl_meta['network_protocol'] = 'tcp'
+                content, acl_meta = message.split_content_and_meta()
+                acl_meta["network_protocol"] = "tcp"
 
                 # TODO priority is now always 0,
                 #  but should be encoded in the message

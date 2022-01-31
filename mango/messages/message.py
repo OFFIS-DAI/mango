@@ -39,6 +39,7 @@ class ACLMessage:
     And require the following custom parameters:
         type: MessageType (enum)
     """
+
     conversation_id = None
     performative = None
     sender_id = None
@@ -55,10 +56,20 @@ class ACLMessage:
     in_reply_to = None
     message_type = None
 
-    def __init__(self, *, m_type=None, sender_id=None, sender_addr=None, receiver_id=None,
-                 content=None, receiver_addr=None,
-                 performative=None, conversation_id=None, reply_by=None,
-                 in_reply_to=None):
+    def __init__(
+        self,
+        *,
+        m_type=None,
+        sender_id=None,
+        sender_addr=None,
+        receiver_id=None,
+        content=None,
+        receiver_addr=None,
+        performative=None,
+        conversation_id=None,
+        reply_by=None,
+        in_reply_to=None
+    ):
         self.message_type = m_type
         self.sender_id = sender_id
         self.sender_addr = sender_addr
@@ -77,64 +88,77 @@ class ACLMessage:
             return False
         return self.conversation_id < other.conversation_id
 
-    def encode(self):
-        # message_dict = {
-        #     'sender': self.sender, 'receivers': self.receivers,
-        #     'content': self.content, 'performative': self.performative,
-        #     'type': self.type}
-        return json.dumps(vars(self), cls=EnumEncoder).encode()
+    # def encode(self):
+    #     # message_dict = {
+    #     #     'sender': self.sender, 'receivers': self.receivers,
+    #     #     'content': self.content, 'performative': self.performative,
+    #     #     'type': self.type}
+    #     return json.dumps(vars(self), cls=EnumEncoder).encode()
 
-
-    def decode(self, data):
-        attributes = inspect.getmembers(ACLMessage,
-                                        lambda a: not inspect.isroutine(a))
-        attributes = [a[0] for a in attributes if
-                      not (a[0].startswith('__') and a[0].endswith('__'))]
-        try:
-            message_dict = json.loads(data.decode(),
-                                      object_hook=as_enum)
-            for attr in attributes:
-                if attr in message_dict:
-                    self.__setattr__(attr, message_dict[attr])
-            # self.sender = message_dict['sender']
-            # self.receivers = message_dict['receivers']
-            # self.content = message_dict['content']
-            # self.performative = message_dict['performative']
-            # self.type = message_dict['type']
-        except JSONDecodeError:
-            print(
-                "Invalid JSON in request: \n%s" % data.decode())
-
+    # def decode(self, data):
+    #     attributes = inspect.getmembers(ACLMessage,
+    #                                     lambda a: not inspect.isroutine(a))
+    #     attributes = [a[0] for a in attributes if
+    #                   not (a[0].startswith('__') and a[0].endswith('__'))]
+    #     try:
+    #         message_dict = json.loads(data.decode(),
+    #                                   object_hook=as_enum)
+    #         for attr in attributes:
+    #             if attr in message_dict:
+    #                 self.__setattr__(attr, message_dict[attr])
+    #         # self.sender = message_dict['sender']
+    #         # self.receivers = message_dict['receivers']
+    #         # self.content = message_dict['content']
+    #         # self.performative = message_dict['performative']
+    #         # self.type = message_dict['type']
+    #     except JSONDecodeError:
+    #         print(
+    #             "Invalid JSON in request: \n%s" % data.decode())
 
     def extract_meta(self) -> Dict[str, Any]:
         return {
-            'sender_id': self.sender_id,
-            'sender_addr': self.sender_addr,
-            'receiver_id': self.receiver_id,
-            'receiver_addr': self.receiver_addr,
-            'performative': self.performative,
-            'message_type': self.message_type,
-            'conversation_id': self.conversation_id,
-            'reply_by': self.reply_by,
-            'in_reply_to': self.in_reply_to,
+            "sender_id": self.sender_id,
+            "sender_addr": self.sender_addr,
+            "receiver_id": self.receiver_id,
+            "receiver_addr": self.receiver_addr,
+            "performative": self.performative,
+            "message_type": self.message_type,
+            "conversation_id": self.conversation_id,
+            "reply_by": self.reply_by,
+            "in_reply_to": self.in_reply_to,
         }
-
 
     def __str__(self):
         message_dict = {
-            'sender_id': self.sender_id,
-            'sender_addr': self.sender_addr,
-            'receiver_id': self.receiver_id,
-            'receiver_addr': self.receiver_addr,
-            'content': self.content,
-            'performative': self.performative,
-            'message_type': self.message_type,
-            'conversation_id': self.conversation_id,
-            'reply_by': self.reply_by,
-            'in_reply_to': self.in_reply_to,
+            "sender_id": self.sender_id,
+            "sender_addr": self.sender_addr,
+            "receiver_id": self.receiver_id,
+            "receiver_addr": self.receiver_addr,
+            "content": self.content,
+            "performative": self.performative,
+            "message_type": self.message_type,
+            "conversation_id": self.conversation_id,
+            "reply_by": self.reply_by,
+            "in_reply_to": self.in_reply_to,
         }
         return str(message_dict)
 
+    def __asdict__(self):
+        return vars(self)
+
+    @classmethod
+    def __fromdict__(cls, attrs):
+        msg = ACLMessage()
+        for key, value in attrs.items():
+            setattr(msg, key, value)
+        return msg
+
+    @classmethod
+    def __serializer__(cls):
+        return (cls, cls.__asdict__, cls.__fromdict__)
+
+    def split_content_and_meta(self):
+        return (self.content, self.extract_meta())
 
 
 class MType(Enum):
@@ -144,7 +168,8 @@ class MType(Enum):
 
 class Performatives(Enum):
     """member values (mus be unique) could be used as priority values
-     if not replace by enum.auto"""
+    if not replace by enum.auto"""
+
     accept_proposal = 1
     agree = 2
     cancel = 3
@@ -170,10 +195,7 @@ class Performatives(Enum):
     inform_about_neighborhood = 23
 
 
-PUBLIC_ENUMS = {
-    'Performatives': Performatives,
-    'MType': MType
-}
+PUBLIC_ENUMS = {"Performatives": Performatives, "MType": MType}
 
 
 class EnumEncoder(json.JSONEncoder):
