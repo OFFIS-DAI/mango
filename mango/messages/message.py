@@ -68,7 +68,12 @@ class ACLMessage:
         performative=None,
         conversation_id=None,
         reply_by=None,
-        in_reply_to=None
+        in_reply_to=None,
+        protocol=None,
+        language=None,
+        encoding=None,
+        ontology=None,
+        reply_with=None,
     ):
         self.message_type = m_type
         self.sender_id = sender_id
@@ -80,6 +85,11 @@ class ACLMessage:
         self.conversation_id = conversation_id
         self.reply_by = reply_by
         self.in_reply_to = in_reply_to
+        self.protocol = protocol
+        self.language = language
+        self.encoding = encoding
+        self.ontology = ontology
+        self.reply_with = reply_with
 
     def __lt__(self, other):
         if self.conversation_id is None:
@@ -88,33 +98,7 @@ class ACLMessage:
             return False
         return self.conversation_id < other.conversation_id
 
-    # def encode(self):
-    #     # message_dict = {
-    #     #     'sender': self.sender, 'receivers': self.receivers,
-    #     #     'content': self.content, 'performative': self.performative,
-    #     #     'type': self.type}
-    #     return json.dumps(vars(self), cls=EnumEncoder).encode()
-
-    # def decode(self, data):
-    #     attributes = inspect.getmembers(ACLMessage,
-    #                                     lambda a: not inspect.isroutine(a))
-    #     attributes = [a[0] for a in attributes if
-    #                   not (a[0].startswith('__') and a[0].endswith('__'))]
-    #     try:
-    #         message_dict = json.loads(data.decode(),
-    #                                   object_hook=as_enum)
-    #         for attr in attributes:
-    #             if attr in message_dict:
-    #                 self.__setattr__(attr, message_dict[attr])
-    #         # self.sender = message_dict['sender']
-    #         # self.receivers = message_dict['receivers']
-    #         # self.content = message_dict['content']
-    #         # self.performative = message_dict['performative']
-    #         # self.type = message_dict['type']
-    #     except JSONDecodeError:
-    #         print(
-    #             "Invalid JSON in request: \n%s" % data.decode())
-
+    # TODO add new fields
     def extract_meta(self) -> Dict[str, Any]:
         return {
             "sender_id": self.sender_id,

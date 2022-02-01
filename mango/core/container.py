@@ -430,7 +430,7 @@ class MQTTContainer(Container):
         addr: Optional[str],
         loop: asyncio.AbstractEventLoop,
         mqtt_client: paho.Client,
-        codec: str = "json",
+        codec: Codec = JSON,
         proto_msgs_module=None,
     ):
         """
@@ -552,43 +552,9 @@ class MQTTContainer(Container):
                 break
 
         decoded = self.codec.decode(content)
-        if type(content) == ACLMessage:
+        if isinstance(content, ACLMessage):
             meta = decoded.extract_meta()
             content = decoded.content
-
-        # if self.codec == "json":
-        #     if content:
-        #         # Json message should have the method decode()
-        #         content.decode(payload)
-        #     else:
-        #         # We expect an ACL Message as no specific class is defined
-        #         acl_msg: json_ACLMessage = json_ACLMessage()
-        #         acl_msg.decode(payload)
-        #         content = acl_msg.content
-        #         meta = acl_msg.extract_meta()
-
-        # elif self.codec == "protobuf":
-        #     if content:
-        #         content.ParseFromString(payload)
-        #         # empty meta on non-acl class
-        #     else:
-        #         # We expect an ACL Message as no specific class is defined
-        #         acl_msg: proto_ACLMessage = proto_ACLMessage()
-        #         acl_msg.ParseFromString(payload)
-        #         if acl_msg.content_class:
-        #             content_class = getattr(self.other_msgs, acl_msg.content_class)
-        #             content = content_class()
-        #             content.ParseFromString(acl_msg.content)
-        #             for field in acl_msg.DESCRIPTOR.fields:
-        #                 if field.name != "content":
-        #                     meta[field.name] = getattr(acl_msg, field.name)
-        #         else:
-        #             logger.warning(
-        #                 f"got message with undefined"
-        #                 f" content class from topic;{acl_msg};{topic}"
-        #             )
-        # else:
-        #     logger.warning(f"Unable to use codec;{self.codec}")
 
         return decoded, meta
 
@@ -681,7 +647,7 @@ class MQTTContainer(Container):
                 "network_protocol": "mqtt",
             }
 
-            content, msg_meta = self.split_content_and_meta_from_acl(message)
+            content, msg_meta = message.split_content_and_meta()
             meta.update(msg_meta)
             self.inbox.put_nowait((0, content, meta))
             return True

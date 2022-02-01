@@ -9,9 +9,11 @@ All codecs should implement the base class :class:`Codec`.
 
 """
 
+from ast import parse
 import json
-
 from mango.messages.message import ACLMessage
+from ..messages.acl_message_pb2 import ACLMessage as acl_proto
+from ..messages.other_proto_msgs_pb2 import GenericMsg as other_proto
 
 
 class SerializationError(Exception):
@@ -108,9 +110,81 @@ class JSON(Codec):
 
 
 class PROTOBUF(Codec):
-    # TODO
+    ACLMSG_ID = "ACLMessage"
+
+    def __init__(self):
+        super().__init__()
+        self.add_serializer(*ACLMessage.__serializer__())
+
+    def to_bytes(self, data):
+        # TODO I dont know what to properly do with this yet
+        # generic method to turn any content field into bytes
+        # can be overwritten as necessary
+        return json.dumps(data, default=self.serialize_obj).encode()
+
+    def from_bytes(self, data):
+        print(f"trying to decode bytes: {data}")
+        return json.loads(data.decode(), object_hook=self.deserialize_obj)
+
     def encode(self, data):
-        return super().encode(data)
+        # if data is an ACLMessage use that proto file
+        if isinstance(data, ACLMessage):
+            message = acl_proto()
+            for key, value in vars(data).items():
+                print(f"setting: {key} - {value}")
+
+                if key == "content":
+                    message.content = self.to_bytes(data.content)
+                elif key == "receiver_addr":
+                    if isinstance(data.receiver_addr, (tuple, list)):
+                        message.receiver_addr = (
+                            f"{data.receiver_addr[0]}:{data.receiver_addr[1]}"
+                        )
+                    else:
+                        message.receiver_addr = value
+                elif key == "sender_addr":
+                    if isinstance(data.sender_addr, (tuple, list)):
+                        message.sender_addr = (
+                            f"{data.sender_addr[0]}:{data.sender_addr[1]}"
+                        )
+                    else:
+                        message.sender_addr = value
+                else:
+                    if value is not None:
+                        message.__setattr__(key, value)
+
+            message.content_class = PROTOBUF.ACLMSG_ID
+        else:
+            message = other_proto()
+            message.content = self.to_bytes(data)
+
+        return message.SerializeToString()
 
     def decode(self, data):
-        return super().decode(data)
+        # try parsing as ACL message
+        parsed_msg = None
+        try:
+            parsed_msg = acl_proto()
+            parsed_msg.ParseFromString(data)
+            if not parsed_msg.content_class == PROTOBUF.ACLMSG_ID:
+                raise Exception
+
+            msg = ACLMessage()
+            msg.content = self.from_bytes(parsed_msg.content)
+
+            for descriptor in parsed_msg.DESCRIPTOR.fields:
+                key = descriptor.name
+                value = getattr(parsed_msg, key)
+                if key in vars(msg).keys() and key != "content":
+                    msg.__setattr__(key, value)
+
+        except Exception:
+            parsed_msg = None
+
+        # else parse as generic
+        if not parsed_msg:
+            parsed_msg = other_proto()
+            parsed_msg.ParseFromString(data)
+            msg = self.from_bytes(parsed_msg.content)
+
+        return msg
