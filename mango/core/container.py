@@ -551,7 +551,7 @@ class MQTTContainer(Container):
                 content = sub_class()
                 break
 
-        decoded = self.codec.decode(content)
+        decoded = self.codec.decode(payload)
         if isinstance(content, ACLMessage):
             meta = decoded.extract_meta()
             content = decoded.content
@@ -566,11 +566,17 @@ class MQTTContainer(Container):
         :param meta: Dict with additional information (e.g. topic)
 
         """
-
         topic = meta["topic"]
         logger.debug(
             f"Received msg with content and meta;{str(msg_content)};{str(meta)}"
         )
+
+        # TODO pretty dirty
+        if isinstance(msg_content, ACLMessage):
+            content, msg_meta = msg_content.split_content_and_meta()
+            meta.update(msg_meta)
+            msg_content = content
+
         if topic == self.inbox_topic:
             # General inbox topic, so no receiver is specified by the topic
             # try to find the receiver from meta
@@ -632,7 +638,7 @@ class MQTTContainer(Container):
             # the message is already complete
             message = content
 
-        # internal message first (if retain Flag is set, it has to be send to
+        # internal message first (if retain Flag is set, it has to be sent to
         # the broker
         mqtt_kwargs = {} if mqtt_kwargs is None else mqtt_kwargs
         if (
@@ -713,12 +719,6 @@ class MQTTContainer(Container):
         :param expected_class: The expected class
         :return:
         """
-        if self.codec == "json":
-            if not getattr(expected_class(), "decode", None):
-                logger.warning(
-                    "Class does not provide the method decode(), which is"
-                    f"needed for json decoding;{expected_class}"
-                )
         self.subscriptions_to_class[topic] = expected_class
         logger.debug(f"Expected class updated;{self.subscriptions_to_class}")
 

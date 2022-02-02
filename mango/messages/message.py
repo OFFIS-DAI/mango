@@ -98,7 +98,6 @@ class ACLMessage:
             return False
         return self.conversation_id < other.conversation_id
 
-    # TODO add new fields
     def extract_meta(self) -> Dict[str, Any]:
         return {
             "sender_id": self.sender_id,
@@ -110,6 +109,11 @@ class ACLMessage:
             "conversation_id": self.conversation_id,
             "reply_by": self.reply_by,
             "in_reply_to": self.in_reply_to,
+            "protocol": self.protocol,
+            "language": self.language,
+            "encoding": self.encoding,
+            "ontology": self.ontology,
+            "reply_with": self.reply_with,
         }
 
     def __str__(self):
@@ -143,6 +147,16 @@ class ACLMessage:
 
     def split_content_and_meta(self):
         return (self.content, self.extract_meta())
+
+
+def enum_serializer(enum_cls):
+    def __tostring__(enum_obj):
+        return enum_obj.value
+
+    def __fromstring__(enum_repr):
+        return enum_cls(enum_repr)
+
+    return (enum_cls, __tostring__, __fromstring__)
 
 
 class MType(Enum):

@@ -9,9 +9,8 @@ All codecs should implement the base class :class:`Codec`.
 
 """
 
-from ast import parse
 import json
-from mango.messages.message import ACLMessage
+from mango.messages.message import ACLMessage, enum_serializer, Performatives, MType
 from ..messages.acl_message_pb2 import ACLMessage as acl_proto
 from ..messages.other_proto_msgs_pb2 import GenericMsg as other_proto
 
@@ -101,6 +100,8 @@ class JSON(Codec):
     def __init__(self):
         super().__init__()
         self.add_serializer(*ACLMessage.__serializer__())
+        self.add_serializer(*enum_serializer(Performatives))
+        self.add_serializer(*enum_serializer(MType))
 
     def encode(self, data):
         return json.dumps(data, default=self.serialize_obj).encode()
@@ -115,6 +116,8 @@ class PROTOBUF(Codec):
     def __init__(self):
         super().__init__()
         self.add_serializer(*ACLMessage.__serializer__())
+        self.add_serializer(*enum_serializer(Performatives))
+        self.add_serializer(*enum_serializer(MType))
 
     def to_bytes(self, data):
         # TODO I dont know what to properly do with this yet
@@ -123,7 +126,8 @@ class PROTOBUF(Codec):
         return json.dumps(data, default=self.serialize_obj).encode()
 
     def from_bytes(self, data):
-        print(f"trying to decode bytes: {data}")
+        if not data:
+            return None
         return json.loads(data.decode(), object_hook=self.deserialize_obj)
 
     def encode(self, data):
@@ -131,7 +135,8 @@ class PROTOBUF(Codec):
         if isinstance(data, ACLMessage):
             message = acl_proto()
             for key, value in vars(data).items():
-                print(f"setting: {key} - {value}")
+                if value is None:
+                    continue
 
                 if key == "content":
                     message.content = self.to_bytes(data.content)
@@ -149,9 +154,14 @@ class PROTOBUF(Codec):
                         )
                     else:
                         message.sender_addr = value
+
+                elif key == "performative":
+                    if isinstance(value, Performatives):
+                        message.performative = value.value
+                    else:
+                        message.performative = value
                 else:
-                    if value is not None:
-                        message.__setattr__(key, value)
+                    message.__setattr__(key, value)
 
             message.content_class = PROTOBUF.ACLMSG_ID
         else:
@@ -175,10 +185,16 @@ class PROTOBUF(Codec):
             for descriptor in parsed_msg.DESCRIPTOR.fields:
                 key = descriptor.name
                 value = getattr(parsed_msg, key)
-                if key in vars(msg).keys() and key != "content":
-                    msg.__setattr__(key, value)
 
-        except Exception:
+                if key in vars(msg).keys():
+                    if key == "content":
+                        continue
+                    elif key == "performative" and value:
+                        msg.performative = Performatives(value)
+                    else:
+                        msg.__setattr__(key, value)
+
+        except Exception as e:
             parsed_msg = None
 
         # else parse as generic
