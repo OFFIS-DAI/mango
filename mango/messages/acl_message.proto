@@ -31,7 +31,12 @@ message ACLMessage {
     }
     Performative performative = 6;
     bytes content = 7;
-    string message_type = 8;
+
+    enum MType {
+        container = 0;
+        agent = 1;
+    }
+    MType message_type = 8;
     string protocol = 9;
     string language = 10;
     string encoding = 11;

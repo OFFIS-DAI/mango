@@ -10,6 +10,8 @@ All codecs should implement the base class :class:`Codec`.
 """
 
 import json
+from operator import is_
+import pickle
 from mango.messages.message import ACLMessage, enum_serializer, Performatives, MType
 from ..messages.acl_message_pb2 import ACLMessage as acl_proto
 from ..messages.other_proto_msgs_pb2 import GenericMsg as other_proto
@@ -123,12 +125,13 @@ class PROTOBUF(Codec):
         # TODO I dont know what to properly do with this yet
         # generic method to turn any content field into bytes
         # can be overwritten as necessary
-        return json.dumps(data, default=self.serialize_obj).encode()
+        return pickle.dumps(data)
 
     def from_bytes(self, data):
         if not data:
             return None
-        return json.loads(data.decode(), object_hook=self.deserialize_obj)
+        print(f"data to unpickle is: {data}")
+        return pickle.loads(bytes(data))
 
     def encode(self, data):
         # if data is an ACLMessage use that proto file
@@ -160,6 +163,11 @@ class PROTOBUF(Codec):
                         message.performative = value.value
                     else:
                         message.performative = value
+                elif key == "message_type":
+                    if isinstance(value, MType):
+                        message.message_type = value.value
+                    else:
+                        message.message_type = value
                 else:
                     message.__setattr__(key, value)
 
@@ -173,32 +181,41 @@ class PROTOBUF(Codec):
     def decode(self, data):
         # try parsing as ACL message
         parsed_msg = None
+        is_acl_msg = False
         try:
             parsed_msg = acl_proto()
             parsed_msg.ParseFromString(data)
             if not parsed_msg.content_class == PROTOBUF.ACLMSG_ID:
                 raise Exception
+            is_acl_msg = True
+        except Exception as e:
+            parsed_msg = None
 
+        if is_acl_msg:
             msg = ACLMessage()
             msg.content = self.from_bytes(parsed_msg.content)
 
             for descriptor in parsed_msg.DESCRIPTOR.fields:
                 key = descriptor.name
                 value = getattr(parsed_msg, key)
+                if value == "":
+                    value = None
 
                 if key in vars(msg).keys():
                     if key == "content":
                         continue
                     elif key == "performative" and value:
                         msg.performative = Performatives(value)
+                    elif key == "message_type" and value:
+                        msg.message_type = MType(value)
+                    # elif key == "sender_addr" and value:
+                    #     host, port = value.split(":")
+                    #     msg.sender_addr = [host, int(port)]
                     else:
                         msg.__setattr__(key, value)
 
-        except Exception as e:
-            parsed_msg = None
-
         # else parse as generic
-        if not parsed_msg:
+        else:
             parsed_msg = other_proto()
             parsed_msg.ParseFromString(data)
             msg = self.from_bytes(parsed_msg.content)
