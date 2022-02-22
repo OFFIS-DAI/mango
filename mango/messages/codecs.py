@@ -21,6 +21,10 @@ class SerializationError(Exception):
     """Raised when an object cannot be serialized."""
 
 
+class DecodeError(Exception):
+    """Raised when an object representation can not be decoded."""
+
+
 class Codec:
     """Base class for all Codecs.
 
@@ -101,7 +105,7 @@ class JSON(Codec):
 
     def __init__(self):
         super().__init__()
-        self.add_serializer(*ACLMessage.__serializer__())
+        self.add_serializer(*ACLMessage.__json_serializer__())
         self.add_serializer(*enum_serializer(Performatives))
         self.add_serializer(*enum_serializer(MType))
 
@@ -117,107 +121,44 @@ class PROTOBUF(Codec):
 
     def __init__(self):
         super().__init__()
-        self.add_serializer(*ACLMessage.__serializer__())
-        self.add_serializer(*enum_serializer(Performatives))
-        self.add_serializer(*enum_serializer(MType))
+        # expected serializers: (obj, to_proto, from_proto)
+        # output of to_proto is the already serialized(!) proto object
+        # input of from_proto is the string representation of the proto object
+        # the codec merely handles the mapping of object types to these methods
+        # it does not require any knowledge of the actual proto classes
+        self.add_serializer(object, self.to_bytes, self.from_bytes)
+        self.add_serializer(*ACLMessage.__proto_serializer__())
+
+        obj_typeid, _ = self._serializers[object]
+        # save this for handling of objects with no associated proto file
+        self.obj_typeid = obj_typeid
 
     def to_bytes(self, data):
-        # TODO I dont know what to properly do with this yet
-        # generic method to turn any content field into bytes
-        # can be overwritten as necessary
         return pickle.dumps(data)
 
     def from_bytes(self, data):
         if not data:
             return None
-        print(f"data to unpickle is: {data}")
         return pickle.loads(bytes(data))
 
     def encode(self, data):
-        # if data is an ACLMessage use that proto file
-        if isinstance(data, ACLMessage):
-            message = acl_proto()
-            for key, value in vars(data).items():
-                if value is None:
-                    continue
+        proto_msg = other_proto()
+        typeid, content = self.serialize_obj(data)
+        proto_msg.type_id = typeid
+        proto_msg.content = content
 
-                if key == "content":
-                    message.content = self.to_bytes(data.content)
-                elif key == "receiver_addr":
-                    if isinstance(data.receiver_addr, (tuple, list)):
-                        message.receiver_addr = (
-                            f"{data.receiver_addr[0]}:{data.receiver_addr[1]}"
-                        )
-                    else:
-                        message.receiver_addr = value
-                elif key == "sender_addr":
-                    if isinstance(data.sender_addr, (tuple, list)):
-                        message.sender_addr = (
-                            f"{data.sender_addr[0]}:{data.sender_addr[1]}"
-                        )
-                    else:
-                        message.sender_addr = value
-
-                elif key == "performative":
-                    if isinstance(value, Performatives):
-                        message.performative = value.value
-                    else:
-                        message.performative = value
-                elif key == "message_type":
-                    if isinstance(value, MType):
-                        message.message_type = value.value
-                    else:
-                        message.message_type = value
-                else:
-                    message.__setattr__(key, value)
-
-            message.content_class = PROTOBUF.ACLMSG_ID
-        else:
-            message = other_proto()
-            message.content = self.to_bytes(data)
-
-        return message.SerializeToString()
+        return proto_msg.SerializeToString()
 
     def decode(self, data):
-        # try parsing as ACL message
-        parsed_msg = None
-        is_acl_msg = False
+        proto_msg = other_proto()
         try:
-            parsed_msg = acl_proto()
-            parsed_msg.ParseFromString(data)
-            if not parsed_msg.content_class == PROTOBUF.ACLMSG_ID:
-                raise Exception
-            is_acl_msg = True
+            proto_msg.ParseFromString(data)
         except Exception as e:
-            parsed_msg = None
+            raise DecodeError(f"Could not parse data: {data}") from e
 
-        if is_acl_msg:
-            msg = ACLMessage()
-            msg.content = self.from_bytes(parsed_msg.content)
+        obj_repr = {"__type__": (proto_msg.type_id, proto_msg.content)}
+        return self.deserialize_obj(obj_repr)
 
-            for descriptor in parsed_msg.DESCRIPTOR.fields:
-                key = descriptor.name
-                value = getattr(parsed_msg, key)
-                if value == "":
-                    value = None
-
-                if key in vars(msg).keys():
-                    if key == "content":
-                        continue
-                    elif key == "performative" and value:
-                        msg.performative = Performatives(value)
-                    elif key == "message_type" and value:
-                        msg.message_type = MType(value)
-                    # elif key == "sender_addr" and value:
-                    #     host, port = value.split(":")
-                    #     msg.sender_addr = [host, int(port)]
-                    else:
-                        msg.__setattr__(key, value)
-
-        # else parse as generic
-        else:
-            parsed_msg = other_proto()
-            parsed_msg.ParseFromString(data)
-            msg = self.from_bytes(parsed_msg.content)
-
-        return msg
+    def serialize_obj(self, obj):
+        serialized = super().serialize_obj(obj)
+        return serialized["__type__"]

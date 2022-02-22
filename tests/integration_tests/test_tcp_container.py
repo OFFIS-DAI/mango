@@ -29,7 +29,7 @@ class SimpleAgent(Agent):
             acl_meta = {
                 "reply_by": "greeting",
                 "conversation_id": f"{self.aid}_1",
-                "performative": Performatives.inform.value,
+                "performative": Performatives.inform,
                 "sender_id": self.aid,
             }
             await self._container.send_message(

@@ -1,5 +1,6 @@
 syntax = "proto3";
 
 message GenericMsg {
-    bytes content = 1;
+    int32 type_id = 1;
+    bytes content = 2;
 }

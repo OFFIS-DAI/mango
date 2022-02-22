@@ -4,6 +4,7 @@ import pickle
 from mango.messages.codecs import Codec, JSON, PROTOBUF, SerializationError
 from mango.messages.message import ACLMessage, Performatives, MType
 from dataclasses import dataclass
+from msg_pb2 import MyMsg
 
 testcodecs = [JSON, PROTOBUF]
 
@@ -46,6 +47,21 @@ class SomeOtherClass:
     @classmethod
     def __serializer__(cls):
         return (cls, cls.__tostr__, cls.__fromstr__)
+
+    def __toproto__(self):
+        msg = MyMsg()
+        msg.content = pickle.dumps(self)
+        return msg.SerializeToString()
+
+    @classmethod
+    def __fromproto__(cls, data):
+        msg = MyMsg()
+        msg.ParseFromString(data)
+        return pickle.loads(bytes(msg.content))
+
+    @classmethod
+    def __protoserializer__(cls):
+        return (cls, cls.__toproto__, cls.__fromproto__)
 
     def __eq__(self, other):
         return (
@@ -117,23 +133,20 @@ def test_codec_basic(codec):
 @pytest.mark.parametrize("codec", testcodecs)
 def test_codec_known(codec):
     # known == (Performatives, MType, ACLMessage)
-    p = Performatives.inform
-    m = MType.agent
-    msg = ACLMessage(m_type=m, performative=p, sender_addr="localhost:1883")
+    msg = ACLMessage(
+        m_type=MType.agent,
+        performative=Performatives.inform,
+        sender_addr="localhost:1883",
+    )
 
     my_codec = codec()
-    p_new = my_codec.decode(my_codec.encode(p))
-    m_new = my_codec.decode(my_codec.encode(m))
     msg_new = my_codec.decode(my_codec.encode(msg))
 
-    assert p == p_new
-    assert m == m_new
     assert vars(msg_new) == vars(msg)
 
 
-@pytest.mark.parametrize("codec", testcodecs)
-def test_codec_data_class(codec):
-    my_codec = codec()
+def test_json_data_class():
+    my_codec = JSON()
     my_codec.add_serializer(*SomeDataClass.__serializer__())
     my_obj = SomeDataClass("test", 1.5, 30)
     decoded = my_codec.decode(my_codec.encode(my_obj))
@@ -141,10 +154,19 @@ def test_codec_data_class(codec):
     assert my_obj == decoded
 
 
-@pytest.mark.parametrize("codec", testcodecs)
-def test_codec_other_class(codec):
-    my_codec = codec()
+def test_json_other_class():
+    my_codec = JSON()
     my_codec.add_serializer(*SomeOtherClass.__serializer__())
+    my_obj = SomeOtherClass()
+    encoded_obj = my_codec.encode(my_obj)
+    decoded_obj = my_codec.decode(encoded_obj)
+
+    assert decoded_obj == my_obj
+
+
+def test_proto_other_class():
+    my_codec = PROTOBUF()
+    my_codec.add_serializer(*SomeOtherClass.__protoserializer__())
     my_obj = SomeOtherClass()
     encoded_obj = my_codec.encode(my_obj)
     decoded_obj = my_codec.decode(encoded_obj)

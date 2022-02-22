@@ -8,10 +8,12 @@
 """
 import inspect
 import json
+import pickle
 
 from typing import Dict, Any
 from enum import Enum
 from json import JSONDecodeError
+from ..messages.acl_message_pb2 import ACLMessage as acl_proto
 
 import networkx as nx
 
@@ -142,8 +144,76 @@ class ACLMessage:
         return msg
 
     @classmethod
-    def __serializer__(cls):
+    def __json_serializer__(cls):
         return (cls, cls.__asdict__, cls.__fromdict__)
+
+    def __toproto__(self):
+        # ACLMessage to serialized proto object
+        msg = acl_proto()
+
+        msg.sender_id = self.sender_id if self.sender_id else ""
+        msg.receiver_id = self.receiver_id if self.receiver_id else ""
+        msg.conversation_id = self.conversation_id if self.conversation_id else ""
+        msg.performative = (
+            self.performative.value if self.performative is not None else 0
+        )
+        msg.message_type = (
+            self.message_type.value if self.message_type is not None else 0
+        )
+        msg.protocol = self.protocol if self.protocol else ""
+        msg.language = self.language if self.language else ""
+        msg.encoding = self.encoding if self.encoding else ""
+        msg.ontology = self.ontology if self.ontology else ""
+        msg.reply_with = self.reply_with if self.reply_with else ""
+        msg.reply_by = self.reply_by if self.reply_by else ""
+        msg.in_reply_to = self.in_reply_to if self.in_reply_to else ""
+        msg.content_class = ""
+
+        # would be nice to have proper recursive serialization like with json codec
+        # but I am not sure how to make that work with proto files for now
+        msg.content = pickle.dumps(self.content)
+
+        if isinstance(self.sender_addr, (tuple, list)):
+            msg.sender_addr = f"{self.sender_addr[0]}:{self.sender_addr[1]}"
+        elif self.sender_addr:
+            msg.sender_addr = self.sender_addr
+
+        if isinstance(self.receiver_addr, (tuple, list)):
+            msg.receiver_addr = f"{self.receiver_addr[0]}:{self.receiver_addr[1]}"
+        elif self.receiver_addr:
+            msg.receiver_addr = self.receiver_addr
+
+        return msg.SerializeToString()
+
+    @classmethod
+    def __fromproto__(cls, data):
+        # serialized proto object to ACLMessage
+        msg = acl_proto()
+        acl = cls()
+        msg.ParseFromString(data)
+
+        acl.sender_id = msg.sender_id if msg.sender_id else None
+        acl.receiver_id = msg.receiver_id if msg.receiver_id else None
+        acl.conversation_id = msg.conversation_id if msg.conversation_id else None
+        acl.performative = Performatives(msg.performative) if msg.performative else None
+        acl.message_type = MType(msg.message_type) if msg.message_type else None
+        acl.protocol = msg.protocol if msg.protocol else None
+        acl.language = msg.language if msg.language else None
+        acl.encoding = msg.encoding if msg.encoding else None
+        acl.ontology = msg.ontology if msg.ontology else None
+        acl.reply_with = msg.reply_with if msg.reply_with else None
+        acl.reply_by = msg.reply_by if msg.reply_by else None
+        acl.in_reply_to = msg.in_reply_to if msg.in_reply_to else None
+        acl.sender_addr = msg.sender_addr if msg.sender_addr else None
+        acl.receiver_addr = msg.receiver_addr if msg.receiver_addr else None
+
+        acl.content = pickle.loads(bytes(msg.content)) if msg.content else None
+
+        return acl
+
+    @classmethod
+    def __proto_serializer__(cls):
+        return (cls, cls.__toproto__, cls.__fromproto__)
 
     def split_content_and_meta(self):
         return (self.content, self.extract_meta())
