@@ -11,9 +11,7 @@ All codecs should implement the base class :class:`Codec`.
 
 import json
 from operator import is_
-import pickle
 from mango.messages.message import ACLMessage, enum_serializer, Performatives, MType
-from ..messages.acl_message_pb2 import ACLMessage as acl_proto
 from ..messages.other_proto_msgs_pb2 import GenericMsg as other_proto
 
 

@@ -571,8 +571,7 @@ class MQTTContainer(Container):
             f"Received msg with content and meta;{str(msg_content)};{str(meta)}"
         )
 
-        # TODO pretty dirty
-        if isinstance(msg_content, ACLMessage):
+        if hasattr(msg_content, "split_content_and_meta"):
             content, msg_meta = msg_content.split_content_and_meta()
             meta.update(msg_meta)
             msg_content = content
@@ -653,8 +652,12 @@ class MQTTContainer(Container):
                 "network_protocol": "mqtt",
             }
 
-            content, msg_meta = message.split_content_and_meta()
-            meta.update(msg_meta)
+            if hasattr(message, "split_content_and_meta"):
+                content, msg_meta = message.split_content_and_meta()
+                meta.update(msg_meta)
+            else:
+                content = message
+
             self.inbox.put_nowait((0, content, meta))
             return True
 
@@ -860,7 +863,10 @@ class TCPContainer(Container):
             return False
         # TODO priority assignment could be specified here,
         priority = 0
-        content, meta = message.split_content_and_meta()
+        if hasattr(message, "split_content_and_meta"):
+            content, meta = message.split_content_and_meta()
+        else:
+            content = message
         meta["network_protocol"] = "tcp"
         receiver.inbox.put_nowait((priority, content, meta))
         return True
