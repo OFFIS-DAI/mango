@@ -117,8 +117,6 @@ class JSON(Codec):
 
 
 class PROTOBUF(Codec):
-    ACLMSG_ID = "ACLMessage"
-
     def __init__(self):
         super().__init__()
         # expected serializers: (obj, to_proto, from_proto)
@@ -126,22 +124,12 @@ class PROTOBUF(Codec):
         # input of from_proto is the string representation of the proto object
         # the codec merely handles the mapping of object types to these methods
         # it does not require any knowledge of the actual proto classes
-        self.add_serializer(object, self.to_bytes, self.from_bytes)
         self.add_serializer(*ACLMessage.__proto_serializer__())
 
-        obj_typeid, _ = self._serializers[object]
-        # save this for handling of objects with no associated proto file
-        self.obj_typeid = obj_typeid
-
-    def to_bytes(self, data):
-        return pickle.dumps(data)
-
-    def from_bytes(self, data):
-        if not data:
-            return None
-        return pickle.loads(bytes(data))
-
     def encode(self, data):
+        # all known proto messages are wrapped in this generic proto msg
+        # this is to have the type_id available to decoding later
+        # in general we can not infer the original proto type from the serialized message
         proto_msg = other_proto()
         typeid, content = self.serialize_obj(data)
         proto_msg.type_id = typeid

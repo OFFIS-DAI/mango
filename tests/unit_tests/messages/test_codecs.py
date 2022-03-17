@@ -111,14 +111,13 @@ def test_serialize_obj_fail():
 # ------------------
 # concrete class tests
 # ------------------
-@pytest.mark.parametrize("codec", testcodecs)
-def test_codec_basic(codec):
+def test_json_codec_basic():
     x = 4
     y = 1.5
     z = "abc123"
     b = True
 
-    my_codec = codec()
+    my_codec = JSON()
     x_new = my_codec.decode(my_codec.encode(x))
     y_new = my_codec.decode(my_codec.encode(y))
     z_new = my_codec.decode(my_codec.encode(z))
