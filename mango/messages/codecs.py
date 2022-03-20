@@ -7,12 +7,70 @@ and outgoing messages:
 
 All codecs should implement the base class :class:`Codec`.
 
+Most of this code is taken and adapted from Stefan Scherfkes aiomas:
+https://gitlab.com/sscherfke/aiomas/
 """
 
 import json
 from operator import is_
 from mango.messages.message import ACLMessage, enum_serializer, Performatives, MType
 from ..messages.other_proto_msgs_pb2 import GenericMsg as other_proto
+
+
+def serializable(cls=None, repr=True):
+    """
+    This is a direct copy from aiomas:
+    https://gitlab.com/sscherfke/aiomas/-/blob/master/src/aiomas/codecs.py
+
+    Class decorator that makes the decorated class serializable by the json
+    codec (or any codec that can handle python dictionaries).
+
+    The decorator tries to extract all arguments to the class’ ``__init__()``.
+    That means, the arguments must be available as attributes with the same
+    name.
+
+    The decorator adds the following methods to the decorated class:
+
+    - ``__asdict__()``: Returns a dict with all __init__ parameters
+    - ``__fromdict__(dict)``: Creates a new class instance from *dict*
+    - ``__serializer__()``: Returns a tuple with args for
+      :meth:`Codec.add_serializer()`
+    - ``__repr__()``: Returns a generic instance representation.  Adding this
+      method can be deactivated by passing ``repr=False`` to the decorator.
+    """
+
+    def wrap(cls):
+        attrs = [a for a in inspect.signature(cls).parameters]
+
+        def __asdict__(self):
+            return {a: getattr(self, a) for a in attrs}
+
+        @classmethod
+        def __fromdict__(cls, attrs):
+            return cls(**attrs)
+
+        def __repr__(self):
+            args = ("{}={!r}".format(a, getattr(self, a)) for a in attrs)
+            return "{}({})".format(self.__class__.__name__, ", ".join(args))
+
+        @classmethod
+        def __serializer__(cls):
+            return (cls, cls.__asdict__, cls.__fromdict__)
+
+        cls.__asdict__ = __asdict__
+        cls.__fromdict__ = __fromdict__
+        cls.__serializer__ = __serializer__
+        if repr:
+            cls.__repr__ = __repr__
+
+        return cls
+
+    # The type of "cls" depends on the usage of the decorator.  It's a class if
+    # it's used as `@serializable` but ``None`` if used as `@serializable()`.
+    if cls is None:
+        return wrap
+    else:
+        return wrap(cls)
 
 
 class SerializationError(Exception):
