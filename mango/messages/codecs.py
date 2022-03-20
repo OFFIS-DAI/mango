@@ -12,6 +12,7 @@ https://gitlab.com/sscherfke/aiomas/
 """
 
 import json
+import inspect
 from operator import is_
 from mango.messages.message import ACLMessage, enum_serializer, Performatives, MType
 from ..messages.other_proto_msgs_pb2 import GenericMsg as other_proto

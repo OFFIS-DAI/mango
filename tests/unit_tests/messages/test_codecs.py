@@ -1,7 +1,13 @@
 from multiprocessing.sharedctypes import Value
 import pytest
 import pickle
-from mango.messages.codecs import Codec, JSON, PROTOBUF, SerializationError
+from mango.messages.codecs import (
+    Codec,
+    JSON,
+    PROTOBUF,
+    SerializationError,
+    serializable,
+)
 from mango.messages.message import ACLMessage, Performatives, MType
 from dataclasses import dataclass
 from msg_pb2 import MyMsg
@@ -70,6 +76,17 @@ class SomeOtherClass:
             and self.z == other.z
             and self.d == other.d
         )
+
+
+@serializable
+class DecoratorData:
+    def __init__(self, x, y, z):
+        self.x = x
+        self.y = y
+        self.z = z
+
+    def __eq__(self, other):
+        return self.x == other.x and self.y == other.y and self.z == other.z
 
 
 # ------------------
@@ -170,4 +187,13 @@ def test_proto_other_class():
     encoded_obj = my_codec.encode(my_obj)
     decoded_obj = my_codec.decode(encoded_obj)
 
+    assert decoded_obj == my_obj
+
+
+def test_serializable_class():
+    my_codec = JSON()
+    my_codec.add_serializer(*DecoratorData.__serializer__())
+    my_obj = DecoratorData(1, "abc", [1, 2, 3, 4])
+    encoded_obj = my_codec.encode(my_obj)
+    decoded_obj = my_codec.decode(encoded_obj)
     assert decoded_obj == my_obj
