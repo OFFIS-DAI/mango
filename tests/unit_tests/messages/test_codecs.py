@@ -1,4 +1,3 @@
-from multiprocessing.sharedctypes import Value
 import pytest
 import pickle
 from mango.messages.codecs import (
@@ -8,7 +7,7 @@ from mango.messages.codecs import (
     SerializationError,
     serializable,
 )
-from mango.messages.message import ACLMessage, Performatives, MType
+from mango.messages.message import ACLMessage, Performatives
 from dataclasses import dataclass
 from msg_pb2 import MyMsg
 
@@ -148,9 +147,9 @@ def test_json_codec_basic():
 
 @pytest.mark.parametrize("codec", testcodecs)
 def test_codec_known(codec):
-    # known == (Performatives, MType, ACLMessage)
+
+    # known == (Performatives, ACLMessage)
     msg = ACLMessage(
-        m_type=MType.agent,
         performative=Performatives.inform,
         sender_addr="localhost:1883",
     )

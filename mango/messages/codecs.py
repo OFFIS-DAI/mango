@@ -13,8 +13,7 @@ https://gitlab.com/sscherfke/aiomas/
 
 import json
 import inspect
-from operator import is_
-from mango.messages.message import ACLMessage, enum_serializer, Performatives, MType
+from mango.messages.message import ACLMessage, enum_serializer, Performatives
 from ..messages.other_proto_msgs_pb2 import GenericMsg as other_proto
 
 
@@ -164,7 +163,6 @@ class JSON(Codec):
         super().__init__()
         self.add_serializer(*ACLMessage.__json_serializer__())
         self.add_serializer(*enum_serializer(Performatives))
-        self.add_serializer(*enum_serializer(MType))
 
     def encode(self, data):
         return json.dumps(data, default=self.serialize_obj).encode()
