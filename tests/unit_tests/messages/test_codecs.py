@@ -32,7 +32,7 @@ class SomeDataClass:
 
     @classmethod
     def __serializer__(cls):
-        return (cls, cls.__asdict__, cls.__fromdict__)
+        return cls, cls.__asdict__, cls.__fromdict__
 
 
 class SomeOtherClass:
@@ -51,7 +51,7 @@ class SomeOtherClass:
 
     @classmethod
     def __serializer__(cls):
-        return (cls, cls.__tostr__, cls.__fromstr__)
+        return cls, cls.__tostr__, cls.__fromstr__
 
     def __toproto__(self):
         msg = MyMsg()
@@ -66,7 +66,7 @@ class SomeOtherClass:
 
     @classmethod
     def __protoserializer__(cls):
-        return (cls, cls.__toproto__, cls.__fromproto__)
+        return cls, cls.__toproto__, cls.__fromproto__
 
     def __eq__(self, other):
         return (
