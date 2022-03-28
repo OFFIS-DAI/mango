@@ -22,7 +22,7 @@ VERSION = '0.1.2'
 
 # What packages are required for this module to be executed?
 REQUIRED = [
-    'paho-mqtt==1.5.1', 'protobuf==3.13.0', 'networkx==2.5'
+    'paho-mqtt==1.5.1', 'protobuf==3.13.0'
 ]
 
 # What packages are optional?
