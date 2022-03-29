@@ -14,7 +14,7 @@ https://gitlab.com/sscherfke/aiomas/
 import json
 import inspect
 from mango.messages.message import ACLMessage, enum_serializer, Performatives
-from ..messages.other_proto_msgs_pb2 import GenericMsg as other_proto
+from ..messages.other_proto_msgs_pb2 import GenericMsg as GenericProtoMsg
 
 
 def serializable(cls=None, repr=True):
@@ -55,7 +55,7 @@ def serializable(cls=None, repr=True):
 
         @classmethod
         def __serializer__(cls):
-            return (cls, cls.__asdict__, cls.__fromdict__)
+            return cls, cls.__asdict__, cls.__fromdict__
 
         cls.__asdict__ = __asdict__
         cls.__fromdict__ = __fromdict__
@@ -106,8 +106,8 @@ class Codec:
         """Decode *data* from :class:`bytes` to the original data structure."""
         raise NotImplementedError
 
-    def add_serializer(self, type, serialize, deserialize):
-        """Add methods to *serialize* and *deserialize* objects typed *type*.
+    def add_serializer(self, otype, serialize, deserialize):
+        """Add methods to *serialize* and *deserialize* objects typed *otype*.
 
         This can be used to de-/encode objects that the codec otherwise
         couldn't encode.
@@ -117,12 +117,11 @@ class Codec:
 
         *deserialize* will receive an objects representation and should return
         an instance of the original object.
-
         """
-        if type in self._serializers:
-            raise ValueError('There is already a serializer for type "{}"'.format(type))
+        if otype in self._serializers:
+            raise ValueError('There is already a serializer for type "{}"'.format(otype))
         typeid = len(self._serializers)
-        self._serializers[type] = (typeid, serialize)
+        self._serializers[otype] = (typeid, serialize)
         self._deserializers[typeid] = deserialize
 
     def serialize_obj(self, obj):
@@ -185,15 +184,14 @@ class PROTOBUF(Codec):
         # all known proto messages are wrapped in this generic proto msg
         # this is to have the type_id available to decoding later
         # in general we can not infer the original proto type from the serialized message
-        proto_msg = other_proto()
+        proto_msg = GenericProtoMsg()
         typeid, content = self.serialize_obj(data)
         proto_msg.type_id = typeid
         proto_msg.content = content
-
         return proto_msg.SerializeToString()
 
     def decode(self, data):
-        proto_msg = other_proto()
+        proto_msg = GenericProtoMsg()
         try:
             proto_msg.ParseFromString(data)
         except Exception as e:
