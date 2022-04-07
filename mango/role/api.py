@@ -98,7 +98,7 @@ class RoleContext(ABC):
         """
 
     @abstractmethod
-    def subscribe_message(self, role, method, message_condition):
+    def subscribe_message(self, role, method, message_condition, priority=float('inf')):
         """Subscribe to a specific message, given by `message_condition`.
 
         :param role: the role
@@ -106,6 +106,7 @@ class RoleContext(ABC):
                              signature (content, meta)
         :param message_condition: the condition which have to be fulfilled to receive the
                                         message. (Object) -> bool
+        :param priority: global priority for the calling order of message dispatch
         """
 
     @abstractmethod

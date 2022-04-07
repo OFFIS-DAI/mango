@@ -28,7 +28,7 @@ class RoleHandler:
         self._roles = []
         self._role_to_active = {}
         self._role_model_type_to_subs = {}
-        self._message_subs = {}
+        self._message_subs = []
         self._send_msg_subs = {}
         self._container = container
         self._scheduler = scheduler
@@ -168,11 +168,17 @@ class RoleHandler:
             acl_metadata=acl_metadata,
             mqtt_kwargs=mqtt_kwargs)
 
-    def subscribe_message(self, role, method, message_condition):
-        if role in self._message_subs:
-            self._message_subs[role].append((message_condition, method))
-        else:
-            self._message_subs[role] = [(message_condition, method)]
+    def subscribe_message(self, role, method, message_condition, priority=float('inf')):
+        for i in range(len(self._message_subs)):
+            _,_,_,other_prio = self._message_subs[i]
+            if priority < other_prio:
+                self._message_subs.insert(i, (role, message_condition, method, priority))
+                break
+            elif i == len(self._message_subs) - 1:
+                self._message_subs.append((role, message_condition, method, priority))
+
+        if len(self._message_subs) == 0:
+            self._message_subs.append((role, message_condition, method, priority))
 
     def subscribe_send(self, role, method):
         if role in self._send_msg_subs:
@@ -207,8 +213,8 @@ class RoleAgentContext(RoleContext):
     def subscribe_model(self, role, role_model_type):
         self._role_handler.subscribe(role, role_model_type)
 
-    def subscribe_message(self, role, method, message_condition):
-        self._role_handler.subscribe_message(role, method, message_condition)
+    def subscribe_message(self, role, method, message_condition, priority=float('inf')):
+        self._role_handler.subscribe_message(role, method, message_condition, priority=priority)
 
     def subscribe_send(self, role, method):
         self._role_handler.subscribe_send(role, method)

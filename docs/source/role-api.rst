@@ -60,7 +60,7 @@ One advantage of this approach is that a model is subscribable using the method 
 
 Handle Messages
 ***************
-As in a normal agent implementation, roles can handle incoming messages. To add a message handler you can use ``RoleContext.subscribe_message``. This method expects, besides the role and a handle method, a message condition function. The handle method must have exactly two arguments (excl. ``self``) ``content`` and ``meta``. The condition function must have exactly one argument ``content``. The idea of the condition function is to allow to define a condition filtering incoming messages, so you only handle one type of message per handler.
+As in a normal agent implementation, roles can handle incoming messages. To add a message handler you can use ``RoleContext.subscribe_message``. This method expects, besides the role and a handle method, a message condition function. The handle method must have exactly two arguments (excl. ``self``) ``content`` and ``meta``. The condition function must have exactly one argument ``content``. The idea of the condition function is to allow to define a condition filtering incoming messages, so you only handle one type of message per handler. Furthermore you can define a ``priority`` of the message subscription, this will be used to determine the message dispatch order.
 
 .. code-block:: python3
 

@@ -66,3 +66,21 @@ def test_no_subscription_update():
     # THEN
     assert ex_role.counter == 1
     
+def test_append_message_subs():
+    # GIVEN
+    role_handler = RoleHandler(None, None)
+    test_role = SubRole()
+
+    # WHEN
+    role_handler.subscribe_message(test_role, str.center, lambda x: True, 0)
+    role_handler.subscribe_message(test_role, str.casefold, lambda x: True, 5)
+    role_handler.subscribe_message(test_role, str.capitalize, lambda x: True, 2)
+    role_handler.subscribe_message(test_role, str.endswith, lambda x: True, 8)
+    role_handler.subscribe_message(test_role, str.count, lambda x: True, 0)
+
+    # THEN
+    assert role_handler._message_subs[0][2] == str.center
+    assert role_handler._message_subs[1][2] == str.count
+    assert role_handler._message_subs[2][2] == str.capitalize
+    assert role_handler._message_subs[3][2] == str.casefold
+    assert role_handler._message_subs[4][2] == str.endswith
