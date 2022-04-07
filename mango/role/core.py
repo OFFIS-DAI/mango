@@ -129,11 +129,10 @@ class RoleHandler:
         :param content: content
         :param meta: meta
         """
-        for role in self.roles:
-            if role in self._message_subs and self._is_role_active(role):
-                for (condition, method) in self._message_subs[role]:
-                    if condition(content, meta):
-                        method(content, meta)
+        for role, message_condition, method, _ in self._message_subs:
+            if self._is_role_active(role):
+                if message_condition(content, meta):
+                    method(content, meta)
 
     async def send_message(
             self, content,
