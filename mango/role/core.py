@@ -212,7 +212,7 @@ class RoleAgentContext(RoleContext):
     def subscribe_model(self, role, role_model_type):
         self._role_handler.subscribe(role, role_model_type)
 
-    def subscribe_message(self, role, method, message_condition, priority=float('inf')):
+    def subscribe_message(self, role, method, message_condition, priority=0):
         self._role_handler.subscribe_message(role, method, message_condition, priority=priority)
 
     def subscribe_send(self, role, method):
