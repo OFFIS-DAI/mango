@@ -168,6 +168,10 @@ class RoleHandler:
             mqtt_kwargs=mqtt_kwargs)
 
     def subscribe_message(self, role, method, message_condition, priority=0):
+        if len(self._message_subs) == 0:
+            self._message_subs.append((role, message_condition, method, priority))
+            return
+
         for i in range(len(self._message_subs)):
             _,_,_,other_prio = self._message_subs[i]
             if priority < other_prio:
@@ -175,9 +179,6 @@ class RoleHandler:
                 break
             elif i == len(self._message_subs) - 1:
                 self._message_subs.append((role, message_condition, method, priority))
-
-        if len(self._message_subs) == 0:
-            self._message_subs.append((role, message_condition, method, priority))
 
     def subscribe_send(self, role, method):
         if role in self._send_msg_subs:
