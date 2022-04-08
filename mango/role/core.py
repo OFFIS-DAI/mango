@@ -167,7 +167,7 @@ class RoleHandler:
             acl_metadata=acl_metadata,
             mqtt_kwargs=mqtt_kwargs)
 
-    def subscribe_message(self, role, method, message_condition, priority=float('inf')):
+    def subscribe_message(self, role, method, message_condition, priority=0):
         for i in range(len(self._message_subs)):
             _,_,_,other_prio = self._message_subs[i]
             if priority < other_prio:

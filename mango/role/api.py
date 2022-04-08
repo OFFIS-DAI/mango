@@ -98,7 +98,7 @@ class RoleContext(ABC):
         """
 
     @abstractmethod
-    def subscribe_message(self, role, method, message_condition, priority=float('inf')):
+    def subscribe_message(self, role, method, message_condition, priority=0):
         """Subscribe to a specific message, given by `message_condition`.
 
         :param role: the role
