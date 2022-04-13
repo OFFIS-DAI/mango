@@ -15,6 +15,7 @@ import json
 import inspect
 from mango.messages.message import ACLMessage, enum_serializer, Performatives
 from ..messages.other_proto_msgs_pb2 import GenericMsg as GenericProtoMsg
+from ..messages.acl_message_pb2 import ACLMessage as ACLProto
 
 
 def serializable(cls=None, repr=True):
@@ -119,7 +120,9 @@ class Codec:
         an instance of the original object.
         """
         if otype in self._serializers:
-            raise ValueError('There is already a serializer for type "{}"'.format(otype))
+            raise ValueError(
+                'There is already a serializer for type "{}"'.format(otype)
+            )
         typeid = len(self._serializers)
         self._serializers[otype] = (typeid, serialize)
         self._deserializers[typeid] = deserialize
@@ -178,12 +181,12 @@ class PROTOBUF(Codec):
         # input of from_proto is the string representation of the proto object
         # the codec merely handles the mapping of object types to these methods
         # it does not require any knowledge of the actual proto classes
-        self.add_serializer(*ACLMessage.__proto_serializer__())
+        self.add_serializer(ACLMessage, self._acl_to_proto, self._proto_to_acl)
 
     def encode(self, data):
-        # all known proto messages are wrapped in this generic proto msg
-        # this is to have the type_id available to decoding later
-        # in general we can not infer the original proto type from the serialized message
+        # All known proto messages are wrapped in this generic proto msg.
+        # This is to have the type_id available to decoding later.
+        # Otherwise, we can not infer the original proto type from the serialized message.
         proto_msg = GenericProtoMsg()
         typeid, content = self.serialize_obj(data)
         proto_msg.type_id = typeid
@@ -203,3 +206,73 @@ class PROTOBUF(Codec):
     def serialize_obj(self, obj):
         serialized = super().serialize_obj(obj)
         return serialized["__type__"]
+
+    def _acl_to_proto(self, acl_message):
+        # ACLMessage to serialized proto object
+        msg = ACLProto()
+
+        msg.sender_id = acl_message.sender_id if acl_message.sender_id else ""
+        msg.receiver_id = acl_message.receiver_id if acl_message.receiver_id else ""
+        msg.conversation_id = (
+            acl_message.conversation_id if acl_message.conversation_id else ""
+        )
+        msg.performative = (
+            acl_message.performative.value
+            if acl_message.performative is not None
+            else 0
+        )
+        msg.protocol = acl_message.protocol if acl_message.protocol else ""
+        msg.language = acl_message.language if acl_message.language else ""
+        msg.encoding = acl_message.encoding if acl_message.encoding else ""
+        msg.ontology = acl_message.ontology if acl_message.ontology else ""
+        msg.reply_with = acl_message.reply_with if acl_message.reply_with else ""
+        msg.reply_by = acl_message.reply_by if acl_message.reply_by else ""
+        msg.in_reply_to = acl_message.in_reply_to if acl_message.in_reply_to else ""
+
+        if isinstance(acl_message.sender_addr, (tuple, list)):
+            msg.sender_addr = (
+                f"{acl_message.sender_addr[0]}:{acl_message.sender_addr[1]}"
+            )
+        elif acl_message.sender_addr:
+            msg.sender_addr = acl_message.sender_addr
+
+        if isinstance(acl_message.receiver_addr, (tuple, list)):
+            msg.receiver_addr = (
+                f"{acl_message.receiver_addr[0]}:{acl_message.receiver_addr[1]}"
+            )
+        elif acl_message.receiver_addr:
+            msg.receiver_addr = acl_message.receiver_addr
+
+        # content is only allowed to be a proto message known to the codec here
+        if acl_message.content is not None:
+            typeid, content = self.serialize_obj(acl_message.content)
+            msg.content = content
+            msg.content_type = typeid
+
+        return msg.SerializeToString()
+
+    def _proto_to_acl(self, data):
+        # serialized proto object to ACLMessage
+        msg = ACLProto()
+        acl = ACLMessage()
+        msg.ParseFromString(data)
+
+        acl.sender_id = msg.sender_id if msg.sender_id else None
+        acl.receiver_id = msg.receiver_id if msg.receiver_id else None
+        acl.conversation_id = msg.conversation_id if msg.conversation_id else None
+        acl.performative = Performatives(msg.performative) if msg.performative else None
+        acl.protocol = msg.protocol if msg.protocol else None
+        acl.language = msg.language if msg.language else None
+        acl.encoding = msg.encoding if msg.encoding else None
+        acl.ontology = msg.ontology if msg.ontology else None
+        acl.reply_with = msg.reply_with if msg.reply_with else None
+        acl.reply_by = msg.reply_by if msg.reply_by else None
+        acl.in_reply_to = msg.in_reply_to if msg.in_reply_to else None
+        acl.sender_addr = msg.sender_addr if msg.sender_addr else None
+        acl.receiver_addr = msg.receiver_addr if msg.receiver_addr else None
+
+        if msg.content and msg.content_type:
+            obj_repr = {"__type__": (msg.content_type, msg.content)}
+            acl.content = self.deserialize_obj(obj_repr)
+
+        return acl

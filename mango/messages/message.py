@@ -19,10 +19,24 @@ class ACLMessage:
     This class is based on the FIPA ACL standard: http://www.fipa.org/specs/fipa00061/SC00061G.html
     """
 
-    def __init__(self, *, sender_id=None, sender_addr=None, receiver_id=None, receiver_addr=None,
-                 conversation_id=None, performative=None, content=None, protocol=None, language=None, encoding=None,
-                 ontology=None, reply_with=None, reply_by=None, in_reply_to=None,
-                 ):
+    def __init__(
+        self,
+        *,
+        sender_id=None,
+        sender_addr=None,
+        receiver_id=None,
+        receiver_addr=None,
+        conversation_id=None,
+        performative=None,
+        content=None,
+        protocol=None,
+        language=None,
+        encoding=None,
+        ontology=None,
+        reply_with=None,
+        reply_by=None,
+        in_reply_to=None,
+    ):
         """
 
         :param sender_id: The agent ID of the message sender (e.g. Agent0)
@@ -93,40 +107,6 @@ class ACLMessage:
     def __json_serializer__(cls):
         return cls, cls.__asdict__, cls.__fromdict__
 
-    def __toproto__(self):
-        # ACLMessage to serialized proto object
-        msg = ACLProto()
-
-        msg.sender_id = self.sender_id if self.sender_id else ""
-        msg.receiver_id = self.receiver_id if self.receiver_id else ""
-        msg.conversation_id = self.conversation_id if self.conversation_id else ""
-        msg.performative = (
-            self.performative.value if self.performative is not None else 0
-        )
-        msg.protocol = self.protocol if self.protocol else ""
-        msg.language = self.language if self.language else ""
-        msg.encoding = self.encoding if self.encoding else ""
-        msg.ontology = self.ontology if self.ontology else ""
-        msg.reply_with = self.reply_with if self.reply_with else ""
-        msg.reply_by = self.reply_by if self.reply_by else ""
-        msg.in_reply_to = self.in_reply_to if self.in_reply_to else ""
-
-        # would be nice to have proper recursive serialization like with json codec
-        # but I am not sure how to make that work with proto files for now
-        msg.content = pickle.dumps(self.content)
-
-        if isinstance(self.sender_addr, (tuple, list)):
-            msg.sender_addr = f"{self.sender_addr[0]}:{self.sender_addr[1]}"
-        elif self.sender_addr:
-            msg.sender_addr = self.sender_addr
-
-        if isinstance(self.receiver_addr, (tuple, list)):
-            msg.receiver_addr = f"{self.receiver_addr[0]}:{self.receiver_addr[1]}"
-        elif self.receiver_addr:
-            msg.receiver_addr = self.receiver_addr
-
-        return msg.SerializeToString()
-
     @classmethod
     def __fromproto__(cls, data):
         # serialized proto object to ACLMessage
@@ -152,13 +132,9 @@ class ACLMessage:
 
         return acl
 
-    @classmethod
-    def __proto_serializer__(cls):
-        return cls, cls.__toproto__, cls.__fromproto__
-
     def extract_meta(self) -> Dict[str, Any]:
         meta_dict = self.message_dict
-        meta_dict.pop('content')
+        meta_dict.pop("content")
         return meta_dict
 
     def split_content_and_meta(self):

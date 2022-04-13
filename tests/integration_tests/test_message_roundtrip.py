@@ -9,6 +9,23 @@ M2 = "Hello2"
 M3 = "Goodbye"
 
 
+def str_to_bytes(my_str):
+    return bytes(my_str, "utf-8")
+
+
+def bytes_to_str(my_bytes):
+    return my_bytes.decode("utf-8")
+
+
+def string_serializer():
+    return (str, str_to_bytes, bytes_to_str)
+
+
+JSON_CODEC = JSON()
+PROTO_CODEC = PROTOBUF()
+PROTO_CODEC.add_serializer(*string_serializer())
+
+
 async def setup_and_run_test_case(connection_type, codec):
     comm_topic = "test_topic"
     init_addr = ("localhost", 1555) if connection_type == "tcp" else None
@@ -149,19 +166,19 @@ class ReplierAgent(Agent):
 
 @pytest.mark.asyncio
 async def test_tcp_json():
-    await setup_and_run_test_case("tcp", JSON())
+    await setup_and_run_test_case("tcp", JSON_CODEC)
 
 
 @pytest.mark.asyncio
 async def test_tcp_proto():
-    await setup_and_run_test_case("tcp", PROTOBUF())
+    await setup_and_run_test_case("tcp", PROTO_CODEC)
 
 
 @pytest.mark.asyncio
 async def test_mqtt_json():
-    await setup_and_run_test_case("mqtt", JSON())
+    await setup_and_run_test_case("mqtt", JSON_CODEC)
 
 
 @pytest.mark.asyncio
 async def test_mqtt_proto():
-    await setup_and_run_test_case("mqtt", PROTOBUF())
+    await setup_and_run_test_case("mqtt", PROTO_CODEC)
