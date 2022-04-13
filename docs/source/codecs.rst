@@ -1,0 +1,188 @@
+=======
+Codecs
+=======
+
+Most of the codec related code is taken and adapted from Stefan Scherfkes aiomas:
+https://gitlab.com/sscherfke/aiomas/
+
+Codecs enable the container to encode and decode known data types to send them as messages. 
+Mango already contains two codecs: A json serializer that can (recursively) handle any json serializable object and a protobuf codec
+that will wrap an object into a generic protobuf message. Other codecs can be implemented by inheriting 
+from the ``Codec`` base class and implementing its ``encode`` and ``decode`` methods. 
+Codecs will only handle types explicitely known to them. 
+New known types can be added to a codec with the ``add_serializer`` method. 
+This method expects a type together with a serialization method and a deserialization method that translate the object into a format
+the codec can handle (for example a json-serializable string for the json codec).
+
+Quickstart
+###########
+
+**general use**
+
+Consider a simple example class we wish to encode as json:
+
+.. code-block:: python3
+
+    class MyClass:
+    def __init__(self, x, y):
+    	self.x = x
+        self._y = y
+
+    @property
+    def y(self):
+        return self._y
+
+    def __asdict__(self):
+        return {"x": self.x, "y": self.y}
+
+    @classmethod
+    def __fromdict__(cls, attrs):
+        return cls(**attrs)
+
+    @classmethod
+    def __serializer__(cls):
+        return (cls, cls.__asdict__, cls.__fromdict__)
+
+
+If we try to encode an object of ``MyClass`` without adding a serializer we get an SerializationError:
+
+.. code-block:: python3
+
+    codec = codecs.JSON()
+
+    my_object = MyClass("abc", 123)
+    encoded = codec.encode(my_object)
+
+.. code-block:: bash
+
+    python main.py
+    ...
+    mango.messages.codecs.SerializationError: No serializer found for type "<class '__main__.MyClass'>"
+
+
+We have to make the type known to the codec to use it:
+
+.. code-block:: python3
+
+    codec = codecs.JSON()
+    codec.add_serializer(*MyClass.__serializer__())
+
+    my_object = MyClass("abc", 123)
+    encoded = codec.encode(my_object)
+    decoded = codec.decode(encoded)
+
+    print(my_object.x, my_object.y)
+    print(decoded.x, decoded.y)
+
+.. code-block:: bash
+
+    python main.py
+    abc 123
+    abc 123
+
+**@serializable decorator**
+
+In the above example we explicitely defined methods to (de)serialize our class. For simple classes, especially data classes,
+we can achieve the same result via the ``@serializable`` decorator:
+
+.. code-block:: python3
+
+    from mango.messages.codecs import serializable
+
+    @serializable
+    class DecoratorData:
+        def __init__(self, x, y, z):
+            self.x = x
+            self.y = y
+            self.z = z
+
+    def main():
+        codec = codecs.JSON()
+        codec.add_serializer(*DecoratorData.__serializer__())
+
+        my_data = DecoratorData(1,2,3)
+        encoded = codec.encode(my_data)
+        decoded = codec.decode(encoded)
+
+        print(my_data.x, my_data.y, my_data.z)
+        print(decoded.x, decoded.y, decoded.z)
+
+.. code-block:: bash
+
+    python main.py
+    1 2 3
+    1 2 3
+
+
+proto codec and ACLMessage
+##########################
+
+Serialization methods for the proto codec are expected to encode the object into a protobuf message object with the ``SerializeToString`` 
+method.
+The codec then wraps the message into a generic message wrapper, containing the serialized 
+protobuf message object and a type id. 
+This is necessary because in general the original type of a protobuf message can not be infered
+from its serialized form.
+
+
+The ``ACLMessage`` class is encouraged to be used for fipa compliant agent communication. For ease of use it gets specially handled in
+the protobuf codec: Its content field may contain any proto object known to the codec and gets encoded with the associated type id just
+like a non-ACL message would be encoded into the generic message wrapper.
+
+
+Here is an example class implementing a proto serializer for a basic message containing only one field of type ``bytes``:
+
+.. code-block:: python3
+
+    from msg_pb2 import MyMsg
+    from mango.messages.message import ACLMessage
+    import pickle
+
+    class SomeOtherClass:
+        def __init__(self) -> None:
+            self.x = 1
+            self.y = 2
+            self.z = "abc123"
+            self.d = {1: "test", 2: "data", 3: 123}
+
+        def __toproto__(self):
+            msg = MyMsg()
+            msg.content = pickle.dumps(self)
+            return msg
+
+        @classmethod
+        def __fromproto__(cls, data):
+            msg = MyMsg()
+            msg.ParseFromString(data)
+            return pickle.loads(bytes(msg.content))
+
+        @classmethod
+        def __protoserializer__(cls):
+            return cls, cls.__toproto__, cls.__fromproto__
+
+    def main():
+        codec = codecs.PROTOBUF()
+        codec.add_serializer(*SomeOtherClass.__protoserializer__())
+
+        my_object = SomeOtherClass()
+        decoded = codec.decode(codec.encode(my_object))
+
+        wrapper = ACLMessage()
+        wrapper.content = my_object
+        w_decoded = codec.decode(codec.encode(wrapper))
+
+        print(my_object.x, my_object.y, my_object.z, my_object.d)
+        print(decoded.x, decoded.y, decoded.z, decoded.d)
+        print(
+            wrapper_decoded.content.x,
+            wrapper_decoded.content.y,
+            wrapper_decoded.content.z,
+            wrapper_decoded.content.d,
+        )
+
+.. code-block:: bash
+
+    python main.py
+    1 2 abc123 {1: 'test', 2: 'data', 3: 123}
+    1 2 abc123 {1: 'test', 2: 'data', 3: 123}
+    1 2 abc123 {1: 'test', 2: 'data', 3: 123}
