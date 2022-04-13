@@ -190,7 +190,7 @@ class PROTOBUF(Codec):
         proto_msg = GenericProtoMsg()
         typeid, content = self.serialize_obj(data)
         proto_msg.type_id = typeid
-        proto_msg.content = content
+        proto_msg.content = content.SerializeToString()
         return proto_msg.SerializeToString()
 
     def decode(self, data):
@@ -246,10 +246,10 @@ class PROTOBUF(Codec):
         # content is only allowed to be a proto message known to the codec here
         if acl_message.content is not None:
             typeid, content = self.serialize_obj(acl_message.content)
-            msg.content = content
+            msg.content = content.SerializeToString()
             msg.content_type = typeid
 
-        return msg.SerializeToString()
+        return msg
 
     def _proto_to_acl(self, data):
         # serialized proto object to ACLMessage

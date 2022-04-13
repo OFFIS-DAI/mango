@@ -2,6 +2,7 @@ import pytest
 from mango.core.agent import Agent
 from mango.core.container import Container
 from mango.messages.codecs import JSON, PROTOBUF
+from msg_pb2 import MyMsg
 import asyncio
 
 M1 = "Hello"
@@ -9,16 +10,20 @@ M2 = "Hello2"
 M3 = "Goodbye"
 
 
-def str_to_bytes(my_str):
-    return bytes(my_str, "utf-8")
+def str_to_proto(my_str):
+    msg = MyMsg()
+    msg.content = bytes(my_str, "utf-8")
+    return msg
 
 
-def bytes_to_str(my_bytes):
-    return my_bytes.decode("utf-8")
+def proto_to_str(data):
+    msg = MyMsg()
+    msg.ParseFromString(data)
+    return msg.content.decode("utf-8")
 
 
 def string_serializer():
-    return (str, str_to_bytes, bytes_to_str)
+    return (str, str_to_proto, proto_to_str)
 
 
 JSON_CODEC = JSON()

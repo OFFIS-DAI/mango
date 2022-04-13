@@ -56,7 +56,7 @@ class SomeOtherClass:
     def __toproto__(self):
         msg = MyMsg()
         msg.content = pickle.dumps(self)
-        return msg.SerializeToString()
+        return msg
 
     @classmethod
     def __fromproto__(cls, data):
