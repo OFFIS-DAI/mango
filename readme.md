@@ -1,6 +1,6 @@
 # mango
 
-[PyPi](https://pypi.org/project/mango-agents/) | [Read the Docs](mango-agents.readthedocs.io)
+[PyPi](https://pypi.org/project/mango-agents/) | [Read the Docs](https://mango-agents.readthedocs.io)
 | [Gitlab](https://gitlab.com/mango-agents/mango) | [mail](mango@offis.de)
 
 **Note:** _This project is still in an early development stage. 
