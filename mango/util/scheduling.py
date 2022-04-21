@@ -221,8 +221,8 @@ class Scheduler:
     def schedule_conditional_process_task(self, coroutine_creator, condition_func, lookup_delay=0.1, src = None):
         """Schedule a task when a specified condition is met.
 
-        :param coroutine: coroutine to be scheduled
-        :type coroutine: Coroutine
+        :param coroutine_creator: coroutine_creator creating coroutine to be scheduled
+        :type coroutine_creator: coroutine_creator
         :param condition_func: function for determining whether the confition is fullfiled
         :type confition_func: lambda () -> bool
         :param lookup_delay: delay between checking the condition
@@ -251,8 +251,8 @@ class Scheduler:
     def schedule_datetime_process_task(self, coroutine_creator, date_time: datetime, src = None):
         """Schedule a task at specified datetime dispatched to another process.
 
-        :param coroutine: coroutine to be scheduled
-        :type coroutine: Coroutine
+        :param coroutine_creator: coroutine_creator creating coroutine to be scheduled
+        :type coroutine_creator: coroutine_creator
         :param date_time: datetime defining when the task should start
         :type date_time: datetime
         :param src: creator of the task
@@ -276,8 +276,8 @@ class Scheduler:
     def schedule_periodic_process_task(self, coroutine_creator, delay, src = None):
         """Schedule an open end periodically executed task dispatched to another process.
 
-        :param coroutine_func: coroutine function creating coros to be scheduled
-        :type coroutine_func: Coroutine Function
+        :param coroutine_creator: coroutine function creating coros to be scheduled
+        :type coroutine_creator: Coroutine Function
         :param delay: delay in between the cycles
         :type dealy: float
         :param src: creator of the task
@@ -301,8 +301,8 @@ class Scheduler:
     def schedule_instant_process_task(self, coroutine_creator, src = None):
         """Schedule an instantly executed task dispatched to another process.
 
-        :param coroutine: coroutine_creator to be scheduled
-        :type coroutine: 
+        :param coroutine_creator: coroutine_creator to be scheduled
+        :type coroutine_creator: 
         :param src: creator of the task
         :type src: Object
         """
