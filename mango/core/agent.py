@@ -10,7 +10,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Any, Dict
 # import mango.core.container  # might lead to cycle imports, we have to rethink this
-from ..util.scheduling import ScheduledTask, Scheduler
+from ..util.scheduling import ScheduledProcessTask, ScheduledTask, Scheduler
 # import mango.core.container
 
 logger = logging.getLogger(__name__)
@@ -37,6 +37,20 @@ class Agent(ABC):
         self._scheduler = Scheduler()
         logger.info('Agent starts running')
 
+    def schedule_conditional_process_task(self, coroutine_creator, condition_func, lookup_delay=0.1, src = None):
+        """Schedule a process task when a specified condition is met.
+
+        :param coroutine: coroutine to be scheduled
+        :type coroutine: Coroutine
+        :param condition_func: function for determining whether the confition is fullfiled
+        :type confition_func: lambda () -> bool
+        :param lookup_delay: delay between checking the condition
+        :type lookup_delay: float
+        :param src: creator of the task
+        :type src: Object
+        """
+        return self._scheduler.schedule_conditional_process_task(coroutine_creator=coroutine_creator, condition_func=condition_func, lookup_delay=lookup_delay, src=src)
+
     def schedule_conditional_task(self, coroutine, condition_func, lookup_delay=0.1, src = None):
         """Schedule a task when a specified condition is met.
 
@@ -51,6 +65,18 @@ class Agent(ABC):
         """
         return self._scheduler.schedule_conditional_task(coroutine=coroutine, condition_func=condition_func, lookup_delay=lookup_delay, src=src)
 
+    def schedule_datetime_process_task(self, coroutine_creator, date_time: datetime, src = None):
+        """Schedule a task at specified datetime in another process.
+
+        :param coroutine: coroutine to be scheduled
+        :type coroutine: Coroutine
+        :param date_time: datetime defining when the task should start
+        :type date_time: datetime
+        :param src: creator of the task
+        :type src: Object
+        """
+        return self._scheduler.schedule_datetime_process_task(coroutine_creator=coroutine_creator, date_time=date_time, src=src)
+
     def schedule_datetime_task(self, coroutine, date_time: datetime, src = None):
         """Schedule a task at specified datetime.
 
@@ -62,6 +88,18 @@ class Agent(ABC):
         :type src: Object
         """
         return self._scheduler.schedule_datetime_task(coroutine=coroutine, date_time=date_time, src=src)
+
+    def schedule_periodic_process_task(self, coroutine_creator, delay, src = None):
+        """Schedule an open end peridocally executed task in another process.
+
+        :param coroutine_func: coroutine function creating coros to be scheduled
+        :type coroutine_func:  Coroutine Function
+        :param delay: delay in between the cycles
+        :type dealy: float
+        :param src: creator of the task
+        :type src: Object
+        """
+        return self._scheduler.schedule_periodic_process_task(coroutine_creator=coroutine_creator, delay=delay, src=src)
 
     def schedule_periodic_task(self, coroutine_func, delay, src = None):
         """Schedule an open end peridocally executed task.
@@ -75,6 +113,16 @@ class Agent(ABC):
         """
         return self._scheduler.schedule_periodic_task(coroutine_func=coroutine_func, delay=delay, src=src)
 
+    def schedule_instant_process_task(self, coroutine_creator, src = None):
+        """Schedule an instantly executed task in another processes.
+
+        :param coroutine: coroutine_creator to be scheduled
+        :type coroutine: 
+        :param src: creator of the task
+        :type src: Object
+        """
+        return self._scheduler.schedule_instant_process_task(coroutine_creator=coroutine_creator, src=src)
+
     def schedule_instant_task(self, coroutine, src = None):
         """Schedule an instantly executed task.
 
@@ -84,6 +132,15 @@ class Agent(ABC):
         :type src: Object
         """
         return self._scheduler.schedule_instant_task(coroutine=coroutine, src=src)
+
+    def schedule_process_task(self, task: ScheduledProcessTask, src = None):
+        """Schedule a task with asyncio in another process. When the task is finished, if finite, its automatically
+        removed afterwards. For scheduling options see the subclasses of ScheduledScheduledProcessTaskTask.
+
+        :param task: task to be scheduled
+        :param src: object, which represents the source of the task (for example the object in which the task got created)
+        """
+        return self._scheduler.schedule_process_task(task, src=src)
 
     def schedule_task(self, task: ScheduledTask, src = None):
         """Schedule a task with asyncio. When the task is finished, if finite, its automatically

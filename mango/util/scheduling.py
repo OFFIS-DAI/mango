@@ -218,6 +218,22 @@ class Scheduler:
         finally:
             task.on_stop(coro)
 
+    def schedule_conditional_process_task(self, coroutine_creator, condition_func, lookup_delay=0.1, src = None):
+        """Schedule a task when a specified condition is met.
+
+        :param coroutine: coroutine to be scheduled
+        :type coroutine: Coroutine
+        :param condition_func: function for determining whether the confition is fullfiled
+        :type confition_func: lambda () -> bool
+        :param lookup_delay: delay between checking the condition
+        :type lookup_delay: float
+        :param src: creator of the task
+        :type src: Object
+        """
+        return self.schedule_process_task(ConditionalProcessTask(coro_func=coroutine_creator, 
+                                                         condition_func=condition_func, 
+                                                         lookup_delay=lookup_delay), src=src)
+
     def schedule_conditional_task(self, coroutine, condition_func, lookup_delay=0.1, src = None):
         """Schedule a task when a specified condition is met.
 
@@ -232,6 +248,19 @@ class Scheduler:
         """
         return self.schedule_task(ConditionalTask(coroutine=coroutine, condition_func=condition_func, lookup_delay=lookup_delay), src=src)
 
+    def schedule_datetime_process_task(self, coroutine_creator, date_time: datetime, src = None):
+        """Schedule a task at specified datetime dispatched to another process.
+
+        :param coroutine: coroutine to be scheduled
+        :type coroutine: Coroutine
+        :param date_time: datetime defining when the task should start
+        :type date_time: datetime
+        :param src: creator of the task
+        :type src: Object
+        """
+        return self.schedule_process_task(DateTimeScheduledProcessTask(coroutine_creator=coroutine_creator, 
+                                                               date_time=date_time), src=src)
+
     def schedule_datetime_task(self, coroutine, date_time: datetime, src = None):
         """Schedule a task at specified datetime.
 
@@ -243,6 +272,19 @@ class Scheduler:
         :type src: Object
         """
         return self.schedule_task(DateTimeScheduledTask(coroutine=coroutine, date_time=date_time), src=src)
+
+    def schedule_periodic_process_task(self, coroutine_creator, delay, src = None):
+        """Schedule an open end periodically executed task dispatched to another process.
+
+        :param coroutine_func: coroutine function creating coros to be scheduled
+        :type coroutine_func: Coroutine Function
+        :param delay: delay in between the cycles
+        :type dealy: float
+        :param src: creator of the task
+        :type src: Object
+        """
+        return self.schedule_process_task(PeriodicScheduledProcessTask(coroutine_func=coroutine_creator, 
+                                                               delay=delay), src=src)
 
     def schedule_periodic_task(self, coroutine_func, delay, src = None):
         """Schedule an open end peridocally executed task.
@@ -256,6 +298,16 @@ class Scheduler:
         """
         return self.schedule_task(PeriodicScheduledTask(coroutine_func=coroutine_func, delay=delay), src=src)
 
+    def schedule_instant_process_task(self, coroutine_creator, src = None):
+        """Schedule an instantly executed task dispatched to another process.
+
+        :param coroutine: coroutine_creator to be scheduled
+        :type coroutine: 
+        :param src: creator of the task
+        :type src: Object
+        """
+        return self.schedule_process_task(InstantScheduledProcessTask(coroutine_creator=coroutine_creator), src=src)
+
     def schedule_instant_task(self, coroutine, src = None):
         """Schedule an instantly executed task.
 
@@ -266,8 +318,7 @@ class Scheduler:
         """
         return self.schedule_task(InstantScheduledTask(coroutine=coroutine), src=src)
 
-
-    def schedule_task_as_process(self, task: ScheduledProcessTask, src = None):
+    def schedule_process_task(self, task: ScheduledProcessTask, src = None):
         """Schedule as task with asyncio in a different process managed by a ProcessWorkerPool in this Scheduler-object. For scheduling options see 
         the subclasses of ScheduledProcessTask.
 

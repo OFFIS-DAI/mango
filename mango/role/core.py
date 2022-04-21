@@ -9,7 +9,7 @@ import asyncio
 from typing import Any, Dict, Optional, Union, Tuple, List
 import datetime
 
-from mango.util.scheduling import ScheduledTask, Scheduler
+from mango.util.scheduling import ScheduledProcessTask, ScheduledTask, Scheduler
 from mango.core.agent import Agent
 from mango.role.api import Role, RoleContext
 
@@ -231,17 +231,40 @@ class RoleAgentContext(RoleContext):
         """
         self._role_handler.handle_msg(content, meta)
 
+    def schedule_conditional_process_task(self, coroutine_creator, condition_func, lookup_delay=0.1, src = None):
+        return self._scheduler.schedule_conditional_process_task(coroutine_creator=coroutine_creator, 
+                                                                 condition_func=condition_func, 
+                                                                 lookup_delay=lookup_delay, 
+                                                                 src=src)
+
     def schedule_conditional_task(self, coroutine, condition_func, lookup_delay=0.1, src = None):
         return self._scheduler.schedule_conditional_task(coroutine=coroutine, condition_func=condition_func, lookup_delay=lookup_delay, src=src)
+
+    def schedule_datetime_process_task(self, coroutine_creator, date_time: datetime.datetime, src = None):
+        return self._scheduler.schedule_datetime_process_task(coroutine_creator=coroutine_creator, 
+                                                              date_time=date_time, 
+                                                              src=src)
 
     def schedule_datetime_task(self, coroutine, date_time: datetime.datetime, src = None):
         return self._scheduler.schedule_datetime_task(coroutine=coroutine, date_time=date_time, src=src)
 
+    def schedule_periodic_process_task(self, coroutine_creator, delay, src = None):
+        return self._scheduler.schedule_periodic_process_task(coroutine_creator=coroutine_creator, 
+                                                              delay=delay, 
+                                                              src=src)
+
     def schedule_periodic_task(self, coroutine_func, delay, src = None):
         return self._scheduler.schedule_periodic_task(coroutine_func=coroutine_func, delay=delay, src=src)
 
+    def schedule_instant_process_task(self, coroutine_creator, src = None):
+        return self._scheduler.schedule_instant_process_task(coroutine_creator=coroutine_creator, 
+                                                             src=src)
+
     def schedule_instant_task(self, coroutine, src = None):
         return self._scheduler.schedule_instant_task(coroutine=coroutine, src=src)
+
+    def schedule_process_task(self, task: ScheduledProcessTask):
+        return self._scheduler.schedule_process_task(task)
 
     def schedule_task(self, task: ScheduledTask):
         return self._scheduler.schedule_task(task)
