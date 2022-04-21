@@ -154,10 +154,10 @@ async def test_task_as_process():
 
 
     # WHEN
-    result = await asyncio.wait_for(scheduler.schedule_task_as_process(InstantScheduledProcessTask(do_exp_stuff)), timeout=100)
-    result2 = await asyncio.wait_for(scheduler.schedule_task_as_process(InstantScheduledProcessTask(do_exp_stuff)), timeout=100)
-    result3 = await asyncio.wait_for(scheduler.schedule_task_as_process(InstantScheduledProcessTask(do_exp_stuff)), timeout=100)
-    result4 = await asyncio.wait_for(scheduler.schedule_task_as_process(InstantScheduledProcessTask(SimpleObj().do_exp_stuff)), timeout=100)
+    result = await asyncio.wait_for(scheduler.schedule_process_task(InstantScheduledProcessTask(do_exp_stuff)), timeout=100)
+    result2 = await asyncio.wait_for(scheduler.schedule_process_task(InstantScheduledProcessTask(do_exp_stuff)), timeout=100)
+    result3 = await asyncio.wait_for(scheduler.schedule_process_task(InstantScheduledProcessTask(do_exp_stuff)), timeout=100)
+    result4 = await asyncio.wait_for(scheduler.schedule_process_task(InstantScheduledProcessTask(SimpleObj().do_exp_stuff)), timeout=100)
 
     # THEN
     assert result == 1337
@@ -179,7 +179,7 @@ async def test_task_as_process_suspend_and_resume():
     marker = 155
 
     # WHEN
-    task = scheduler.schedule_task_as_process(InstantScheduledProcessTask(do_exp_stuff_mult_steps), marker)
+    task = scheduler.schedule_process_task(InstantScheduledProcessTask(do_exp_stuff_mult_steps), marker)
     scheduler.suspend(marker)
 
     asyncio.sleep(1)
@@ -196,7 +196,7 @@ async def test_task_as_process_suspend():
     marker = 155
 
     # WHEN
-    task = scheduler.schedule_task_as_process(InstantScheduledProcessTask(do_exp_stuff_mult_steps), marker)
+    task = scheduler.schedule_process_task(InstantScheduledProcessTask(do_exp_stuff_mult_steps), marker)
     scheduler.suspend(marker)
 
     # THEN
