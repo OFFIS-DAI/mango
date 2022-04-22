@@ -378,7 +378,6 @@ class Scheduler:
         for _, coro, src in self._scheduled_tasks:
             if src == given_src and coro is not None:
                 coro.resume()
-        print(self._scheduled_process_tasks)
         for _, event, src in self._scheduled_process_tasks:
             if src == given_src and event is not None:
                 event.set()
