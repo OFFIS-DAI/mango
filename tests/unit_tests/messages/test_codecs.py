@@ -5,7 +5,7 @@ from mango.messages.codecs import (
     JSON,
     PROTOBUF,
     SerializationError,
-    serializable,
+    json_serializable,
 )
 from mango.messages.message import ACLMessage, Performatives
 from dataclasses import dataclass
@@ -77,7 +77,7 @@ class SomeOtherClass:
         )
 
 
-@serializable
+@json_serializable
 class DecoratorData:
     def __init__(self, x, y, z):
         self.x = x
@@ -177,6 +177,17 @@ def test_json_other_class():
     decoded_obj = my_codec.decode(encoded_obj)
 
     assert decoded_obj == my_obj
+
+
+def test_proto_register_type():
+    my_codec = PROTOBUF()
+    my_codec.register_proto_type(MyMsg)
+    my_obj = MyMsg()
+    my_obj.content = b"some_byte_string"
+    encoded = my_codec.encode(my_obj)
+    decoded = my_codec.decode(encoded)
+
+    assert decoded == my_obj
 
 
 def test_proto_other_class():

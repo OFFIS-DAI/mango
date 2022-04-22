@@ -18,7 +18,7 @@ from ..messages.other_proto_msgs_pb2 import GenericMsg as GenericProtoMsg
 from ..messages.acl_message_pb2 import ACLMessage as ACLProto
 
 
-def serializable(cls=None, repr=True):
+def json_serializable(cls=None, repr=True):
     """
     This is a direct copy from aiomas:
     https://gitlab.com/sscherfke/aiomas/-/blob/master/src/aiomas/codecs.py
@@ -206,6 +206,14 @@ class PROTOBUF(Codec):
     def serialize_obj(self, obj):
         serialized = super().serialize_obj(obj)
         return serialized["__type__"]
+
+    def register_proto_type(self, proto_class):
+        def deserialize(data):
+            proto_obj = proto_class()
+            proto_obj.ParseFromString(data)
+            return proto_obj
+
+        self.add_serializer(proto_class, lambda x: x, deserialize)
 
     def _acl_to_proto(self, acl_message):
         # ACLMessage to serialized proto object
