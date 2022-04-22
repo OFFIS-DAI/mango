@@ -2,7 +2,7 @@
 Codecs
 =======
 
-Most of the codec related code is taken and adapted from Stefan Scherfkes aiomas:
+Most of the codec related code is taken and adapted from aiomas:
 https://gitlab.com/sscherfke/aiomas/
 
 Codecs enable the container to encode and decode known data types to send them as messages. 
@@ -25,7 +25,7 @@ Consider a simple example class we wish to encode as json:
 
     class MyClass:
     def __init__(self, x, y):
-    	self.x = x
+        self.x = x
         self._y = y
 
     @property
@@ -80,7 +80,7 @@ We have to make the type known to the codec to use it:
     abc 123
     abc 123
 
-**@serializable decorator**
+**@json_serializable decorator**
 
 In the above example we explicitely defined methods to (de)serialize our class. For simple classes, especially data classes,
 we can achieve the same result (for json codecs) via the ``@json_serializable`` decorator. This creates the ``__asdict__``, 
@@ -131,31 +131,35 @@ the protobuf codec: Its content field may contain any proto object known to the 
 like a non-ACL message would be encoded into the generic message wrapper.
 
 
-Here is an example class implementing a proto serializer for a basic message containing only one field of type ``bytes``:
+Here is an example class implementing a proto serializer for a proto message containing the same fields
+as the example class:
 
 .. code-block:: python3
 
-    from msg_pb2 import MyMsg
+    from msg_pb2 import MyOtherMsg
     from mango.messages.message import ACLMessage
-    import pickle
 
     class SomeOtherClass:
-        def __init__(self) -> None:
-            self.x = 1
-            self.y = 2
-            self.z = "abc123"
-            self.d = {1: "test", 2: "data", 3: 123}
+        def __init__(self, x=1, y='abc', z=None) -> None:
+            self.x = x
+            self.y = y
+            if z is None:
+                self.z = {}
+            else:
+                self.z = z
 
         def __toproto__(self):
-            msg = MyMsg()
-            msg.content = pickle.dumps(self)
+            msg = MyOtherMsg()
+            msg.x = self.x
+            msg.y = self.y
+            msg.z = str(self.z)
             return msg
 
         @classmethod
         def __fromproto__(cls, data):
-            msg = MyMsg()
+            msg = MyOtherMsg()
             msg.ParseFromString(data)
-            return pickle.loads(bytes(msg.content))
+            return cls(msg.x, msg.y, eval(msg.z))
 
         @classmethod
         def __protoserializer__(cls):
@@ -172,13 +176,12 @@ Here is an example class implementing a proto serializer for a basic message con
         wrapper.content = my_object
         w_decoded = codec.decode(codec.encode(wrapper))
 
-        print(my_object.x, my_object.y, my_object.z, my_object.d)
-        print(decoded.x, decoded.y, decoded.z, decoded.d)
+        print(my_object.x, my_object.y, my_object.z)
+        print(decoded.x, decoded.y, decoded.z)
         print(
             wrapper_decoded.content.x,
             wrapper_decoded.content.y,
             wrapper_decoded.content.z,
-            wrapper_decoded.content.d,
         )
 
 .. code-block:: bash
@@ -189,7 +192,7 @@ Here is an example class implementing a proto serializer for a basic message con
     1 2 abc123 {1: 'test', 2: 'data', 3: 123}
 
 
-In case you want to pass proto objects as content to the codec (or as content to the containers ``send_message``) you can shorten this
+In case you want to directly pass proto objects as content to the codec (or as content to the containers ``send_message``) you can shorten this
 process by making the proto type known to the codec using the ``register_proto_type`` function as in this example:
 
 .. code-block:: python3
