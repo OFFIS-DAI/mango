@@ -83,13 +83,14 @@ We have to make the type known to the codec to use it:
 **@serializable decorator**
 
 In the above example we explicitely defined methods to (de)serialize our class. For simple classes, especially data classes,
-we can achieve the same result via the ``@serializable`` decorator:
+we can achieve the same result (for json codecs) via the ``@json_serializable`` decorator. This creates the ``__asdict__``, 
+``__fromdict__`` and ``__serializer__`` functions in the class:
 
 .. code-block:: python3
 
     from mango.messages.codecs import serializable
 
-    @serializable
+    @json_serializable
     class DecoratorData:
         def __init__(self, x, y, z):
             self.x = x
@@ -186,3 +187,36 @@ Here is an example class implementing a proto serializer for a basic message con
     1 2 abc123 {1: 'test', 2: 'data', 3: 123}
     1 2 abc123 {1: 'test', 2: 'data', 3: 123}
     1 2 abc123 {1: 'test', 2: 'data', 3: 123}
+
+
+In case you want to pass proto objects as content to the codec (or as content to the containers ``send_message``) you can shorten this
+process by making the proto type known to the codec using the ``register_proto_type`` function as in this example:
+
+.. code-block:: python3
+
+    from msg_pb2 import MyMsg
+
+    def main():
+    codec = codecs.PROTOBUF()
+    codec.register_proto_type(MyMsg)
+
+    my_obj = MyMsg()
+    my_obj.content = b"some_bytes"
+    encoded = codec.encode(my_obj)
+    decoded = codec.decode(encoded)
+
+    print(my_obj)
+    print(encoded)
+    print(decoded)
+
+
+.. code-block:: bash
+
+    python main.py
+    content: "some_bytes"
+
+    b'\x08\x01\x12\x0c\x12\nsome_bytes'
+    content: "some_bytes"
+
+
+    
