@@ -14,11 +14,11 @@ The role context is the API to the environment of the role. It provides function
 ********
 The Role
 ********
-To implement a role you have to extend the abstract class ``mango.role.api.Role``. Concrete instances of implementations can be assigned to the general ``mango.role.core.RoleAgent``. 
+To implement a role you have to extend the abstract class ``mango.role.api.Role``. Concrete instances of implementations can be assigned to the general ``mango.role.core.RoleAgent``.
 
 Lifecycle
 *********
-The first step in the roles life is the instantiation via ``__init__``. This is done by the user itself and can be used to configure the roles behavior. The next step is adding the role to a ``RoleAgent`` using ``add_role``. The role will get notified by this through the method ``setup``. After adding the role the ``RoleContext`` is available, which represents the environment (container, agent, other roles). When the role or agent got removed, or the container shut down, the hook-method ``on_stop`` will be called, so you can do some cleanup or send last messages before the life ends. 
+The first step in the roles life is the instantiation via ``__init__``. This is done by the user itself and can be used to configure the roles behavior. The next step is adding the role to a ``RoleAgent`` using ``add_role``. The role will get notified by this through the method ``setup``. After adding the role the ``RoleContext`` is available, which represents the environment (container, agent, other roles). When the role or agent got removed, or the container shut down, the hook-method ``on_stop`` will be called, so you can do some cleanup or send last messages before the life ends.
 
 .. note::
     After a shutdown or removal a role is **not** supposed to be reused! When you want to deactivate a role temporarily use the methods ``activate`` and ``deactivate`` of the RoleContext.
@@ -60,7 +60,7 @@ One advantage of this approach is that a model is subscribable using the method 
 
 Handle Messages
 ***************
-As in a normal agent implementation, roles can handle incoming messages. To add a message handler you can use ``RoleContext.subscribe_message``. This method expects, besides the role and a handle method, a message condition function. The handle method must have exactly two arguments (excl. ``self``) ``content`` and ``meta``. The condition function must have exactly one argument ``content``. The idea of the condition function is to allow to define a condition filtering incoming messages, so you only handle one type of message per handler.
+As in a normal agent implementation, roles can handle incoming messages. To add a message handler you can use ``RoleContext.subscribe_message``. This method expects, besides the role and a handle method, a message condition function. The handle method must have exactly two arguments (excl. ``self``) ``content`` and ``meta``. The condition function must have exactly one argument ``content``. The idea of the condition function is to allow to define a condition filtering incoming messages, so you only handle one type of message per handler. Furthermore you can define a ``priority`` of the message subscription, this will be used to determine the message dispatch order (lower number = earlier execution, default=0).
 
 .. code-block:: python3
 
@@ -68,7 +68,7 @@ As in a normal agent implementation, roles can handle incoming messages. To add 
     class MyRole(Role):
         def setup(self):
             self.context.subscribe_message(self, self.handle_ping, lambda content: isinstance(content, Ping))
-        
+
         def handle_ping(self, content, meta):
             print('Ping received!')
 
@@ -83,5 +83,5 @@ Sometimes you might want to deactivate the functionality of a whole role, for ex
 
 When a role activated again all three point are completely reverted.
 
-.. note:: 
+.. note::
     Suspending of tasks might not work immediately, as it intercepts ``__await__``.

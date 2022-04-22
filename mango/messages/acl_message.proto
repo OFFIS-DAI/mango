@@ -31,7 +31,7 @@ message ACLMessage {
     }
     Performative performative = 6;
     bytes content = 7;
-    string message_type = 8;
+    int32 content_type = 8;
     string protocol = 9;
     string language = 10;
     string encoding = 11;
@@ -39,5 +39,4 @@ message ACLMessage {
     string reply_with = 13;
     string reply_by = 14;
     string in_reply_to = 15;
-    string content_class = 16;
 }

@@ -1,6 +1,6 @@
 syntax = "proto3";
 
 message GenericMsg {
-    string text = 1;
-    string my_topic = 2;
+    int32 type_id = 1;
+    bytes content = 2;
 }

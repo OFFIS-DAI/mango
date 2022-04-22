@@ -29,6 +29,7 @@ Features
    message exchange
    scheduling
    ACL messages
+   codecs
    role-api
    development
    api_ref/index

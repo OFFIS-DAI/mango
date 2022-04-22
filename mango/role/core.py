@@ -9,7 +9,7 @@ import asyncio
 from typing import Any, Dict, Optional, Union, Tuple, List
 import datetime
 
-from mango.util.scheduling import ScheduledTask, Scheduler
+from mango.util.scheduling import ScheduledProcessTask, ScheduledTask, Scheduler
 from mango.core.agent import Agent
 from mango.role.api import Role, RoleContext
 
@@ -28,7 +28,7 @@ class RoleHandler:
         self._roles = []
         self._role_to_active = {}
         self._role_model_type_to_subs = {}
-        self._message_subs = {}
+        self._message_subs = []
         self._send_msg_subs = {}
         self._container = container
         self._scheduler = scheduler
@@ -129,11 +129,10 @@ class RoleHandler:
         :param content: content
         :param meta: meta
         """
-        for role in self.roles:
-            if role in self._message_subs and self._is_role_active(role):
-                for (condition, method) in self._message_subs[role]:
-                    if condition(content, meta):
-                        method(content, meta)
+        for role, message_condition, method, _ in self._message_subs:
+            if self._is_role_active(role):
+                if message_condition(content, meta):
+                    method(content, meta)
 
     async def send_message(
             self, content,
@@ -168,11 +167,18 @@ class RoleHandler:
             acl_metadata=acl_metadata,
             mqtt_kwargs=mqtt_kwargs)
 
-    def subscribe_message(self, role, method, message_condition):
-        if role in self._message_subs:
-            self._message_subs[role].append((message_condition, method))
-        else:
-            self._message_subs[role] = [(message_condition, method)]
+    def subscribe_message(self, role, method, message_condition, priority=0):
+        if len(self._message_subs) == 0:
+            self._message_subs.append((role, message_condition, method, priority))
+            return
+
+        for i in range(len(self._message_subs)):
+            _,_,_,other_prio = self._message_subs[i]
+            if priority < other_prio:
+                self._message_subs.insert(i, (role, message_condition, method, priority))
+                break
+            elif i == len(self._message_subs) - 1:
+                self._message_subs.append((role, message_condition, method, priority))
 
     def subscribe_send(self, role, method):
         if role in self._send_msg_subs:
@@ -207,8 +213,8 @@ class RoleAgentContext(RoleContext):
     def subscribe_model(self, role, role_model_type):
         self._role_handler.subscribe(role, role_model_type)
 
-    def subscribe_message(self, role, method, message_condition):
-        self._role_handler.subscribe_message(role, method, message_condition)
+    def subscribe_message(self, role, method, message_condition, priority=0):
+        self._role_handler.subscribe_message(role, method, message_condition, priority=priority)
 
     def subscribe_send(self, role, method):
         self._role_handler.subscribe_send(role, method)
@@ -231,17 +237,40 @@ class RoleAgentContext(RoleContext):
         """
         self._role_handler.handle_msg(content, meta)
 
+    def schedule_conditional_process_task(self, coroutine_creator, condition_func, lookup_delay=0.1, src = None):
+        return self._scheduler.schedule_conditional_process_task(coroutine_creator=coroutine_creator, 
+                                                                 condition_func=condition_func, 
+                                                                 lookup_delay=lookup_delay, 
+                                                                 src=src)
+
     def schedule_conditional_task(self, coroutine, condition_func, lookup_delay=0.1, src = None):
         return self._scheduler.schedule_conditional_task(coroutine=coroutine, condition_func=condition_func, lookup_delay=lookup_delay, src=src)
+
+    def schedule_datetime_process_task(self, coroutine_creator, date_time: datetime.datetime, src = None):
+        return self._scheduler.schedule_datetime_process_task(coroutine_creator=coroutine_creator, 
+                                                              date_time=date_time, 
+                                                              src=src)
 
     def schedule_datetime_task(self, coroutine, date_time: datetime.datetime, src = None):
         return self._scheduler.schedule_datetime_task(coroutine=coroutine, date_time=date_time, src=src)
 
+    def schedule_periodic_process_task(self, coroutine_creator, delay, src = None):
+        return self._scheduler.schedule_periodic_process_task(coroutine_creator=coroutine_creator, 
+                                                              delay=delay, 
+                                                              src=src)
+
     def schedule_periodic_task(self, coroutine_func, delay, src = None):
         return self._scheduler.schedule_periodic_task(coroutine_func=coroutine_func, delay=delay, src=src)
 
+    def schedule_instant_process_task(self, coroutine_creator, src = None):
+        return self._scheduler.schedule_instant_process_task(coroutine_creator=coroutine_creator, 
+                                                             src=src)
+
     def schedule_instant_task(self, coroutine, src = None):
         return self._scheduler.schedule_instant_task(coroutine=coroutine, src=src)
+
+    def schedule_process_task(self, task: ScheduledProcessTask):
+        return self._scheduler.schedule_process_task(task)
 
     def schedule_task(self, task: ScheduledTask):
         return self._scheduler.schedule_task(task)
