@@ -1,0 +1,5 @@
+syntax = "proto3";
+
+message MyMsg {
+    bytes content = 1;
+}
