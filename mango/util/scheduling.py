@@ -79,8 +79,8 @@ class ScheduledTask:
     passed as lambda while the scheduling logic is inside of class inherting from this one.
     """
 
-    def __init__(self, clock: Clock) -> None:
-        self.clock = clock
+    def __init__(self, clock: Clock = None) -> None:
+        self.clock = clock if clock is not None else AsyncioClock()
 
     @abstractmethod
     async def run(self):
@@ -104,7 +104,8 @@ class ScheduledProcessTask(ScheduledTask):
     Furthermore when using a ProcessTask you have to ensure, that the coroutine functions should not be bound to complex objects, meaning they should be static or bound to simple objects, which
     are transferrable via pythons IPC implementation.
     """
-    pass
+    def __init__(self, clock: Clock):
+        super().__init__(clock=clock)
 
 
 class PeriodicScheduledTask(ScheduledProcessTask):
@@ -112,7 +113,7 @@ class PeriodicScheduledTask(ScheduledProcessTask):
     which will get executed periodically with a specified delay.
     """
 
-    def __init__(self, coroutine_func, delay, clock: Clock = AsyncioClock()):
+    def __init__(self, coroutine_func, delay, clock: Clock = None):
         super().__init__(clock)
 
         self._stopped = False
@@ -134,7 +135,7 @@ class DateTimeScheduledTask(ScheduledTask):
     """DateTime based one-shot task. This task will get executed using a given datetime-object.
     """
 
-    def __init__(self, coroutine, date_time: datetime, clock=AsyncioClock()):
+    def __init__(self, coroutine, date_time: datetime, clock=None):
         super().__init__(clock)
 
         self._delay = date_time
@@ -155,7 +156,7 @@ class DateTimeScheduledProcessTask(DateTimeScheduledTask, ScheduledProcessTask):
     """DateTime based one-shot task. This task will get executed using a given datetime-object.
     """
 
-    def __init__(self, coroutine_creator, date_time: datetime, clock=AsyncioClock()):
+    def __init__(self, coroutine_creator, date_time: datetime, clock=None):
         super().__init__(coroutine_creator, date_time, clock)
 
     async def run(self):
@@ -167,7 +168,7 @@ class InstantScheduledTask(DateTimeScheduledTask):
     """One-shot task, which will get executed instantly.
     """
 
-    def __init__(self, coroutine, clock: Clock = AsyncioClock()):
+    def __init__(self, coroutine, clock: Clock = None):
         super().__init__(coroutine, datetime.datetime.fromtimestamp(clock.time), clock=clock)
 
 
@@ -175,14 +176,14 @@ class InstantScheduledProcessTask(DateTimeScheduledProcessTask, ScheduledProcess
     """One-shot task, which will get executed instantly.
     """
 
-    def __init__(self, coroutine_creator, clock: Clock = AsyncioClock()):
+    def __init__(self, coroutine_creator, clock: Clock = None):
         super().__init__(coroutine_creator, datetime.datetime.now(), clock=clock)
 
 
 class ConditionalTask(ScheduledTask):
     """Task which will get executed as soon as the given condition is fullfiled.
     """
-    def __init__(self, coroutine, condition_func, lookup_delay=0.1, clock: Clock = AsyncioClock()):
+    def __init__(self, coroutine, condition_func, lookup_delay=0.1, clock: Clock = None):
         super().__init__(clock=clock)
 
         self._condition = condition_func
@@ -202,7 +203,7 @@ class ConditionalTask(ScheduledTask):
 class ConditionalProcessTask(ConditionalTask, ScheduledProcessTask):
     """Task which will get executed as soon as the given condition is fullfiled.
     """
-    def __init__(self, coro_func, condition_func, lookup_delay=0.1, clock: Clock = AsyncioClock()):
+    def __init__(self, coro_func, condition_func, lookup_delay=0.1, clock: Clock = None):
         super().__init__(coro_func, condition_func, lookup_delay, clock=clock)
 
     async def run(self):
@@ -220,16 +221,17 @@ class Scheduler:
     """Scheduler for executing tasks.
     """
 
-    def __init__(self, clock: Clock = AsyncioClock(),  num_process_parallel=16):
+    def __init__(self, clock: Clock = None,  num_process_parallel=16):
         self._scheduled_tasks = []
-        # print(f'[Scheduler] init with the following clock: {clock}')
-        self.clock = clock
+        self.clock = clock if clock is not None else AsyncioClock()
+        # print(f'[Scheduler] init with the following clock: {self.clock}')
         self._scheduled_process_tasks = []
         self._process_pool_exec = concurrent.futures.ProcessPoolExecutor(max_workers=num_process_parallel, initializer=_create_asyncio_context)
 
     @staticmethod
     def _run_task_in_p_context(task, suspend_event):
         try:
+            print('_run_task_in_p_context')
             coro = Suspendable(task.run(), ext_contr_event=suspend_event)
 
             return asyncio.get_event_loop().run_until_complete(coro)

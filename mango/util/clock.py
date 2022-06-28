@@ -28,7 +28,6 @@ class AsyncioClock (Clock):
         """
 
         """
-        print('[Asyncio clock] going to get datetime')
         return datetime.datetime.now().timestamp()
 
     def sleep(self, t):

@@ -147,6 +147,7 @@ class SimpleObj:
         await asyncio.sleep(0.1)
         return 1337
 
+
 @pytest.mark.asyncio
 async def test_task_as_process():
     # GIVEN
