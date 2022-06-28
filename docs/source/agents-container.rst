@@ -15,7 +15,7 @@ In mango, a container is created using the classmethod ``mango.core.container.Co
 .. code-block:: python3
 
     @classmethod
-    async def factory(cls, *, connection_type: str = 'tcp', codec: str = 'json',
+    async def factory(cls, *, connection_type: str = 'tcp', codec: Codec = JSON(),
                       addr: Optional[Union[str, Tuple[str, int]]] = None,
                       proto_msgs_module=None,
                       mqtt_kwargs: Dict[str, Any] = None):
@@ -35,10 +35,8 @@ A simple container, that uses plain tcp for message exchange can be created as f
     simple_container = asyncio.run(get_simple_container()))
 
 A container can be parametrized regarding its connection type ('tcp' or 'MQTT') and
-regarding the codec that is used for message serialization ('json' or 'protobuf').
-
-..
-    More information regarding these topics can be found in XXX and YYY. TODO
+regarding the codec that is used for message serialization.
+The default codec is JSON (see section codecs for more information)
 
 After a container is created, it is waiting for incoming messages on the given address.
 As soon as the container has some agents, it will distribute incoming messages
