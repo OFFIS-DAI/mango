@@ -2,8 +2,10 @@
 Module for commonly used time based scheduled task executed inside one agent.
 """
 from abc import abstractmethod
+from mango.util.clock import Clock
 import asyncio
 import datetime
+
 
 class Suspendable:
     """Wraps a coroutine, intercepting __await__ to add the functionality of suspending.
@@ -65,14 +67,15 @@ class Suspendable:
         """
         return self._coro
 
+
 class ScheduledTask:
     """Base class for scheduled tasks in mango. Within this class its possible to
     define what to do on exceution and on stop. In most cases the logic should get
     passed as lambda while the scheduling logic is inside of class inherting from this one.
     """
 
-    def __init__(self) -> None:
-        pass
+    def __init__(self, clock: Clock) -> None:
+        self.clock = clock
 
     @abstractmethod
     async def run(self):
@@ -88,14 +91,13 @@ class ScheduledTask:
         """
 
 
-
 class PeriodicScheduledTask(ScheduledTask):
     """Class for periodic scheduled tasks. It enables to create a scheduable task for an agent
     which will get executed periodically with a specified delay.
     """
 
-    def __init__(self, coroutine_func, delay):
-        super().__init__()
+    def __init__(self, coroutine_func, delay, clock):
+        super().__init__(clock)
 
         self._stopped = False
         self._coroutine_func = coroutine_func
@@ -104,23 +106,26 @@ class PeriodicScheduledTask(ScheduledTask):
     async def run(self):
         while not self._stopped:
             await self._coroutine_func()
-            await asyncio.sleep(self._delay)
+            await self.clock.sleep(self._delay)
 
 
 class DateTimeScheduledTask(ScheduledTask):
     """DateTime based one-shot task. This task will get executed using a given datetime-object.
     """
 
-    def __init__(self, coroutine, date_time: datetime):
-        super().__init__()
+    def __init__(self, coroutine, date_time: datetime, clock):
+        super().__init__(clock)
 
         self._delay = date_time
         self._coro = coroutine
 
     async def _wait(self, date_time: datetime):
-        await asyncio.sleep((date_time - datetime.datetime.now()).total_seconds())
+        # print(f'[DateTimeScheduledTask] going to sleep for {round(date_time.timestamp() - self.clock.time, 4)} '
+        #       f'seconds. Clock is {type(self.clock)}')
+        await self.clock.sleep(date_time.timestamp() - self.clock.time)
 
     async def run(self):
+        # print(f'[{DateTimeScheduledTask}] run with this clock{type(self.clock)}')
         await self._wait(self._delay)
         return await self._coro
 
@@ -129,25 +134,26 @@ class InstantScheduledTask(DateTimeScheduledTask):
     """One-shot task, which will get executed instantly.
     """
 
-    def __init__(self, coroutine):
-        super().__init__(coroutine, datetime.datetime.now())
+    def __init__(self, coroutine, clock: Clock):
+        super().__init__(coroutine, datetime.datetime.fromtimestamp(clock.time), clock=clock)
+
 
 class ConditionalTask(ScheduledTask):
     """Task which will get executed as soon as the given condition is fullfiled.
     """
-    def __init__(self, coroutine, condition_func, lookup_delay=0.1):
-        super().__init__()
+    def __init__(self, coroutine, condition_func, clock, lookup_delay=0.1):
+        super().__init__(clock)
 
         self._condition = condition_func
         self._coro = coroutine
         self._delay = lookup_delay
 
     async def _wait(self, date_time: datetime):
-        await asyncio.sleep((date_time - datetime.datetime.now()).total_seconds())
+        await self.clock.sleep((date_time - datetime.datetime.now()).total_seconds())
 
     async def run(self):
         while not self._condition():
-            await asyncio.sleep(self._delay)
+            await self.clock.sleep(self._delay)
 
         return await self._coro
 
@@ -156,24 +162,27 @@ class Scheduler:
     """Scheduler for executing tasks.
     """
 
-    def __init__(self):
+    def __init__(self, clock=None):
         self._scheduled_tasks = []
+        # print(f'[Scheduler] init with the following clock: {clock}')
+        self.clock = clock
 
-    def schedule_conditional_task(self, coroutine, condition_func, lookup_delay=0.1, src = None):
+    def schedule_conditional_task(self, coroutine, condition_func, lookup_delay=0.1, src=None):
         """Schedule a task when a specified condition is met.
 
         :param coroutine: coroutine to be scheduled
         :type coroutine: Coroutine
         :param condition_func: function for determining whether the confition is fullfiled
-        :type confition_func: lambda () -> bool
+        :type condition_func: lambda () -> bool
         :param lookup_delay: delay between checking the condition
         :type lookup_delay: float
         :param src: creator of the task
         :type src: Object
         """
-        return self.schedule_task(ConditionalTask(coroutine=coroutine, condition_func=condition_func, lookup_delay=lookup_delay), src=src)
+        return self.schedule_task(ConditionalTask(coroutine=coroutine, condition_func=condition_func, clock=self.clock,
+                                                  lookup_delay=lookup_delay), src=src)
 
-    def schedule_datetime_task(self, coroutine, date_time: datetime, src = None):
+    def schedule_datetime_task(self, coroutine, date_time: datetime.datetime, src=None):
         """Schedule a task at specified datetime.
 
         :param coroutine: coroutine to be scheduled
@@ -183,7 +192,9 @@ class Scheduler:
         :param src: creator of the task
         :type src: Object
         """
-        return self.schedule_task(DateTimeScheduledTask(coroutine=coroutine, date_time=date_time), src=src)
+        # print(f'[scheduler with {type(self.clock)}] schedule_datetime_task')
+        return self.schedule_task(DateTimeScheduledTask(coroutine=coroutine, date_time=date_time, clock=self.clock),
+                                  src=src)
 
     def schedule_periodic_task(self, coroutine_func, delay, src = None):
         """Schedule an open end peridocally executed task.
@@ -191,11 +202,12 @@ class Scheduler:
         :param coroutine_func: coroutine function creating coros to be scheduled
         :type coroutine_func:  Coroutine Function
         :param delay: delay in between the cycles
-        :type dealy: float
+        :type delay: float
         :param src: creator of the task
         :type src: Object
         """
-        return self.schedule_task(PeriodicScheduledTask(coroutine_func=coroutine_func, delay=delay), src=src)
+        return self.schedule_task(PeriodicScheduledTask(coroutine_func=coroutine_func, delay=delay, clock=self.clock),
+                                  src=src)
 
     def schedule_instant_task(self, coroutine, src = None):
         """Schedule an instantly executed task.
@@ -205,7 +217,7 @@ class Scheduler:
         :param src: creator of the task
         :type src: Object
         """
-        return self.schedule_task(InstantScheduledTask(coroutine=coroutine), src=src)
+        return self.schedule_task(InstantScheduledTask(coroutine=coroutine, clock=self.clock), src=src)
 
     def schedule_task(self, task: ScheduledTask, src = None):
         """Schedule a task with asyncio. When the task is finished, if finite, its automatically
@@ -216,6 +228,7 @@ class Scheduler:
         :param src: creator of the task
         :type: Object
         """
+        # print(f'[scheduler with {type(self.clock)}] schedule_task()')
         susp_coro = Suspendable(task.run())
         l_task = asyncio.ensure_future(susp_coro)
         l_task.add_done_callback(task.on_stop)
