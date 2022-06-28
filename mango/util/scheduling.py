@@ -196,7 +196,7 @@ class ConditionalProcessTask(ConditionalTask, ScheduledProcessTask):
         while not self._condition():
             await asyncio.sleep(self._delay)
 
-        return await self.coro_func()
+        return await self._coro()
 
 def _create_asyncio_context():
     asyncio.set_event_loop(asyncio.new_event_loop())
