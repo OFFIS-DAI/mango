@@ -1,9 +1,8 @@
 
-from re import M
 import pytest
 import asyncio, datetime
 
-from mango.util.scheduling import DateTimeScheduledTask, InstantScheduledProcessTask, InstantScheduledTask, Scheduler, PeriodicScheduledTask
+from mango.util.scheduling import ConditionalProcessTask, DateTimeScheduledTask, InstantScheduledProcessTask, InstantScheduledTask, Scheduler, PeriodicScheduledTask
 
 @pytest.mark.asyncio
 async def test_periodic():
@@ -171,6 +170,27 @@ async def do_exp_stuff_mult_steps():
     result += 1
     await asyncio.sleep(1)
     return result
+
+def cond():
+    return True
+
+@pytest.mark.asyncio
+async def test_cond_task_as_process():
+    # GIVEN
+    scheduler = Scheduler(num_process_parallel=16)
+
+
+    # WHEN
+    result = await asyncio.wait_for(scheduler.schedule_process_task(ConditionalProcessTask(do_exp_stuff, cond)), timeout=100)
+    result2 = await asyncio.wait_for(scheduler.schedule_process_task(ConditionalProcessTask(do_exp_stuff, cond)), timeout=100)
+    result3 = await asyncio.wait_for(scheduler.schedule_process_task(ConditionalProcessTask(do_exp_stuff, cond)), timeout=100)
+    result4 = await asyncio.wait_for(scheduler.schedule_process_task(ConditionalProcessTask(SimpleObj().do_exp_stuff, cond)), timeout=100)
+
+    # THEN
+    assert result == 1337
+    assert result2 == 1337
+    assert result3 == 1337
+    assert result4 == 1337
 
 @pytest.mark.asyncio
 async def test_task_as_process_suspend_and_resume():
