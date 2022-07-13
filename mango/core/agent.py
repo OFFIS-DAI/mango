@@ -9,9 +9,7 @@ import logging
 from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Any, Dict
-# import mango.core.container  # might lead to cycle imports, we have to rethink this
 from ..util.scheduling import ScheduledProcessTask, ScheduledTask, Scheduler
-# import mango.core.container
 
 logger = logging.getLogger(__name__)
 
@@ -30,42 +28,44 @@ class Agent(ABC):
         self._container = container
         self._aid = aid
         self.inbox = asyncio.Queue()
+        self._scheduler = Scheduler(clock=container.clock)
         self._check_inbox_task = asyncio.create_task(self._check_inbox())
         self._check_inbox_task.add_done_callback(self.raise_exceptions)
         self.stopped = asyncio.Future()
-        self._scheduled_tasks = []
-        self._scheduler = Scheduler()
-        logger.info('Agent starts running')
 
-    def schedule_conditional_process_task(self, coroutine_creator, condition_func, lookup_delay=0.1, src = None):
+        logger.info('Agent %s: start running in container %s', aid, container.addr)
+
+    def schedule_conditional_process_task(self, coroutine_creator, condition_func, lookup_delay=0.1, src=None):
         """Schedule a process task when a specified condition is met.
 
         :param coroutine_creator: coroutine_creator creating coroutine to be scheduled
         :type coroutine_creator: coroutine_creator
         :param condition_func: function for determining whether the confition is fullfiled
-        :type confition_func: lambda () -> bool
+        :type condition_func: lambda () -> bool
         :param lookup_delay: delay between checking the condition
         :type lookup_delay: float
         :param src: creator of the task
         :type src: Object
         """
-        return self._scheduler.schedule_conditional_process_task(coroutine_creator=coroutine_creator, condition_func=condition_func, lookup_delay=lookup_delay, src=src)
+        return self._scheduler.schedule_conditional_process_task(
+            coroutine_creator=coroutine_creator, condition_func=condition_func, lookup_delay=lookup_delay, src=src)
 
-    def schedule_conditional_task(self, coroutine, condition_func, lookup_delay=0.1, src = None):
+    def schedule_conditional_task(self, coroutine, condition_func, lookup_delay=0.1, src=None):
         """Schedule a task when a specified condition is met.
 
         :param coroutine: coroutine to be scheduled
         :type coroutine: Coroutine
         :param condition_func: function for determining whether the confition is fullfiled
-        :type confition_func: lambda () -> bool
+        :type condition_func: lambda () -> bool
         :param lookup_delay: delay between checking the condition
         :type lookup_delay: float
         :param src: creator of the task
         :type src: Object
         """
-        return self._scheduler.schedule_conditional_task(coroutine=coroutine, condition_func=condition_func, lookup_delay=lookup_delay, src=src)
+        return self._scheduler.schedule_conditional_task(coroutine=coroutine, condition_func=condition_func,
+                                                         lookup_delay=lookup_delay, src=src)
 
-    def schedule_datetime_process_task(self, coroutine_creator, date_time: datetime, src = None):
+    def schedule_datetime_process_task(self, coroutine_creator, date_time: datetime, src=None):
         """Schedule a task at specified datetime in another process.
 
         :param coroutine_creator: coroutine_creator creating couroutine to be scheduled
@@ -75,7 +75,8 @@ class Agent(ABC):
         :param src: creator of the task
         :type src: Object
         """
-        return self._scheduler.schedule_datetime_process_task(coroutine_creator=coroutine_creator, date_time=date_time, src=src)
+        return self._scheduler.schedule_datetime_process_task(coroutine_creator=coroutine_creator,
+                                                              date_time=date_time, src=src)
 
     def schedule_datetime_task(self, coroutine, date_time: datetime, src = None):
         """Schedule a task at specified datetime.
@@ -123,7 +124,7 @@ class Agent(ABC):
         """
         return self._scheduler.schedule_instant_process_task(coroutine_creator=coroutine_creator, src=src)
 
-    def schedule_instant_task(self, coroutine, src = None):
+    def schedule_instant_task(self, coroutine, src=None):
         """Schedule an instantly executed task.
 
         :param coroutine: coroutine to be scheduled
@@ -164,7 +165,7 @@ class Agent(ABC):
         :param fut: The Future object of the task
         """
         if fut.exception() is not None:
-            logger.error('Caught the following exception in _check_inbox: %s', fut.exception())
+            logger.error('Agent %s: Caught the following exception in _check_inbox: %s', self.aid, fut.exception())
             raise fut.exception()
 
     @property
@@ -175,11 +176,11 @@ class Agent(ABC):
     async def _check_inbox(self):
         """Task for waiting on new message in the inbox"""
 
-        logger.debug('Start waiting for msgs')
+        logger.debug('Agent %s: Start waiting for msgs', self.aid)
         while True:
             # run in infinite loop until it is cancelled from outside
             msg = await self.inbox.get()
-            logger.debug(f'Received message;{str(msg)}')
+            logger.debug('Agent %s: Received message;%s}', self.aid, str(msg))
 
             # msgs should be tuples of (priority, content)
             priority, content, meta = msg
@@ -224,4 +225,4 @@ class Agent(ABC):
         except asyncio.CancelledError:
             pass
         finally:
-            logger.info('Shutdown successful')
+            logger.info('Agent %s: Shutdown successful', self.aid)
