@@ -6,6 +6,7 @@ import pytest, asyncio
 from mango.core.agent import Agent
 from mango.core.container import Container
 
+
 class MyAgent(Agent): 
     def handle_msg(self, content, meta: Dict[str, Any]):
         pass
@@ -17,6 +18,7 @@ async def test_periodic_facade():
     c = await Container.factory(addr=('127.0.0.2', 5555))
     agent = MyAgent(c)
     l = []
+
     async def increase_counter():
         l.append(1)
 
