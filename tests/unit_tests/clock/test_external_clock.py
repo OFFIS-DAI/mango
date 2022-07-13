@@ -1,9 +1,7 @@
 import datetime
-
 import pytest
 import asyncio
 import time
-
 from mango.util.scheduling import Scheduler
 from mango.util.clock import AsyncioClock, ExternalClock
 
@@ -14,8 +12,45 @@ async def example_coro(name, t_start, results_dict):
 
 async def increase_clock(c, increase_time, wait: float = 0, amount=1):
     for i in range(amount):
-        await(asyncio.sleep(wait))
+        await asyncio.sleep(wait)
         c.set_time(c.time + increase_time)
+
+
+@pytest.mark.asyncio
+async def test_sleep():
+    clock = ExternalClock(start_time=100)
+    scheduler = Scheduler(clock=clock)
+    t_1 = time.time()
+    task = asyncio.create_task(increase_clock(clock, 1, 0.1, 5))
+    await scheduler.sleep(4)
+    passed_time = round(time.time() - t_1, 1)
+    await task
+    assert passed_time == 0.4
+
+
+@pytest.mark.asyncio
+async def test_external_clock_simple():
+    async def track_time(t_start):
+        return time.time() - t_start
+    clock = ExternalClock()
+    scheduler = Scheduler(clock=clock)
+    t_start = time.time()
+    first_task = scheduler.schedule_datetime_task(
+        date_time=datetime.datetime.fromtimestamp(0.1),
+        coroutine=track_time(t_start)
+    )
+    second_task = scheduler.schedule_datetime_task(
+        date_time=datetime.datetime.fromtimestamp(100),
+        coroutine=track_time(t_start)
+    )
+    await asyncio.sleep(0.2)
+    clock.set_time(0.1)
+    await asyncio.sleep(0.1)
+    clock.set_time(99)
+    await asyncio.sleep(0.1)
+    clock.set_time(1000)
+    results = await asyncio.gather(first_task, second_task)
+    assert round(results[0], 1) == 0.2 and round(results[1], 1) == 0.4
 
 
 @pytest.mark.asyncio
@@ -28,7 +63,8 @@ async def test_schedule_datetime_task():
     t_1 = time.time()
     results_dict_external = {}
     results_dict_asyncio = {}
-    increase_time_task = asyncio.create_task(increase_clock(c=external_clock, increase_time=1, wait=0.1, amount=10))
+    increase_time_task = asyncio.create_task(increase_clock(c=external_clock, increase_time=1, wait=0.1, amount=10),
+                                             name='Increase Time')
     for task_no in test_tasks:
         scheduler_external.schedule_datetime_task(date_time=datetime.datetime.fromtimestamp(task_no),
                                                   coroutine=example_coro(task_no, t_1, results_dict_external))
@@ -65,8 +101,8 @@ async def test_schedule_instant_task():
     assert len(results_dict_asyncio.keys()) == num_tasks
     assert len(results_dict_external.keys()) == num_tasks
     for i in range(num_tasks):
-        assert round(results_dict_asyncio.get(i, None), 2) == 0
-        assert round(results_dict_external.get(i, None), 2) == 0
+        assert round(results_dict_asyncio.get(i, None), 1) == 0
+        assert round(results_dict_external.get(i, None), 1) == 0
 
 
 @pytest.mark.asyncio
