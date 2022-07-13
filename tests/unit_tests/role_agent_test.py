@@ -23,8 +23,7 @@ class PongRole(SimpleReactiveRole):
             acl_metadata={'sender_addr': self.context.addr,
                             'sender_id': self.context.aid},
             create_acl=True)
-        )        
-        print("PING RECEIVE")
+        )
 
         self.sending_tasks.append(t)
 
@@ -43,8 +42,6 @@ class PingRole(SimpleReactiveRole):
         sender_host, sender_port = meta['sender_addr']
         sender_id = meta['sender_id']
         assert ((sender_host, sender_port), sender_id) in self.open_ping_requests.keys()
-
-        print("PONG RECEIVE")
 
         self.open_ping_requests[((sender_host, sender_port), sender_id)].set_result(True)
 
@@ -66,7 +63,6 @@ class PingRole(SimpleReactiveRole):
         assert success
 
     async def on_stop(self):
-        print("STOP")
         await self.wait_for_pong_replies()
 
     async def wait_for_pong_replies(self, timeout=1):
