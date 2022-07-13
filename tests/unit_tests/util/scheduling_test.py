@@ -187,7 +187,7 @@ async def test_cond_task_as_process():
     result4 = await asyncio.wait_for(scheduler.schedule_process_task(ConditionalProcessTask(SimpleObj().do_exp_stuff, cond)), timeout=100)
 
     # THEN
-    assert result == 1337@pytest.mark.asyncio
+    assert result == 1337
 
     assert result2 == 1337
     assert result3 == 1337
