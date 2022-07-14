@@ -1,6 +1,6 @@
 
 import pytest
-import asyncio, datetime
+import asyncio, datetime, time
 
 from mango.util.scheduling import ConditionalProcessTask, DateTimeScheduledTask, InstantScheduledProcessTask, InstantScheduledTask, Scheduler, PeriodicScheduledTask
 
@@ -188,6 +188,7 @@ async def test_cond_task_as_process():
 
     # THEN
     assert result == 1337
+
     assert result2 == 1337
     assert result3 == 1337
     assert result4 == 1337
@@ -202,7 +203,7 @@ async def test_task_as_process_suspend_and_resume():
     task = scheduler.schedule_process_task(InstantScheduledProcessTask(do_exp_stuff_mult_steps), marker)
     scheduler.suspend(marker)
 
-    asyncio.sleep(1)
+    time.sleep(3)
 
     scheduler.resume(marker)
 
