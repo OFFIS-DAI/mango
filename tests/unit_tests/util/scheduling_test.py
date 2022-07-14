@@ -3,9 +3,8 @@ import asyncio
 import datetime
 import time
 
-from mango.util.scheduling import DateTimeScheduledTask, InstantScheduledProcessTask, \
+from mango.util.scheduling import ConditionalProcessTask, DateTimeScheduledTask, InstantScheduledProcessTask, \
     InstantScheduledTask, Scheduler, PeriodicScheduledTask, TimestampScheduledTask
-from mango.util.scheduling import ConditionalProcessTask, DateTimeScheduledTask, InstantScheduledProcessTask, InstantScheduledTask, Scheduler, PeriodicScheduledTask
 
 @pytest.mark.asyncio
 async def test_periodic():
