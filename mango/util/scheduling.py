@@ -222,7 +222,7 @@ class InstantScheduledTask(TimestampScheduledTask):
         super().__init__(coroutine, clock.time, clock=clock)
 
 
-class InstantScheduledProcessTask(TimestampScheduledTask, ScheduledProcessTask):
+class InstantScheduledProcessTask(TimestampScheduledProcessTask):
     """One-shot task, which will get executed instantly.
     """
 
