@@ -31,8 +31,11 @@ class Suspendable:
         while True:
             try:
                 while not self._can_run.is_set():
-                    # essentially same as 'await self._can_run.wait()', not allowed here as this is not an async method
-                    yield from self._can_run.wait().__await__()
+                    if isinstance(self._can_run, asyncio.Event):
+                        # essentially same as 'await self._can_run.wait()', not allowed here as this is not an async method
+                        yield from self._can_run.wait().__await__()
+                    else:
+                        self._can_run.wait()
             except BaseException as err:
                 send, message = iter_throw, err
 
