@@ -9,7 +9,6 @@ from typing import Optional, Union, Tuple, Dict, Any, Set
 import paho.mqtt.client as paho
 from .container_protocols import ContainerProtocol
 from ..messages.message import ACLMessage
-from ..messages.acl_message_pb2 import ACLMessage as proto_ACLMessage
 from ..messages.codecs import Codec, JSON
 from ..util.clock import Clock, AsyncioClock
 
@@ -24,7 +23,7 @@ class Container(ABC):
         cls,
         *,
         connection_type: str = "tcp",
-        codec: Codec = JSON(),
+        codec: Codec = None,
         clock: Clock = None,
         addr: Optional[Union[str, Tuple[str, int]]] = None,
         proto_msgs_module=None,
@@ -36,8 +35,8 @@ class Container(ABC):
         connection_type.
         :param connection_type: Defines the connection type. So far only 'tcp'
         or 'mqtt' are allowed
-        :param codec: Defines the codec to use. So far only 'json' or
-        'protobuf' are allowed
+        :param codec: Defines the codec to use. Defaults to JSON
+        :param clock: The clock that the scheduler of the agent should be based on. Defaults to the AsyncioClock
         :param addr: the address to use. If connection_type == 'tcp': it has
         to be a tuple of (host, port). If connection_type == 'mqtt' this can
         optionally define an inbox_topic that is used similarly than
@@ -54,6 +53,9 @@ class Container(ABC):
             raise ValueError(f"Unknown connection type {connection_type}")
 
         loop = asyncio.get_running_loop()
+
+        if codec is None:
+            codec = JSON()
         if clock is None:
             clock = AsyncioClock()
 
@@ -73,7 +75,6 @@ class Container(ABC):
             return container
 
         if connection_type == "mqtt":
-
             # get and check relevant kwargs from mqtt_kwargs
             # client_id
             client_id = mqtt_kwargs.pop("client_id", None)
@@ -908,7 +909,7 @@ class TCPContainer(Container):
 
             logger.debug(f"Message sent to addr;{str(addr)}")
             await protocol.shutdown()
-        except OSError as e:
+        except OSError:
             logger.warning(
                 f"Could not establish connection to receiver of a message;{str(addr)}"
             )
