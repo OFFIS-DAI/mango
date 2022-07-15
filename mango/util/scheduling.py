@@ -2,7 +2,7 @@
 Module for commonly used time based scheduled task executed inside one agent.
 """
 from abc import abstractmethod
-from mango.util.clock import Clock, AsyncioClock
+from mango.util.clock import Clock, AsyncioClock, ExternalClock
 import asyncio
 import datetime
 import concurrent.futures
@@ -32,7 +32,8 @@ class Suspendable:
             try:
                 while not self._can_run.is_set():
                     if isinstance(self._can_run, asyncio.Event):
-                        # essentially same as 'await self._can_run.wait()', not allowed here as this is not an async method
+                        # essentially same as 'await self._can_run.wait()',
+                        # not allowed here as this is not an async method
                         yield from self._can_run.wait().__await__()
                     else:
                         self._can_run.wait()
@@ -122,6 +123,8 @@ class ScheduledProcessTask(ScheduledTask):
     """
 
     def __init__(self, clock: Clock):
+        if isinstance(clock, ExternalClock):
+            raise ValueError('Process Tasks do currently not work with external clocks')
         super().__init__(clock=clock)
 
 
@@ -438,7 +441,10 @@ class Scheduler:
         :type task: ScheduledProcessTask
         :return: future to check whether the task is done and to finally retrieve the result
         :rtype: _type_
+        :param src: creator of the task
+        :type src: Object
         """
+
         loop = asyncio.get_running_loop()
         manager = Manager()
         event = manager.Event()
