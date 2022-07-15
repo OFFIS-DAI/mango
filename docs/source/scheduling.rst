@@ -1,5 +1,5 @@
 ==========
-Scheduling
+Scheduling and Clock
 ==========
 
 When implementing agents including proactive behavior there are some typical types of tasks you might want to create. For example it might be desired to let the agent check every minute whether some resources are available, or often you just want to execute a task at a specified time. To help achieving this kind of goals mango exposes the scheduling API.
@@ -82,3 +82,87 @@ Analogues to the normal API there are two different ways, first you create a Sch
 
             def handle_msg(self, content, meta: Dict[str, Any]):
                 pass
+
+*******************************
+Using an external clock
+*******************************
+Usually, the scheduler will schedule the tasks of a mango agent based on the real time.
+This is the default behaviour of the scheduler.
+However, in some contexts it is necessary to schedule the agent based on an external clock,
+e. g. in simulations that run faster than real-time.
+In mango, this is possible by defining the ``Clock`` of a container, which will be used by the
+scheduler of all agents within this container.
+The default clock is the ``AsyncioClock``, which works as a real-time clock. An alternative clock
+is the ``ExternalClock``. Time of this clock has to be set by an external process. That way you can
+control how fast or slow time passes within your agent system:
+
+.. code-block:: python3
+
+    import asyncio
+    from mango.core.container import Container
+    from mango.core.agent import Agent
+    from mango.util.clock import AsyncioClock, ExternalClock
+
+
+    class Caller(Agent):
+        def __init__(self, container, receiver_addr, receiver_id):
+            super().__init__(container)
+            self.schedule_timestamp_task(coroutine=self.send_hello_world(receiver_addr, receiver_id),
+                                         timestamp=self.get_current_timestamp() + 5)
+
+        async def send_hello_world(self, receiver_addr, receiver_id):
+            await self._container.send_message(receiver_addr=receiver_addr,
+                                               receiver_id=receiver_id,
+                                               content='Hello World',
+                                               create_acl=True)
+
+        def handle_msg(self, content, meta):
+            pass
+
+
+    class Receiver(Agent):
+        def __init__(self, container):
+            super().__init__(container)
+            self.wait_for_reply = asyncio.Future()
+
+        def handle_msg(self, content, meta):
+            print(f'Received a message with the following content {content}.')
+            self.wait_for_reply.set_result(True)
+
+
+    async def main():
+        clock = AsyncioClock()
+        # clock = ExternalClock(start_time=1000)
+        addr = ('127.0.0.1', 5555)
+        c = await Container.factory(addr=addr, clock=clock)
+        receiver = Receiver(c)
+        caller = Caller(c, addr, receiver.aid)
+        await receiver.wait_for_reply
+        await c.shutdown()
+
+
+    if __name__ == '__main__':
+        asyncio.run(main())
+
+
+This code will terminate after 5 seconds.
+If you change the clock to an ``ExternalClock`` by uncommenting the ExternalCloin the example above,
+the program won't terminate as the time of the clock is not proceeded by an external process.
+If you comment in the ExternalClock and change your main() as follows, the program will terminate after one second:
+
+.. code-block:: python3
+
+    async def main():
+        # clock = AsyncioClock()
+        clock = ExternalClock(start_time=1000)
+        addr = ('127.0.0.1', 5555)
+
+        c = await Container.factory(addr=addr, clock=clock)
+        receiver = Receiver(c)
+        caller = Caller(c, addr, receiver.aid)
+        if isinstance(clock, ExternalClock):
+            await asyncio.sleep(1)
+            clock.set_time(clock.time + 5)
+        await receiver.wait_for_reply
+        await c.shutdown()
+
