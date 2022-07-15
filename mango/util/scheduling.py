@@ -2,14 +2,19 @@
 Module for commonly used time based scheduled task executed inside one agent.
 """
 from abc import abstractmethod
+from mango.util.clock import Clock, AsyncioClock, ExternalClock
 import asyncio
 import datetime
 import concurrent.futures
+import warnings
 from multiprocessing import Manager
 
+
 class Suspendable:
-    """Wraps a coroutine, intercepting __await__ to add the functionality of suspending.
     """
+    Wraps a coroutine, intercepting __await__ to add the functionality of suspending.
+    """
+
     def __init__(self, coro, ext_contr_event=None):
         self._coro = coro
 
@@ -27,7 +32,8 @@ class Suspendable:
             try:
                 while not self._can_run.is_set():
                     if isinstance(self._can_run, asyncio.Event):
-                        # essentially same as 'await self._can_run.wait()', not allowed here as this is not an async method
+                        # essentially same as 'await self._can_run.wait()',
+                        # not allowed here as this is not an async method
                         yield from self._can_run.wait().__await__()
                     else:
                         self._can_run.wait()
@@ -48,12 +54,14 @@ class Suspendable:
                 send, message = iter_throw, err
 
     def suspend(self):
-        """Suspend the wrapped coroutine (have to executed as task externally)
+        """
+        Suspend the wrapped coroutine (have to executed as task externally)
         """
         self._can_run.clear()
 
     def is_suspended(self):
-        """Return whether the coro is suspended
+        """
+        Return whether the coro is suspended
 
         :return: True if suspendend, False otherwise
         :rtype: bool
@@ -61,59 +69,73 @@ class Suspendable:
         return not self._can_run.is_set()
 
     def resume(self):
-        """Resume the coroutine
+        """
+        Resume the coroutine
         """
         self._can_run.set()
 
     @property
     def coro(self):
-        """Return the coroutine
+        """
+        Return the coroutine
 
         :return: the coroutine
         :rtype: a coroutine
         """
         return self._coro
 
+
 class ScheduledTask:
-    """Base class for scheduled tasks in mango. Within this class its possible to
-    define what to do on exceution and on stop. In most cases the logic should get
-    passed as lambda while the scheduling logic is inside of class inherting from this one.
+    """
+    Base class for scheduled tasks in mango. Within this class its possible to
+    define what to do on execution and on stop. In most cases the logic should get
+    passed as lambda while the scheduling logic is inside of class inheriting from this one.
     """
 
-    def __init__(self) -> None:
-        pass
+    def __init__(self, clock: Clock = None) -> None:
+        self.clock = clock if clock is not None else AsyncioClock()
 
     @abstractmethod
     async def run(self):
         """Called via asyncio as asyncio.task.
 
         Raises:
-            NotImplementedError: must be overriden
+            NotImplementedError: must be overwritten
         """
         raise NotImplementedError
 
     def on_stop(self, fut: asyncio.Future = None):
-        """Called when the task is cancelled of finished.
         """
+        Called when the task is cancelled of finished.
+        """
+
 
 class ScheduledProcessTask(ScheduledTask):
     # Mark class as task for an external process
-    
-    """This alt-name marks a ScheduledTask as process compatible. This is necessary due to the fact that not everything can be transferred to other processes
-    f.e. coroutines are bound to the current event-loop resp the current thread, so they won't work in other processes.
 
-    Furthermore when using a ProcessTask you have to ensure, that the coroutine functions should not be bound to complex objects, meaning they should be static or bound to simple objects, which
-    are transferrable via pythons IPC implementation.
     """
-    pass
+    This alt-name marks a ScheduledTask as process compatible.
+    This is necessary due to the fact that not everything can be transferred to other processes i.e. coroutines are
+    bound to the current event-loop resp the current thread, so they won't work in other processes.
+    Furthermore, when using a ProcessTask you have to ensure, that the coroutine functions should not be bound to
+    complex objects, meaning they should be static or bound to simple objects, which are transferable
+    via pythons IPC implementation.
+    """
 
-class PeriodicScheduledTask(ScheduledProcessTask):
-    """Class for periodic scheduled tasks. It enables to create a scheduable task for an agent
+    def __init__(self, clock: Clock):
+        if isinstance(clock, ExternalClock):
+            raise ValueError('Process Tasks do currently not work with external clocks')
+        super().__init__(clock=clock)
+
+
+class PeriodicScheduledTask(ScheduledTask):
+    """
+    Class for periodic scheduled tasks. It enables to create a scheduable task for an agent
     which will get executed periodically with a specified delay.
     """
 
-    def __init__(self, coroutine_func, delay):
-        super().__init__()
+    def __init__(self, coroutine_func, delay, clock: Clock = None):
+        super().__init__(clock)
 
         self._stopped = False
         self._coroutine_func = coroutine_func
@@ -122,95 +144,147 @@ class PeriodicScheduledTask(ScheduledProcessTask):
     async def run(self):
         while not self._stopped:
             await self._coroutine_func()
-            await asyncio.sleep(self._delay)
+            await self.clock.sleep(self._delay)
 
-class PeriodicScheduledProcessTask(PeriodicScheduledTask):
-    # Mark class as task for external process
-    pass
 
-class DateTimeScheduledTask(ScheduledTask):
-    """DateTime based one-shot task. This task will get executed using a given datetime-object.
+class PeriodicScheduledProcessTask(PeriodicScheduledTask, ScheduledProcessTask):
+    def __init__(self, coroutine_func, delay, clock: Clock = None):
+        super().__init__(coroutine_func, delay, clock)
+
+
+class TimestampScheduledTask(ScheduledTask):
+    """
+    Timestamp based one-shot task. This task will get executed when a given unix timestamp is reached.
     """
 
-    def __init__(self, coroutine, date_time: datetime):
-        super().__init__()
-
-        self._delay = date_time
+    def __init__(self, coroutine, timestamp: float, clock=None):
+        super().__init__(clock)
+        self._delay = timestamp
         self._coro = coroutine
 
-    async def _wait(self, date_time: datetime):
-        await asyncio.sleep((date_time - datetime.datetime.now()).total_seconds())
+    async def _wait(self, timestamp: float):
+        await self.clock.sleep(timestamp - self.clock.time)
 
     async def run(self):
         await self._wait(self._delay)
         return await self._coro
 
-class DateTimeScheduledProcessTask(DateTimeScheduledTask, ScheduledProcessTask):    
-    """DateTime based one-shot task. This task will get executed using a given datetime-object.
-    """
 
-    def __init__(self, coroutine_creator, date_time: datetime):
-        super().__init__(coroutine_creator, date_time)
+class TimestampScheduledProcessTask(TimestampScheduledTask, ScheduledProcessTask):
+    """
+    Timestamp based one-shot task.
+    """
+    def __init__(self, coroutine_creator, timestamp: float, clock=None):
+        super().__init__(coroutine_creator, timestamp, clock)
 
     async def run(self):
         await self._wait(self._delay)
         return await self._coro()
 
-class InstantScheduledTask(DateTimeScheduledTask):
+
+class DateTimeScheduledTask(ScheduledTask):
+    """
+    DateTime based one-shot task. This task will get executed using a given datetime-object.
+    """
+
+    def __init__(self, coroutine, date_time: datetime.datetime, clock=None):
+        super().__init__(clock)
+        warnings.warn('DateTimeScheduleTask is deprecated. Use TimestampScheduledTask instead.', DeprecationWarning)
+        self._delay = date_time
+        self._coro = coroutine
+
+    async def _wait(self, date_time: datetime.datetime):
+        await self.clock.sleep(date_time.timestamp() - self.clock.time)
+
+    async def run(self):
+        await self._wait(self._delay)
+        return await self._coro
+
+
+class DateTimeScheduledProcessTask(DateTimeScheduledTask, ScheduledProcessTask):
+    """
+    DateTime based one-shot task. This task will get executed using a given datetime-object.
+    """
+
+    def __init__(self, coroutine_creator, date_time: datetime.datetime, clock=None):
+        super().__init__(coroutine_creator, date_time, clock)
+
+    async def run(self):
+        await self._wait(self._delay)
+        return await self._coro()
+
+
+class InstantScheduledTask(TimestampScheduledTask):
+    """
+    One-shot task, which will get executed instantly.
+    """
+
+    def __init__(self, coroutine, clock: Clock = None):
+        if clock is None:
+            clock = AsyncioClock()
+        super().__init__(coroutine, clock.time, clock=clock)
+
+
+class InstantScheduledProcessTask(TimestampScheduledProcessTask):
     """One-shot task, which will get executed instantly.
     """
 
-    def __init__(self, coroutine):
-        super().__init__(coroutine, datetime.datetime.now())
+    def __init__(self, coroutine_creator, clock: Clock = None):
+        if clock is None:
+            clock = AsyncioClock()
+        super().__init__(coroutine_creator, timestamp=clock.time, clock=clock)
 
-class InstantScheduledProcessTask(DateTimeScheduledProcessTask, ScheduledProcessTask):
-    """One-shot task, which will get executed instantly.
-    """
-
-    def __init__(self, coroutine_creator):
-        super().__init__(coroutine_creator, datetime.datetime.now())
 
 class ConditionalTask(ScheduledTask):
     """Task which will get executed as soon as the given condition is fullfiled.
     """
-    def __init__(self, coroutine, condition_func, lookup_delay=0.1):
-        super().__init__()
+
+    def __init__(self, coroutine, condition_func, lookup_delay=0.1, clock: Clock = None):
+        super().__init__(clock=clock)
 
         self._condition = condition_func
         self._coro = coroutine
         self._delay = lookup_delay
 
     async def _wait(self, date_time: datetime):
-        await asyncio.sleep((date_time - datetime.datetime.now()).total_seconds())
+        await self.clock.sleep((date_time - datetime.datetime.now()).total_seconds())
 
     async def run(self):
         while not self._condition():
-            await asyncio.sleep(self._delay)
+            await self.clock.sleep(self._delay)
 
         return await self._coro
+
 
 class ConditionalProcessTask(ConditionalTask, ScheduledProcessTask):
     """Task which will get executed as soon as the given condition is fullfiled.
     """
-    def __init__(self, coro_func, condition_func, lookup_delay=0.1):
-        super().__init__(coro_func, condition_func, lookup_delay)
+
+    def __init__(self, coro_func, condition_func, lookup_delay=0.1, clock: Clock = None):
+        super().__init__(coro_func, condition_func, lookup_delay, clock=clock)
 
     async def run(self):
         while not self._condition():
-            await asyncio.sleep(self._delay)
+            await self.clock.sleep(self._delay)
 
         return await self._coro()
+
 
 def _create_asyncio_context():
     asyncio.set_event_loop(asyncio.new_event_loop())
 
+
 class Scheduler:
     """Scheduler for executing tasks.
     """
-    def __init__(self, num_process_parallel=16):
+
+    def __init__(self, clock: Clock = None, num_process_parallel=16):
         self._scheduled_tasks = []
+        self.clock = clock if clock is not None else AsyncioClock()
+        # print(f'[Scheduler] init with the following clock: {self.clock}')
         self._scheduled_process_tasks = []
-        self._process_pool_exec = concurrent.futures.ProcessPoolExecutor(max_workers=num_process_parallel, initializer=_create_asyncio_context)
+        self._process_pool_exec = concurrent.futures.ProcessPoolExecutor(max_workers=num_process_parallel,
+                                                                         initializer=_create_asyncio_context)
 
     @staticmethod
     def _run_task_in_p_context(task, suspend_event):
@@ -221,50 +295,47 @@ class Scheduler:
         finally:
             task.on_stop(coro)
 
-    def schedule_conditional_process_task(self, coroutine_creator, condition_func, lookup_delay=0.1, src = None):
-        """Schedule a task when a specified condition is met.
+    async def sleep(self, t: float):
+        """
+        :param t: The time to sleep
+        """
+        return await self.clock.sleep(t)
 
+    def schedule_conditional_process_task(self, coroutine_creator, condition_func, lookup_delay=0.1, src=None):
+        """
+        Schedule a task when a specified condition is met.
         :param coroutine_creator: coroutine_creator creating coroutine to be scheduled
         :type coroutine_creator: coroutine_creator
         :param condition_func: function for determining whether the confition is fullfiled
-        :type confition_func: lambda () -> bool
+        :type condition_func: lambda () -> bool
         :param lookup_delay: delay between checking the condition
         :type lookup_delay: float
         :param src: creator of the task
         :type src: Object
         """
-        return self.schedule_process_task(ConditionalProcessTask(coro_func=coroutine_creator, 
-                                                         condition_func=condition_func, 
-                                                         lookup_delay=lookup_delay), src=src)
+        return self.schedule_process_task(
+            ConditionalProcessTask(
+                coro_func=coroutine_creator,
+                condition_func=condition_func,
+                lookup_delay=lookup_delay, clock=self.clock),
+            src=src)
 
-    def schedule_conditional_task(self, coroutine, condition_func, lookup_delay=0.1, src = None):
+    def schedule_conditional_task(self, coroutine, condition_func, lookup_delay=0.1, src=None):
         """Schedule a task when a specified condition is met.
 
         :param coroutine: coroutine to be scheduled
         :type coroutine: Coroutine
         :param condition_func: function for determining whether the confition is fullfiled
-        :type confition_func: lambda () -> bool
+        :type condition_func: lambda () -> bool
         :param lookup_delay: delay between checking the condition
         :type lookup_delay: float
         :param src: creator of the task
         :type src: Object
         """
-        return self.schedule_task(ConditionalTask(coroutine=coroutine, condition_func=condition_func, lookup_delay=lookup_delay), src=src)
+        return self.schedule_task(ConditionalTask(coroutine=coroutine, condition_func=condition_func, clock=self.clock,
+                                                  lookup_delay=lookup_delay), src=src)
 
-    def schedule_datetime_process_task(self, coroutine_creator, date_time: datetime, src = None):
-        """Schedule a task at specified datetime dispatched to another process.
-
-        :param coroutine_creator: coroutine_creator creating coroutine to be scheduled
-        :type coroutine_creator: coroutine_creator
-        :param date_time: datetime defining when the task should start
-        :type date_time: datetime
-        :param src: creator of the task
-        :type src: Object
-        """
-        return self.schedule_process_task(DateTimeScheduledProcessTask(coroutine_creator=coroutine_creator, 
-                                                               date_time=date_time), src=src)
-
-    def schedule_datetime_task(self, coroutine, date_time: datetime, src = None):
+    def schedule_datetime_task(self, coroutine, date_time: datetime.datetime, src=None):
         """Schedule a task at specified datetime.
 
         :param coroutine: coroutine to be scheduled
@@ -274,44 +345,85 @@ class Scheduler:
         :param src: creator of the task
         :type src: Object
         """
-        return self.schedule_task(DateTimeScheduledTask(coroutine=coroutine, date_time=date_time), src=src)
+        return self.schedule_task(DateTimeScheduledTask(coroutine=coroutine, date_time=date_time, clock=self.clock),
+                                  src=src)
 
-    def schedule_periodic_process_task(self, coroutine_creator, delay, src = None):
+    def schedule_datetime_process_task(self, coroutine_creator, date_time: datetime.datetime, src=None):
+        """Schedule a task at specified datetime dispatched to another process.
+
+        :param coroutine_creator: coroutine_creator creating coroutine to be scheduled
+        :type coroutine_creator: coroutine_creator
+        :param date_time: datetime defining when the task should start
+        :type date_time: datetime
+        :param src: creator of the task
+        :type src: Object
+        """
+        return self.schedule_process_task(DateTimeScheduledProcessTask(coroutine_creator=coroutine_creator,
+                                                                       date_time=date_time, clock=self.clock), src=src)
+
+    def schedule_timestamp_task(self, coroutine, timestamp: float, src=None):
+        """Schedule a task at specified datetime.
+
+        :param coroutine: coroutine to be scheduled
+        :type coroutine: Coroutine
+        :param timestamp: timestamp defining when the task should start (unix timestamp)
+        :type timestamp: float
+        :param src: creator of the task
+        :type src: Object
+        """
+        return self.schedule_task(TimestampScheduledTask(coroutine=coroutine, timestamp=timestamp, clock=self.clock),
+                                  src=src)
+
+    def schedule_timestamp_process_task(self, coroutine_creator, timestamp: float, src=None):
+        """Schedule a task at specified datetime dispatched to another process.
+
+        :param coroutine_creator: coroutine_creator creating coroutine to be scheduled
+        :type coroutine_creator: coroutine_creator
+        :param timestamp: unix timestamp defining when the task should start
+        :type timestamp: float
+        :param src: creator of the task
+        :type src: Object
+        """
+        return self.schedule_process_task(TimestampScheduledProcessTask(coroutine_creator=coroutine_creator,
+                                                                        timestamp=timestamp, clock=self.clock), src=src)
+
+    def schedule_periodic_process_task(self, coroutine_creator, delay, src=None):
         """Schedule an open end periodically executed task dispatched to another process.
 
         :param coroutine_creator: coroutine function creating coros to be scheduled
         :type coroutine_creator: Coroutine Function
         :param delay: delay in between the cycles
-        :type dealy: float
+        :type delay: float
         :param src: creator of the task
         :type src: Object
         """
-        return self.schedule_process_task(PeriodicScheduledProcessTask(coroutine_func=coroutine_creator, 
-                                                               delay=delay), src=src)
+        return self.schedule_process_task(PeriodicScheduledProcessTask(coroutine_func=coroutine_creator,
+                                                                       delay=delay, clock=self.clock), src=src)
 
-    def schedule_periodic_task(self, coroutine_func, delay, src = None):
+    def schedule_periodic_task(self, coroutine_func, delay, src=None):
         """Schedule an open end peridocally executed task.
 
         :param coroutine_func: coroutine function creating coros to be scheduled
         :type coroutine_func:  Coroutine Function
         :param delay: delay in between the cycles
-        :type dealy: float
+        :type delay: float
         :param src: creator of the task
         :type src: Object
         """
-        return self.schedule_task(PeriodicScheduledTask(coroutine_func=coroutine_func, delay=delay), src=src)
+        return self.schedule_task(PeriodicScheduledTask(coroutine_func=coroutine_func, delay=delay, clock=self.clock),
+                                  src=src)
 
-    def schedule_instant_process_task(self, coroutine_creator, src = None):
+    def schedule_instant_process_task(self, coroutine_creator, src=None):
         """Schedule an instantly executed task dispatched to another process.
 
         :param coroutine_creator: coroutine_creator to be scheduled
-        :type coroutine_creator: 
+        :type coroutine_creator:
         :param src: creator of the task
         :type src: Object
         """
         return self.schedule_process_task(InstantScheduledProcessTask(coroutine_creator=coroutine_creator), src=src)
 
-    def schedule_instant_task(self, coroutine, src = None):
+    def schedule_instant_task(self, coroutine, src=None):
         """Schedule an instantly executed task.
 
         :param coroutine: coroutine to be scheduled
@@ -319,27 +431,31 @@ class Scheduler:
         :param src: creator of the task
         :type src: Object
         """
-        return self.schedule_task(InstantScheduledTask(coroutine=coroutine), src=src)
+        return self.schedule_task(InstantScheduledTask(coroutine=coroutine, clock=self.clock), src=src)
 
-    def schedule_process_task(self, task: ScheduledProcessTask, src = None):
-        """Schedule as task with asyncio in a different process managed by a ProcessWorkerPool in this Scheduler-object. For scheduling options see 
-        the subclasses of ScheduledProcessTask.
+    def schedule_process_task(self, task: ScheduledProcessTask, src=None):
+        """Schedule as task with asyncio in a different process managed by a ProcessWorkerPool in this Scheduler-object.
+         For scheduling options see the subclasses of ScheduledProcessTask.
 
         :param task: task you want to schedule
-        :type task: ScheduledProcessTask 
-        :return: future to check whether the task is done and to finally retrieve the result  
+        :type task: ScheduledProcessTask
+        :return: future to check whether the task is done and to finally retrieve the result
         :rtype: _type_
+        :param src: creator of the task
+        :type src: Object
         """
+
         loop = asyncio.get_running_loop()
         manager = Manager()
         event = manager.Event()
         event.set()
-        l_task = asyncio.ensure_future(loop.run_in_executor(self._process_pool_exec, Scheduler._run_task_in_p_context, task, event))
+        l_task = asyncio.ensure_future(
+            loop.run_in_executor(self._process_pool_exec, Scheduler._run_task_in_p_context, task, event))
         l_task.add_done_callback(self._remove_process_task)
         self._scheduled_process_tasks.append((l_task, event, src))
         return l_task
 
-    def schedule_task(self, task: ScheduledTask, src = None):
+    def schedule_task(self, task: ScheduledTask, src=None) -> asyncio.Task:
         """Schedule a task with asyncio. When the task is finished, if finite, its automatically
         removed afterwards. For scheduling options see the subclasses of ScheduledTask.
 
@@ -347,16 +463,12 @@ class Scheduler:
         :type task: ScheduledTask
         :param src: creator of the task
         :type: Object
-        :param as_process: Marks wether the coroutine should get executed in a different process. Note coro in other processes
-                           must not get suspended. So any Task executed as different process will run until it ends.
-        :type as_process: Boolean 
         """
         susp_coro = Suspendable(task.run())
         l_task = asyncio.ensure_future(susp_coro)
         l_task.add_done_callback(task.on_stop)
         l_task.add_done_callback(self._remove_task)
         self._scheduled_tasks.append((l_task, susp_coro, src))
-
         return l_task
 
     def suspend(self, given_src):
@@ -386,7 +498,7 @@ class Scheduler:
                 event.set()
 
     def _remove_process_task(self, fut=asyncio.Future):
-        for i in range(len(self._scheduled_process_tasks)): 
+        for i in range(len(self._scheduled_process_tasks)):
             task, event, _ = self._scheduled_process_tasks[i]
             if task == fut:
                 del self._scheduled_process_tasks[i]
@@ -397,16 +509,16 @@ class Scheduler:
         self._remove_generic_task(self._scheduled_tasks, fut=fut)
 
     def _remove_generic_task(self, target_list, fut=asyncio.Future):
-        for i in range(len(target_list)): 
+        for i in range(len(target_list)):
             task, _, _ = target_list[i]
             if task == fut:
                 del target_list[i]
                 break
 
     async def stop(self):
-        """Cancel all not finished scheduled tasks
         """
-        # Cancel all not finished time scheduled tasks
+        Cancel all not finished scheduled tasks
+        """
         for task, _, _ in self._scheduled_tasks + self._scheduled_process_tasks:
             task.cancel()
             await task
