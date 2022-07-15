@@ -84,6 +84,7 @@ async def test_schedule_datetime_task():
     for simulation_time, real_time in results_dict_asyncio.items():
         assert round(simulation_time, 1) == round(real_time, 1)
 
+
 @pytest.mark.asyncio
 async def test_schedule_instant_task():
     num_tasks = 22
@@ -168,7 +169,3 @@ async def test_periodic_task():
     assert len(results_dict['external']) == 2
     for i, duration in enumerate(results_dict['external']):
         assert round(duration, 1) == i * 0.4
-
-
-
-
