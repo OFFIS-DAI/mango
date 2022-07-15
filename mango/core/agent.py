@@ -35,7 +35,8 @@ class Agent(ABC):
 
         logger.info('Agent %s: start running in container %s', aid, container.addr)
 
-    def get_current_timestamp(self) -> float:
+    @property
+    def current_timestamp(self) -> float:
         """
         Method that returns the current unix timestamp given the clock within the container
         """
@@ -107,6 +108,19 @@ class Agent(ABC):
         :type src: Object
         """
         return self._scheduler.schedule_timestamp_task(coroutine=coroutine, timestamp=timestamp, src=src)
+
+    def schedule_timestamp_process_task(self, coroutine_creator, timestamp: float, src=None):
+        """Schedule a task at specified datetime dispatched to another process.
+
+        :param coroutine_creator: coroutine_creator creating coroutine to be scheduled
+        :type coroutine_creator: coroutine_creator
+        :param timestamp: unix timestamp defining when the task should start
+        :type timestamp: float
+        :param src: creator of the task
+        :type src: Object
+        """
+        return self._scheduler.schedule_timestamp_process_task(
+            coroutine_creator=coroutine_creator, timestamp=timestamp, src=src)
 
     def schedule_periodic_process_task(self, coroutine_creator, delay, src = None):
         """Schedule an open end periodically executed task in another process.
