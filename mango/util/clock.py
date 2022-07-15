@@ -48,7 +48,6 @@ class ExternalClock(Clock):
     """
     def __init__(self, start_time: float = 0):
         self._time: float = start_time
-        self._loop = asyncio.get_event_loop()
         self._futures: List[Tuple[float, asyncio.Future]] = []  # list of all futures to be triggered
 
     @property
@@ -80,7 +79,7 @@ class ExternalClock(Clock):
         """
         Sleeps for t based on the external clock
         """
-        f = self._loop.create_future()
+        f = asyncio.Future()
         if t <= 0:
             # trigger directly if time is <= 0
             f.set_result(None)
