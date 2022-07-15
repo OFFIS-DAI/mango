@@ -878,6 +878,7 @@ class TCPContainer(Container):
             content, meta = message.split_content_and_meta()
         else:
             content = message
+            meta = {}
         meta["network_protocol"] = "tcp"
         receiver.inbox.put_nowait((priority, content, meta))
         return True
