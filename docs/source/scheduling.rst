@@ -108,7 +108,7 @@ control how fast or slow time passes within your agent system:
         def __init__(self, container, receiver_addr, receiver_id):
             super().__init__(container)
             self.schedule_timestamp_task(coroutine=self.send_hello_world(receiver_addr, receiver_id),
-                                         timestamp=self.get_current_timestamp() + 5)
+                                         timestamp=self.current_timestamp + 5)
 
         async def send_hello_world(self, receiver_addr, receiver_id):
             await self._container.send_message(receiver_addr=receiver_addr,
@@ -146,7 +146,7 @@ control how fast or slow time passes within your agent system:
 
 
 This code will terminate after 5 seconds.
-If you change the clock to an ``ExternalClock`` by uncommenting the ExternalCloin the example above,
+If you change the clock to an ``ExternalClock`` by uncommenting the ExternalClock in the example above,
 the program won't terminate as the time of the clock is not proceeded by an external process.
 If you comment in the ExternalClock and change your main() as follows, the program will terminate after one second:
 
