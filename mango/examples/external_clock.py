@@ -8,7 +8,7 @@ class Caller(Agent):
     def __init__(self, container, receiver_addr, receiver_id):
         super().__init__(container)
         self.schedule_timestamp_task(coroutine=self.send_hello_world(receiver_addr, receiver_id),
-                                     timestamp=self.get_current_timestamp() + 5)
+                                     timestamp=self.current_timestamp + 5)
 
     async def send_hello_world(self, receiver_addr, receiver_id):
         await self._container.send_message(receiver_addr=receiver_addr,
