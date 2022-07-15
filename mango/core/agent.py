@@ -35,6 +35,12 @@ class Agent(ABC):
 
         logger.info('Agent %s: start running in container %s', aid, container.addr)
 
+    def get_current_timestamp(self) -> float:
+        """
+        Method that returns the current unix timestamp given the clock within the container
+        """
+        return self._container.clock.time
+
     def schedule_conditional_process_task(self, coroutine_creator, condition_func, lookup_delay=0.1, src=None):
         """Schedule a process task when a specified condition is met.
 
