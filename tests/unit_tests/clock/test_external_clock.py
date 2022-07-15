@@ -1,4 +1,3 @@
-import datetime
 import pytest
 import asyncio
 import time
@@ -7,7 +6,7 @@ from mango.util.clock import AsyncioClock, ExternalClock
 
 
 async def example_coro(name, t_start, results_dict):
-    results_dict[name] = datetime.datetime.now().timestamp() - t_start
+    results_dict[name] = time.time() - t_start
 
 
 async def increase_clock(c, increase_time, wait: float = 0, amount=1):
@@ -30,19 +29,13 @@ async def test_sleep():
 
 @pytest.mark.asyncio
 async def test_external_clock_simple():
-    async def track_time(t_start):
-        return time.time() - t_start
+    async def track_time(start_time):
+        return time.time() - start_time
     clock = ExternalClock()
     scheduler = Scheduler(clock=clock)
     t_start = time.time()
-    first_task = scheduler.schedule_datetime_task(
-        date_time=datetime.datetime.fromtimestamp(0.1),
-        coroutine=track_time(t_start)
-    )
-    second_task = scheduler.schedule_datetime_task(
-        date_time=datetime.datetime.fromtimestamp(100),
-        coroutine=track_time(t_start)
-    )
+    first_task = scheduler.schedule_timestamp_task(timestamp=0.1, coroutine=track_time(t_start))
+    second_task = scheduler.schedule_timestamp_task(timestamp=100, coroutine=track_time(t_start))
     await asyncio.sleep(0.2)
     clock.set_time(0.1)
     await asyncio.sleep(0.1)
@@ -54,7 +47,7 @@ async def test_external_clock_simple():
 
 
 @pytest.mark.asyncio
-async def test_schedule_datetime_task():
+async def test_schedule_timestamp_task():
     test_tasks = [4, 8, 2, 6, 8, 9, 0, 2.2, 1]
     external_clock = ExternalClock()
     scheduler_external = Scheduler(clock=external_clock)
@@ -66,10 +59,10 @@ async def test_schedule_datetime_task():
     increase_time_task = asyncio.create_task(increase_clock(c=external_clock, increase_time=1, wait=0.1, amount=10),
                                              name='Increase Time')
     for task_no in test_tasks:
-        scheduler_external.schedule_datetime_task(date_time=datetime.datetime.fromtimestamp(task_no),
-                                                  coroutine=example_coro(task_no, t_1, results_dict_external))
-        scheduler_asyncio.schedule_datetime_task(date_time=datetime.datetime.fromtimestamp(datetime.datetime.now().timestamp() + task_no / 10),
-                                                 coroutine=example_coro(task_no / 10, t_1, results_dict_asyncio))
+        scheduler_external.schedule_timestamp_task(timestamp=task_no,
+                                                   coroutine=example_coro(task_no, t_1, results_dict_external))
+        scheduler_asyncio.schedule_timestamp_task(timestamp=time.time() + task_no / 10,
+                                                  coroutine=example_coro(task_no / 10, t_1, results_dict_asyncio))
     await increase_time_task
 
     for task_no in test_tasks:
@@ -145,10 +138,10 @@ async def test_periodic_task():
     t_start = time.time()
 
     async def example_periodic_coro_asyncio():
-        results_dict['asyncio'].append(datetime.datetime.now().timestamp() - t_start)
+        results_dict['asyncio'].append(time.time() - t_start)
 
     async def example_periodic_coro_external():
-        results_dict['external'].append(datetime.datetime.now().timestamp() - t_start)
+        results_dict['external'].append(time.time() - t_start)
 
     open_tasks.append(scheduler_asyncio.schedule_periodic_task(coroutine_func=example_periodic_coro_asyncio,
                                                                delay=0.1))
