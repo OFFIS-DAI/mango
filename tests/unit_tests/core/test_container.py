@@ -4,12 +4,15 @@ import pytest
 
 from mango.core.container import Container
 
+class LooksLikeAgent():
+    async def shutdown(self):
+        pass
 
 @pytest.mark.asyncio
 async def test_register_aid_pattern_match():
     # GIVEN
     c = await Container.factory(addr=('127.0.0.2', 5555))
-    agent = ""
+    agent = LooksLikeAgent()
     suggested_aid = "agent12"
 
     # WHEN
@@ -17,13 +20,14 @@ async def test_register_aid_pattern_match():
 
     # THEN
     assert actual_aid == "agent0"
+    await c.shutdown()
     
 
 @pytest.mark.asyncio
 async def test_register_aid_success():
     # GIVEN
     c = await Container.factory(addr=('127.0.0.2', 5555))
-    agent = ""
+    agent = LooksLikeAgent()
     suggested_aid = "cagent12"
 
     # WHEN
@@ -31,25 +35,27 @@ async def test_register_aid_success():
 
     # THEN
     assert actual_aid == suggested_aid
+    await c.shutdown()
 
     
 @pytest.mark.asyncio
 async def test_register_no_suggested():
     # GIVEN
     c = await Container.factory(addr=('127.0.0.2', 5555))
-    agent = ""
+    agent = LooksLikeAgent()
 
     # WHEN
     actual_aid = c._register_agent(agent)
 
     # THEN
     assert actual_aid == "agent0"
+    await c.shutdown()
     
 @pytest.mark.asyncio
 async def test_register_pattern_half_match():
     # GIVEN
     c = await Container.factory(addr=('127.0.0.2', 5555))
-    agent = ""
+    agent = LooksLikeAgent()
     suggested_aid = "agentABC"
 
     # WHEN
@@ -57,13 +63,14 @@ async def test_register_pattern_half_match():
 
     # THEN
     assert actual_aid == "agentABC"
+    await c.shutdown()
 
     
 @pytest.mark.asyncio
 async def test_register_existing():
     # GIVEN
     c = await Container.factory(addr=('127.0.0.2', 5555))
-    agent = ""
+    agent = LooksLikeAgent()
     suggested_aid = "agentABC"
 
     # WHEN
@@ -73,6 +80,7 @@ async def test_register_existing():
     # THEN
     assert actual_aid == "agentABC"
     assert actual_aid2 == "agent0"
+    await c.shutdown()
 
     
 @pytest.mark.asyncio
@@ -86,6 +94,7 @@ async def test_is_aid_available():
 
     # THEN
     assert available
+    await c.shutdown()
     
 @pytest.mark.asyncio
 async def test_is_aid_available_but_match():
@@ -98,12 +107,13 @@ async def test_is_aid_available_but_match():
 
     # THEN
     assert not available
+    await c.shutdown()
 
 @pytest.mark.asyncio
 async def test_is_aid_not_available():
     # GIVEN
     c = await Container.factory(addr=('127.0.0.2', 5555))
-    c._register_agent("", "abc")
+    c._register_agent(LooksLikeAgent(), "abc")
     aid_to_check = "abc"
 
     # WHEN
@@ -111,12 +121,13 @@ async def test_is_aid_not_available():
 
     # THEN
     assert not available
+    await c.shutdown()
 
 @pytest.mark.asyncio
 async def test_is_aid_not_available_and_match():
     # GIVEN
     c = await Container.factory(addr=('127.0.0.2', 5555))
-    c._register_agent("")
+    c._register_agent(LooksLikeAgent())
     aid_to_check = "agent0"
 
     # WHEN
@@ -124,3 +135,4 @@ async def test_is_aid_not_available_and_match():
 
     # THEN
     assert not available
+    await c.shutdown()

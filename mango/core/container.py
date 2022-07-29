@@ -272,7 +272,7 @@ class Container(ABC):
         """
         if not self._no_agents_running or self._no_agents_running.done():
             self._no_agents_running = asyncio.Future()
-        if suggested_aid == None or \
+        if suggested_aid is None or \
            suggested_aid in self._agents or \
            (suggested_aid.startswith(AGENT_PATTERN_NAME_PRE) and suggested_aid[5:].isnumeric()):
             aid = f"{AGENT_PATTERN_NAME_PRE}{self._aid_counter}"
