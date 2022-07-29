@@ -19,14 +19,16 @@ logger = logging.getLogger(__name__)
 class Agent(ABC):
     """Base class for all agents."""
 
-    def __init__(self, container):
+    def __init__(self, container, suggested_aid: str = None):
         """Initialize an agent and register it with its container
         :param container: The container that the agent lives in. Must be a Container
+        :param suggested_aid: (Optional) suggested aid, if the aid is already taken, a generated aid is used. 
+                              Using the generated aid-style ("agentX") is not allowed.
         """
         # if not isinstance(container, mango.core.container.Container):
         #     raise TypeError('"container" must be a "Container" instance but '
         #                     'is {}'.format(container))
-        aid = container._register_agent(self)
+        aid = container._register_agent(self, suggested_aid=suggested_aid)
         self._container = container
         self._aid = aid
         self.inbox = asyncio.Queue()

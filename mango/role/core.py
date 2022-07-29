@@ -320,8 +320,14 @@ class RoleAgent(Agent):
     a RoleAgent as base for your agents. A role can be added with :func:`RoleAgent.add_role`.
     """
 
-    def __init__(self, container):
-        super().__init__(container)
+    def __init__(self, container, suggested_aid: str = None):
+        """Create a role-agent
+
+        :param container: container the agent lives in
+        :param suggested_aid: (Optional) suggested aid, if the aid is already taken, a generated aid is used. 
+                              Using the generated aid-style ("agentX") is not allowed.
+        """
+        super().__init__(container, suggested_aid=suggested_aid)
 
         self._role_handler = RoleHandler(container, self._scheduler)
         self._agent_context = RoleAgentContext(
