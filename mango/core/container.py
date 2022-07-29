@@ -281,13 +281,13 @@ class Container(ABC):
             self._no_agents_running = asyncio.Future()
         if suggested_aid is None or \
            suggested_aid in self._agents or \
-           (suggested_aid.startswith(AGENT_PATTERN_NAME_PRE) and suggested_aid[5:].isnumeric()):
+           (suggested_aid.startswith(AGENT_PATTERN_NAME_PRE) and suggested_aid[len(AGENT_PATTERN_NAME_PRE):].isnumeric()):
             aid = f"{AGENT_PATTERN_NAME_PRE}{self._aid_counter}"
             self._aid_counter += 1
         else:
             aid = suggested_aid
         self._agents[aid] = agent
-        logger.info(f"Successfully registered {AGENT_PATTERN_NAME_PRE};{aid}")
+        logger.info(f"Successfully registered agent;{aid}")
         return aid
 
     def deregister_agent(self, aid):
