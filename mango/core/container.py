@@ -9,11 +9,12 @@ from typing import Optional, Union, Tuple, Dict, Any, Set
 import paho.mqtt.client as paho
 from .container_protocols import ContainerProtocol
 from ..messages.message import ACLMessage
-from ..messages.acl_message_pb2 import ACLMessage as proto_ACLMessage
 from ..messages.codecs import Codec, JSON
+from ..util.clock import Clock, AsyncioClock
 
 logger = logging.getLogger(__name__)
 
+AGENT_PATTERN_NAME_PRE = "agent"
 
 class Container(ABC):
     """Superclass for a mango container"""
@@ -23,7 +24,8 @@ class Container(ABC):
         cls,
         *,
         connection_type: str = "tcp",
-        codec: Codec = JSON(),
+        codec: Codec = None,
+        clock: Clock = None,
         addr: Optional[Union[str, Tuple[str, int]]] = None,
         proto_msgs_module=None,
         mqtt_kwargs: Dict[str, Any] = None,
@@ -34,8 +36,8 @@ class Container(ABC):
         connection_type.
         :param connection_type: Defines the connection type. So far only 'tcp'
         or 'mqtt' are allowed
-        :param codec: Defines the codec to use. So far only 'json' or
-        'protobuf' are allowed
+        :param codec: Defines the codec to use. Defaults to JSON
+        :param clock: The clock that the scheduler of the agent should be based on. Defaults to the AsyncioClock
         :param addr: the address to use. If connection_type == 'tcp': it has
         to be a tuple of (host, port). If connection_type == 'mqtt' this can
         optionally define an inbox_topic that is used similarly than
@@ -53,10 +55,15 @@ class Container(ABC):
 
         loop = asyncio.get_running_loop()
 
+        if codec is None:
+            codec = JSON()
+        if clock is None:
+            clock = AsyncioClock()
+
         if connection_type == "tcp":
             # initialize TCPContainer
             container = TCPContainer(
-                addr=addr, codec=codec, loop=loop, proto_msgs_module=proto_msgs_module
+                addr=addr, codec=codec, loop=loop, proto_msgs_module=proto_msgs_module, clock=clock
             )
 
             # create a TCP server bound to host and port that uses the
@@ -69,7 +76,6 @@ class Container(ABC):
             return container
 
         if connection_type == "mqtt":
-
             # get and check relevant kwargs from mqtt_kwargs
             # client_id
             client_id = mqtt_kwargs.pop("client_id", None)
@@ -223,14 +229,16 @@ class Container(ABC):
                 client_id=client_id,
                 addr=addr,
                 loop=loop,
+                clock=clock,
                 mqtt_client=mqtt_messenger,
                 codec=codec,
                 proto_msgs_module=proto_msgs_module,
             )
 
-    def __init__(self, *, addr, name: str, codec, proto_msgs_module=None, loop):
+    def __init__(self, *, addr, name: str, codec, proto_msgs_module=None, loop, clock: Clock):
         self.name: str = name
         self.addr = addr
+        self.clock = clock
 
         self.codec: Codec = codec
         if codec == "protobuf":
@@ -253,16 +261,34 @@ class Container(ABC):
         # task that processes the inbox.
         self._check_inbox_task: asyncio.Task = asyncio.create_task(self._check_inbox())
 
-    def _register_agent(self, agent):
+    def is_aid_available(self, aid):
+        """
+        Check if the aid is available and registrable (it is not possible to register aids matching the regular pattern "agentX")
+        :param aid: the aid you want to check
+        :return True if the aid is available, False if it is not
+        """
+        return aid not in self._agents and not self.__check_agent_aid_pattern_match(aid)
+
+    def __check_agent_aid_pattern_match(self, aid):
+        return aid.startswith(AGENT_PATTERN_NAME_PRE) and aid[len(AGENT_PATTERN_NAME_PRE):].isnumeric()
+
+    def _register_agent(self, agent, suggested_aid: str = None):
         """
         Register *agent* and return the agent id
         :param agent: The agent instance
+        :param suggested_aid: (Optional) suggested aid, if the aid is already taken, a generated aid is used. 
+                              Using the generated aid-style ("agentX") is not allowed.
         :return The agent ID
         """
         if not self._no_agents_running or self._no_agents_running.done():
             self._no_agents_running = asyncio.Future()
-        aid = f"agent{self._aid_counter}"
-        self._aid_counter += 1
+        if suggested_aid is None or \
+           suggested_aid in self._agents or \
+           self.__check_agent_aid_pattern_match(suggested_aid):
+            aid = f"{AGENT_PATTERN_NAME_PRE}{self._aid_counter}"
+            self._aid_counter += 1
+        else:
+            aid = suggested_aid
         self._agents[aid] = agent
         logger.info(f"Successfully registered agent;{aid}")
         return aid
@@ -429,6 +455,7 @@ class MQTTContainer(Container):
         client_id: str,
         addr: Optional[str],
         loop: asyncio.AbstractEventLoop,
+        clock: Clock,
         mqtt_client: paho.Client,
         codec: Codec = JSON,
         proto_msgs_module=None,
@@ -452,6 +479,7 @@ class MQTTContainer(Container):
             addr=addr,
             proto_msgs_module=proto_msgs_module,
             loop=loop,
+            clock=clock,
             name=client_id,
         )
 
@@ -754,9 +782,10 @@ class TCPContainer(Container):
         self,
         *,
         addr: Tuple[str, int],
-        codec: str,
+        codec: Codec,
         loop: asyncio.AbstractEventLoop,
         proto_msgs_module=None,
+        clock: Clock,
     ):
         """
         Initializes a TCP container. Do not directly call this method but use
@@ -773,6 +802,7 @@ class TCPContainer(Container):
             proto_msgs_module=proto_msgs_module,
             loop=loop,
             name=f"{addr[0]}:{addr[1]}",
+            clock=clock,
         )
 
         self.server = None  # will be set within the factory method
@@ -867,6 +897,7 @@ class TCPContainer(Container):
             content, meta = message.split_content_and_meta()
         else:
             content = message
+            meta = {}
         meta["network_protocol"] = "tcp"
         receiver.inbox.put_nowait((priority, content, meta))
         return True
@@ -898,7 +929,7 @@ class TCPContainer(Container):
 
             logger.debug(f"Message sent to addr;{str(addr)}")
             await protocol.shutdown()
-        except OSError as e:
+        except OSError:
             logger.warning(
                 f"Could not establish connection to receiver of a message;{str(addr)}"
             )

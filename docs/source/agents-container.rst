@@ -15,7 +15,7 @@ In mango, a container is created using the classmethod ``mango.core.container.Co
 .. code-block:: python3
 
     @classmethod
-    async def factory(cls, *, connection_type: str = 'tcp', codec: Codec = JSON(),
+    async def factory(cls, *, connection_type: str = 'tcp', codec: Codec = None, clock: Clock = None,
                       addr: Optional[Union[str, Tuple[str, int]]] = None,
                       proto_msgs_module=None,
                       mqtt_kwargs: Dict[str, Any] = None):
@@ -36,7 +36,8 @@ A simple container, that uses plain tcp for message exchange can be created as f
 
 A container can be parametrized regarding its connection type ('tcp' or 'MQTT') and
 regarding the codec that is used for message serialization.
-The default codec is JSON (see section codecs for more information)
+The default codec is JSON (see section codecs for more information). It is also possible to
+define the clock that an agents scheduler should use (see section scheduling).
 
 After a container is created, it is waiting for incoming messages on the given address.
 As soon as the container has some agents, it will distribute incoming messages
@@ -54,8 +55,10 @@ This class provides basic functionality such as to register the agent at the con
 to constantly check the inbox for incoming messages.
 Every agent lives in exactly one container and therefore an instance of a container has to be
 provided when :py:meth:`__init__()` of an agent is called.
-Custom agents that inherit from the ``Agent`` class have to call ``super().__init__(container)__``
+Custom agents that inherit from the ``Agent`` class have to call ``super().__init__(container, suggested_aid: str = None)__``
 on initialization.
 This will register the agent at the provided container instance and will assign a unique agent id
-(``self._aid``) to the agent.
+(``self._aid``) to the agent. However, it is possible to suggest an aid by setting the variable ``suggested_aid`` to your aid wish. 
+The aid is granted if there is no other agent with this id, and if the aid doesn't interfere with the default aid pattern, otherwise 
+the generated aid will be used. To check if the aid is available beforehand, you can use ``container.is_aid_available``.
 It will also create the task to check for incoming messages.

@@ -59,6 +59,13 @@ class RoleContext(ABC):
         pass
 
     @property
+    @abstractmethod
+    def current_timestamp(self) -> float:
+        """
+        Returns the current timestamp
+        """
+
+    @property
     def data(self):
         """Return data container of the agent
 
@@ -145,8 +152,20 @@ class RoleContext(ABC):
         """
 
     @abstractmethod
+    def schedule_timestamp_task(self, coroutine, timestamp: float, src=None):
+        """Schedule a task at specified timestamp.
+
+        :param coroutine: coroutine to be scheduled
+        :type coroutine: Coroutine
+        :param timestamp: timestamp defining when the task should start
+        :type timestamp: timestamp
+        :param src: creator of the task
+        :type src: Object
+        """
+
+    @abstractmethod
     def schedule_periodic_task(self, coroutine_func, delay, src = None):
-        """Schedule an open end peridocally executed task.
+        """Schedule an open end periodically executed task.
 
         :param coroutine_func: coroutine function creating coros to be scheduled
         :type coroutine_func:  Coroutine Function
@@ -231,6 +250,7 @@ class RoleContext(ABC):
         :param role: the role to activate
         :type role: Role
         """
+
 
 class Role(ABC):
     """General role class, defining the API every role can use. A role implements one responsibility

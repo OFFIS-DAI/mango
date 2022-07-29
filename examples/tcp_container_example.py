@@ -2,7 +2,7 @@ import asyncio
 
 import mango.messages.other_proto_msgs_pb2 as  other_proto_msg
 from mango.core.container import Container
-from mango.examples.simple_agent import SimpleAgent
+from examples.simple_agent import SimpleAgent
 
 
 async def one_container_two_agents():
