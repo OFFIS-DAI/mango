@@ -267,7 +267,10 @@ class Container(ABC):
         :param aid: the aid you want to check
         :return True if the aid is available, False if it is not
         """
-        return aid not in self._agents and not (aid.startswith(AGENT_PATTERN_NAME_PRE) and aid[5:].isnumeric())
+        return aid not in self._agents and not self.__check_agent_aid_pattern_match(aid)
+
+    def __check_agent_aid_pattern_match(self, aid):
+        return aid.startswith(AGENT_PATTERN_NAME_PRE) and aid[len(AGENT_PATTERN_NAME_PRE):].isnumeric()
 
     def _register_agent(self, agent, suggested_aid: str = None):
         """
@@ -281,7 +284,7 @@ class Container(ABC):
             self._no_agents_running = asyncio.Future()
         if suggested_aid is None or \
            suggested_aid in self._agents or \
-           (suggested_aid.startswith(AGENT_PATTERN_NAME_PRE) and suggested_aid[len(AGENT_PATTERN_NAME_PRE):].isnumeric()):
+           self.__check_agent_aid_pattern_match(suggested_aid):
             aid = f"{AGENT_PATTERN_NAME_PRE}{self._aid_counter}"
             self._aid_counter += 1
         else:
