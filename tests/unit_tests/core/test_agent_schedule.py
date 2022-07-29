@@ -29,3 +29,4 @@ async def test_periodic_facade():
 
     # THEN
     assert len(l) == 2
+    await c.shutdown()
