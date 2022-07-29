@@ -14,6 +14,7 @@ from ..util.clock import Clock, AsyncioClock
 
 logger = logging.getLogger(__name__)
 
+AGENT_PATTERN_NAME_PRE = "agent"
 
 class Container(ABC):
     """Superclass for a mango container"""
@@ -260,16 +261,34 @@ class Container(ABC):
         # task that processes the inbox.
         self._check_inbox_task: asyncio.Task = asyncio.create_task(self._check_inbox())
 
-    def _register_agent(self, agent):
+    def is_aid_available(self, aid):
+        """
+        Check if the aid is available and registrable (it is not possible to register aids matching the regular pattern "agentX")
+        :param aid: the aid you want to check
+        :return True if the aid is available, False if it is not
+        """
+        return aid not in self._agents and not self.__check_agent_aid_pattern_match(aid)
+
+    def __check_agent_aid_pattern_match(self, aid):
+        return aid.startswith(AGENT_PATTERN_NAME_PRE) and aid[len(AGENT_PATTERN_NAME_PRE):].isnumeric()
+
+    def _register_agent(self, agent, suggested_aid: str = None):
         """
         Register *agent* and return the agent id
         :param agent: The agent instance
+        :param suggested_aid: (Optional) suggested aid, if the aid is already taken, a generated aid is used. 
+                              Using the generated aid-style ("agentX") is not allowed.
         :return The agent ID
         """
         if not self._no_agents_running or self._no_agents_running.done():
             self._no_agents_running = asyncio.Future()
-        aid = f"agent{self._aid_counter}"
-        self._aid_counter += 1
+        if suggested_aid is None or \
+           suggested_aid in self._agents or \
+           self.__check_agent_aid_pattern_match(suggested_aid):
+            aid = f"{AGENT_PATTERN_NAME_PRE}{self._aid_counter}"
+            self._aid_counter += 1
+        else:
+            aid = suggested_aid
         self._agents[aid] = agent
         logger.info(f"Successfully registered agent;{aid}")
         return aid
