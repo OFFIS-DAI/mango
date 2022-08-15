@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 AGENT_PATTERN_NAME_PRE = "agent"
 
+
 class Container(ABC):
     """Superclass for a mango container"""
 
@@ -263,7 +264,8 @@ class Container(ABC):
 
     def is_aid_available(self, aid):
         """
-        Check if the aid is available and registrable (it is not possible to register aids matching the regular pattern "agentX")
+        Check if the aid is available and registrable.
+        It is not possible to register aids matching the regular pattern "agentX".
         :param aid: the aid you want to check
         :return True if the aid is available, False if it is not
         """
