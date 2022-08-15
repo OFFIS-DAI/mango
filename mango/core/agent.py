@@ -30,7 +30,7 @@ class Agent(ABC):
         self._container = container
         self._aid = aid
         self.inbox = asyncio.Queue()
-        self._scheduler = Scheduler(clock=container.clock)
+        self._scheduler: Scheduler = Scheduler(clock=container.clock)
         self._check_inbox_task = asyncio.create_task(self._check_inbox())
         self._check_inbox_task.add_done_callback(self.raise_exceptions)
         self.stopped = asyncio.Future()
