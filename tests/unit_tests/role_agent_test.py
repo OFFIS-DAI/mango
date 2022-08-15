@@ -7,8 +7,10 @@ from mango.role.api import Role, RoleContext, SimpleReactiveRole
 from mango.role.core import RoleAgent, RoleAgentContext
 from mango.util.scheduling import DateTimeScheduledTask
 
-class PongRole(SimpleReactiveRole):
+
+class PongRole(Role):
     def __init__(self):
+        super().__init__()
         self.sending_tasks = []
 
     def handle_msg(self, content, meta: Dict[str, Any]):
@@ -29,6 +31,7 @@ class PongRole(SimpleReactiveRole):
 
     def is_applicable(self, content, meta):
         return content == 'ping'
+
 
 class PingRole(SimpleReactiveRole):
     def __init__(self, addr, expect_no_answer=False):
