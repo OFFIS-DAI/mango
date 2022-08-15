@@ -11,7 +11,7 @@ import paho.mqtt.client as paho
 from .container_protocols import ContainerProtocol
 from ..messages.message import ACLMessage
 from ..messages.codecs import Codec, JSON
-from ..util.clock import Clock, AsyncioClock
+from ..util.clock import Clock, AsyncioClock, ExternalClock
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +52,7 @@ class Container(ABC):
         :return: The instance of a MQTTContainer or a TCPContainer
         """
         connection_type = connection_type.lower()
-        if connection_type not in ["tcp", "mqtt"]:
+        if connection_type not in ["tcp", "mqtt", "mosaik"]:
             raise ValueError(f"Unknown connection type {connection_type}")
 
         loop = asyncio.get_running_loop()
@@ -236,6 +236,9 @@ class Container(ABC):
                 codec=codec,
                 proto_msgs_module=proto_msgs_module,
             )
+
+        if connection_type == "mosaik":
+            return MosaikContainer(addr=addr, codec=codec, loop=loop, proto_msgs_module=proto_msgs_module)
 
     def __init__(self, *, addr, name: str, codec, proto_msgs_module=None, loop, clock: Clock):
         self.name: str = name
@@ -928,6 +931,8 @@ class MosaikContainer(Container):
     """
 
     """
+    clock: ExternalClock  # type hint
+
     def __init__(
         self,
         *,
@@ -935,7 +940,6 @@ class MosaikContainer(Container):
         codec: Codec,
         loop: asyncio.AbstractEventLoop,
         proto_msgs_module=None,
-        clock: Clock,
     ):
         """
         Initializes a MosaikContainer. Do not directly call this method but use
@@ -946,6 +950,8 @@ class MosaikContainer(Container):
         :param proto_msgs_module: The module for proto msgs in case of
         proto as codec
         """
+
+        clock = ExternalClock()
         super().__init__(
             addr=addr,
             codec=codec,
@@ -956,6 +962,7 @@ class MosaikContainer(Container):
         )
 
         self.running = True
+        self.current_start_time_of_step = time.time()
         self.message_buffer = []
 
     async def _handle_msg(self, *, priority: int, msg_content, meta: Dict[str, Any]):
@@ -1009,16 +1016,52 @@ class MosaikContainer(Container):
         else:
             message = content
 
-        # For now we will not allow to send any internal messages, so we will always encode
+        # For now, we will not allow to send any internal messages, so we will always encode
         encoded_msg = self.codec.encode(message)
         # store message in the buffer, which will be emptied in step
-        self.message_buffer.append((time.time(), receiver_addr, receiver_id, encoded_msg))
+        self.message_buffer.append((time.time() - self.current_start_time_of_step, receiver_addr, encoded_msg))
 
         return True
 
+    async def step(self, simulation_time, msgs) -> Tuple:
+
+        if self.message_buffer:
+            logger.warning('There is messages to be sent, before step was called. Time will be set to 0.')
+            self.message_buffer, tmp_msg_buffer = [], self.message_buffer
+            for _, receiver_addr, encoded_msg in tmp_msg_buffer:
+                self.message_buffer.append((0, receiver_addr, encoded_msg))
+
+        self.current_start_time_of_step = time.time()
+
+        self.clock.set_time(simulation_time)
+        # first store the current time
+        start_time = time.time()
+        # now we will decode and distribute the incoming messages
+        for encoded_msg in msgs:
+            message = self.codec.decode(encoded_msg)
+            content, acl_meta = message.split_content_and_meta()
+            acl_meta["network_protocol"] = "mosaik"
+            await self.inbox.put((0, content, acl_meta))
+
+        # now wait for the msg_queue to be empty
+        await self.inbox.join()
+
+        # now wait for all agents to terminate
+        for agent in self._agents.values():
+            await agent.inbox.join()    # amke sure inbox of agent is empty
+            # TODO the following needs to be changed (recognize sleeps, peridoic tasks etc)
+            await agent._scheduler.tasks_complete(timeout=10)   # wait until agent is done with all tasks
+
+        # now all agents should be done
+        end_time = time.time()
+
+        messages_this_step, self.message_buffer = self.message_buffer, []
+
+        return end_time-start_time, messages_this_step
+
     async def shutdown(self):
         """
-        calls shutdown() from super class Container and closes the server
+        calls shutdown() from super class Container
         """
         await super().shutdown()
 
