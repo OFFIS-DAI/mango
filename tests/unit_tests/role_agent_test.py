@@ -8,7 +8,7 @@ from mango.role.core import RoleAgent, RoleAgentContext
 from mango.util.scheduling import DateTimeScheduledTask
 
 
-class PongRole(Role):
+class PongRole(SimpleReactiveRole):
     def __init__(self):
         super().__init__()
         self.sending_tasks = []
