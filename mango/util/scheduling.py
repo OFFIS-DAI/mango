@@ -281,7 +281,6 @@ class Scheduler:
     def __init__(self, clock: Clock = None, num_process_parallel=16):
         self._scheduled_tasks = []
         self.clock = clock if clock is not None else AsyncioClock()
-        # print(f'[Scheduler] init with the following clock: {self.clock}')
         self._scheduled_process_tasks = []
         self._process_pool_exec = concurrent.futures.ProcessPoolExecutor(max_workers=num_process_parallel,
                                                                          initializer=_create_asyncio_context)
