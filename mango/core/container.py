@@ -269,7 +269,8 @@ class Container(ABC):
         """
         return aid not in self._agents and not self.__check_agent_aid_pattern_match(aid)
 
-    def __check_agent_aid_pattern_match(self, aid):
+    @staticmethod
+    def __check_agent_aid_pattern_match(aid):
         return aid.startswith(AGENT_PATTERN_NAME_PRE) and aid[len(AGENT_PATTERN_NAME_PRE):].isnumeric()
 
     def _register_agent(self, agent, suggested_aid: str = None):
@@ -359,26 +360,6 @@ class Container(ABC):
 
         message = ACLMessage()
         message.content = content
-
-        # if self.codec == "json":
-        #     # create json message
-        #     message = json_ACLMessage()
-        #     message.content = content
-
-        # elif self.codec == "protobuf":
-        #     # create protobuf message
-        #     message = proto_ACLMessage()
-        #     receiver_meta = acl_metadata["receiver_addr"]
-        #     if isinstance(receiver_meta, (tuple, list)):
-        #         acl_metadata["receiver_addr"] = f"{receiver_meta[0]}:{receiver_meta[1]}"
-        #     sender_meta = acl_metadata.get("sender_addr", None)
-        #     if isinstance(sender_meta, (tuple, list)):
-        #         acl_metadata["sender_addr"] = f"{sender_meta[0]}:{sender_meta[1]}"
-
-        #     message.content_class = type(content).__name__
-        #     message.content = content.SerializeToString()
-        # else:
-        #     raise ValueError("Unknown Encoding")
 
         for key, value in acl_metadata.items():
             setattr(message, key, value)
