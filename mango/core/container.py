@@ -5,6 +5,7 @@ TCPContainer and MQTTContainer
 from abc import ABC, abstractmethod
 import asyncio
 import logging
+import time
 from typing import Optional, Union, Tuple, Dict, Any, Set
 import paho.mqtt.client as paho
 from .container_protocols import ContainerProtocol
@@ -331,7 +332,7 @@ class Container(ABC):
         :param mqtt_kwargs: Dict with possible kwargs for publishing to a mqtt broker
             Possible fields:
             qos: The quality of service to use for publishing
-            retain: Indicates, weather the retain flag should be set
+            retain: Indicates, whether the retain flag should be set
             Ignored if connection_type != 'mqtt'
         """
         raise NotImplementedError
@@ -524,14 +525,10 @@ class MQTTContainer(Container):
             # update meta dict
             meta.update(msg_meta)
 
-            # put information to inbox
-            if msg_content is not None:
-                self.loop.call_soon_threadsafe(
-                    self.inbox.put_nowait, (0, msg_content, meta)
-                )
+            # put message to inbox
+            self.loop.call_soon_threadsafe(self.inbox.put_nowait, (0, msg_content, meta))
 
         self.mqtt_client.on_message = on_msg
-
         self.mqtt_client.enable_logger(logger)
 
     async def shutdown(self):
@@ -604,12 +601,11 @@ class MQTTContainer(Container):
                     receivers.update(rec)
             if not receivers:
                 logger.warning(
-                    f"Received a message at a topic which no agent subscribed;{topic}"
+                    f"Received a message on a topic which no agent has subscribed to;{topic}"
                 )
             else:
                 for receiver_id in receivers:
                     receiver = self._agents[receiver_id]
-
                     await receiver.inbox.put((priority, msg_content, meta))
 
     async def send_message(
@@ -926,3 +922,103 @@ class TCPContainer(Container):
         await super().shutdown()
         self.server.close()
         await self.server.wait_closed()
+
+
+class MosaikContainer(Container):
+    """
+
+    """
+    def __init__(
+        self,
+        *,
+        addr: str,
+        codec: Codec,
+        loop: asyncio.AbstractEventLoop,
+        proto_msgs_module=None,
+        clock: Clock,
+    ):
+        """
+        Initializes a MosaikContainer. Do not directly call this method but use
+        the factory method of **Container** instead
+        :param addr: The container sid / eid respectively
+        :param codec: The codec to use
+        :param loop: Current event loop
+        :param proto_msgs_module: The module for proto msgs in case of
+        proto as codec
+        """
+        super().__init__(
+            addr=addr,
+            codec=codec,
+            proto_msgs_module=proto_msgs_module,
+            loop=loop,
+            name=f"{addr[0]}:{addr[1]}",
+            clock=clock,
+        )
+
+        self.running = True
+        self.message_buffer = []
+
+    async def _handle_msg(self, *, priority: int, msg_content, meta: Dict[str, Any]):
+        """
+
+        :param priority:
+        :param msg_content:
+        :param meta:
+        :return:
+        """
+        logger.debug(
+            f"Received msg with content and meta;{str(msg_content)};{str(meta)}"
+        )
+        receiver_id = meta.get("receiver_id", None)
+        if receiver_id and receiver_id in self._agents.keys():
+            receiver = self._agents[receiver_id]
+            await receiver.inbox.put((priority, msg_content, meta))
+        else:
+            logger.warning(f"Received a message for an unknown receiver;{receiver_id}")
+
+    async def send_message(
+        self,
+        content,
+        receiver_addr: Union[str, Tuple[str, int]],
+        *,
+        receiver_id: Optional[str] = None,
+        create_acl: bool = False,
+        acl_metadata: Optional[Dict[str, Any]] = None,
+        mqtt_kwargs: Dict[str, Any] = None,
+    ) -> bool:
+        """
+        container sends the message of one of its own agents to a specific topic
+        :param content: The content of the message
+        :param receiver_addr: In case of TCP this is a tuple of host, port
+        :param receiver_id: The agent id of the receiver
+        :param create_acl: True if an acl message shall be created around the
+        content.
+        :param acl_metadata: metadata for the acl_header.
+        Ignored if create_acl == False
+        :param mqtt_kwargs: Ignored in this class
+        :return boolean indicating whether  sending was successful or not
+        """
+
+        if create_acl:
+            message = self._create_acl(
+                content=content,
+                receiver_addr=receiver_addr,
+                receiver_id=receiver_id,
+                acl_metadata=acl_metadata,
+            )
+        else:
+            message = content
+
+        # For now we will not allow to send any internal messages, so we will always encode
+        encoded_msg = self.codec.encode(message)
+        # store message in the buffer, which will be emptied in step
+        self.message_buffer.append((time.time(), receiver_addr, receiver_id, encoded_msg))
+
+        return True
+
+    async def shutdown(self):
+        """
+        calls shutdown() from super class Container and closes the server
+        """
+        await super().shutdown()
+
