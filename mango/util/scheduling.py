@@ -171,16 +171,17 @@ class TimestampScheduledTask(ScheduledTask):
 
     def __init__(self, coroutine, timestamp: float, clock=None):
         super().__init__(clock)
-        self._delay = timestamp
+        self._timestamp = timestamp
         self._coro = coroutine
 
     async def _wait(self, timestamp: float):
+        sleep_future: asyncio.Future = self.clock.sleep(timestamp - self.clock.time)
         self.notify_sleeping()
-        await self.clock.sleep(timestamp - self.clock.time)
+        await sleep_future
         self.notify_running()
 
     async def run(self):
-        await self._wait(self._delay)
+        await self._wait(self._timestamp)
         return await self._coro
 
 
@@ -208,7 +209,10 @@ class DateTimeScheduledTask(ScheduledTask):
         self._coro = coroutine
 
     async def _wait(self, date_time: datetime.datetime):
-        await self.clock.sleep(date_time.timestamp() - self.clock.time)
+        sleep_future: asyncio.Future = self.clock.sleep(date_time.timestamp() - self.clock.time)
+        self.notify_sleeping()
+        await sleep_future
+        self.notify_running()
 
     async def run(self):
         await self._wait(self._delay)
@@ -260,13 +264,15 @@ class ConditionalTask(ScheduledTask):
         self._coro = coroutine
         self._delay = lookup_delay
 
-    async def _wait(self, date_time: datetime):
-        await self.clock.sleep((date_time - datetime.datetime.now()).total_seconds())
+    async def _wait(self, delay: float):
+        sleep_future: asyncio.Future = self.clock.sleep(delay)
+        self.notify_sleeping()
+        await sleep_future
+        self.notify_running()
 
     async def run(self):
         while not self._condition():
             await self.clock.sleep(self._delay)
-
         return await self._coro
 
 
