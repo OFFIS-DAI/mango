@@ -4,9 +4,10 @@ TCPContainer and MQTTContainer
 """
 from abc import ABC, abstractmethod
 import asyncio
+from dataclasses import dataclass
 import logging
 import time
-from typing import Optional, Union, Tuple, Dict, Any, Set
+from typing import Optional, List, Union, Tuple, Dict, Any, Set
 import paho.mqtt.client as paho
 from .container_protocols import ContainerProtocol
 from ..messages.message import ACLMessage
@@ -16,6 +17,8 @@ from ..util.clock import Clock, AsyncioClock, ExternalClock
 logger = logging.getLogger(__name__)
 
 AGENT_PATTERN_NAME_PRE = "agent"
+
+
 
 
 class Container(ABC):
@@ -927,6 +930,20 @@ class TCPContainer(Container):
         await self.server.wait_closed()
 
 
+@dataclass
+class MosaikAgentMessage:
+    message: bytes
+    time: float
+    receiver: str
+
+
+@dataclass
+class MosaikContainerOutput:
+    duration: float
+    messages: List[MosaikAgentMessage]
+    next_activity: Optional[float]
+
+
 class MosaikContainer(Container):
     """
 
@@ -1019,25 +1036,26 @@ class MosaikContainer(Container):
         # For now, we will not allow to send any internal messages, so we will always encode
         encoded_msg = self.codec.encode(message)
         # store message in the buffer, which will be emptied in step
-        self.message_buffer.append((time.time() - self.current_start_time_of_step, receiver_addr, encoded_msg))
-
+        self.message_buffer.append(
+            MosaikAgentMessage(
+                time=time.time()-self.current_start_time_of_step + self.clock.time,
+                receiver=receiver_addr,
+                message=encoded_msg
+            )
+        )
         return True
 
-    async def step(self, simulation_time, msgs) -> Tuple:
+    async def step(self, simulation_time: float, incoming_messages: List[bytes]) -> MosaikContainerOutput:
 
         if self.message_buffer:
-            logger.warning('There is messages to be sent, before step was called. Time will be set to 0.')
-            self.message_buffer, tmp_msg_buffer = [], self.message_buffer
-            for _, receiver_addr, encoded_msg in tmp_msg_buffer:
-                self.message_buffer.append((0, receiver_addr, encoded_msg))
+            logger.warning('There are messages in teh message buffer to be sent, at the start when step was called.')
 
         self.current_start_time_of_step = time.time()
 
         self.clock.set_time(simulation_time)
-        # first store the current time
-        start_time = time.time()
+
         # now we will decode and distribute the incoming messages
-        for encoded_msg in msgs:
+        for encoded_msg in incoming_messages:
             message = self.codec.decode(encoded_msg)
             content, acl_meta = message.split_content_and_meta()
             acl_meta["network_protocol"] = "mosaik"
@@ -1046,22 +1064,28 @@ class MosaikContainer(Container):
         # now wait for the msg_queue to be empty
         await self.inbox.join()
 
+        # TODO how do we notify the tasks first. This is a workaround here
+        await asyncio.sleep(0)
+
         # now wait for all agents to terminate
         for agent in self._agents.values():
-            await agent.inbox.join()    # amke sure inbox of agent is empty
-            # TODO the following needs to be changed (recognize sleeps, peridoic tasks etc)
-            await agent._scheduler.tasks_complete(timeout=10)   # wait until agent is done with all tasks
+            await agent.inbox.join()    # make sure inbox of agent is empty and all messages are processed
+            # TODO In the following we should also be able to recognize manual sleeps (maybe)
+            await agent._scheduler.tasks_complete_or_sleeping()   # wait until agent is done with all tasks
 
         # now all agents should be done
         end_time = time.time()
 
         messages_this_step, self.message_buffer = self.message_buffer, []
 
-        return end_time-start_time, messages_this_step
+        return MosaikContainerOutput(
+            duration=end_time-self.current_start_time_of_step,
+            messages=messages_this_step,
+            next_activity=self.clock.get_next_activity()
+        )
 
     async def shutdown(self):
         """
         calls shutdown() from super class Container
         """
         await super().shutdown()
-

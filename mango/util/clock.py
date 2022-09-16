@@ -73,7 +73,7 @@ class ExternalClock(Clock):
         # Tuple of time, future
         for _, future in current_futures:
             # set result of future
-            future.set_result(None)
+            future.set_result(True)
 
     def sleep(self, t: float):
         """
@@ -89,3 +89,6 @@ class ExternalClock(Clock):
         index = bisect.bisect_right(keys, self.time + t,)
         self._futures.insert(index, (self.time + t, f))
         return f
+
+    def get_next_activity(self):
+        return None if len(self._futures) == 0 else self._futures[0][0]

@@ -94,6 +94,14 @@ class ScheduledTask:
 
     def __init__(self, clock: Clock = None) -> None:
         self.clock = clock if clock is not None else AsyncioClock()
+        self._is_sleeping = asyncio.Future()
+        self._is_done = asyncio.Future()
+
+    def notify_sleeping(self):
+        self._is_sleeping.set_result(True)
+
+    def notify_running(self):
+        self._is_sleeping = asyncio.Future()
 
     @abstractmethod
     async def run(self):
@@ -108,6 +116,7 @@ class ScheduledTask:
         """
         Called when the task is cancelled of finished.
         """
+        self._is_done.set_result(True)
 
 
 class ScheduledProcessTask(ScheduledTask):
@@ -144,7 +153,10 @@ class PeriodicScheduledTask(ScheduledTask):
     async def run(self):
         while not self._stopped:
             await self._coroutine_func()
-            await self.clock.sleep(self._delay)
+            sleep_future: asyncio.Future = self.clock.sleep(self._delay)
+            self.notify_sleeping()
+            await sleep_future
+            self.notify_running()
 
 
 class PeriodicScheduledProcessTask(PeriodicScheduledTask, ScheduledProcessTask):
@@ -163,7 +175,9 @@ class TimestampScheduledTask(ScheduledTask):
         self._coro = coroutine
 
     async def _wait(self, timestamp: float):
+        self.notify_sleeping()
         await self.clock.sleep(timestamp - self.clock.time)
+        self.notify_running()
 
     async def run(self):
         await self._wait(self._delay)
@@ -451,7 +465,7 @@ class Scheduler:
         l_task = asyncio.ensure_future(
             loop.run_in_executor(self._process_pool_exec, Scheduler._run_task_in_p_context, task, event))
         l_task.add_done_callback(self._remove_process_task)
-        self._scheduled_process_tasks.append((l_task, event, src))
+        self._scheduled_process_tasks.append((task, l_task, event, src))
         return l_task
 
     def schedule_task(self, task: ScheduledTask, src=None) -> asyncio.Task:
@@ -467,7 +481,7 @@ class Scheduler:
         l_task = asyncio.ensure_future(susp_coro)
         l_task.add_done_callback(task.on_stop)
         l_task.add_done_callback(self._remove_task)
-        self._scheduled_tasks.append((l_task, susp_coro, src))
+        self._scheduled_tasks.append((task, l_task, susp_coro, src))
         return l_task
 
     def suspend(self, given_src):
@@ -476,10 +490,10 @@ class Scheduler:
         :param given_src: the src object
         :type given_src: object
         """
-        for _, coro, src in self._scheduled_tasks:
+        for _, _, coro, src in self._scheduled_tasks:
             if src == given_src and coro is not None:
                 coro.suspend()
-        for _, event, src in self._scheduled_process_tasks:
+        for _, _, event, src in self._scheduled_process_tasks:
             if src == given_src and event is not None:
                 event.clear()
 
@@ -489,17 +503,18 @@ class Scheduler:
         :param given_src: the src object
         :type given_src: object
         """
-        for _, coro, src in self._scheduled_tasks:
+        for _, _, coro, src in self._scheduled_tasks:
             if src == given_src and coro is not None:
                 coro.resume()
-        for _, event, src in self._scheduled_process_tasks:
+        for _, _, event, src in self._scheduled_process_tasks:
             if src == given_src and event is not None:
                 event.set()
 
     def _remove_process_task(self, fut=asyncio.Future):
         for i in range(len(self._scheduled_process_tasks)):
-            task, event, _ = self._scheduled_process_tasks[i]
+            scheduled_task, task, event, _ = self._scheduled_process_tasks[i]
             if task == fut:
+                scheduled_task.sleeping_or_done.set()
                 del self._scheduled_process_tasks[i]
                 event.set()
                 break
@@ -509,8 +524,10 @@ class Scheduler:
 
     def _remove_generic_task(self, target_list, fut=asyncio.Future):
         for i in range(len(target_list)):
-            task, _, _ = target_list[i]
+            scheduled_task, task, _, _ = target_list[i]
+            task: ScheduledTask
             if task == fut:
+                scheduled_task.is_sleeping_or_done.set_result(True)
                 del target_list[i]
                 break
 
@@ -518,7 +535,7 @@ class Scheduler:
         """
         Cancel all not finished scheduled tasks
         """
-        for task, _, _ in self._scheduled_tasks + self._scheduled_process_tasks:
+        for _, task, _, _ in self._scheduled_tasks + self._scheduled_process_tasks:
             task.cancel()
             await task
 
@@ -528,15 +545,32 @@ class Scheduler:
         Args:
             timeout (int, optional): waiting timeout. Defaults to 1.
         """
-        for task, _, _ in self._scheduled_tasks + self._scheduled_process_tasks:
+        for _, task, _, _ in self._scheduled_tasks + self._scheduled_process_tasks:
             await asyncio.wait_for(task, timeout=timeout)
+
+    async def tasks_complete_or_sleeping(self):
+        """
+
+        """
+        num_sleeping_tasks = 0
+        # we need to use the while loop here, as new tasks may have been scheduled while waiting for other tasks
+        while len(self._scheduled_tasks + self._scheduled_process_tasks) > num_sleeping_tasks:
+            for scheduled_task, task, _, _ in self._scheduled_tasks + self._scheduled_process_tasks:
+                await asyncio.wait([scheduled_task._is_sleeping, scheduled_task._is_done],
+                                   return_when=asyncio.FIRST_COMPLETED)
+                if scheduled_task._is_sleeping.done():
+                    # we need to recognize how many sleeping tasks we have in order to find out if all tasks are done
+                    num_sleeping_tasks += 1
+
+
+
 
     def shutdown(self):
         """
         Shutdown internal process executor pool.
         """
         # resume all process so they can get shutdown
-        for _, event, _ in self._scheduled_process_tasks:
+        for _, _, event, _ in self._scheduled_process_tasks:
             if event is not None:
                 event.set()
         self._process_pool_exec.shutdown()
