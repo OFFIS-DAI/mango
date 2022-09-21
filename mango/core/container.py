@@ -19,8 +19,6 @@ logger = logging.getLogger(__name__)
 AGENT_PATTERN_NAME_PRE = "agent"
 
 
-
-
 class Container(ABC):
     """Superclass for a mango container"""
 
@@ -1063,9 +1061,6 @@ class MosaikContainer(Container):
 
         # now wait for the msg_queue to be empty
         await self.inbox.join()
-
-        # TODO how do we notify the tasks first. This is a workaround here
-        await asyncio.sleep(0)
 
         # now wait for all agents to terminate
         for agent in self._agents.values():

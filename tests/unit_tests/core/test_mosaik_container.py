@@ -100,7 +100,7 @@ async def test_step_with_replying_agent():
     encoded_msg = mosaik_container.codec.encode(new_acl_msg)
     container_output = await mosaik_container.step(simulation_time=10, incoming_messages=[encoded_msg])
     assert len(container_output.messages) == 3, f'output messages: {container_output.messages}'
-    assert container_output.messages[0].time < container_output.messages[1].time < mosaik_container.clock.time + 0.01
+    assert container_output.messages[0].time < container_output.messages[1].time < mosaik_container.clock.time + 0.1
     assert container_output.messages[2].time > mosaik_container.clock.time + 0.1  # since we had a sleep of 0.1 seconds
     assert container_output.next_activity == mosaik_container.clock.time + 10
     container_output = await mosaik_container.step(simulation_time=20, incoming_messages=[])
