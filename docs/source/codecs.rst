@@ -99,53 +99,6 @@ All that is left to do now is to pass our codec to the container. This is done d
         codec = codecs.JSON()
         codec.add_serializer(*MyClass.__serializer__())
 
-        # codecs can be passed at container creation
-        # if no codec is passed a new instance of JSON() is created
-        my_container = await Container.factory(addr=("localhost", 5555), codec=codec)
-        my_agent = SimpleReceivingAgent(my_container)
-
-        # agents can now directly pass content of type MyClass to each other
-        my_object = MyClass("abc", 123)
-        await my_container.send_message(
-            content=my_object, receiver_addr=("localhost", 5555), receiver_id="agent0"
-        )
-
-        await my_container.shutdown()
-
-
-    if __name__ == "__main__":
-        asyncio.run(main())
-
-.. code-block:: bash
-
-    python main.py
-    agent0 received a message with content <__main__.MyClass object at 0x7f04b172fcd0> and meta f{'network_protocol': 'tcp', 'priority': 0}
-    abc
-    123
-
-**@json_serializable decorator**
-
-In the above example we explicitely defined methods to (de)serialize our class. For simple classes, especially data classes,
-we can achieve the same result (for json codecs) via the ``@json_serializable`` decorator. This creates the ``__asdict__``, 
-``__fromdict__`` and ``__serializer__`` functions in the class:
-
-.. code-block:: python3
-
-    class SimpleReceivingAgent(Agent):
-        def __init__(self, container):
-            super().__init__(container)
-
-        def handle_msg(self, content, meta):
-            print(f"{self._aid} received a message with content {content} and meta f{meta}")
-            if isinstance(content, MyClass):
-                print(content.x)
-                print(content.y)
-
-
-    async def main():
-        codec = codecs.JSON()
-        codec.add_serializer(*MyClass.__serializer__())
-
         # codecs can be passed directly to the container
         # if no codec is passed a new instance of JSON() is created
         sending_container = await Container.factory(addr=("localhost", 5556), codec=codec)
@@ -168,9 +121,43 @@ we can achieve the same result (for json codecs) via the ``@json_serializable`` 
 .. code-block:: bash
 
     python main.py
-    agent0 received a message with content <__main__.MyClass object at 0x7f3e772d0df0> and meta f{'sender_id': None, 'sender_addr': ['localhost', 5556], 'receiver_id': 'agent0', 'receiver_addr': ['localhost', 5555], 'performative': None, 'conversation_id': None, 'reply_by': None, 'in_reply_to': None, 'protocol': None, 'language': None, 'encoding': None, 'ontology': None, 'reply_with': None, 'network_protocol': 'tcp', 'priority': 0}
+    agent0 received a message with content <__main__.MyClass object at 0x7f42c930edc0> and meta f{'sender_id': None, 'sender_addr': ['localhost', 5556], 'receiver_id': 'agent0', 'receiver_addr': ['localhost', 5555], 'performative': None, 'conversation_id': None, 'reply_by': None, 'in_reply_to': None, 'protocol': None, 'language': None, 'encoding': None, 'ontology': None, 'reply_with': None, 'network_protocol': 'tcp', 'priority': 0}
     abc
     123
+
+**@json_serializable decorator**
+
+In the above example we explicitely defined methods to (de)serialize our class. For simple classes, especially data classes,
+we can achieve the same result (for json codecs) via the ``@json_serializable`` decorator. This creates the ``__asdict__``, 
+``__fromdict__`` and ``__serializer__`` functions in the class:
+
+.. code-block:: python3
+
+    from mango.messages.codecs import serializable
+
+    @json_serializable
+    class DecoratorData:
+        def __init__(self, x, y, z):
+            self.x = x
+            self.y = y
+            self.z = z
+
+    def main():
+        codec = codecs.JSON()
+        codec.add_serializer(*DecoratorData.__serializer__())
+
+        my_data = DecoratorData(1,2,3)
+        encoded = codec.encode(my_data)
+        decoded = codec.decode(encoded)
+
+        print(my_data.x, my_data.y, my_data.z)
+        print(decoded.x, decoded.y, decoded.z)
+
+.. code-block:: bash
+
+    python main.py
+    1 2 3
+    1 2 3
 
 
 proto codec and ACLMessage
