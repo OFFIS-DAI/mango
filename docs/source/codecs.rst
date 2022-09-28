@@ -80,10 +80,10 @@ We have to make the type known to the codec to use it:
     abc 123
     abc 123
 
-All that is left to do now is to pass our codec to the container. This is done durint container creation in the `factory` method.
+All that is left to do now is to pass our codec to the container. This is done during container creation in the ``factory`` method.
 
 .. code-block:: python3
-    
+
     class SimpleReceivingAgent(Agent):
         def __init__(self, container):
             super().__init__(container)
@@ -99,7 +99,7 @@ All that is left to do now is to pass our codec to the container. This is done d
         codec = codecs.JSON()
         codec.add_serializer(*MyClass.__serializer__())
 
-        # codecs can be passed directly to the container
+        # codecs can be passed at container creation
         # if no codec is passed a new instance of JSON() is created
         my_container = await Container.factory(addr=("localhost", 5555), codec=codec)
         my_agent = SimpleReceivingAgent(my_container)
