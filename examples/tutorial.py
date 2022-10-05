@@ -1,15 +1,15 @@
+import random
 from mango.core.agent import Agent
 from mango.core.container import Container
 from mango.messages.message import ACLMessage as ACLMessage_json, Performatives
 import mango.messages.codecs
-import mango_library.negotiation.util as util
+
+# import mango_library.negotiation.util as util
 from mango.role.core import RoleAgent
 
-import numpy as np
+# import numpy as np
 
 import asyncio
-
-
 
 
 class PVAgent(Agent):
@@ -19,24 +19,22 @@ class PVAgent(Agent):
         self.conversations = []
         print(f"Hello I am a PV agent! My id is {self._aid}.")
 
-
     def handle_msg(self, content, meta):
         """
-        decide which actions shall be performed as reaction to message
+        Decide which actions shall be performed as reaction to message
         :param content: the content of the message
         :param meta: meta information
         """
         print(f"Received message: {content} with meta {meta}")
 
-        t = asyncio.create_task(self.react_to_get_feed_in(content, meta))
-        t.add_done_callback(self.raise_exceptions)
+        t = self.schedule_instant_task(self.react_to_get_feed_in(content, meta))
 
     async def react_to_get_feed_in(self, msg_in, meta_in):
         conversation_id = meta_in['conversation_id']
         reply_by = meta_in['reply_by']
         sender_id = meta_in['sender_id']
         sender_addr = meta_in['sender_addr']
-        feed_in = np.random.uniform(0.0, 10.0)
+        feed_in = random.uniform(0.0, 10.0)
 
         # prepare a reply
         if conversation_id not in self.conversations:
@@ -44,26 +42,30 @@ class PVAgent(Agent):
         if reply_by == 'get_feed_in':
             # answer
             message_out_content = f"My feed_in is: {feed_in}"
+            reply_key = 'end'
         elif reply_by == 'end':
             # end received, send good bye
             message_out_content = 'Good Bye'
             # end conversation
             reply_key = None
             self.conversations.remove(conversation_id)
+        elif reply_by is None:
+            pass
         else:
             assert False, f'got strange reply_by: {reply_by}'
-        message = ACLMessage_json(
-            sender_id=self.aid,
-            sender_addr=self.addr_str,
-            receiver_id=sender_id,
-            receiver_addr=sender_addr,
-            content=message_out_content,
-            in_reply_to=reply_by,
-            reply_by=reply_key,
-            conversation_id=conversation_id,
-            performative=Performatives.inform)
-        self.agent_logger.debug(f'Going to send {message}')
-        await self._container.send_message(message, sender_addr)
+
+        if reply_by is not None:
+            message = ACLMessage_json(
+                sender_id=self.aid,
+                sender_addr=self._container.addr,
+                receiver_id=sender_id,
+                receiver_addr=sender_addr,
+                content=message_out_content,
+                in_reply_to=reply_by,
+                reply_by=reply_key,
+                conversation_id=conversation_id,
+                performative=Performatives.inform)
+            await self._container.send_message(message, sender_addr)
 
         if len(self.conversations) == 0:
             await self.shutdown()
@@ -124,7 +126,7 @@ class ControllerAgent(Agent):
         if self.other_aid is not None:
             message_content = "What is your feed in?"
             acl_meta = {
-                'reply_by': 'get feed in',
+                'reply_by': 'get_feed_in',
                 'conversation_id': f'{self.aid}_1',
                 'performative': Performatives.inform.value,
                 'sender_id': self.aid,
@@ -202,7 +204,7 @@ class LoadPlanAgent(Agent):
         reply_by = meta_in['reply_by']
         sender_id = meta_in['sender_id']
         sender_addr = meta_in['sender_addr']
-        loadplan = np.random.uniform(2.0, 20.0)
+        loadplan = random.uniform(2.0, 20.0)
 
         # prepare a reply
         if conversation_id not in self.conversations:
@@ -355,9 +357,10 @@ async def run_adapted_controller(self):
     # create containers
     codec = mango.messages.codecs.JSON()
     codec2 = mango.messages.codecs.JSON()
-    for serializer in util.extra_serializers:
-        codec.add_serializer(*serializer())
-        codec2.add_serializer(*serializer())
+    #TODO
+    # for serializer in util.extra_serializers:
+    #     codec.add_serializer(*serializer())
+    #     codec2.add_serializer(*serializer())
     container_1 = await Container.factory(addr=('127.0.0.2', 5555), codec=codec)
     container_2 = await Container.factory(addr=('127.0.0.2', 5556), codec=codec2)
 
