@@ -63,10 +63,9 @@ class ReplyAgent(Agent):
     async def send_ping(self):
         await self._container.send_message(receiver_addr='ping_receiver_addr', receiver_id='ping_receiver_id',
                                            create_acl=True, content=f'ping{self.current_ping}')
+        self.current_ping += 1
 
     def handle_msg(self, content, meta: Dict[str, Any]):
-        if self.current_ping == 0:
-            self.current_ping += 1
         self.schedule_instant_task(self.sleep_and_answer(content, meta))
 
     async def sleep_and_answer(self, content, meta):
