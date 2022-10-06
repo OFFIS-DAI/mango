@@ -1,10 +1,7 @@
-import random
 import asyncio
 
 from mango.core.agent import Agent
 from mango.core.container import Container
-from mango.messages.message import ACLMessage as ACLMessage_json, Performatives
-import mango.messages.codecs
 
 """
 For your first mango tutorial you will learn the fundamentals of creating mango agents and containers as well
