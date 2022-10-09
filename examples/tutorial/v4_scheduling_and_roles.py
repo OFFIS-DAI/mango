@@ -17,6 +17,13 @@ To achieve this the controller should seend a regular "ping" message to each pv 
 by a corresponding "pong". To properly serparate different responsibilities within agents, mango has a role
 system where each role covers the functionalities of a responsibility.
 
+A role is a python object that can be assigned to a RoleAgent. The two main functions each role implements are:
+    __init__ - where you do the initial object setup
+    setup - which is called when the role is assigned to an agent
+
+This distinction is relevant because only within `setup` the RoleContext (i.e. access to the parent agent and container) exist.
+Thus, things like message handlers that require container knowledge are introduced there.
+
 This example covers:
     - scheduling and periodic tasks
     - role API basics
