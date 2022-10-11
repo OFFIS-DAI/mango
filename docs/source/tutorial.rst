@@ -253,7 +253,7 @@ With this, the message handling in our agent classes can be simplified:
    </details>
 
 *************************
-1. Scheduling and Roles
+4. Scheduling and Roles
 *************************
 
 Corresponding file: `v4_scheduling_and_roles.py`
@@ -262,9 +262,9 @@ In example 3 you restructured your code to use codecs for easier handling of typ
 Now it is time to expand the functionality of our controller. In addition to setting the maximum feed_in 
 of the pv agents, the controller should now also periodically check if the pv agents are still reachable.
 
-To achieve this, the controller should seend a regular "ping" message to each pv agent that is in turn answered
-by a corresponding "pong". Periodic tasks can be handled for you by mangos scheduling API.
-Additionally, to serparate different responsibilities within agents, mango has a role system where each role 
+To achieve this, the controller should send a regular "ping" message to each pv agent that is in turn answered
+by a corresponding "pong". Periodic tasks can be handled for you by mango's scheduling API.
+Additionally, to separate different responsibilities within agents, mango has a role system where each role
 covers the functionalities of a responsibility.
 
 A role is a python object that can be assigned to a RoleAgent. The two main functions each role implements are:
@@ -284,7 +284,7 @@ This example covers:
    <summary><a>step by step</a></summary>
 
 The key part of defining roles are their ``__init__`` and ``setup`` methods. The first is called to create the role object.
-The second is called when the role is asssigned to an agent. In our case, the main change is that the previous distinction
+The second is called when the role is assigned to an agent. In our case, the main change is that the previous distinction
 of message types within ``handle_message`` is now done by subscribing to the corresponding message type to tell the agent
 it should forward these messages to this role. Since the PV Agent is purely reactive its other functionality stays basically
 unchanged and is simply moved to the PVRole. One small change is that message passing from the role is done via its context:
