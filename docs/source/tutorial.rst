@@ -58,8 +58,9 @@ Every agent must implement the ``handle_msg`` method to which incoming messages 
         def handle_msg(self, content, meta):
             print(f"Received message with content: {content} and meta {meta}.")
 
-Now we are ready to instantiate our system. Mango is fundamentally built in asyncio and a lot of its functions are 
-provided as coroutines. This means, practically every mango executable file will implement some variation of this
+Now we are ready to instantiate our system. mango is fundamentally built on top of asyncio and a lot of its functions
+are provided as coroutines.
+This means, practically every mango executable file will implement some variation of this
 pattern:
 
 .. code-block:: python
@@ -147,9 +148,12 @@ This example covers:
 Corresponding file: `v3_codecs_and_typing.py`
 
 In example 2 you created some basic agent functionality and established inter-container communication.
-Message types were distinguished by a corresponding field in the content dictionary. This approach is 
+Message types were distinguished by a  field of the meta information. This approach is
 tedious and prone to error. A better way is to use dedicated message objects and using their types to distinguish
-messages. Objects can be encoded for messaging between agents by mangos codecs. To make a new object type
+messages.
+
+If instances of custom classes are exchanged over the network (or generally between different containers),
+these instances need to be serialized. In mango, objects can be encoded by mangos codecs. To make a new object type
 known to a codec it needs to provide a serialization and a deserialization method. The object type together
 with these methods is then passed to the codec which in turn is passed to a container. The container will then
 automatically use these methods when it encounters an object of this type as the content of a message.
