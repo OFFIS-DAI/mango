@@ -3,9 +3,11 @@ import asyncio
 
 from mango.core.agent import Agent
 from mango.core.container import Container
+from mango.messages.message import Performatives
 
 """
-In the previous example you learned how to create mango agents and containers and how to send basic messages between them.
+In the previous example you learned how to create mango agents and containers and 
+how to send basic messages between them.
 In this example you expand upon this. We introduce a controller agent that asks the current feed_in of our PV agents and
 subsequently limits the output of both to the minimum of the two.
 
@@ -26,28 +28,33 @@ class PVAgent(Agent):
         self.max_feed_in = -1
 
     def handle_msg(self, content, meta):
-        m_type = content["type"]
-        m_content = content["content"]
+        performative = meta["performative"]
 
         sender_addr = meta["sender_addr"]
         sender_id = meta["sender_id"]
 
-        if m_type == "ask_feed_in":
+        if performative == Performatives.request:
+            # ask_feed_in message
             self.handle_ask_feed_in(sender_addr, sender_id)
-        elif m_type == "set_max_feed_in":
-            self.handle_set_feed_in_max(m_content, sender_addr, sender_id)
+        elif performative == Performatives.propose:
+            # set_max_feed_in message
+            self.handle_set_feed_in_max(content, sender_addr, sender_id)
         else:
-            print(f"{self._aid}: Received a message of unknown type {m_type}")
+            print(f"{self._aid}: Received an unexpected message with content {content} and meta {meta}")
 
     def handle_ask_feed_in(self, sender_addr, sender_id):
         reported_feed_in = random.randint(1, 10)
-        msg = {"type": "feed_in_reply", "content": reported_feed_in}
+        content = reported_feed_in
+
+        acl_meta = {"sender_addr": self._container.addr, "sender_id": self._aid,
+                    "performative": Performatives.inform}
 
         self.schedule_instant_task(
             self._container.send_message(
-                content=msg,
+                content=content,
                 receiver_addr=sender_addr,
                 receiver_id=sender_id,
+                acl_metadata=acl_meta,
                 create_acl=True,
             )
         )
@@ -55,13 +62,12 @@ class PVAgent(Agent):
     def handle_set_feed_in_max(self, max_feed_in, sender_addr, sender_id):
         self.max_feed_in = float(max_feed_in)
         print(f"PV {self._aid}: Limiting my feed_in to {max_feed_in}")
-
-        msg = {"type": "set_max_ack", "content": None}
         self.schedule_instant_task(
             self._container.send_message(
-                content=msg,
+                content=None,
                 receiver_addr=sender_addr,
                 receiver_id=sender_id,
+                acl_metadata={'performative': Performatives.accept_proposal},
                 create_acl=True,
             )
         )
@@ -77,15 +83,15 @@ class ControllerAgent(Agent):
         self.acks_done = None
 
     def handle_msg(self, content, meta):
-        m_type = content["type"]
-        m_content = content["content"]
-
-        if m_type == "feed_in_reply":
-            self.handle_feed_in_reply(m_content)
-        elif m_type == "set_max_ack":
+        performative = meta['performative']
+        if performative == Performatives.inform:
+            # feed_in_reply message
+            self.handle_feed_in_reply(content)
+        elif performative == Performatives.accept_proposal:
+            # set_max_ack message
             self.handle_set_max_ack()
         else:
-            print(f"{self._aid}: Received a message of unknown type {m_type}")
+            print(f"{self._aid}: Received an unexpected message  with content {content} and meta {meta}")
 
     def handle_feed_in_reply(self, feed_in_value):
         self.reported_feed_ins.append(float(feed_in_value))
@@ -111,13 +117,13 @@ class ControllerAgent(Agent):
 
         # ask pv agent feed-ins
         for addr, aid in self.known_agents:
-            msg = {"type": "ask_feed_in", "content": None}
-            acl_meta = {"sender_addr": self._container.addr, "sender_id": self._aid}
-
+            content = None
+            acl_meta = {"sender_addr": self._container.addr, "sender_id": self._aid,
+                        "performative": Performatives.request}
             # alternatively we could call send_message here directly and await it
             self.schedule_instant_task(
                 self._container.send_message(
-                    content=msg,
+                    content=content,
                     receiver_addr=addr,
                     receiver_id=aid,
                     create_acl=True,
@@ -133,13 +139,14 @@ class ControllerAgent(Agent):
         min_feed_in = min(self.reported_feed_ins)
 
         for addr, aid in self.known_agents:
-            msg = {"type": "set_max_feed_in", "content": min_feed_in}
-            acl_meta = {"sender_addr": self._container.addr, "sender_id": self._aid}
+            content = min_feed_in
+            acl_meta = {"sender_addr": self._container.addr, "sender_id": self._aid,
+                        "performative": Performatives.propose}
 
             # alternatively we could call send_message here directly and await it
             self.schedule_instant_task(
                 self._container.send_message(
-                    content=msg,
+                    content=content,
                     receiver_addr=addr,
                     receiver_id=aid,
                     create_acl=True,
