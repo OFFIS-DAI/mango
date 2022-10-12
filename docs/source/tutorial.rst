@@ -148,12 +148,12 @@ This example covers:
 Corresponding file: `v3_codecs_and_typing.py`
 
 In example 2 you created some basic agent functionality and established inter-container communication.
-Message types were distinguished by a  field of the meta information. This approach is
+Message types were distinguished by the performative field of the meta information. This approach is
 tedious and prone to error. A better way is to use dedicated message objects and using their types to distinguish
 messages.
 
 If instances of custom classes are exchanged over the network (or generally between different containers),
-these instances need to be serialized. In mango, objects can be encoded by mangos codecs. To make a new object type
+these instances need to be serialized. In mango, objects can be encoded by mango's codecs. To make a new object type
 known to a codec it needs to provide a serialization and a deserialization method. The object type together
 with these methods is then passed to the codec which in turn is passed to a container. The container will then
 automatically use these methods when it encounters an object of this type as the content of a message.
@@ -173,7 +173,10 @@ as simple data classes. For simple classes like this, we can use the ``json_seri
 provide us with the serialization functionality.
 
 .. code-block:: python
-    
+
+    import mango.messages.codecs as codecs
+    from dataclasses import dataclass
+
     @codecs.json_serializable
     @dataclass
     class AskFeedInMsg:
@@ -248,6 +251,14 @@ With this, the message handling in our agent classes can be simplified:
             else:
                 print(f"{self._aid}: Received a message of unknown type {type(content)}")
 
+
+This concludes the third part of our tutorial. If you run the code,
+you should receive the same output as in part 2:
+
+    | Controller received feed_ins: [2.0, 1.0]
+    | PV agent0: Limiting my feed_in to 1.0
+    | PV agent1: Limiting my feed_in to 1.0
+
 .. raw:: html
 
    </details>
@@ -286,96 +297,21 @@ This example covers:
 The key part of defining roles are their ``__init__`` and ``setup`` methods. The first is called to create the role object.
 The second is called when the role is assigned to an agent. In our case, the main change is that the previous distinction
 of message types within ``handle_message`` is now done by subscribing to the corresponding message type to tell the agent
-it should forward these messages to this role. Since the PV Agent is purely reactive its other functionality stays basically
-unchanged and is simply moved to the PVRole. One small change is that message passing from the role is done via its context:
+it should forward these messages to this role.
+The ``subscribe_message`` method expects, besides the role and a handle method, a message condition function.
+The idea of the condition function is to allow to define a condition filtering incoming messages.
+Another idea is that sending messages from the role is now done via its context with the method:
 ``self.context.send_message``.
 
-.. code-block:: python
-
-    class PVRole(Role):
-        def __init__(self):
-            self.max_feed_in = -1
-
-        def setup(self):
-            self.context.subscribe_message(
-                self,
-                self.handle_ask_feed_in,
-                lambda content, meta: isinstance(content, AskFeedInMsg),
-            )
-            self.context.subscribe_message(
-                self,
-                self.handle_set_feed_in_max,
-                lambda content, meta: isinstance(content, SetMaxFeedInMsg),
-            )
-
-        def handle_ask_feed_in(self, content, meta):
-            """..."""
-        self.context.schedule_instant_task(
-            self.context.send_message(
-                content=msg,
-                receiver_addr=sender_addr,
-                receiver_id=sender_id,
-                create_acl=True,
-            )
-        )
-
-        def handle_set_feed_in_max(self, content, meta):
-            """..."""
-            self.context.schedule_instant_task(
-                self.context.send_message(
-                    content=msg,
-                    receiver_addr=sender_addr,
-                    receiver_id=sender_id,
-                    create_acl=True,
-                )
-            )
-
-The definition of the agent class itself now simply boils down to assigning it all the roles it has:
-
-.. code-block:: python
-
-    class PVAgent(RoleAgent):
-        def __init__(self, container):
-            super().__init__(container)
-            self.add_role(PongRole())
-            self.add_role(PVRole())
-
-The corresponding changes to the controller role are ommitted here as they work the exact same way.
-The ``Pong`` role is associated with the PV Agents and purely reactive. 
-
-.. code-block:: python
-
-    class PongRole(Role):
-        def setup(self):
-            self.context.subscribe_message(
-                self, self.handle_ping, lambda content, meta: isinstance(content, Ping)
-            )
-
-        def handle_ping(self, content, meta):
-            ping_id = content.ping_id
-            sender_addr = meta["sender_addr"]
-            sender_id = meta["sender_id"]
-            answer = Pong(ping_id)
-
-            print(f"Ping {self.context.aid}: Received a ping with ID: {ping_id}")
-
-            # message sending from roles is done via the RoleContext
-            self.context.schedule_instant_task(
-                self.context.send_message(
-                    answer,
-                    receiver_addr=sender_addr,
-                    receiver_id=sender_id,
-                    create_acl=True,
-                )
-            )
-
-
-The ``Ping`` role has to periodically send out its messages. We can use mangos scheduling API to handle
+We first create the ``Ping`` role, which has to periodically send out its messages.
+We can use mangos scheduling API to handle
 this for us via the ``schedule_periodic_tasks`` function. This takes a coroutine to execute and a time
 interval. Whenever the time interval runs out the coroutine is triggered. With the scheduling API you can
-also run tasks at specific times. For a full overview refer to the documentation.
+also run tasks at specific times. For a full overview we refer to the documentation.
 
 .. code-block:: python
+
+    from mango.role.api import Role
 
     class PingRole(Role):
         def __init__(self, ping_recipients, time_between_pings):
@@ -419,7 +355,147 @@ also run tasks at specific times. For a full overview refer to the documentation
                     f"Pong {self.context.aid}: Received an unexpected pong with ID: {content.pong_id}"
                 )
 
-This concludes the mango tutorial.
+
+The ControllerRole now covers the former responsibilities of the controller:
+
+.. code-block:: python
+
+    class ControllerRole(Role):
+    def __init__(self, known_agents):
+        super().__init__()
+        self.known_agents = known_agents
+        self.reported_feed_ins = []
+        self.reported_acks = 0
+        self.reports_done = None
+        self.acks_done = None
+
+    def setup(self):
+        self.context.subscribe_message(
+            self,
+            self.handle_feed_in_reply,
+            lambda content, meta: isinstance(content, FeedInReplyMsg),
+        )
+
+        self.context.subscribe_message(
+            self,
+            self.handle_set_max_ack,
+            lambda content, meta: isinstance(content, MaxFeedInAck),
+        )
+
+        self.context.schedule_instant_task(self.run())
+
+The methods ``handle_feed_in_reply``, ``handle_set_max_ack`` and ``run`` are also part of this role and
+remain unchanged.
+
+The ``Pong`` role is associated with the PV Agents and purely reactive.
+
+.. code-block:: python
+
+    class PongRole(Role):
+        def setup(self):
+            self.context.subscribe_message(
+                self, self.handle_ping, lambda content, meta: isinstance(content, Ping)
+            )
+
+        def handle_ping(self, content, meta):
+            ping_id = content.ping_id
+            sender_addr = meta["sender_addr"]
+            sender_id = meta["sender_id"]
+            answer = Pong(ping_id)
+
+            print(f"Ping {self.context.aid}: Received a ping with ID: {ping_id}")
+
+            # message sending from roles is done via the RoleContext
+            self.context.schedule_instant_task(
+                self.context.send_message(
+                    answer,
+                    receiver_addr=sender_addr,
+                    receiver_id=sender_id,
+                    create_acl=True,
+                )
+            )
+
+
+Since the PV Agent is purely reactive its other functionality stays basically
+unchanged and is simply moved to the PVRole.
+
+.. code-block:: python
+
+    class PVRole(Role):
+        def __init__(self):
+            self.max_feed_in = -1
+
+        def setup(self):
+            self.context.subscribe_message(
+                self,
+                self.handle_ask_feed_in,
+                lambda content, meta: isinstance(content, AskFeedInMsg),
+            )
+            self.context.subscribe_message(
+                self,
+                self.handle_set_feed_in_max,
+                lambda content, meta: isinstance(content, SetMaxFeedInMsg),
+            )
+
+        def handle_ask_feed_in(self, content, meta):
+            """..."""
+        self.context.schedule_instant_task(
+            self.context.send_message(
+                content=msg,
+                receiver_addr=sender_addr,
+                receiver_id=sender_id,
+                create_acl=True,
+            )
+        )
+
+        def handle_set_feed_in_max(self, content, meta):
+            """..."""
+            self.context.schedule_instant_task(
+                self.context.send_message(
+                    content=msg,
+                    receiver_addr=sender_addr,
+                    receiver_id=sender_id,
+                    create_acl=True,
+                )
+            )
+
+
+The definition of the agent classes itself now simply boils down to assigning it all the roles it has:
+
+.. code-block:: python
+
+    from mango.role.core import RoleAgent
+
+    class PVAgent(RoleAgent):
+        def __init__(self, container):
+            super().__init__(container)
+            self.add_role(PongRole())
+            self.add_role(PVRole())
+
+    class ControllerAgent(RoleAgent):
+        def __init__(self, container, known_agents):
+            super().__init__(container)
+            self.add_role(PingRole(known_agents, 2))
+            self.add_role(ControllerRole(known_agents))
+
+
+This concludes the last part of our tutorial. If you run this code, you should receive the following output:
+
+    | Ping agent0: Received a ping with ID: 0
+    | Ping agent1: Received a ping with ID: 1
+    | Pong agent0: Received an expected pong with ID: 0
+    | Pong agent0: Received an expected pong with ID: 1
+    | Controller received feed_ins: [2.0, 1.0]
+    | PV agent0: Limiting my feed_in to 1.0
+    | PV agent1: Limiting my feed_in to 1.0
+    | Ping agent0: Received a ping with ID: 2
+    | Ping agent1: Received a ping with ID: 3
+    | Pong agent0: Received an expected pong with ID: 2
+    | Pong agent0: Received an expected pong with ID: 3
+    | Ping agent0: Received a ping with ID: 4
+    | Ping agent1: Received a ping with ID: 5
+    | Pong agent0: Received an expected pong with ID: 4
+    | Pong agent0: Received an expected pong with ID: 5
 
 .. raw:: html
 

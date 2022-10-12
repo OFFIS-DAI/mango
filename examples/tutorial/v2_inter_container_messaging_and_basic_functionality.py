@@ -29,7 +29,6 @@ class PVAgent(Agent):
 
     def handle_msg(self, content, meta):
         performative = meta["performative"]
-
         sender_addr = meta["sender_addr"]
         sender_id = meta["sender_id"]
 

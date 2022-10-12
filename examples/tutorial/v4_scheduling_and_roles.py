@@ -41,6 +41,7 @@ random.seed(42)
 # - a controller role for sending out feed_in requests and setting maximum feed_ins
 class PingRole(Role):
     def __init__(self, ping_recipients, time_between_pings):
+        super().__init__()
         self.ping_recipients = ping_recipients
         self.time_between_pings = time_between_pings
         self.ping_counter = 0
@@ -108,6 +109,7 @@ class PongRole(Role):
 
 class PVRole(Role):
     def __init__(self):
+        super().__init__()
         self.max_feed_in = -1
 
     def setup(self):
@@ -159,6 +161,7 @@ class PVRole(Role):
 
 class ControllerRole(Role):
     def __init__(self, known_agents):
+        super().__init__()
         self.known_agents = known_agents
         self.reported_feed_ins = []
         self.reported_acks = 0
