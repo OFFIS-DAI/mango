@@ -275,8 +275,11 @@ of the pv agents, the controller should now also periodically check if the pv ag
 
 To achieve this, the controller should send a regular "ping" message to each pv agent that is in turn answered
 by a corresponding "pong". Periodic tasks can be handled for you by mango's scheduling API.
-Additionally, to separate different responsibilities within agents, mango has a role system where each role
-covers the functionalities of a responsibility.
+
+With the introduction of this task, we know have different responsibilities for the agents
+(e. g. act as PVAgent and reply to ping requests). In order to facility structuring an agent with different
+responsibilities we can use the role API.
+The idea of using roles is to divide the functionality of an agent by responsibility in a structured way.
 
 A role is a python object that can be assigned to a RoleAgent. The two main functions each role implements are:
     - __init__ - where you do the initial object setup
