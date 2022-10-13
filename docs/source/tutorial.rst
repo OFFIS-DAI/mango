@@ -364,6 +364,12 @@ Lastly, we call all relevant instantiations and the run function within our main
     if __name__ == "__main__":
         asyncio.run(main())
 
+This concludes the second part of our tutorial. If you run this code you should receive the following output:
+
+    | Controller received feed_ins: [2.0, 1.0]
+    | PV agent0: Limiting my feed_in to 1.0
+    | PV agent1: Limiting my feed_in to 1.0
+
 
 .. raw:: html
 
