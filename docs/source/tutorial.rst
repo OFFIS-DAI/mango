@@ -370,7 +370,7 @@ Lastly, we call all relevant instantiations and the run function within our main
    </details>
 
 *******************************************
-1. Using Codecs to simplity Message Types
+3. Using Codecs to simplify Message Types
 *******************************************
 
 Corresponding file: `v3_codecs_and_typing.py`
