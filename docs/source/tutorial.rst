@@ -141,8 +141,236 @@ This example covers:
     - basic task scheduling
     - use of ACL metadata
 
+.. raw:: html
+
+   <details>
+   <summary><a>step by step</a></summary>
+
+First, we define our controller Agent. To ensure it can message the pv agents we pass that information
+directly to it in the constructor. The control agent will send out messages to each pv agent, await their
+replies and act according to that information. To handle this, we also add some control structures to the
+constructor that we will later use to keep track of which agents have already answered our messages.
+
+
+.. code-block:: python
+
+    class ControllerAgent(Agent):
+        def __init__(self, container, known_agents):
+            super().__init__(container)
+            self.known_agents = known_agents
+            self.reported_feed_ins = []
+            self.reported_acks = 0
+            self.reports_done = None
+            self.acks_done = None
+
+Next, we set up its ``handle_message`` function. The controller needs to distinguish between two message types:
+The replies to feed_in requests and later the acknowledgements that a new maximum feed_in was set by a pv agent.
+We use the ``performative`` field of the ACL message to do this. We set the ``performative`` field to ``inform``
+for feed_in replies and to ``accept_proposal`` for feed_in change acknowledgements. All messages between containers
+are expected to be ACL Messages (or implement the split_content_and_meta function). Since we do not want to create
+the full ACL object ourselves every time, within this example we always pass the ``create_acl=True`` flag to
+``send_message``.
+
+.. code-block:: python
+
+    class ControllerAgent(Agent):
+        """..."""
+
+        def handle_msg(self, content, meta):
+            performative = meta['performative']
+            if performative == Performatives.inform:
+                # feed_in_reply message
+                self.handle_feed_in_reply(content)
+            elif performative == Performatives.accept_proposal:
+                # set_max_ack message
+                self.handle_set_max_ack()
+            else:
+                print(f"{self._aid}: Received an unexpected message  with content {content} and meta {meta}")
+
+        def handle_feed_in_reply(self, feed_in_value):
+            self.reported_feed_ins.append(float(feed_in_value))
+            if len(self.reported_feed_ins) == len(self.known_agents):
+                if self.reports_done is not None:
+                    self.reports_done.set_result(True)
+
+        def handle_set_max_ack(self):
+            self.reported_acks += 1
+            if self.reported_acks == len(self.known_agents):
+                if self.acks_done is not None:
+                    self.acks_done.set_result(True)
+
+We do the same for our PV agents.
+
+.. code-block:: python
+
+    class PVAgent(Agent):
+        def __init__(self, container):
+            super().__init__(container)
+            self.max_feed_in = -1
+
+        def handle_msg(self, content, meta):
+            performative = meta["performative"]
+            sender_addr = meta["sender_addr"]
+            sender_id = meta["sender_id"]
+
+            if performative == Performatives.request:
+                # ask_feed_in message
+                self.handle_ask_feed_in(sender_addr, sender_id)
+            elif performative == Performatives.propose:
+                # set_max_feed_in message
+                self.handle_set_feed_in_max(content, sender_addr, sender_id)
+            else:
+                print(f"{self._aid}: Received an unexpected message with content {content} and meta {meta}")
+
+
+When a PV agent receives a request from the controll it immediately answers. Note two important changes to the first
+example here: First, within our message handling methods we can not ``await send_message`` directly because ``handle_message``
+is not a coroutine. Instead, we pass ``send_message`` as a task to the scheduler to be executed at once via the 
+``schedule_instant_task`` method.
+Second, we set ``acl_meta`` to contain the typing information of our message and pass the ``create_acl=True`` flag.
+
+.. code-block:: python
+
+    class PVAgent(Agent):
+        """..."""
+
+        def handle_ask_feed_in(self, sender_addr, sender_id):
+            reported_feed_in = random.randint(1, 10)
+            content = reported_feed_in
+
+            acl_meta = {"sender_addr": self._container.addr, "sender_id": self._aid,
+                        "performative": Performatives.inform}
+
+            self.schedule_instant_task(
+                self._container.send_message(
+                    content=content,
+                    receiver_addr=sender_addr,
+                    receiver_id=sender_id,
+                    acl_metadata=acl_meta,
+                    create_acl=True,
+                )
+            )
+
+        def handle_set_feed_in_max(self, max_feed_in, sender_addr, sender_id):
+            self.max_feed_in = float(max_feed_in)
+            print(f"PV {self._aid}: Limiting my feed_in to {max_feed_in}")
+            self.schedule_instant_task(
+                self._container.send_message(
+                    content=None,
+                    receiver_addr=sender_addr,
+                    receiver_id=sender_id,
+                    acl_metadata={'performative': Performatives.accept_proposal},
+                    create_acl=True,
+                )
+            )
+
+Now both of our agents can handle their respective messages. The last thing to do is make the controller actually
+perform its active actions. We do this by implementing a ``run`` function with the following control flow:
+- send a feed_in request to each known pv agent
+- wait for all pv agents to answer
+- find the minimum reported feed_in
+- send a maximum feed_in setpoint of this minimum to each pv agent 
+- again, wait for all pv agents to reply
+- terminate
+
+.. code-block:: python
+
+    class ControllerAgent(Agent):
+        """..."""
+
+        async def run(self):
+            # we define an asyncio future to await replies from all known pv agents:
+            self.reports_done = asyncio.Future()
+            self.acks_done = asyncio.Future()
+
+            # Note: For messages passed between different containers (i.e. over the network socket) it is expected
+            # that the message is an ACLMessage object. We can let the container wrap our content in such an
+            # object with the create_acl flag.
+            # We distinguish the types of messages we send by adding a type field to our content.
+
+            # ask pv agent feed-ins
+            for addr, aid in self.known_agents:
+                content = None
+                acl_meta = {"sender_addr": self._container.addr, "sender_id": self._aid,
+                            "performative": Performatives.request}
+                # alternatively we could call send_message here directly and await it
+                self.schedule_instant_task(
+                    self._container.send_message(
+                        content=content,
+                        receiver_addr=addr,
+                        receiver_id=aid,
+                        create_acl=True,
+                        acl_metadata=acl_meta,
+                    )
+                )
+
+            # wait for both pv agents to answer
+            await self.reports_done
+
+            # limit both pv agents to the smaller ones feed-in
+            print(f"Controller received feed_ins: {self.reported_feed_ins}")
+            min_feed_in = min(self.reported_feed_ins)
+
+            for addr, aid in self.known_agents:
+                content = min_feed_in
+                acl_meta = {"sender_addr": self._container.addr, "sender_id": self._aid,
+                            "performative": Performatives.propose}
+
+                # alternatively we could call send_message here directly and await it
+                self.schedule_instant_task(
+                    self._container.send_message(
+                        content=content,
+                        receiver_addr=addr,
+                        receiver_id=aid,
+                        create_acl=True,
+                        acl_metadata=acl_meta,
+                    )
+                )
+
+            # wait for both pv agents to acknowledge the change
+            await self.acks_done
+
+Lastly, we call all relevant instantiations and the run function within our main coroutine:
+
+.. code-block:: python
+
+    PV_CONTAINER_ADDRESS = ("localhost", 5555)
+    CONTROLLER_CONTAINER_ADDRESS = ("localhost", 5556)  
+
+    async def main():
+        pv_container = await Container.factory(addr=PV_CONTAINER_ADDRESS)
+        controller_container = await Container.factory(addr=CONTROLLER_CONTAINER_ADDRESS)
+
+        # agents always live inside a container
+        pv_agent_1 = PVAgent(pv_container)
+        pv_agent_2 = PVAgent(pv_container)
+
+        # We pass info of the pv agents addresses to the controller here directly.
+        # In reality, we would use some kind of discovery mechanism for this.
+        known_agents = [
+            (PV_CONTAINER_ADDRESS, pv_agent_1._aid),
+            (PV_CONTAINER_ADDRESS, pv_agent_2._aid),
+        ]
+
+        controller_agent = ControllerAgent(controller_container, known_agents)
+
+        # the only active component in this setup
+        await controller_agent.run()
+
+        # always properly shut down your containers
+        await pv_container.shutdown()
+        await controller_container.shutdown()
+
+    if __name__ == "__main__":
+        asyncio.run(main())
+
+
+.. raw:: html
+
+   </details>
+
 *******************************************
-3. Using Codecs to simplity Message Types
+1. Using Codecs to simplity Message Types
 *******************************************
 
 Corresponding file: `v3_codecs_and_typing.py`
