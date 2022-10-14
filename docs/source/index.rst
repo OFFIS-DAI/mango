@@ -25,6 +25,7 @@ Features
 
    installation
    getting_started
+   tutorial
    agents-container
    message exchange
    scheduling
