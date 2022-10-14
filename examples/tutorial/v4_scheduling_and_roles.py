@@ -1,4 +1,3 @@
-import random
 import asyncio
 from dataclasses import dataclass
 
@@ -21,7 +20,8 @@ A role is a python object that can be assigned to a RoleAgent. The two main func
     __init__ - where you do the initial object setup
     setup - which is called when the role is assigned to an agent
 
-This distinction is relevant because only within `setup` the RoleContext (i.e. access to the parent agent and container) exist.
+This distinction is relevant because only within `setup` the 
+RoleContext (i.e. access to the parent agent and container) exist.
 Thus, things like message handlers that require container knowledge are introduced there.
 
 This example covers:
@@ -31,7 +31,10 @@ This example covers:
 
 PV_CONTAINER_ADDRESS = ("localhost", 5555)
 CONTROLLER_CONTAINER_ADDRESS = ("localhost", 5556)
-random.seed(42)
+PV_FEED_IN = {
+    'PV Agent 0': 2.0,
+    'PV Agent 1': 1.0,
+}
 
 
 # To separate the agents functionalities we introduce four roles:
@@ -125,7 +128,7 @@ class PVRole(Role):
         )
 
     def handle_ask_feed_in(self, content, meta):
-        reported_feed_in = random.randint(1, 10)
+        reported_feed_in = PV_FEED_IN[self.context.aid]  # PV_FEED_IN must be defined at the top
         msg = FeedInReplyMsg(reported_feed_in)
 
         sender_addr = meta["sender_addr"]
@@ -305,12 +308,12 @@ async def main():
         addr=CONTROLLER_CONTAINER_ADDRESS, codec=my_codec
     )
 
-    pv_agent_1 = PVAgent(pv_container, suggested_aid='PV Agent 0')
-    pv_agent_2 = PVAgent(pv_container, suggested_aid='PV Agent 1')
+    pv_agent_0 = PVAgent(pv_container, suggested_aid='PV Agent 0')
+    pv_agent_1 = PVAgent(pv_container, suggested_aid='PV Agent 1')
 
     known_agents = [
-        (PV_CONTAINER_ADDRESS, pv_agent_1._aid),
-        (PV_CONTAINER_ADDRESS, pv_agent_2._aid),
+        (PV_CONTAINER_ADDRESS, pv_agent_0.aid),
+        (PV_CONTAINER_ADDRESS, pv_agent_1.aid),
     ]
 
     controller_agent = ControllerAgent(controller_container, known_agents, suggested_aid='Controller')

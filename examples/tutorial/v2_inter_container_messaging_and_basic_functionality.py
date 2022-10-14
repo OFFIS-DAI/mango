@@ -1,4 +1,3 @@
-import random
 import asyncio
 
 from mango.core.agent import Agent
@@ -20,7 +19,10 @@ This example covers:
 
 PV_CONTAINER_ADDRESS = ("localhost", 5555)
 CONTROLLER_CONTAINER_ADDRESS = ("localhost", 5556)
-random.seed(42)
+PV_FEED_IN = {
+    'PV Agent 0': 2.0,
+    'PV Agent 1': 1.0,
+}
 
 
 class PVAgent(Agent):
@@ -43,7 +45,7 @@ class PVAgent(Agent):
             print(f"{self._aid}: Received an unexpected message with content {content} and meta {meta}")
 
     def handle_ask_feed_in(self, sender_addr, sender_id):
-        reported_feed_in = random.randint(1, 10)
+        reported_feed_in = PV_FEED_IN[self.aid]  # PV_FEED_IN must be defined at the top
         content = reported_feed_in
 
         acl_meta = {"sender_addr": self._container.addr, "sender_id": self._aid,
@@ -163,14 +165,14 @@ async def main():
     controller_container = await Container.factory(addr=CONTROLLER_CONTAINER_ADDRESS)
 
     # agents always live inside a container
-    pv_agent_1 = PVAgent(pv_container, suggested_aid='PV Agent 0')
-    pv_agent_2 = PVAgent(pv_container, suggested_aid='PV Agent 1')
+    pv_agent_0 = PVAgent(pv_container, suggested_aid='PV Agent 0')
+    pv_agent_1 = PVAgent(pv_container, suggested_aid='PV Agent 1')
 
     # We pass info of the pv agents addresses to the controller here directly.
     # In reality, we would use some kind of discovery mechanism for this.
     known_agents = [
-        (PV_CONTAINER_ADDRESS, pv_agent_1._aid),
-        (PV_CONTAINER_ADDRESS, pv_agent_2._aid),
+        (PV_CONTAINER_ADDRESS, pv_agent_0.aid),
+        (PV_CONTAINER_ADDRESS, pv_agent_1.aid),
     ]
 
     controller_agent = ControllerAgent(controller_container, known_agents, suggested_aid='Controller')

@@ -20,7 +20,7 @@ PV_CONTAINER_ADDRESS = ("localhost", 5555)
 class PVAgent(Agent):
     def __init__(self, container):
         super().__init__(container)
-        print(f"Hello I am a PV agent! My id is {self._aid}.")
+        print(f"Hello I am a PV agent! My id is {self.aid}.")
 
     def handle_msg(self, content, meta):
         print(f"Received message with content: {content} and meta {meta}.")
@@ -31,8 +31,8 @@ async def main():
     pv_container = await Container.factory(addr=PV_CONTAINER_ADDRESS)
 
     # agents always live inside a container
+    pv_agent_0 = PVAgent(pv_container)
     pv_agent_1 = PVAgent(pv_container)
-    pv_agent_2 = PVAgent(pv_container)
 
     # we can now send a simple message to an agent and observe that it is received:
     # Note that as of now agent IDs are set automatically as agent0, agent1, ... in order of instantiation.

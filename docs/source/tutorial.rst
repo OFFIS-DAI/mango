@@ -53,7 +53,7 @@ Every agent must implement the ``handle_msg`` method to which incoming messages 
     class PVAgent(Agent):
         def __init__(self, container):
             super().__init__(container)
-            print(f"Hello I am a PV agent! My id is {self._aid}.")
+            print(f"Hello I am a PV agent! My id is {self.aid}.")
 
         def handle_msg(self, content, meta):
             print(f"Received message with content: {content} and meta {meta}.")
@@ -89,8 +89,8 @@ Now we can create our agents. Agents always live inside a container and this con
 .. code-block:: python
 
     # agents always live inside a container
+    pv_agent_0 = PVAgent(pv_container)
     pv_agent_1 = PVAgent(pv_container)
-    pv_agent_2 = PVAgent(pv_container)
 
 For now, our agents are purely passive entities. To make them do something, we need to send them a message. Messages are 
 passed by the container via the ``send_message`` function always at least expects some content and a target address.
@@ -237,7 +237,7 @@ Second, we set ``acl_meta`` to contain the typing information of our message and
         """..."""
 
         def handle_ask_feed_in(self, sender_addr, sender_id):
-            reported_feed_in = random.randint(1, 10)
+            reported_feed_in = PV_FEED_IN[self.aid]  # PV_FEED_IN must be defined at the top
             content = reported_feed_in
 
             acl_meta = {"sender_addr": self._container.addr, "sender_id": self._aid,
@@ -337,21 +337,25 @@ Lastly, we call all relevant instantiations and the run function within our main
 .. code-block:: python
 
     PV_CONTAINER_ADDRESS = ("localhost", 5555)
-    CONTROLLER_CONTAINER_ADDRESS = ("localhost", 5556)  
+    CONTROLLER_CONTAINER_ADDRESS = ("localhost", 5556)
+    PV_FEED_IN = {
+        'PV Agent 0': 2.0,
+        'PV Agent 1': 1.0,
+    }
 
     async def main():
         pv_container = await Container.factory(addr=PV_CONTAINER_ADDRESS)
         controller_container = await Container.factory(addr=CONTROLLER_CONTAINER_ADDRESS)
 
         # agents always live inside a container
-        pv_agent_1 = PVAgent(pv_container, suggested_aid='PV Agent 0')
-        pv_agent_2 = PVAgent(pv_container, suggested_aid='PV Agent 1')
+        pv_agent_0 = PVAgent(pv_container, suggested_aid='PV Agent 0')
+        pv_agent_1 = PVAgent(pv_container, suggested_aid='PV Agent 1')
 
         # We pass info of the pv agents addresses to the controller here directly.
         # In reality, we would use some kind of discovery mechanism for this.
         known_agents = [
-            (PV_CONTAINER_ADDRESS, pv_agent_1._aid),
-            (PV_CONTAINER_ADDRESS, pv_agent_2._aid),
+            (PV_CONTAINER_ADDRESS, pv_agent_0.aid),
+            (PV_CONTAINER_ADDRESS, pv_agent_1.aid),
         ]
 
         controller_agent = ControllerAgent(controller_container, known_agents, suggested_aid='Controller')
@@ -732,7 +736,7 @@ with the following line:
 
         await asyncio.sleep(5)
 
-If you run this code, you should receive the following output:
+If you then run this code, you should receive the following output:
 
     | Ping PV Agent 0: Received a ping with ID: 0
     | Ping PV Agent 1: Received a ping with ID: 1
