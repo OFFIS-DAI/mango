@@ -7,7 +7,7 @@ Introduction
 ***************
 
 This tutorial gives an overview of the basic functions of mango agents and containers. It consists of four
-parts building a scenario of two PV plants, operated by an their respective agents being directed by a remote
+parts building a scenario of two PV plants, operated by their respective agents being directed by a remote
 controller. 
 
 Each part comes with a standalone executable file. Subsequent parts either extend the functionality or simplify 
@@ -28,7 +28,7 @@ As a whole, this tutorial covers:
 
 Corresponding file: `v1_basic_setup_and_message_passing.py`
 
-For your first mango tutorial you will learn the fundamentals of creating mango agents and containers as well
+For your first mango tutorial, you will learn the fundamentals of creating mango agents and containers as well
 as making them communicate with each other.
 
 This example covers:
@@ -132,9 +132,9 @@ This concludes the first part of our tutorial. If you run this code, you should 
 
 Corresponding file: `v2_inter_container_messaging_and_basic_functionality.py`
 
-In the previous example you learned how to create mango agents and containers and how to send basic messages between them.
-In this example you expand upon this. We introduce a controller agent that asks the current feed_in of our PV agents and
-subsequently limits the output of both to the minimum of the two.
+In the previous example, you learned how to create mango agents and containers and how to send basic messages between them.
+In this example, you expand upon this. We introduce a controller agent that asks the current feed_in of our PV agents and
+subsequently limits the output of both to their minimum.
 
 This example covers:
     - message passing between different containers
@@ -223,10 +223,10 @@ We do the same for our PV agents.
                 print(f"{self._aid}: Received an unexpected message with content {content} and meta {meta}")
 
 
-When a PV agent receives a request from the controll it immediately answers. Note two important changes to the first
-example here: First, within our message handling methods we can not ``await send_message`` directly because ``handle_message``
-is not a coroutine. Instead, we pass ``send_message`` as a task to the scheduler to be executed at once via the 
-``schedule_instant_task`` method.
+When a PV agent receives a request from the controller, it immediately answers. Note two important changes to the first
+example here: First, within our message handling methods we can not ``await send_message`` directly
+because ``handle_message`` is not a coroutine. Instead, we pass ``send_message`` as a task to the scheduler to be
+executed at once via the ``schedule_instant_task`` method.
 Second, we set ``acl_meta`` to contain the typing information of our message and pass the ``create_acl=True`` flag.
 
 .. code-block:: python
@@ -381,7 +381,7 @@ This concludes the second part of our tutorial. If you run this code you should 
 
 Corresponding file: `v3_codecs_and_typing.py`
 
-In example 2 you created some basic agent functionality and established inter-container communication.
+In example 2, you created some basic agent functionality and established inter-container communication.
 Message types were distinguished by the performative field of the meta information. This approach is
 tedious and prone to error. A better way is to use dedicated message objects and using their types to distinguish
 messages.
@@ -503,7 +503,7 @@ you should receive the same output as in part 2:
 
 Corresponding file: `v4_scheduling_and_roles.py`
 
-In example 3 you restructured your code to use codecs for easier handling of typed message objects.
+In example 3, you restructured your code to use codecs for easier handling of typed message objects.
 Now it is time to expand the functionality of our controller. In addition to setting the maximum feed_in 
 of the pv agents, the controller should now also periodically check if the pv agents are still reachable.
 
@@ -511,7 +511,7 @@ To achieve this, the controller should send a regular "ping" message to each pv 
 by a corresponding "pong". Periodic tasks can be handled for you by mango's scheduling API.
 
 With the introduction of this task, we know have different responsibilities for the agents
-(e. g. act as PVAgent and reply to ping requests). In order to facility structuring an agent with different
+(e. g. act as PVAgent and reply to ping requests). In order to facilitate structuring an agent with different
 responsibilities we can use the role API.
 The idea of using roles is to divide the functionality of an agent by responsibility in a structured way.
 
@@ -653,7 +653,7 @@ The ``Pong`` role is associated with the PV Agents and purely reactive.
             )
 
 
-Since the PV Agent is purely reactive its other functionality stays basically
+Since the PV Agent is purely reactive, its other functionality stays basically
 unchanged and is simply moved to the PVRole.
 
 .. code-block:: python
