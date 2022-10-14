@@ -139,6 +139,7 @@ subsequently limits the output of both to their minimum.
 This example covers:
     - message passing between different containers
     - basic task scheduling
+    - setting custom agent ids
     - use of ACL metadata
 
 .. raw:: html
@@ -150,13 +151,14 @@ First, we define our controller Agent. To ensure it can message the pv agents we
 directly to it in the constructor. The control agent will send out messages to each pv agent, await their
 replies and act according to that information. To handle this, we also add some control structures to the
 constructor that we will later use to keep track of which agents have already answered our messages.
+As an additional feature, we will make it possible to manually set the agent of our agents by.
 
 
 .. code-block:: python
 
     class ControllerAgent(Agent):
-        def __init__(self, container, known_agents):
-            super().__init__(container)
+        def __init__(self, container, known_agents, suggested_aid=None):
+            super().__init__(container, suggested_aid=suggested_aid)
             self.known_agents = known_agents
             self.reported_feed_ins = []
             self.reported_acks = 0
@@ -199,13 +201,13 @@ the full ACL object ourselves every time, within this example we always pass the
                 if self.acks_done is not None:
                     self.acks_done.set_result(True)
 
-We do the same for our PV agents.
+We do the same for our PV agents. We will also enable user defined agent ids here.
 
 .. code-block:: python
 
     class PVAgent(Agent):
-        def __init__(self, container):
-            super().__init__(container)
+        def __init__(self, container, suggested_aid=None):
+            super().__init__(container, suggested_aid=suggested_aid)
             self.max_feed_in = -1
 
         def handle_msg(self, content, meta):
@@ -253,7 +255,7 @@ Second, we set ``acl_meta`` to contain the typing information of our message and
 
         def handle_set_feed_in_max(self, max_feed_in, sender_addr, sender_id):
             self.max_feed_in = float(max_feed_in)
-            print(f"PV {self._aid}: Limiting my feed_in to {max_feed_in}")
+            print(f"{self._aid}: Limiting my feed_in to {max_feed_in}")
             self.schedule_instant_task(
                 self._container.send_message(
                     content=None,
@@ -308,7 +310,7 @@ perform its active actions. We do this by implementing a ``run`` function with t
             await self.reports_done
 
             # limit both pv agents to the smaller ones feed-in
-            print(f"Controller received feed_ins: {self.reported_feed_ins}")
+            print(f"{self._aid}: received feed_ins: {self.reported_feed_ins}")
             min_feed_in = min(self.reported_feed_ins)
 
             for addr, aid in self.known_agents:
@@ -342,8 +344,8 @@ Lastly, we call all relevant instantiations and the run function within our main
         controller_container = await Container.factory(addr=CONTROLLER_CONTAINER_ADDRESS)
 
         # agents always live inside a container
-        pv_agent_1 = PVAgent(pv_container)
-        pv_agent_2 = PVAgent(pv_container)
+        pv_agent_1 = PVAgent(pv_container, suggested_aid='PV Agent 0')
+        pv_agent_2 = PVAgent(pv_container, suggested_aid='PV Agent 1')
 
         # We pass info of the pv agents addresses to the controller here directly.
         # In reality, we would use some kind of discovery mechanism for this.
@@ -352,7 +354,7 @@ Lastly, we call all relevant instantiations and the run function within our main
             (PV_CONTAINER_ADDRESS, pv_agent_2._aid),
         ]
 
-        controller_agent = ControllerAgent(controller_container, known_agents)
+        controller_agent = ControllerAgent(controller_container, known_agents, suggested_aid='Controller')
 
         # the only active component in this setup
         await controller_agent.run()
@@ -366,9 +368,9 @@ Lastly, we call all relevant instantiations and the run function within our main
 
 This concludes the second part of our tutorial. If you run this code you should receive the following output:
 
-    | Controller received feed_ins: [2.0, 1.0]
-    | PV agent0: Limiting my feed_in to 1.0
-    | PV agent1: Limiting my feed_in to 1.0
+    | Controller: received feed_ins: [2.0, 1.0]
+    | PV Agent 0: Limiting my feed_in to 1.0
+    | PV Agent 1: Limiting my feed_in to 1.0
 
 
 .. raw:: html
@@ -489,9 +491,9 @@ With this, the message handling in our agent classes can be simplified:
 This concludes the third part of our tutorial. If you run the code,
 you should receive the same output as in part 2:
 
-    | Controller received feed_ins: [2.0, 1.0]
-    | PV agent0: Limiting my feed_in to 1.0
-    | PV agent1: Limiting my feed_in to 1.0
+    | Controller: received feed_ins: [2.0, 1.0]
+    | PV Agent 0: Limiting my feed_in to 1.0
+    | PV Agent 1: Limiting my feed_in to 1.0
 
 .. raw:: html
 
@@ -541,7 +543,7 @@ Another idea is that sending messages from the role is now done via its context 
 ``self.context.send_message``.
 
 We first create the ``Ping`` role, which has to periodically send out its messages.
-We can use mangos scheduling API to handle
+We can use mango's scheduling API to handle
 this for us via the ``schedule_periodic_tasks`` function. This takes a coroutine to execute and a time
 interval. Whenever the time interval runs out the coroutine is triggered. With the scheduling API you can
 also run tasks at specific times. For a full overview we refer to the documentation.
@@ -716,23 +718,37 @@ The definition of the agent classes itself now simply boils down to assigning it
             self.add_role(ControllerRole(known_agents))
 
 
-This concludes the last part of our tutorial. If you run this code, you should receive the following output:
+This concludes the last part of our tutorial.
+If you want to run the code, you don't need to await the run method of the controller anymore,
+since everything now happens automatically within the roles.
+In your ``main``, you can replace the line:
 
-    | Ping agent0: Received a ping with ID: 0
-    | Ping agent1: Received a ping with ID: 1
-    | Pong agent0: Received an expected pong with ID: 0
-    | Pong agent0: Received an expected pong with ID: 1
+.. code-block:: python
+
+        await controller_agent.run()
+with the following line:
+
+.. code-block:: python
+
+        await asyncio.sleep(5)
+
+If you run this code, you should receive the following output:
+
+    | Ping PV Agent 0: Received a ping with ID: 0
+    | Ping PV Agent 1: Received a ping with ID: 1
+    | Pong Controller: Received an expected pong with ID: 0
+    | Pong Controller: Received an expected pong with ID: 1
     | Controller received feed_ins: [2.0, 1.0]
-    | PV agent0: Limiting my feed_in to 1.0
-    | PV agent1: Limiting my feed_in to 1.0
-    | Ping agent0: Received a ping with ID: 2
-    | Ping agent1: Received a ping with ID: 3
-    | Pong agent0: Received an expected pong with ID: 2
-    | Pong agent0: Received an expected pong with ID: 3
-    | Ping agent0: Received a ping with ID: 4
-    | Ping agent1: Received a ping with ID: 5
-    | Pong agent0: Received an expected pong with ID: 4
-    | Pong agent0: Received an expected pong with ID: 5
+    | PV Agent 0: Limiting my feed_in to 1.0
+    | PV Agent 1: Limiting my feed_in to 1.0
+    | Ping PV Agent 0: Received a ping with ID: 2
+    | Ping PV Agent 1: Received a ping with ID: 3
+    | Pong Controller: Received an expected pong with ID: 2
+    | Pong Controller: Received an expected pong with ID: 3
+    | Ping PV Agent 0: Received a ping with ID: 4
+    | Ping PV Agent 1: Received a ping with ID: 5
+    | Pong Controller: Received an expected pong with ID: 4
+    | Pong Controller: Received an expected pong with ID: 5
 
 .. raw:: html
 

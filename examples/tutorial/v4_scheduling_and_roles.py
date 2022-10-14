@@ -9,11 +9,11 @@ from mango.core.container import Container
 import mango.messages.codecs as codecs
 
 """
-In example 3 you restructured your code to use codecs for easier handling of typed message objects.
+In example 3, you restructured your code to use codecs for easier handling of typed message objects.
 Now we want to expand the functionality of our controller. In addition to setting the maximum feed_in 
 of the pv agents, the controller should now also periodically check if the pv agents are still reachable.
 
-To achieve this the controller should seend a regular "ping" message to each pv agent that is in turn answered
+To achieve this, the controller should seend a regular "ping" message to each pv agent that is in turn answered
 by a corresponding "pong". To properly serparate different responsibilities within agents, mango has a role
 system where each role covers the functionalities of a responsibility.
 
@@ -143,7 +143,7 @@ class PVRole(Role):
     def handle_set_feed_in_max(self, content, meta):
         max_feed_in = float(content.max_feed_in)
         self.max_feed_in = max_feed_in
-        print(f"PV {self.context.aid}: Limiting my feed_in to {max_feed_in}")
+        print(f"{self.context.aid}: Limiting my feed_in to {max_feed_in}")
 
         msg = MaxFeedInAck()
         sender_addr = meta["sender_addr"]
@@ -275,15 +275,15 @@ class Pong:
 
 
 class PVAgent(RoleAgent):
-    def __init__(self, container):
-        super().__init__(container)
+    def __init__(self, container, suggested_aid=None):
+        super().__init__(container, suggested_aid=suggested_aid)
         self.add_role(PongRole())
         self.add_role(PVRole())
 
 
 class ControllerAgent(RoleAgent):
-    def __init__(self, container, known_agents):
-        super().__init__(container)
+    def __init__(self, container, known_agents, suggested_aid=None):
+        super().__init__(container, suggested_aid=suggested_aid)
         self.add_role(PingRole(known_agents, 2))
         self.add_role(ControllerRole(known_agents))
 
@@ -305,15 +305,15 @@ async def main():
         addr=CONTROLLER_CONTAINER_ADDRESS, codec=my_codec
     )
 
-    pv_agent_1 = PVAgent(pv_container)
-    pv_agent_2 = PVAgent(pv_container)
+    pv_agent_1 = PVAgent(pv_container, suggested_aid='PV Agent 0')
+    pv_agent_2 = PVAgent(pv_container, suggested_aid='PV Agent 1')
 
     known_agents = [
         (PV_CONTAINER_ADDRESS, pv_agent_1._aid),
         (PV_CONTAINER_ADDRESS, pv_agent_2._aid),
     ]
 
-    controller_agent = ControllerAgent(controller_container, known_agents)
+    controller_agent = ControllerAgent(controller_container, known_agents, suggested_aid='Controller')
 
     # no more run call since everything now happens automatically within the roles
     await asyncio.sleep(5)

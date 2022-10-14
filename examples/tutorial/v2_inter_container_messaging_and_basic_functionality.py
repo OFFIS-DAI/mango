@@ -6,14 +6,15 @@ from mango.core.container import Container
 from mango.messages.message import Performatives
 
 """
-In the previous example you learned how to create mango agents and containers and 
+In the previous example, you have learned how to create mango agents and containers and 
 how to send basic messages between them.
-In this example you expand upon this. We introduce a controller agent that asks the current feed_in of our PV agents and
-subsequently limits the output of both to the minimum of the two.
+In this example, you expand upon this. We introduce a controller agent that asks the current feed_in of our PV agents
+and subsequently limits the output of both to their minimum.
 
 This example covers:
     - message passing between different containers
     - basic task scheduling
+    - setting custom agent ids
     - use of ACL metadata
 """
 
@@ -23,8 +24,8 @@ random.seed(42)
 
 
 class PVAgent(Agent):
-    def __init__(self, container):
-        super().__init__(container)
+    def __init__(self, container, suggested_aid=None):
+        super().__init__(container, suggested_aid=suggested_aid)
         self.max_feed_in = -1
 
     def handle_msg(self, content, meta):
@@ -60,7 +61,7 @@ class PVAgent(Agent):
 
     def handle_set_feed_in_max(self, max_feed_in, sender_addr, sender_id):
         self.max_feed_in = float(max_feed_in)
-        print(f"PV {self._aid}: Limiting my feed_in to {max_feed_in}")
+        print(f"{self._aid}: Limiting my feed_in to {max_feed_in}")
         self.schedule_instant_task(
             self._container.send_message(
                 content=None,
@@ -73,8 +74,8 @@ class PVAgent(Agent):
 
 
 class ControllerAgent(Agent):
-    def __init__(self, container, known_agents):
-        super().__init__(container)
+    def __init__(self, container, known_agents, suggested_aid=None):
+        super().__init__(container, suggested_aid=suggested_aid)
         self.known_agents = known_agents
         self.reported_feed_ins = []
         self.reported_acks = 0
@@ -134,7 +135,7 @@ class ControllerAgent(Agent):
         await self.reports_done
 
         # limit both pv agents to the smaller ones feed-in
-        print(f"Controller received feed_ins: {self.reported_feed_ins}")
+        print(f"{self._aid}: received feed_ins: {self.reported_feed_ins}")
         min_feed_in = min(self.reported_feed_ins)
 
         for addr, aid in self.known_agents:
@@ -162,8 +163,8 @@ async def main():
     controller_container = await Container.factory(addr=CONTROLLER_CONTAINER_ADDRESS)
 
     # agents always live inside a container
-    pv_agent_1 = PVAgent(pv_container)
-    pv_agent_2 = PVAgent(pv_container)
+    pv_agent_1 = PVAgent(pv_container, suggested_aid='PV Agent 0')
+    pv_agent_2 = PVAgent(pv_container, suggested_aid='PV Agent 1')
 
     # We pass info of the pv agents addresses to the controller here directly.
     # In reality, we would use some kind of discovery mechanism for this.
@@ -172,7 +173,7 @@ async def main():
         (PV_CONTAINER_ADDRESS, pv_agent_2._aid),
     ]
 
-    controller_agent = ControllerAgent(controller_container, known_agents)
+    controller_agent = ControllerAgent(controller_container, known_agents, suggested_aid='Controller')
 
     # the only active component in this setup
     await controller_agent.run()

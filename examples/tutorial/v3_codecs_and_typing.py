@@ -48,8 +48,8 @@ class MaxFeedInAck:
 
 
 class PVAgent(Agent):
-    def __init__(self, container):
-        super().__init__(container)
+    def __init__(self, container, suggested_aid=None):
+        super().__init__(container, suggested_aid=suggested_aid)
         self.max_feed_in = -1
 
     def handle_msg(self, content, meta):
@@ -78,7 +78,7 @@ class PVAgent(Agent):
 
     def handle_set_feed_in_max(self, max_feed_in, sender_addr, sender_id):
         self.max_feed_in = float(max_feed_in)
-        print(f"PV {self._aid}: Limiting my feed_in to {max_feed_in}")
+        print(f"{self._aid}: Limiting my feed_in to {max_feed_in}")
         msg = MaxFeedInAck()
 
         self.schedule_instant_task(
@@ -92,8 +92,8 @@ class PVAgent(Agent):
 
 
 class ControllerAgent(Agent):
-    def __init__(self, container, known_agents):
-        super().__init__(container)
+    def __init__(self, container, known_agents, suggested_aid=None):
+        super().__init__(container, suggested_aid=suggested_aid)
         self.known_agents = known_agents
         self.reported_feed_ins = []
         self.reported_acks = 0
@@ -150,7 +150,7 @@ class ControllerAgent(Agent):
         await self.reports_done
 
         # limit both pv agents to the smaller ones feed-in
-        print(f"Controller received feed_ins: {self.reported_feed_ins}")
+        print(f"{self._aid} received feed_ins: {self.reported_feed_ins}")
         min_feed_in = min(self.reported_feed_ins)
 
         for addr, aid in self.known_agents:
@@ -194,15 +194,15 @@ async def main():
         addr=CONTROLLER_CONTAINER_ADDRESS, codec=my_codec
     )
 
-    pv_agent_1 = PVAgent(pv_container)
-    pv_agent_2 = PVAgent(pv_container)
+    pv_agent_1 = PVAgent(pv_container, suggested_aid='PV Agent 0')
+    pv_agent_2 = PVAgent(pv_container, suggested_aid='PV Agent 1')
 
     known_agents = [
         (PV_CONTAINER_ADDRESS, pv_agent_1._aid),
         (PV_CONTAINER_ADDRESS, pv_agent_2._aid),
     ]
 
-    controller_agent = ControllerAgent(controller_container, known_agents)
+    controller_agent = ControllerAgent(controller_container, known_agents, suggested_aid='Controller')
     await controller_agent.run()
 
     # always properly shut down your containers
