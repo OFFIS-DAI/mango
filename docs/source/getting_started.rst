@@ -2,7 +2,7 @@
 Getting started
 ========
 In this section you will get to know the necessary steps to create a simple multi-agent system
-using *mango*. For an introduction to the different features that mango offers, we reference to the
+using *mango*. For an introduction to the different features that mango offers, we refer to the
 :doc:`tutorial`.
 
 ***************
@@ -50,7 +50,7 @@ found in :doc:`Agents and container<agents-container>`
 This is how a container is created. Since the method :py:meth:`Container.factory()` is a
 coroutine__ we need to await its result.
 
-__ https://docs.python.org/3.9/library/asyncio-task.html
+__ https://docs.python.org/3.10/library/asyncio-task.html
 
 ***************
 Running your first agent within a container
@@ -67,15 +67,17 @@ then shutdown the container:
     from mango.core.agent import Agent
     from mango.core.container import Container
 
-    class RepeatingAgent(Agent):
-            def __init__(self, container):
-                # We must pass a ref. to the container to "mango.Agent":
-                super().__init__(container)
-                print(f"Hello world! My id is {self._aid}.")
 
-            def handle_msg(self, content, meta):
-                # This method defines what the agent will do with incoming messages.
-                print(f"Received a message with the following content: {content}")
+    class RepeatingAgent(Agent):
+        def __init__(self, container):
+            # We must pass a ref. to the container to "mango.Agent":
+            super().__init__(container)
+            print(f"Hello world! My id is {self._aid}.")
+
+        def handle_msg(self, content, meta):
+            # This method defines what the agent will do with incoming messages.
+            print(f"Received a message with the following content: {content}")
+
 
     async def run_container_and_agent(addr, duration):
         first_container = await Container.factory(addr=addr)
@@ -84,6 +86,7 @@ then shutdown the container:
         await first_container.shutdown()
 
     asyncio.run(run_container_and_agent(addr=('localhost', 5555), duration=3))
+
 
 The only output you should see is "Hello world! My id is agent0.", because
 the agent does not receive any other messages.
@@ -109,10 +112,10 @@ to another agent:
                     create_acl=True)
                 )
 
-            def handle_msg(self, content, meta: Dict[str, Any]):
+            def handle_msg(self, content, meta):
                 print(f"Received a message with the following content: {content}")
 
-We are using the scheduling API, which is explained in further detail in the section `Scheduling`.
+We are using the scheduling API, which is explained in further detail in the section :doc:`scheduling`.
 
 ***************
 Connecting two agents
@@ -125,7 +128,6 @@ a RepeatingAgent and let them run.
     import asyncio
     from mango.core.agent import Agent
     from mango.core.container import Container
-    from mango.util.scheduling import InstantScheduledTask
 
 
     class RepeatingAgent(Agent):
@@ -137,6 +139,7 @@ a RepeatingAgent and let them run.
         def handle_msg(self, content, meta):
             # This method defines what the agent will do with incoming messages.
             print(f"Received a message with the following content: {content}")
+
 
     class HelloWorldAgent(Agent):
         def __init__(self, container, other_addr, other_id):
@@ -164,18 +167,13 @@ a RepeatingAgent and let them run.
         await second_container.shutdown()
 
 
-    def test_second_example():
+    if __name__ == '__main__':
         asyncio.run(run_container_and_two_agents(
-            first_addr=('localhost', 5555), second_addr=('localhost', 5556))
-        )
+            first_addr=('localhost', 5555), second_addr=('localhost', 5556)))
+
 You should now see the following output:
 
 `Hello world! My id is agent0.`
 `Received a message with the following content: Hello world!`
 
 You have now successfully created two agents and connected them.
-
-
-
-
-
