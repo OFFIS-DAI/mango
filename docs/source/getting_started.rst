@@ -3,7 +3,7 @@ Getting started
 ========
 In this section you will get to know the necessary steps to create a simple multi-agent system
 using *mango*. For an introduction to the different features that mango offers, we reference to the
-:ref:`Tutorial`
+:doc:`tutorial`.
 
 ***************
 Creating an agent
@@ -14,6 +14,7 @@ all messages it receives:
 .. code-block:: python3
 
     from mango.core.agent import Agent
+
 
     class RepeatingAgent(Agent):
         def __init__(self, container):
@@ -34,7 +35,8 @@ Creating a container
 ***************
 
 Agents live in a container, so we need to know how to create a mango container.
-The container is responsible for message exchange between agents.
+The container is responsible for message exchange between agents. More information about container and agents can be
+found in :doc:`Agents and container<agents-container>`
 
 .. code-block:: python3
 
