@@ -1,12 +1,14 @@
 ========
 Getting started
 ========
-In this section you will step by step create a simple multi-agent system using *mango*
+In this section you will get to know the necessary steps to create a simple multi-agent system
+using *mango*. For an introduction to the different features that mango offers, we reference to the
+:ref:`Tutorial`
 
 ***************
 Creating an agent
 ***************
-In our first example, we'll create a very simple agent that simply prints the content of
+In our first example, we create a very simple agent that simply prints the content of
 all messages it receives:
 
 .. code-block:: python3
