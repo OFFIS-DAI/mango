@@ -85,9 +85,12 @@ class Suspendable:
         return self._coro
 
 
+# asyncio tasks
+
+
 class ScheduledTask:
     """
-    Base class for scheduled tasks in mango. Within this class its possible to
+    Base class for scheduled tasks in mango. Within this class it is possible to
     define what to do on execution and on stop. In most cases the logic should get
     passed as lambda while the scheduling logic is inside of class inheriting from this one.
     """
@@ -110,48 +113,6 @@ class ScheduledTask:
         """
 
 
-class ScheduledProcessTask(ScheduledTask):
-    # Mark class as task for an external process
-
-    """
-    This alt-name marks a ScheduledTask as process compatible.
-    This is necessary due to the fact that not everything can be transferred to other processes i.e. coroutines are
-    bound to the current event-loop resp the current thread, so they won't work in other processes.
-    Furthermore, when using a ProcessTask you have to ensure, that the coroutine functions should not be bound to
-    complex objects, meaning they should be static or bound to simple objects, which are transferable
-    via pythons IPC implementation.
-    """
-
-    def __init__(self, clock: Clock):
-        if isinstance(clock, ExternalClock):
-            raise ValueError('Process Tasks do currently not work with external clocks')
-        super().__init__(clock=clock)
-
-
-class PeriodicScheduledTask(ScheduledTask):
-    """
-    Class for periodic scheduled tasks. It enables to create a scheduable task for an agent
-    which will get executed periodically with a specified delay.
-    """
-
-    def __init__(self, coroutine_func, delay, clock: Clock = None):
-        super().__init__(clock)
-
-        self._stopped = False
-        self._coroutine_func = coroutine_func
-        self._delay = delay
-
-    async def run(self):
-        while not self._stopped:
-            await self._coroutine_func()
-            await self.clock.sleep(self._delay)
-
-
-class PeriodicScheduledProcessTask(PeriodicScheduledTask, ScheduledProcessTask):
-    def __init__(self, coroutine_func, delay, clock: Clock = None):
-        super().__init__(coroutine_func, delay, clock)
-
-
 class TimestampScheduledTask(ScheduledTask):
     """
     Timestamp based one-shot task. This task will get executed when a given unix timestamp is reached.
@@ -170,16 +131,51 @@ class TimestampScheduledTask(ScheduledTask):
         return await self._coro
 
 
-class TimestampScheduledProcessTask(TimestampScheduledTask, ScheduledProcessTask):
+class InstantScheduledTask(TimestampScheduledTask):
     """
-    Timestamp based one-shot task.
+    One-shot task, which will get executed instantly.
     """
-    def __init__(self, coroutine_creator, timestamp: float, clock=None):
-        super().__init__(coroutine_creator, timestamp, clock)
+
+    def __init__(self, coroutine, clock: Clock = None):
+        if clock is None:
+            clock = AsyncioClock()
+        super().__init__(coroutine, clock.time, clock=clock)
+
+
+class PeriodicScheduledTask(ScheduledTask):
+    """
+    Class for periodic scheduled tasks. It enables to create a task for an agent
+    which will get executed periodically with a specified delay.
+    """
+
+    def __init__(self, coroutine_func, delay, clock: Clock = None):
+        super().__init__(clock)
+
+        self._stopped = False
+        self._coroutine_func = coroutine_func
+        self._delay = delay
 
     async def run(self):
-        await self._wait(self._timestamp)
-        return await self._coro()
+        while not self._stopped:
+            await self._coroutine_func()
+            await self.clock.sleep(self._delay)
+
+
+class ConditionalTask(ScheduledTask):
+    """Task which will get executed as soon as the given condition is fullfiled.
+    """
+
+    def __init__(self, coroutine, condition_func, lookup_delay=0.1, clock: Clock = None):
+        super().__init__(clock=clock)
+
+        self._condition = condition_func
+        self._coro = coroutine
+        self._delay = lookup_delay
+
+    async def run(self):
+        while not self._condition():
+            await self.clock.sleep(self._delay)
+        return await self._coro
 
 
 class DateTimeScheduledTask(ScheduledTask):
@@ -201,28 +197,38 @@ class DateTimeScheduledTask(ScheduledTask):
         return await self._coro
 
 
-class DateTimeScheduledProcessTask(DateTimeScheduledTask, ScheduledProcessTask):
+# process tasks
+
+
+class ScheduledProcessTask(ScheduledTask):
+    # Mark class as task for an external process
+
     """
-    DateTime based one-shot task. This task will get executed using a given datetime-object.
+    This alt-name marks a ScheduledTask as process compatible.
+    This is necessary due to the fact that not everything can be transferred to other processes i.e. coroutines are
+    bound to the current event-loop resp the current thread, so they won't work in other processes.
+    Furthermore, when using a ProcessTask you have to ensure, that the coroutine functions should not be bound to
+    complex objects, meaning they should be static or bound to simple objects, which are transferable
+    via pythons IPC implementation.
     """
 
-    def __init__(self, coroutine_creator, date_time: datetime.datetime, clock=None):
-        super().__init__(coroutine_creator, date_time, clock)
+    def __init__(self, clock: Clock):
+        if isinstance(clock, ExternalClock):
+            raise ValueError('Process Tasks do currently not work with external clocks')
+        super().__init__(clock=clock)
+
+
+class TimestampScheduledProcessTask(TimestampScheduledTask, ScheduledProcessTask):
+    """
+    Timestamp based one-shot task.
+    """
+
+    def __init__(self, coroutine_creator, timestamp: float, clock=None):
+        super().__init__(coroutine_creator, timestamp, clock)
 
     async def run(self):
-        await self._wait(self._datetime)
+        await self._wait(self._timestamp)
         return await self._coro()
-
-
-class InstantScheduledTask(TimestampScheduledTask):
-    """
-    One-shot task, which will get executed instantly.
-    """
-
-    def __init__(self, coroutine, clock: Clock = None):
-        if clock is None:
-            clock = AsyncioClock()
-        super().__init__(coroutine, clock.time, clock=clock)
 
 
 class InstantScheduledProcessTask(TimestampScheduledProcessTask):
@@ -235,29 +241,14 @@ class InstantScheduledProcessTask(TimestampScheduledProcessTask):
         super().__init__(coroutine_creator, timestamp=clock.time, clock=clock)
 
 
-class ConditionalTask(ScheduledTask):
-    """Task which will get executed as soon as the given condition is fullfiled.
-    """
-
-    def __init__(self, coroutine, condition_func, lookup_delay=0.1, clock: Clock = None):
-        super().__init__(clock=clock)
-
-        self._condition = condition_func
-        self._coro = coroutine
-        self._delay = lookup_delay
-
-    async def _wait(self, date_time: datetime):
-        await self.clock.sleep((date_time - datetime.datetime.now()).total_seconds())
-
-    async def run(self):
-        while not self._condition():
-            await self.clock.sleep(self._delay)
-
-        return await self._coro
+class PeriodicScheduledProcessTask(PeriodicScheduledTask, ScheduledProcessTask):
+    def __init__(self, coroutine_func, delay, clock: Clock = None):
+        super().__init__(coroutine_func, delay, clock)
 
 
 class ConditionalProcessTask(ConditionalTask, ScheduledProcessTask):
-    """Task which will get executed as soon as the given condition is fullfiled.
+    """
+    Task which will get executed as soon as the given condition is fulfilled.
     """
 
     def __init__(self, coro_func, condition_func, lookup_delay=0.1, clock: Clock = None):
@@ -266,7 +257,19 @@ class ConditionalProcessTask(ConditionalTask, ScheduledProcessTask):
     async def run(self):
         while not self._condition():
             await self.clock.sleep(self._delay)
+        return await self._coro()
 
+
+class DateTimeScheduledProcessTask(DateTimeScheduledTask, ScheduledProcessTask):
+    """
+    DateTime based one-shot task. This task will get executed using a given datetime-object.
+    """
+
+    def __init__(self, coroutine_creator, date_time: datetime.datetime, clock=None):
+        super().__init__(coroutine_creator, date_time, clock)
+
+    async def run(self):
+        await self._wait(self._datetime)
         return await self._coro()
 
 
