@@ -159,14 +159,14 @@ class TimestampScheduledTask(ScheduledTask):
 
     def __init__(self, coroutine, timestamp: float, clock=None):
         super().__init__(clock)
-        self._delay = timestamp
+        self._timestamp = timestamp
         self._coro = coroutine
 
     async def _wait(self, timestamp: float):
         await self.clock.sleep(timestamp - self.clock.time)
 
     async def run(self):
-        await self._wait(self._delay)
+        await self._wait(self._timestamp)
         return await self._coro
 
 
@@ -178,7 +178,7 @@ class TimestampScheduledProcessTask(TimestampScheduledTask, ScheduledProcessTask
         super().__init__(coroutine_creator, timestamp, clock)
 
     async def run(self):
-        await self._wait(self._delay)
+        await self._wait(self._timestamp)
         return await self._coro()
 
 
@@ -190,14 +190,14 @@ class DateTimeScheduledTask(ScheduledTask):
     def __init__(self, coroutine, date_time: datetime.datetime, clock=None):
         super().__init__(clock)
         warnings.warn('DateTimeScheduleTask is deprecated. Use TimestampScheduledTask instead.', DeprecationWarning)
-        self._delay = date_time
+        self._datetime = date_time
         self._coro = coroutine
 
     async def _wait(self, date_time: datetime.datetime):
         await self.clock.sleep(date_time.timestamp() - self.clock.time)
 
     async def run(self):
-        await self._wait(self._delay)
+        await self._wait(self._datetime)
         return await self._coro
 
 
@@ -210,7 +210,7 @@ class DateTimeScheduledProcessTask(DateTimeScheduledTask, ScheduledProcessTask):
         super().__init__(coroutine_creator, date_time, clock)
 
     async def run(self):
-        await self._wait(self._delay)
+        await self._wait(self._datetime)
         return await self._coro()
 
 
