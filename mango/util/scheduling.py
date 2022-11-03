@@ -281,7 +281,6 @@ class Scheduler:
     def __init__(self, clock: Clock = None, num_process_parallel=16):
         self._scheduled_tasks = []
         self.clock = clock if clock is not None else AsyncioClock()
-        # print(f'[Scheduler] init with the following clock: {self.clock}')
         self._scheduled_process_tasks = []
         self._process_pool_exec = concurrent.futures.ProcessPoolExecutor(max_workers=num_process_parallel,
                                                                          initializer=_create_asyncio_context)
@@ -297,18 +296,18 @@ class Scheduler:
 
     async def sleep(self, t: float):
         """
-        :param t: The time to sleep
+        :param t: The time to sleep [s]
         """
         return await self.clock.sleep(t)
 
-    def schedule_conditional_process_task(self, coroutine_creator, condition_func, lookup_delay=0.1, src=None):
+    def schedule_conditional_process_task(self, coroutine_creator, condition_func, lookup_delay: float = 0.1, src=None):
         """
         Schedule a task when a specified condition is met.
         :param coroutine_creator: coroutine_creator creating coroutine to be scheduled
         :type coroutine_creator: coroutine_creator
-        :param condition_func: function for determining whether the confition is fullfiled
+        :param condition_func: function for determining whether the condition is fulfilled
         :type condition_func: lambda () -> bool
-        :param lookup_delay: delay between checking the condition
+        :param lookup_delay: delay between checking the condition [s]
         :type lookup_delay: float
         :param src: creator of the task
         :type src: Object
@@ -320,14 +319,14 @@ class Scheduler:
                 lookup_delay=lookup_delay, clock=self.clock),
             src=src)
 
-    def schedule_conditional_task(self, coroutine, condition_func, lookup_delay=0.1, src=None):
+    def schedule_conditional_task(self, coroutine, condition_func, lookup_delay: float = 0.1, src=None):
         """Schedule a task when a specified condition is met.
 
         :param coroutine: coroutine to be scheduled
         :type coroutine: Coroutine
-        :param condition_func: function for determining whether the confition is fullfiled
+        :param condition_func: function for determining whether the condition is fulfilled
         :type condition_func: lambda () -> bool
-        :param lookup_delay: delay between checking the condition
+        :param lookup_delay: delay between checking the condition [s]
         :type lookup_delay: float
         :param src: creator of the task
         :type src: Object
