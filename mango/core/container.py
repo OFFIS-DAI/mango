@@ -700,7 +700,7 @@ class MQTTContainer(Container):
 
         """
 
-        if create_acl is not None or acl_metadata:
+        if create_acl is not None or acl_metadata is not None:
             warnings.warn("The parameters create_acl and acl_metadata are deprecated and will " \
                           "be removed in the next release. Use send_acl_message instead.", DeprecationWarning)
         if mqtt_kwargs is not None:
@@ -915,7 +915,7 @@ class TCPContainer(Container):
                 will be dropped entirely.
         :param kwargs: Additional parameters to provide protocol specific settings 
         """
-        if create_acl is not None or acl_metadata:
+        if create_acl is not None or acl_metadata is not None:
             warnings.warn("The parameters create_acl and acl_metadata are deprecated and will " \
                           "be removed in the next release. Use send_acl_message instead.", DeprecationWarning)
         if mqtt_kwargs is not None:
