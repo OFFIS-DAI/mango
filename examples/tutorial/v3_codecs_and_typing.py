@@ -70,11 +70,10 @@ class PVAgent(Agent):
         msg = FeedInReplyMsg(reported_feed_in)
 
         self.schedule_instant_task(
-            self._container.send_message(
+            self._container.send_acl_message(
                 content=msg,
                 receiver_addr=sender_addr,
                 receiver_id=sender_id,
-                create_acl=True,
             )
         )
 
@@ -84,11 +83,10 @@ class PVAgent(Agent):
         msg = MaxFeedInAck()
 
         self.schedule_instant_task(
-            self._container.send_message(
+            self._container.send_acl_message(
                 content=msg,
                 receiver_addr=sender_addr,
                 receiver_id=sender_id,
-                create_acl=True,
             )
         )
 
@@ -129,7 +127,7 @@ class ControllerAgent(Agent):
 
         # Note: For messages passed between different containers (i.e. over the network socket) it is expected
         # that the message is an ACLMessage object. We can let the container wrap our content in such an
-        # object with the create_acl flag.
+        # object using the send_acl_message method.
         # We distinguish the types of messages we send by adding a type field to our content.
 
         # ask pv agent feed-ins
@@ -137,13 +135,12 @@ class ControllerAgent(Agent):
             msg = AskFeedInMsg()
             acl_meta = {"sender_addr": self._container.addr, "sender_id": self._aid}
 
-            # alternatively we could call send_message here directly and await it
+            # alternatively we could call send_acl_message here directly and await it
             self.schedule_instant_task(
-                self._container.send_message(
+                self._container.send_acl_message(
                     content=msg,
                     receiver_addr=addr,
                     receiver_id=aid,
-                    create_acl=True,
                     acl_metadata=acl_meta,
                 )
             )
@@ -159,13 +156,12 @@ class ControllerAgent(Agent):
             msg = SetMaxFeedInMsg(min_feed_in)
             acl_meta = {"sender_addr": self._container.addr, "sender_id": self._aid}
 
-            # alternatively we could call send_message here directly and await it
+            # alternatively we could call send_acl_message here directly and await it
             self.schedule_instant_task(
-                self._container.send_message(
+                self._container.send_acl_message(
                     content=msg,
                     receiver_addr=addr,
                     receiver_id=aid,
-                    create_acl=True,
                     acl_metadata=acl_meta,
                 )
             )

@@ -52,12 +52,11 @@ class PVAgent(Agent):
                     "performative": Performatives.inform}
 
         self.schedule_instant_task(
-            self._container.send_message(
+            self._container.send_acl_message(
                 content=content,
                 receiver_addr=sender_addr,
                 receiver_id=sender_id,
                 acl_metadata=acl_meta,
-                create_acl=True,
             )
         )
 
@@ -65,12 +64,11 @@ class PVAgent(Agent):
         self.max_feed_in = float(max_feed_in)
         print(f"{self._aid}: Limiting my feed_in to {max_feed_in}")
         self.schedule_instant_task(
-            self._container.send_message(
+            self._container.send_acl_message(
                 content=None,
                 receiver_addr=sender_addr,
                 receiver_id=sender_id,
                 acl_metadata={'performative': Performatives.accept_proposal},
-                create_acl=True,
             )
         )
 
@@ -114,7 +112,7 @@ class ControllerAgent(Agent):
 
         # Note: For messages passed between different containers (i.e. over the network socket) it is expected
         # that the message is an ACLMessage object. We can let the container wrap our content in such an
-        # object with the create_acl flag.
+        # object with using the send_acl_message method.
         # We distinguish the types of messages we send by adding a type field to our content.
 
         # ask pv agent feed-ins
@@ -122,13 +120,12 @@ class ControllerAgent(Agent):
             content = None
             acl_meta = {"sender_addr": self._container.addr, "sender_id": self._aid,
                         "performative": Performatives.request}
-            # alternatively we could call send_message here directly and await it
+            # alternatively we could call send_acl_message here directly and await it
             self.schedule_instant_task(
-                self._container.send_message(
+                self._container.send_acl_message(
                     content=content,
                     receiver_addr=addr,
                     receiver_id=aid,
-                    create_acl=True,
                     acl_metadata=acl_meta,
                 )
             )
@@ -145,13 +142,12 @@ class ControllerAgent(Agent):
             acl_meta = {"sender_addr": self._container.addr, "sender_id": self._aid,
                         "performative": Performatives.propose}
 
-            # alternatively we could call send_message here directly and await it
+            # alternatively we could call send_acl_message here directly and await it
             self.schedule_instant_task(
-                self._container.send_message(
+                self._container.send_acl_message(
                     content=content,
                     receiver_addr=addr,
                     receiver_id=aid,
-                    create_acl=True,
                     acl_metadata=acl_meta,
                 )
             )

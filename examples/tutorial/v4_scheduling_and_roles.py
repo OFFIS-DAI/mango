@@ -63,11 +63,10 @@ class PingRole(Role):
             msg = Ping(ping_id)
             meta = {"sender_addr": self.context.addr, "sender_id": self.context.aid}
 
-            await self.context.send_message(
+            await self.context.send_acl_message(
                 msg,
                 receiver_addr=addr,
                 receiver_id=aid,
-                create_acl=True,
                 acl_metadata=meta,
             )
             self.expected_pongs.append(ping_id)
@@ -101,11 +100,10 @@ class PongRole(Role):
 
         # message sending from roles is done via the RoleContext
         self.context.schedule_instant_task(
-            self.context.send_message(
+            self.context.send_acl_message(
                 answer,
                 receiver_addr=sender_addr,
                 receiver_id=sender_id,
-                create_acl=True,
             )
         )
 
@@ -135,11 +133,10 @@ class PVRole(Role):
         sender_id = meta["sender_id"]
 
         self.context.schedule_instant_task(
-            self.context.send_message(
+            self.context.send_acl_message(
                 content=msg,
                 receiver_addr=sender_addr,
                 receiver_id=sender_id,
-                create_acl=True,
             )
         )
 
@@ -153,11 +150,10 @@ class PVRole(Role):
         sender_id = meta["sender_id"]
 
         self.context.schedule_instant_task(
-            self.context.send_message(
+            self.context.send_acl_message(
                 content=msg,
                 receiver_addr=sender_addr,
                 receiver_id=sender_id,
-                create_acl=True,
             )
         )
 
@@ -210,11 +206,10 @@ class ControllerRole(Role):
             msg = AskFeedInMsg()
             acl_meta = {"sender_addr": self.context.addr, "sender_id": self.context.aid}
 
-            await self.context.send_message(
+            await self.context.send_acl_message(
                 content=msg,
                 receiver_addr=addr,
                 receiver_id=aid,
-                create_acl=True,
                 acl_metadata=acl_meta,
             )
 
@@ -229,11 +224,10 @@ class ControllerRole(Role):
             msg = SetMaxFeedInMsg(min_feed_in)
             acl_meta = {"sender_addr": self.context.addr, "sender_id": self.context.aid}
 
-            await self.context.send_message(
+            await self.context.send_acl_message(
                 content=msg,
                 receiver_addr=addr,
                 receiver_id=aid,
-                create_acl=True,
                 acl_metadata=acl_meta,
             )
 

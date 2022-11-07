@@ -4,7 +4,7 @@ TCPContainer and MQTTContainer
 """
 from abc import ABC, abstractmethod
 import asyncio
-import logging
+import logging, warnings
 from typing import Optional, Union, Tuple, Dict, Any, Set
 import paho.mqtt.client as paho
 from .container_protocols import ContainerProtocol
@@ -311,27 +311,71 @@ class Container(ABC):
         receiver_addr: Union[str, Tuple[str, int]],
         *,
         receiver_id: Optional[str] = None,
-        create_acl: bool = False,
+        create_acl: bool = None,
         acl_metadata: Optional[Dict[str, Any]] = None,
         mqtt_kwargs: Dict[str, Any] = None,
+        **kwargs
     ) -> bool:
         """
-        container sends the message of one of its own agents to a specific topic
+        The Container sends a message to an agent according the container protocol.
+        
         :param content: The content of the message
         :param receiver_addr: In case of TCP this is a tuple of host, port
-        In case of MQTT this is the topic to publish to.
+            In case of MQTT this is the topic to publish to.
         :param receiver_id: The agent id of the receiver
         :param create_acl: True if an acl message shall be created around the
-        content.
+            content.
+            
+            .. deprecated:: 0.4.0
+                Use 'container.send_acl_message' instead. In the next version this parameter
+                will be dropped entirely.
         :param acl_metadata: metadata for the acl_header.
-        Ignored if create_acl == False
+            Ignored if create_acl == False
+            
+            .. deprecated:: 0.4.0
+                Use 'container.send_acl_message' instead. In the next version this parameter
+                will be dropped entirely.
         :param mqtt_kwargs: Dict with possible kwargs for publishing to a mqtt broker
             Possible fields:
             qos: The quality of service to use for publishing
             retain: Indicates, weather the retain flag should be set
             Ignored if connection_type != 'mqtt'
+            .. deprecated:: 0.4.0
+                Use 'kwargs' instead. In the next version this parameter
+                will be dropped entirely.
+        :param kwargs: Additional parameters to provide protocol specific settings 
         """
         raise NotImplementedError
+
+    async def send_acl_message(
+        self,
+        content,
+        receiver_addr: Union[str, Tuple[str, int]],
+        *,
+        receiver_id: Optional[str] = None,
+        acl_metadata: Optional[Dict[str, Any]] = None,
+        is_anonymous_acl = False,
+        **kwargs
+    ) -> bool:
+        """
+        The Container sends a message, wrapped in an ACL message, to an agent according the container protocol.
+
+        :param content: The content of the message
+        :param receiver_addr: In case of TCP this is a tuple of host, port
+        In case of MQTT this is the topic to publish to.
+        :param receiver_id: The agent id of the receiver
+        :param acl_metadata: metadata for the acl_header.
+        :param is_anonymous_acl: If set to True, the sender information won't be written in the ACL header 
+        :param kwargs: Additional parameters to provide protocol specific settings 
+        """
+        return await self.send_message(self._create_acl(content, 
+                receiver_addr=receiver_addr, 
+                receiver_id=receiver_id, 
+                acl_metadata=acl_metadata,
+                is_anonymous_acl=is_anonymous_acl), 
+            receiver_addr=receiver_addr, 
+            receiver_id=receiver_id,
+            **kwargs)
 
     def _create_acl(
         self,
@@ -339,6 +383,7 @@ class Container(ABC):
         receiver_addr: Union[str, Tuple[str, int]],
         receiver_id: Optional[str] = None,
         acl_metadata: Optional[Dict[str, Any]] = None,
+        is_anonymous_acl = False
     ):
         """
         :param content:
@@ -347,38 +392,19 @@ class Container(ABC):
         :param acl_metadata:
         :return:
         """
-        acl_metadata = {} if acl_metadata is None else acl_metadata
+        acl_metadata = {} if acl_metadata is None else acl_metadata.copy()
         # analyse and complete acl_metadata
         if "receiver_addr" not in acl_metadata.keys():
             acl_metadata["receiver_addr"] = receiver_addr
         if "receiver_id" not in acl_metadata.keys() and receiver_id:
             acl_metadata["receiver_id"] = receiver_id
-        # add sender_addr if not defined
-        if "sender_addr" not in acl_metadata.keys() and self.addr is not None:
-            acl_metadata["sender_addr"] = self.addr
+        # add sender_addr if not defined and not anonymous
+        if not is_anonymous_acl:
+            if "sender_addr" not in acl_metadata.keys() and self.addr is not None:
+                acl_metadata["sender_addr"] = self.addr
 
         message = ACLMessage()
         message.content = content
-
-        # if self.codec == "json":
-        #     # create json message
-        #     message = json_ACLMessage()
-        #     message.content = content
-
-        # elif self.codec == "protobuf":
-        #     # create protobuf message
-        #     message = proto_ACLMessage()
-        #     receiver_meta = acl_metadata["receiver_addr"]
-        #     if isinstance(receiver_meta, (tuple, list)):
-        #         acl_metadata["receiver_addr"] = f"{receiver_meta[0]}:{receiver_meta[1]}"
-        #     sender_meta = acl_metadata.get("sender_addr", None)
-        #     if isinstance(sender_meta, (tuple, list)):
-        #         acl_metadata["sender_addr"] = f"{sender_meta[0]}:{sender_meta[1]}"
-
-        #     message.content_class = type(content).__name__
-        #     message.content = content.SerializeToString()
-        # else:
-        #     raise ValueError("Unknown Encoding")
 
         for key, value in acl_metadata.items():
             setattr(message, key, value)
@@ -635,25 +661,52 @@ class MQTTContainer(Container):
         receiver_addr: Union[str, Tuple[str, int]],
         *,
         receiver_id: Optional[str] = None,
-        create_acl: bool = False,
+        create_acl: bool = None,
         acl_metadata: Optional[Dict[str, Any]] = None,
         mqtt_kwargs: Dict[str, Any] = None,
+        **kwargs
     ):
         """
-        container sends the message of one of its own agents to a specific
-        topic
+        The container sends the message of one of its own agents to a specific topic.
+        
         :param content: The content of the message
-        :param receiver_addr: The topic that the message should be published to
+        :param receiver_addr: The topic to publish to.
         :param receiver_id: The agent id of the receiver
-        :param create_acl: True if the content is
-        only part of an acl message object that is yet to be created.
-        :param acl_metadata: metadata for the acl_header. Is only interpreted
-        if add_acl_header == True
-        :param mqtt_kwargs: Dict with possible kwargs for publishing to the
-        mqtt broker. Possible fields:
+        :param create_acl: True if an acl message shall be created around the
+            content.
+            
+            .. deprecated:: 0.4.0
+                Use 'container.send_acl_message' instead. In the next version this parameter
+                will be dropped entirely.
+        :param acl_metadata: metadata for the acl_header.
+            Ignored if create_acl == False
+            
+            .. deprecated:: 0.4.0
+                Use 'container.send_acl_message' instead. In the next version this parameter
+                will be dropped entirely.
+        :param mqtt_kwargs: Dict with possible kwargs for publishing to a mqtt broker
+            Possible fields:
             qos: The quality of service to use for publishing
             retain: Indicates, weather the retain flag should be set
+            Ignored if connection_type != 'mqtt'
+            .. deprecated:: 0.4.0
+                Use 'kwargs' instead. In the next version this parameter
+                will be dropped entirely.
+        :param kwargs: Additional parameters to provide protocol specific settings 
+            Possible fields:
+            qos: The quality of service to use for publishing
+            retain: Indicates, weather the retain flag should be set
+            Ignored if connection_type != 'mqtt'
+
         """
+
+        if create_acl is not None or acl_metadata is not None:
+            warnings.warn("The parameters create_acl and acl_metadata are deprecated and will " \
+                          "be removed in the next release. Use send_acl_message instead.", DeprecationWarning)
+        if mqtt_kwargs is not None:
+            warnings.warn("The parameter mqtt_kwargs is deprecated and will " \
+                          "be removed in the next release. Use kwargs instead.", DeprecationWarning)
+
         if create_acl:
             message = self._create_acl(
                 content=content,
@@ -667,15 +720,16 @@ class MQTTContainer(Container):
 
         # internal message first (if retain Flag is set, it has to be sent to
         # the broker
-        mqtt_kwargs = {} if mqtt_kwargs is None else mqtt_kwargs
+        actual_mqtt_kwargs = mqtt_kwargs if kwargs is None else kwargs
+        actual_mqtt_kwargs = {} if actual_mqtt_kwargs is None else actual_mqtt_kwargs
         if (
             self.addr
             and receiver_addr == self.addr
-            and not mqtt_kwargs.get("retain", False)
+            and not actual_mqtt_kwargs.get("retain", False)
         ):
             meta = {
                 "topic": self.addr,
-                "qos": mqtt_kwargs.get("qos", 0),
+                "qos": actual_mqtt_kwargs.get("qos", 0),
                 "retain": False,
                 "network_protocol": "mqtt",
             }
@@ -832,22 +886,42 @@ class TCPContainer(Container):
         receiver_addr: Union[str, Tuple[str, int]],
         *,
         receiver_id: Optional[str] = None,
-        create_acl: bool = False,
+        create_acl: bool = None,
         acl_metadata: Optional[Dict[str, Any]] = None,
         mqtt_kwargs: Dict[str, Any] = None,
+        **kwargs
     ) -> bool:
         """
-        container sends the message of one of its own agents to a specific topic
+        The Container sends a message to an agent using TCP.
+        
         :param content: The content of the message
-        :param receiver_addr: In case of TCP this is a tuple of host, port
+        :param receiver_addr: Tuple of host, port
         :param receiver_id: The agent id of the receiver
         :param create_acl: True if an acl message shall be created around the
-        content.
+            content.
+            
+            .. deprecated:: 0.4.0
+                Use 'container.send_acl_message' instead. In the next version this parameter
+                will be dropped entirely.
         :param acl_metadata: metadata for the acl_header.
-        Ignored if create_acl == False
-        :param mqtt_kwargs: Ignored in this class
-        :return boolean indicating whether  sending was successful or not
+            Ignored if create_acl == False
+            
+            .. deprecated:: 0.4.0
+                Use 'container.send_acl_message' instead. In the next version this parameter
+                will be dropped entirely.
+        :param mqtt_kwargs: 
+            .. deprecated:: 0.4.0
+                Use 'kwargs' instead. In the next version this parameter
+                will be dropped entirely.
+        :param kwargs: Additional parameters to provide protocol specific settings 
         """
+        if create_acl is not None or acl_metadata is not None:
+            warnings.warn("The parameters create_acl and acl_metadata are deprecated and will " \
+                          "be removed in the next release. Use send_acl_message instead.", DeprecationWarning)
+        if mqtt_kwargs is not None:
+            warnings.warn("The parameter mqtt_kwargs is deprecated and will " \
+                          "be removed in the next release. Use kwargs instead.", DeprecationWarning)
+
         if isinstance(receiver_addr, str) and ":" in receiver_addr:
             receiver_addr = receiver_addr.split(":")
         elif isinstance(receiver_addr, (tuple, list)) and len(receiver_addr) == 2:
@@ -856,7 +930,7 @@ class TCPContainer(Container):
             logger.warning(f"Address for sending message is not valid;{receiver_addr}")
             return False
 
-        if create_acl:
+        if create_acl is not None and create_acl:
             message = self._create_acl(
                 content=content,
                 receiver_addr=receiver_addr,

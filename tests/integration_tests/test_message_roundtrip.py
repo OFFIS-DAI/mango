@@ -105,22 +105,20 @@ class InitiatorAgent(Agent):
         await asyncio.sleep(0.1)
 
         # send initial message
-        await self._container.send_message(
+        await self._container.send_acl_message(
             M1,
             self.target,
             receiver_id=self.other_aid,
-            create_acl=True,
         )
 
         # await reply
         await self.got_reply
 
         # answer to reply
-        await self._container.send_message(
+        await self._container.send_acl_message(
             M3,
             self.target,
             receiver_id=self.other_aid,
-            create_acl=True,
         )
 
         # shut down
@@ -155,11 +153,10 @@ class ReplierAgent(Agent):
         await self.got_first
 
         # send reply
-        await self._container.send_message(
+        await self._container.send_acl_message(
             M2,
             self.target,
-            receiver_id=self.other_aid,
-            create_acl=True,
+            receiver_id=self.other_aid
         )
 
         # await reply
