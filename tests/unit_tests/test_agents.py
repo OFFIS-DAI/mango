@@ -23,11 +23,10 @@ class PingPongAgent(Agent):
             receiver_host, receiver_port = meta['sender_addr']
             receiver_id = meta['sender_id']
             # send back pong, providing your own details
-            t = asyncio.create_task(self._container.send_message(
+            t = self.schedule_instant_acl_message(
                 content='pong', receiver_addr=(receiver_host, receiver_port), receiver_id=receiver_id,
                 acl_metadata={'sender_addr': self._container.addr,
-                              'sender_id': self._aid},
-                create_acl=True)
+                              'sender_id': self._aid}
             )
             self.sending_tasks.append(t)
 
@@ -43,10 +42,9 @@ class PingPongAgent(Agent):
     async def send_ping_to_other(self, other_addr, other_id):
         # create
         self.open_ping_requests[(other_addr, other_id)] = asyncio.Future()
-        success = await self._container.send_message(
+        success = await self.send_acl_message(
             content='ping', receiver_addr=other_addr, receiver_id=other_id,
-            acl_metadata={'sender_addr': self._container.addr, 'sender_id': self._aid},
-            create_acl=True)
+            acl_metadata={'sender_addr': self._container.addr, 'sender_id': self._aid})
         assert success
 
     async def wait_for_sending_messages(self, timeout=1):

@@ -52,10 +52,7 @@ Agents are able to send messages to other agents via the container method send_m
     async def send_message(self, content,
                             receiver_addr: Union[str, Tuple[str, int]], *,
                             receiver_id: Optional[str] = None,
-                            create_acl: bool = False,
-                            acl_metadata: Optional[Dict[str, Any]] = None,
-                            mqtt_kwargs: Dict[str, Any] = None,
-                            ) -> bool:
+                            **kwargs) -> bool:
 
 
 To send a tcp message, the receiver address and receiver id (the agent id of the receiving agent)
@@ -64,8 +61,17 @@ has to be provided.
 This will appear as the `content` argument at the receivers handle_message() method.
 
 
-By setting the parameter ``create_acl`` the container automatically
-wraps all provided information into an acl message.
+If you want to send an ACL-message, you can either call ``container._create_acl`` and pass its result to ``container.send_message`` as content, 
+or you can use the convenience method ``container.send_acl_message``, which will also use ``create_acl`` internally.
+
+.. code-block:: python3
+
+    async def send_acl_message(self, content,
+                            receiver_addr: Union[str, Tuple[str, int]], *,
+                            receiver_id: Optional[str] = None,
+                            acl_metadata: Optional[Dict[str, Any]] = None,
+                            **kwargs) -> bool:
+
 The argument ``acl_metadata`` enables to set all meta information of an acl message.
 It expects a dictionary with the field name as string as a key and the field value as key.
 For example:
@@ -81,5 +87,5 @@ For example:
         'conversation_id': 'conversation01'
     }
 
-The argument ``mqtt_kwargs`` can be used to set specific configs, if the container is connected via MQTT
+The argument ``kwargs`` can be used to set specific configs, if the container is connected via MQTT
 to a message broker.

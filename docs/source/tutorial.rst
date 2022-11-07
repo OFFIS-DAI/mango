@@ -170,8 +170,8 @@ The replies to feed_in requests and later the acknowledgements that a new maximu
 We use the ``performative`` field of the ACL message to do this. We set the ``performative`` field to ``inform``
 for feed_in replies and to ``accept_proposal`` for feed_in change acknowledgements. All messages between containers
 are expected to be ACL Messages (or implement the split_content_and_meta function). Since we do not want to create
-the full ACL object ourselves every time, within this example we always pass the ``create_acl=True`` flag to
-``send_message``.
+the full ACL object ourselves every time, within this example we always use the convenience method 
+``container.send_acl_message``, which also supports setting the acl metadata.
 
 .. code-block:: python
 
@@ -226,10 +226,10 @@ We do the same for our PV agents. We will also enable user defined agent ids her
 
 
 When a PV agent receives a request from the controller, it immediately answers. Note two important changes to the first
-example here: First, within our message handling methods we can not ``await send_message`` directly
-because ``handle_message`` is not a coroutine. Instead, we pass ``send_message`` as a task to the scheduler to be
+example here: First, within our message handling methods we can not ``await send_acl_message`` directly
+because ``handle_message`` is not a coroutine. Instead, we pass ``send_acl_message`` as a task to the scheduler to be
 executed at once via the ``schedule_instant_task`` method.
-Second, we set ``acl_meta`` to contain the typing information of our message and pass the ``create_acl=True`` flag.
+Second, we set ``acl_meta`` to contain the typing information of our message.
 
 .. code-block:: python
 
@@ -243,13 +243,13 @@ Second, we set ``acl_meta`` to contain the typing information of our message and
             acl_meta = {"sender_addr": self._container.addr, "sender_id": self._aid,
                         "performative": Performatives.inform}
 
+            # Note, could be shortened using self.schedule_instant_acl_message
             self.schedule_instant_task(
-                self._container.send_message(
+                self._container.send_acl_message(
                     content=content,
                     receiver_addr=sender_addr,
                     receiver_id=sender_id,
                     acl_metadata=acl_meta,
-                    create_acl=True,
                 )
             )
 
@@ -257,12 +257,11 @@ Second, we set ``acl_meta`` to contain the typing information of our message and
             self.max_feed_in = float(max_feed_in)
             print(f"{self._aid}: Limiting my feed_in to {max_feed_in}")
             self.schedule_instant_task(
-                self._container.send_message(
+                self._container.send_acl_message(
                     content=None,
                     receiver_addr=sender_addr,
                     receiver_id=sender_id,
                     acl_metadata={'performative': Performatives.accept_proposal},
-                    create_acl=True,
                 )
             )
 
@@ -287,7 +286,7 @@ perform its active actions. We do this by implementing a ``run`` function with t
 
             # Note: For messages passed between different containers (i.e. over the network socket) it is expected
             # that the message is an ACLMessage object. We can let the container wrap our content in such an
-            # object with the create_acl flag.
+            # object with using the send_acl_message method.
             # We distinguish the types of messages we send by adding a type field to our content.
 
             # ask pv agent feed-ins
@@ -295,13 +294,12 @@ perform its active actions. We do this by implementing a ``run`` function with t
                 content = None
                 acl_meta = {"sender_addr": self._container.addr, "sender_id": self._aid,
                             "performative": Performatives.request}
-                # alternatively we could call send_message here directly and await it
+                # alternatively we could call send_acl_message here directly and await it
                 self.schedule_instant_task(
-                    self._container.send_message(
+                    self._container.send_acl_message(
                         content=content,
                         receiver_addr=addr,
                         receiver_id=aid,
-                        create_acl=True,
                         acl_metadata=acl_meta,
                     )
                 )
@@ -318,13 +316,12 @@ perform its active actions. We do this by implementing a ``run`` function with t
                 acl_meta = {"sender_addr": self._container.addr, "sender_id": self._aid,
                             "performative": Performatives.propose}
 
-                # alternatively we could call send_message here directly and await it
+                # alternatively we could call send_acl_message here directly and await it
                 self.schedule_instant_task(
-                    self._container.send_message(
+                    self._container.send_acl_message(
                         content=content,
                         receiver_addr=addr,
                         receiver_id=aid,
-                        create_acl=True,
                         acl_metadata=acl_meta,
                     )
                 )
@@ -544,7 +541,7 @@ it should forward these messages to this role.
 The ``subscribe_message`` method expects, besides the role and a handle method, a message condition function.
 The idea of the condition function is to allow to define a condition filtering incoming messages.
 Another idea is that sending messages from the role is now done via its context with the method:
-``self.context.send_message``.
+``self.context.send_acl_message``.
 
 We first create the ``Ping`` role, which has to periodically send out its messages.
 We can use mango's scheduling API to handle
@@ -577,11 +574,10 @@ also run tasks at specific times. For a full overview we refer to the documentat
                 msg = Ping(ping_id)
                 meta = {"sender_addr": self.context.addr, "sender_id": self.context.aid}
 
-                await self.context.send_message(
+                await self.context.send_acl_message(
                     msg,
                     receiver_addr=addr,
                     receiver_id=aid,
-                    create_acl=True,
                     acl_metadata=meta,
                 )
                 self.expected_pongs.append(ping_id)
@@ -650,11 +646,10 @@ The ``Pong`` role is associated with the PV Agents and purely reactive.
 
             # message sending from roles is done via the RoleContext
             self.context.schedule_instant_task(
-                self.context.send_message(
+                self.context.send_acl_message(
                     answer,
                     receiver_addr=sender_addr,
                     receiver_id=sender_id,
-                    create_acl=True,
                 )
             )
 
@@ -683,22 +678,20 @@ unchanged and is simply moved to the PVRole.
         def handle_ask_feed_in(self, content, meta):
             """..."""
         self.context.schedule_instant_task(
-            self.context.send_message(
+            self.context.send_acl_message(
                 content=msg,
                 receiver_addr=sender_addr,
                 receiver_id=sender_id,
-                create_acl=True,
             )
         )
 
         def handle_set_feed_in_max(self, content, meta):
             """..."""
             self.context.schedule_instant_task(
-                self.context.send_message(
+                self.context.send_acl_message(
                     content=msg,
                     receiver_addr=sender_addr,
                     receiver_id=sender_id,
-                    create_acl=True,
                 )
             )
 
