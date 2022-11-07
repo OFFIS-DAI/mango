@@ -11,10 +11,9 @@ class Caller(Agent):
                                      timestamp=self.current_timestamp + 5)
 
     async def send_hello_world(self, receiver_addr, receiver_id):
-        await self._container.send_message(receiver_addr=receiver_addr,
+        await self._container.send_acl_message(receiver_addr=receiver_addr,
                                            receiver_id=receiver_id,
-                                           content='Hello World',
-                                           create_acl=True)
+                                           content='Hello World')
 
     def handle_msg(self, content, meta):
         pass

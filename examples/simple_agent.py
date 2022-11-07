@@ -37,9 +37,8 @@ class SimpleAgent(Agent):
                 'performative': Performatives.inform.value,
                 'sender_id': self.aid,
             }
-            await self._container.send_message(
-                message_content, self.other_addr, receiver_id=self.other_aid,
-                create_acl=True, acl_metadata=acl_meta
+            await self._container.send_acl_message(
+                message_content, self.other_addr, receiver_id=self.other_aid, acl_metadata=acl_meta
             )
 
     def handle_msg(self, content, meta):
