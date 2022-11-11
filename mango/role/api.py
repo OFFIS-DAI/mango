@@ -199,18 +199,30 @@ class RoleContext(ABC):
     async def send_message(self, content,
                            receiver_addr: Union[str, Tuple[str, int]], *,
                            receiver_id: Optional[str] = None,
-                           create_acl: bool = False,
-                           acl_metadata: Optional[Dict[str, Any]] = None,
-                           mqtt_kwargs: Dict[str, Any] = None,
+                           **kwargs
                            ):
         """Delegate to :func:`Container.send_message`.
 
         :param content: the content
         :param receiver_addr: the address of the receiver
         :param receiver_id: id of the receiver
-        :param create_acl: whether you want to wrap the message in an ACL
+        :param kwargs: kwargs 
+        """
+
+    @abstractmethod
+    async def send_acl_message(self, content,
+                           receiver_addr: Union[str, Tuple[str, int]], *,
+                           receiver_id: Optional[str] = None,
+                           acl_metadata: Optional[Dict[str, Any]] = None,
+                           **kwargs
+                           ):
+        """Delegate to :func:`Container.send_acl_message`.
+
+        :param content: the content
+        :param receiver_addr: the address of the receiver
+        :param receiver_id: id of the receiver
         :param acl_metadata: the ACL-metadata
-        :param mqtt_kwargs: kwargs for MQTT
+        :param kwargs: kwargs 
         """
 
     @abstractmethod

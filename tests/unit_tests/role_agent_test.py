@@ -20,11 +20,10 @@ class PongRole(SimpleReactiveRole):
         receiver_host, receiver_port = meta['sender_addr']
         receiver_id = meta['sender_id']
         # send back pong, providing your own details
-        t = asyncio.create_task(self.context.send_message(
+        t = asyncio.create_task(self.context.send_acl_message(
             content='pong', receiver_addr=(receiver_host, receiver_port), receiver_id=receiver_id,
             acl_metadata={'sender_addr': self.context.addr,
-                            'sender_id': self.context.aid},
-            create_acl=True)
+                            'sender_id': self.context.aid})
         )
 
         self.sending_tasks.append(t)
@@ -59,10 +58,9 @@ class PingRole(SimpleReactiveRole):
     async def send_ping_to_other(self, other_addr, other_id, agent_context : RoleContext):
         # create
         self.open_ping_requests[(other_addr, other_id)] = asyncio.Future()
-        success = await agent_context.send_message(
+        success = await agent_context.send_acl_message(
             content='ping', receiver_addr=other_addr, receiver_id=other_id,
-            acl_metadata={'sender_addr': agent_context.addr, 'sender_id': agent_context.aid},
-            create_acl=True)
+            acl_metadata={'sender_addr': agent_context.addr, 'sender_id': agent_context.aid})
         assert success
 
     async def on_stop(self):
