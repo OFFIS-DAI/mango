@@ -18,9 +18,7 @@ async def test_init():
 @pytest.mark.asyncio
 async def test_send_msg():
     mosaik_container = await Container.factory(addr="mosaik_eid_1234", connection_type='mosaik')
-    await mosaik_container.send_message(
-        content='test', receiver_addr='eid321', receiver_id='Agent0', create_acl=True,
-    )
+    await mosaik_container.send_message(content='test', receiver_addr='eid321', receiver_id='Agent0', create_acl=True)
     assert len(mosaik_container.message_buffer) == 1
     mosaik_agent_msg: MosaikAgentMessage = mosaik_container.message_buffer[0]
     assert mosaik_agent_msg.receiver == 'eid321'
@@ -34,9 +32,7 @@ async def test_send_msg():
 @pytest.mark.asyncio
 async def test_step():
     mosaik_container = await Container.factory(addr="mosaik_eid_1234", connection_type='mosaik')
-    await mosaik_container.send_message(
-        content='test', receiver_addr='eid321', receiver_id='Agent0', create_acl=True,
-    )
+    await mosaik_container.send_message(content='test', receiver_addr='eid321', receiver_id='Agent0', create_acl=True)
     step_output = await mosaik_container.step(simulation_time=12, incoming_messages=[])
     assert mosaik_container.message_buffer == []
     assert mosaik_container.clock.time == 12
@@ -61,21 +57,19 @@ class ReplyAgent(Agent):
         self.tasks.append(self.schedule_periodic_task(self.send_ping, delay=10))
 
     async def send_ping(self):
-        await self._container.send_message(receiver_addr='ping_receiver_addr', receiver_id='ping_receiver_id',
-                                           create_acl=True, content=f'ping{self.current_ping}')
+        await self._container.send_message(content=f'ping{self.current_ping}', receiver_addr='ping_receiver_addr',
+                                           receiver_id='ping_receiver_id', create_acl=True)
         self.current_ping += 1
 
     def handle_msg(self, content, meta: Dict[str, Any]):
         self.schedule_instant_task(self.sleep_and_answer(content, meta))
 
     async def sleep_and_answer(self, content, meta):
-        await self._container.send_message(receiver_addr=meta['sender_addr'], receiver_id=['sender_id'],
-                                           create_acl=True, content=f'I received {content}',
-                                           )
+        await self._container.send_message(content=f'I received {content}', receiver_addr=meta['sender_addr'],
+                                           receiver_id=['sender_id'], create_acl=True)
         await asyncio.sleep(0.1)
-        await self._container.send_message(receiver_addr=meta['sender_addr'], receiver_id=['sender_id'],
-                                           create_acl=True, content=f'Thanks for sending {content}',
-                                           )
+        await self._container.send_message(content=f'Thanks for sending {content}', receiver_addr=meta['sender_addr'],
+                                           receiver_id=['sender_id'], create_acl=True)
 
     async def stop_tasks(self):
         for task in self.tasks:
@@ -95,10 +89,11 @@ class WaitForMessageAgent(Agent):
                                        coroutine=self.print_cond_task_finished(), lookup_delay=1)
 
     async def print_cond_task_finished(self):
-        print('Conditional task is done')
+        pass
 
     def handle_msg(self, content, meta: Dict[str, Any]):
         self.received_msg = True
+
 
 @pytest.mark.asyncio
 async def test_step_with_cond_task():
@@ -128,6 +123,39 @@ async def test_step_with_cond_task():
     assert return_values.next_activity is None and len(return_values.messages) == 0
 
     await mosaik_container.shutdown()
+
+
+class SelfSendAgent(Agent):
+    def __init__(self, container, final_number=3):
+        super().__init__(container)
+
+        self.no_received_msg = 0
+        self.final_no = final_number
+
+    def handle_msg(self, content, meta: Dict[str, Any]):
+        self.no_received_msg += 1
+        # pretend to be really busy
+        i = 0
+        while i < 1000000:
+            i += 1
+        # send message to yourself if necessary
+        if self.no_received_msg < self.final_no:
+            self.schedule_instant_acl_message(receiver_addr=self._container.addr, receiver_id=self.aid, content=content)
+        else:
+            self.schedule_instant_acl_message(receiver_addr='AnyOtherAddr', receiver_id='AnyOtherId', content=content)
+
+
+@pytest.mark.asyncio
+async def test_send_internal_messages():
+    mosaik_container = await Container.factory(addr="mosaik_eid_1", connection_type='mosaik')
+    agent_1 = SelfSendAgent(container=mosaik_container, final_number=3)
+    message = mosaik_container._create_acl(content='', receiver_addr=mosaik_container.addr, receiver_id=agent_1.aid)
+    encoded_msg = mosaik_container.codec.encode(message)
+    return_values = await mosaik_container.step(simulation_time=1, incoming_messages=[encoded_msg])
+    assert len(return_values.messages) == 1
+
+    await mosaik_container.shutdown()
+
 
 
 @pytest.mark.asyncio

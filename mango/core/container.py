@@ -4,7 +4,8 @@ TCPContainer and MQTTContainer
 """
 from abc import ABC, abstractmethod
 import asyncio
-import logging, warnings
+import logging
+import warnings
 from typing import Optional, List, Union, Tuple, Dict, Any, Set
 from dataclasses import dataclass
 import time
@@ -704,10 +705,10 @@ class MQTTContainer(Container):
         """
 
         if create_acl is not None or acl_metadata is not None:
-            warnings.warn("The parameters create_acl and acl_metadata are deprecated and will " \
+            warnings.warn("The parameters create_acl and acl_metadata are deprecated and will "
                           "be removed in the next release. Use send_acl_message instead.", DeprecationWarning)
         if mqtt_kwargs is not None:
-            warnings.warn("The parameter mqtt_kwargs is deprecated and will " \
+            warnings.warn("The parameter mqtt_kwargs is deprecated and will "
                           "be removed in the next release. Use kwargs instead.", DeprecationWarning)
 
         if create_acl:
@@ -919,10 +920,10 @@ class TCPContainer(Container):
         :param kwargs: Additional parameters to provide protocol specific settings
         """
         if create_acl is not None or acl_metadata is not None:
-            warnings.warn("The parameters create_acl and acl_metadata are deprecated and will " \
+            warnings.warn("The parameters create_acl and acl_metadata are deprecated and will "
                           "be removed in the next release. Use send_acl_message instead.", DeprecationWarning)
         if mqtt_kwargs is not None:
-            warnings.warn("The parameter mqtt_kwargs is deprecated and will " \
+            warnings.warn("The parameter mqtt_kwargs is deprecated and will "
                           "be removed in the next release. Use kwargs instead.", DeprecationWarning)
 
         if isinstance(receiver_addr, str) and ":" in receiver_addr:
@@ -947,7 +948,6 @@ class TCPContainer(Container):
             if not receiver_id:
                 receiver_id = message.receiver_id
             # internal message
-
             success = self._send_internal_message(receiver_id, message)
         else:
             success = await self._send_external_message(receiver_addr, message)
@@ -1072,6 +1072,7 @@ class MosaikContainer(Container):
 
         self.running = True
         self.current_start_time_of_step = time.time()
+        self._new_internal_message: bool = False
         self.message_buffer = []
 
     async def _handle_msg(self, *, priority: int, msg_content, meta: Dict[str, Any]):
@@ -1092,28 +1093,44 @@ class MosaikContainer(Container):
         else:
             logger.warning(f"Received a message for an unknown receiver;{receiver_id}")
 
-    async def send_message(
-        self,
-        content,
-        receiver_addr: Union[str, Tuple[str, int]],
-        *,
-        receiver_id: Optional[str] = None,
-        create_acl: bool = False,
-        acl_metadata: Optional[Dict[str, Any]] = None,
-        mqtt_kwargs: Dict[str, Any] = None,
-    ) -> bool:
+    async def send_message(self, content, receiver_addr: Union[str, Tuple[str, int]], *,
+                           receiver_id: Optional[str] = None, create_acl: bool = False,
+                           acl_metadata: Optional[Dict[str, Any]] = None, mqtt_kwargs: Dict[str, Any] = None,
+                           **kwargs) -> bool:
         """
-        container sends the message of one of its own agents to a specific topic
+        The Container sends a message to an agent according the container protocol.
+
         :param content: The content of the message
-        :param receiver_addr: In case of TCP this is a tuple of host, port
+        :param receiver_addr: Address if the receiving container
         :param receiver_id: The agent id of the receiver
         :param create_acl: True if an acl message shall be created around the
-        content.
+            content.
+
+            .. deprecated:: 0.4.0
+                Use 'container.send_acl_message' instead. In the next version this parameter
+                will be dropped entirely.
         :param acl_metadata: metadata for the acl_header.
-        Ignored if create_acl == False
-        :param mqtt_kwargs: Ignored in this class
-        :return boolean indicating whether  sending was successful or not
+            Ignored if create_acl == False
+
+            .. deprecated:: 0.4.0
+                Use 'container.send_acl_message' instead. In the next version this parameter
+                will be dropped entirely.
+        :param mqtt_kwargs: Dict with possible kwargs for publishing to a mqtt broker
+            Possible fields:
+            qos: The quality of service to use for publishing
+            retain: Indicates, whether the retain flag should be set
+            Ignored if connection_type != 'mqtt'
+            .. deprecated:: 0.4.0
+                Use 'kwargs' instead. In the next version this parameter
+                will be dropped entirely.
+        :param kwargs: Additional parameters to provide protocol specific settings
         """
+        if create_acl is not None or acl_metadata is not None:
+            warnings.warn("The parameters create_acl and acl_metadata are deprecated and will "
+                          "be removed in the next release. Use send_acl_message instead.", DeprecationWarning)
+        if mqtt_kwargs is not None:
+            warnings.warn("The parameter mqtt_kwargs is deprecated and will "
+                          "be removed in the next release. Use kwargs instead.", DeprecationWarning)
 
         if create_acl:
             message = self._create_acl(
@@ -1125,13 +1142,57 @@ class MosaikContainer(Container):
         else:
             message = content
 
-        # For now, we will not allow to send any internal messages, so we will always encode
+        if receiver_addr == self.addr:
+            if not receiver_id:
+                receiver_id = message.receiver_id
+            # internal message
+            success = self._send_internal_message(receiver_id, message)
+        else:
+            success = await self._send_external_message(receiver_addr, message)
+
+        return success
+
+    def _send_internal_message(self, receiver_id: str, message) -> bool:
+        """
+        Sends a message to an agent that lives in the same container
+        :param receiver_id: ID of the receiver
+        :param message:
+        :return: boolean indicating whether sending was successful
+        """
+        receiver = self._agents.get(receiver_id, None)
+        if receiver is None:
+            logger.warning(
+                f"Sending internal message not successful, receiver id unknown;{receiver_id}"
+            )
+            return False
+        # TODO priority assignment could be specified here,
+        priority = 0
+        if hasattr(message, "split_content_and_meta"):
+            content, meta = message.split_content_and_meta()
+        else:
+            content = message
+            meta = {}
+        meta["network_protocol"] = "mosaik"
+
+        # remember that an internal message has been sent (important for idle detection)
+        self._new_internal_message = True
+
+        receiver.inbox.put_nowait((priority, content, meta))
+        return True
+
+    async def _send_external_message(self, addr, message) -> bool:
+        """
+        Sends an external message to another container
+        :param addr: The address of the receiving container
+        :param message: The non-encoded message
+        :return: Success or not
+        """
         encoded_msg = self.codec.encode(message)
         # store message in the buffer, which will be emptied in step
         self.message_buffer.append(
             MosaikAgentMessage(
                 time=time.time()-self.current_start_time_of_step + self.clock.time,
-                receiver=receiver_addr,
+                receiver=addr,
                 message=encoded_msg
             )
         )
@@ -1157,11 +1218,17 @@ class MosaikContainer(Container):
         await self.inbox.join()
 
         # now wait for all agents to terminate
-        for agent in self._agents.values():
-            await agent.inbox.join()    # make sure inbox of agent is empty and all messages are processed
-            # TODO In the following we should also be able to recognize manual sleeps (maybe)
-            await agent._scheduler.tasks_complete_or_sleeping()   # wait until agent is done with all tasks
-
+        # we need to loop here, because we might need to join the agents inbox another times in case we send internal
+        # messages
+        while True:
+            self._new_internal_message = False
+            for agent in self._agents.values():
+                await agent.inbox.join()    # make sure inbox of agent is empty and all messages are processed
+                # TODO In the following we should also be able to recognize manual sleeps (maybe)
+                await agent._scheduler.tasks_complete_or_sleeping()   # wait until agent is done with all tasks
+            if not self._new_internal_message:
+                # if there have
+                break
         # now all agents should be done
         end_time = time.time()
 
