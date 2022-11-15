@@ -86,6 +86,50 @@ class ReplyAgent(Agent):
                 pass
 
 
+class WaitForMessageAgent(Agent):
+    def __init__(self, container):
+        super().__init__(container)
+
+        self.received_msg = False
+        self.schedule_conditional_task(condition_func=lambda: self.received_msg,
+                                       coroutine=self.print_cond_task_finished(), lookup_delay=1)
+
+    async def print_cond_task_finished(self):
+        print('Conditional task is done')
+
+    def handle_msg(self, content, meta: Dict[str, Any]):
+        self.received_msg = True
+
+@pytest.mark.asyncio
+async def test_step_with_cond_task():
+    mosaik_container = await Container.factory(addr="mosaik_eid_1", connection_type='mosaik')
+    agent_1 = WaitForMessageAgent(mosaik_container)
+    current_time = 0
+
+    for _ in range(10):
+        current_time += 1
+        # advance time without anything happening
+        return_values = await mosaik_container.step(simulation_time=current_time, incoming_messages=[])
+        assert return_values.next_activity == current_time + 1 and return_values.messages == []
+
+    # create and send message in next step
+    message = mosaik_container._create_acl(content='', receiver_addr=mosaik_container.addr, receiver_id=agent_1.aid)
+    encoded_msg = mosaik_container.codec.encode(message)
+    # advance time only by 0.5 so that in the next cycle the conditional task will be done
+    current_time += 0.5
+    return_values = await mosaik_container.step(simulation_time=current_time, incoming_messages=[encoded_msg])
+
+    # the conditional task should still be running and next activity should be in 0.5 seconds
+    assert return_values.next_activity == current_time + 0.5 and len(return_values.messages) == 0
+    current_time += 0.5
+    return_values = await mosaik_container.step(simulation_time=current_time, incoming_messages=[])
+
+    # now everything should be done
+    assert return_values.next_activity is None and len(return_values.messages) == 0
+
+    await mosaik_container.shutdown()
+
+
 @pytest.mark.asyncio
 async def test_step_with_replying_agent():
     mosaik_container = await Container.factory(addr="mosaik_eid_1", connection_type='mosaik')
