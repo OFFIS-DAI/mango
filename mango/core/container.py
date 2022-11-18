@@ -430,14 +430,14 @@ class Container(ABC):
             data = await self.inbox.get()
             priority, msg_content, meta = data
             task = asyncio.create_task(
-                self._handle_msg(priority=priority, msg_content=msg_content, meta=meta)
+                self._handle_message(priority=priority, msg_content=msg_content, meta=meta)
             )
             task.add_done_callback(raise_exceptions)
             self.inbox.task_done()  # signals that the queue object is
             # processed
 
     @abstractmethod
-    async def _handle_msg(self, *, priority: int, msg_content, meta: Dict[str, Any]):
+    async def _handle_message(self, *, priority: int, msg_content, meta: Dict[str, Any]):
         """
         This is called as a separate task for every message that is read
         :param priority: priority of the msg
@@ -612,7 +612,7 @@ class MQTTContainer(Container):
 
         return decoded, meta
 
-    async def _handle_msg(self, *, priority: int, msg_content, meta: Dict[str, Any]):
+    async def _handle_message(self, *, priority: int, msg_content, meta: Dict[str, Any]):
         """
         This is called as a separate task for every message that is read
         :param priority: priority of the msg
@@ -862,7 +862,7 @@ class TCPContainer(Container):
         self.server = None  # will be set within the factory method
         self.running = True
 
-    async def _handle_msg(self, *, priority: int, msg_content, meta: Dict[str, Any]):
+    async def _handle_message(self, *, priority: int, msg_content, meta: Dict[str, Any]):
         """
 
         :param priority:
