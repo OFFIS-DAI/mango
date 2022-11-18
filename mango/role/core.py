@@ -374,7 +374,7 @@ class RoleAgent(Agent):
         """
         return self._role_handler.roles
 
-    def handle_msg(self, content, meta: Dict[str, Any]):
+    def handle_message(self, content, meta: Dict[str, Any]):
         self._agent_context.handle_msg(content, meta)
 
     async def shutdown(self):

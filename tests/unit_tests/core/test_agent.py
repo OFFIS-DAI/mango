@@ -11,7 +11,7 @@ class MyAgent(Agent):
     
     test_counter: int = 0
     
-    def handle_msg(self, content, meta: Dict[str, Any]):
+    def handle_message(self, content, meta: Dict[str, Any]):
         self.test_counter += 1
 
 
@@ -47,7 +47,7 @@ async def test_send_message():
     await agent.send_message("", receiver_addr=agent._container.addr, receiver_id=agent2.aid)
     msg = await agent2.inbox.get()
     _, content, meta = msg
-    agent2.handle_msg(content=content, meta=meta)
+    agent2.handle_message(content=content, meta=meta)
 
     # THEN
     assert agent2.test_counter == 1
@@ -64,7 +64,7 @@ async def test_send_acl_message():
     await agent.send_acl_message("", receiver_addr=agent._container.addr, receiver_id=agent2.aid)
     msg = await agent2.inbox.get()
     _, content, meta = msg
-    agent2.handle_msg(content=content, meta=meta)
+    agent2.handle_message(content=content, meta=meta)
 
     # THEN
     assert agent2.test_counter == 1
@@ -80,7 +80,7 @@ async def test_schedule_message():
     agent.schedule_instant_message("", receiver_addr=agent._container.addr, receiver_id=agent2.aid)
     msg = await agent2.inbox.get()
     _, content, meta = msg
-    agent2.handle_msg(content=content, meta=meta)
+    agent2.handle_message(content=content, meta=meta)
 
     # THEN
     assert agent2.test_counter == 1
@@ -96,7 +96,7 @@ async def test_schedule_acl_message():
     agent.schedule_instant_acl_message("", receiver_addr=agent._container.addr, receiver_id=agent2.aid)
     msg = await agent2.inbox.get()
     _, content, meta = msg
-    agent2.handle_msg(content=content, meta=meta)
+    agent2.handle_message(content=content, meta=meta)
 
     # THEN
     assert agent2.test_counter == 1

@@ -270,22 +270,22 @@ class Agent(ABC):
     async def _check_inbox(self):
         """Task for waiting on new message in the inbox"""
 
-        logger.debug('Agent %s: Start waiting for msgs', self.aid)
+        logger.debug('Agent %s: Start waiting for messages', self.aid)
         while True:
             # run in infinite loop until it is cancelled from outside
-            msg = await self.inbox.get()
-            logger.debug('Agent %s: Received message;%s}', self.aid, str(msg))
+            message = await self.inbox.get()
+            logger.debug('Agent %s: Received message;%s}', self.aid, str(message))
 
-            # msgs should be tuples of (priority, content)
-            priority, content, meta = msg
+            # message should be tuples of (priority, content, meta)
+            priority, content, meta = message
             meta['priority'] = priority
-            self.handle_msg(content=content, meta=meta)
+            self.handle_message(content=content, meta=meta)
 
             # signal to the Queue that the message is handled
             self.inbox.task_done()
 
     @abstractmethod
-    def handle_msg(self, content, meta: Dict[str, Any]):
+    def handle_message(self, content, meta: Dict[str, Any]):
         """
 
         Has to be implemented by the user.
@@ -296,7 +296,7 @@ class Agent(ABC):
         one should call asyncio.create_task() in order to handle more than
         one message at a time
         :param content: The deserialized message object
-        :param meta: Meta details of the msg. In case of mqtt this dict
+        :param meta: Meta details of the message. In case of mqtt this dict
         includes at least the field 'topic'
         """
         raise NotImplementedError

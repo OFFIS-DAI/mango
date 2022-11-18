@@ -22,7 +22,7 @@ class PVAgent(Agent):
         super().__init__(container)
         print(f"Hello I am a PV agent! My id is {self.aid}.")
 
-    def handle_msg(self, content, meta):
+    def handle_message(self, content, meta):
         print(f"Received message with content: {content} and meta {meta}.")
 
 
