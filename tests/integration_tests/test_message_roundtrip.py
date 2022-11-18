@@ -100,7 +100,7 @@ class InitiatorAgent(Agent):
             self.got_reply.set_result(True)
 
     async def start(self):
-        if getattr(self.context, "subscribe_for_agent", None):
+        if getattr(self.container, "subscribe_for_agent", None):
             await self.container.subscribe_for_agent(aid=self.aid, topic=self.target)
 
         await asyncio.sleep(0.1)
