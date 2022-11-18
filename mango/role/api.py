@@ -40,18 +40,22 @@ from typing import Type, Union, Tuple, Optional, Any, Dict, TypeVar
 from datetime import datetime
 
 from mango.util.scheduling import ScheduledTask
+from mango.core.agent import AgentDelegates
 
 T = TypeVar('T')
 
 
-class RoleContext(ABC):
+class RoleContext(ABC, AgentDelegates):
     """Abstract class RoleContext. The context can be seen as the bridge to the agent and the
     container the agent lives in. Every interaction with the environment or other roles will
     happen through the context.
     """
 
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, agent_context, agent_scheduler) -> None:
+        super().__init__(agent_context, agent_scheduler)
+        self._agent_context = agent_context
+        self._agent_scheduler = agent_scheduler
+
         self.data = self._create_container()
 
     @abstractmethod
@@ -123,106 +127,6 @@ class RoleContext(ABC):
         :param role: the role
         :param method: method, which should get called, when a message is sent (must match the
                              signature of :func:RoleContext.send_message)
-        """
-
-    @abstractmethod
-    def schedule_conditional_task(self, coroutine, condition_func, lookup_delay=0.1, src = None):
-        """Schedule a task when a specified condition is met.
-
-        :param coroutine: coroutine to be scheduled
-        :type coroutine: Coroutine
-        :param condition_func: function for determining whether the confition is fullfiled
-        :type confition_func: lambda () -> bool
-        :param lookup_delay: delay between checking the condition
-        :type lookup_delay: float
-        :param src: creator of the task
-        :type src: Object
-        """
-
-    @abstractmethod
-    def schedule_datetime_task(self, coroutine, date_time: datetime, src = None):
-        """Schedule a task at specified datetime.
-
-        :param coroutine: coroutine to be scheduled
-        :type coroutine: Coroutine
-        :param date_time: datetime defining when the task should start
-        :type date_time: datetime
-        :param src: creator of the task
-        :type src: Object
-        """
-
-    @abstractmethod
-    def schedule_timestamp_task(self, coroutine, timestamp: float, src=None):
-        """Schedule a task at specified timestamp.
-
-        :param coroutine: coroutine to be scheduled
-        :type coroutine: Coroutine
-        :param timestamp: timestamp defining when the task should start
-        :type timestamp: timestamp
-        :param src: creator of the task
-        :type src: Object
-        """
-
-    @abstractmethod
-    def schedule_periodic_task(self, coroutine_func, delay, src = None):
-        """Schedule an open end periodically executed task.
-
-        :param coroutine_func: coroutine function creating coros to be scheduled
-        :type coroutine_func:  Coroutine Function
-        :param delay: delay in between the cycles
-        :type dealy: float
-        :param src: creator of the task
-        :type src: Object
-        """
-
-    @abstractmethod
-    def schedule_instant_task(self, coroutine, src = None):
-        """Schedule an instantly executed task.
-
-        :param coroutine: coroutine to be scheduled
-        :type coroutine: 
-        :param src: creator of the task
-        :type src: Object
-        """
-
-    @abstractmethod
-    def schedule_task(self, task: ScheduledTask, src=None):
-        """Schedule a task using the agents scheduler.
-
-        :param task: task to be scheduled
-        :type task: ScheduledTask
-        :param src: creator of the task
-        :type: Object
-        """
-
-    @abstractmethod
-    async def send_message(self, content,
-                           receiver_addr: Union[str, Tuple[str, int]], *,
-                           receiver_id: Optional[str] = None,
-                           **kwargs
-                           ):
-        """Delegate to :func:`Container.send_message`.
-
-        :param content: the content
-        :param receiver_addr: the address of the receiver
-        :param receiver_id: id of the receiver
-        :param kwargs: kwargs 
-        """
-
-    @abstractmethod
-    async def send_acl_message(self, content,
-                           receiver_addr: Union[str, Tuple[str, int]], *,
-                           receiver_id: Optional[str] = None,
-                           acl_metadata: Optional[Dict[str, Any]] = None,
-                           **kwargs
-                           ):
-        """Delegate to :func:`Container.send_acl_message`.
-
-        :param content: the content
-        :param receiver_addr: the address of the receiver
-        :param receiver_id: id of the receiver
-        :param acl_metadata: the ACL-metadata
-        :param kwargs: kwargs 
         """
 
     @abstractmethod

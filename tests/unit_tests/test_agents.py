@@ -25,8 +25,8 @@ class PingPongAgent(Agent):
             # send back pong, providing your own details
             t = self.schedule_instant_acl_message(
                 content='pong', receiver_addr=(receiver_host, receiver_port), receiver_id=receiver_id,
-                acl_metadata={'sender_addr': self._container.addr,
-                              'sender_id': self._aid}
+                acl_metadata={'sender_addr': self.context.addr,
+                              'sender_id': self.aid}
             )
             self.sending_tasks.append(t)
 
@@ -44,7 +44,7 @@ class PingPongAgent(Agent):
         self.open_ping_requests[(other_addr, other_id)] = asyncio.Future()
         success = await self.send_acl_message(
             content='ping', receiver_addr=other_addr, receiver_id=other_id,
-            acl_metadata={'sender_addr': self._container.addr, 'sender_id': self._aid})
+            acl_metadata={'sender_addr': self.context.addr, 'sender_id': self.aid})
         assert success
 
     async def wait_for_sending_messages(self, timeout=1):
@@ -77,7 +77,7 @@ async def test_init_and_shutdown():
     assert not c._check_inbox_task.done()
     await a.shutdown()
     await c.shutdown()
-    assert a.stopped
+    assert a._stopped
     assert not c.running
     assert len(asyncio.all_tasks()) == 1
 
@@ -99,7 +99,7 @@ async def test_send_ping_pong(num_agents, num_containers):
         c = containers[i % num_containers]
         a = PingPongAgent(c)
         agents.append(a)
-        addrs.append((c.addr, a._aid))
+        addrs.append((c.addr, a.aid))
 
     # all agents send ping request to all agents (including themselves)
     for a in agents:

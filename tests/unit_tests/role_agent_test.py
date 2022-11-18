@@ -4,7 +4,7 @@ import asyncio
 from typing import Dict, Any
 from mango.core.container import Container
 from mango.role.api import Role, RoleContext, SimpleReactiveRole
-from mango.role.core import RoleAgent, RoleAgentContext
+from mango.role.core import RoleAgent
 from mango.util.scheduling import DateTimeScheduledTask
 
 class PongRole(SimpleReactiveRole):
@@ -101,7 +101,7 @@ async def test_send_ping_pong(num_agents, num_containers):
         a = RoleAgent(c)
         a.add_role(PongRole())
         agents.append(a)
-        addrs.append((c.addr, a._aid))
+        addrs.append((c.addr, a.aid))
 
     # all agents send ping request to all agents (including themselves)
     for a in agents:
@@ -143,7 +143,7 @@ async def test_send_ping_pong_deactivated_pong(num_agents, num_containers):
         a = RoleAgent(c)
         a.add_role(PongRole())
         agents.append(a)
-        addrs.append((c.addr, a._aid))
+        addrs.append((c.addr, a.aid))
 
     # add Ping Role and deactivate it immediately
     for a in agents:

@@ -7,10 +7,9 @@ for the communication between roles.
 import asyncio
 
 from typing import Any, Dict, Optional, Union, Tuple, List
-import datetime
 
-from mango.util.scheduling import ScheduledProcessTask, ScheduledTask, Scheduler
-from mango.core.agent import Agent
+from mango.util.scheduling import Scheduler
+from mango.core.agent import Agent, AgentContext
 from mango.role.api import Role, RoleContext
 
 
@@ -121,7 +120,7 @@ class RoleHandler:
         for role in self._roles:
             await role.on_stop()
 
-    def handle_msg(self, content, meta: Dict[str, Any]):
+    def handle_message(self, content, meta: Dict[str, Any]):
         """Handle an incoming message, delegating it to all applicable subscribers
         for role in self._role_handler.roles:
             if role.is_applicable(content, meta):
@@ -189,20 +188,20 @@ class RoleHandler:
             self._send_msg_subs[role] = [method]
 
 
-class RoleAgentContext(RoleContext):
+class DefaultRoleContext(RoleContext):
     """Implementation of the RoleContext-API.
     """
 
-    def __init__(self, container, role_handler: RoleHandler, aid: str, inbox, scheduler: Scheduler):
+    def __init__(self, agent_context: AgentContext, scheduler: Scheduler, role_handler: RoleHandler, aid: str, inbox):
+        self._agent_context = agent_context
         self._role_handler = role_handler
-        self._container = container
         self._aid = aid
         self._scheduler = scheduler
         self._inbox = inbox
 
     @property
     def current_timestamp(self) -> float:
-        return self._container.clock.time
+        return self._agent_context.current_timestamp
 
     def _get_container(self):
         return self._role_handler._data
@@ -232,62 +231,16 @@ class RoleAgentContext(RoleContext):
         """
         self._role_handler.add_role(role)
 
-    def handle_msg(self, content, meta: Dict[str, Any]):
+    def handle_message(self, content, meta: Dict[str, Any]):
         """Handle an incoming message, delegating it to all applicable subscribers
         for role in self._role_handler.roles:
             if role.is_applicable(content, meta):
-                role.handle_msg(content, meta, self)
+                role.handle_message(content, meta, self)
 
         :param content: content
         :param meta: meta
         """
-        self._role_handler.handle_msg(content, meta)
-
-    def schedule_conditional_process_task(self, coroutine_creator, condition_func, lookup_delay=0.1, src=None):
-        return self._scheduler.schedule_conditional_process_task(coroutine_creator=coroutine_creator, 
-                                                                 condition_func=condition_func, 
-                                                                 lookup_delay=lookup_delay, 
-                                                                 src=src)
-
-    def schedule_conditional_task(self, coroutine, condition_func, lookup_delay=0.1, src=None):
-        return self._scheduler.schedule_conditional_task(coroutine=coroutine, condition_func=condition_func,
-                                                         lookup_delay=lookup_delay, src=src)
-
-    def schedule_datetime_process_task(self, coroutine_creator, date_time: datetime.datetime, src=None):
-        return self._scheduler.schedule_datetime_process_task(coroutine_creator=coroutine_creator, 
-                                                              date_time=date_time, 
-                                                              src=src)
-
-    def schedule_datetime_task(self, coroutine, date_time: datetime.datetime, src=None):
-        return self._scheduler.schedule_datetime_task(coroutine=coroutine, date_time=date_time, src=src)
-
-    def schedule_timestamp_task(self, coroutine, timestamp: float, src=None):
-        return self._scheduler.schedule_timestamp_task(coroutine=coroutine, timestamp=timestamp, src=src)
-
-    def schedule_timestamp_process_task(self, coroutine_creator, timestamp: float, src=None):
-        return self._scheduler.schedule_timestamp_process_task(coroutine_creator=coroutine_creator,
-                                                               timestamp=timestamp, src=src)
-
-    def schedule_periodic_process_task(self, coroutine_creator, delay, src=None):
-        return self._scheduler.schedule_periodic_process_task(coroutine_creator=coroutine_creator, 
-                                                              delay=delay, 
-                                                              src=src)
-
-    def schedule_periodic_task(self, coroutine_func, delay, src=None):
-        return self._scheduler.schedule_periodic_task(coroutine_func=coroutine_func, delay=delay, src=src)
-
-    def schedule_instant_process_task(self, coroutine_creator, src=None):
-        return self._scheduler.schedule_instant_process_task(coroutine_creator=coroutine_creator, 
-                                                             src=src)
-
-    def schedule_instant_task(self, coroutine, src=None):
-        return self._scheduler.schedule_instant_task(coroutine=coroutine, src=src)
-
-    def schedule_process_task(self, task: ScheduledProcessTask):
-        return self._scheduler.schedule_process_task(task)
-
-    def schedule_task(self, task: ScheduledTask, src=None):
-        return self._scheduler.schedule_task(task, src=src)
+        self._role_handler.handle_message(content, meta)
 
     async def send_message(self, content,
                            receiver_addr: Union[str, Tuple[str, int]], *,
@@ -315,7 +268,7 @@ class RoleAgentContext(RoleContext):
 
     @property
     def addr(self):
-        return self._container.addr
+        return self._agent_context.addr
 
     @property
     def aid(self):
@@ -342,17 +295,16 @@ class RoleAgent(Agent):
         """
         super().__init__(container, suggested_aid=suggested_aid)
 
-        self._role_handler = RoleHandler(container, self._scheduler)
-        self._agent_context = RoleAgentContext(
-            container, self._role_handler, self.aid, self.inbox, self._scheduler)
+        self._role_handler = RoleHandler(self.context, self.scheduler)
+        self._role_context = DefaultRoleContext(self.context, self.scheduler, self._role_handler, self.aid, self.inbox)
 
     def add_role(self, role: Role):
         """Add a role to the agent. This will lead to the call of :func:`Role.setup`.
 
         :param role: the role to add
         """
-        role.bind(self._agent_context)
-        self._agent_context.add_role(role)
+        role.bind(self._role_context)
+        self._role_context.add_role(role)
 
         # Setup role
         role.setup()
@@ -363,7 +315,7 @@ class RoleAgent(Agent):
         :param role: [description]
         :type role: Role
         """
-        self._agent_context.remove_role(role)
+        self._role_context.remove_role(role)
         asyncio.create_task(role.on_stop())
 
     @property
@@ -375,7 +327,7 @@ class RoleAgent(Agent):
         return self._role_handler.roles
 
     def handle_msg(self, content, meta: Dict[str, Any]):
-        self._agent_context.handle_msg(content, meta)
+        self._role_context.handle_message(content, meta)
 
     async def shutdown(self):
         await self._role_handler.on_stop()

@@ -44,7 +44,7 @@ async def test_send_message():
     agent = MyAgent(c)
     agent2 = MyAgent(c)
 
-    await agent.send_message("", receiver_addr=agent._container.addr, receiver_id=agent2.aid)
+    await agent.send_message("", receiver_addr=agent.context.addr, receiver_id=agent2.aid)
     msg = await agent2.inbox.get()
     _, content, meta = msg
     agent2.handle_msg(content=content, meta=meta)
@@ -61,7 +61,7 @@ async def test_send_acl_message():
     agent = MyAgent(c)
     agent2 = MyAgent(c)
 
-    await agent.send_acl_message("", receiver_addr=agent._container.addr, receiver_id=agent2.aid)
+    await agent.send_acl_message("", receiver_addr=agent.context.addr, receiver_id=agent2.aid)
     msg = await agent2.inbox.get()
     _, content, meta = msg
     agent2.handle_msg(content=content, meta=meta)
@@ -77,7 +77,7 @@ async def test_schedule_message():
     agent = MyAgent(c)
     agent2 = MyAgent(c)
 
-    agent.schedule_instant_message("", receiver_addr=agent._container.addr, receiver_id=agent2.aid)
+    agent.schedule_instant_message("", receiver_addr=agent.context.addr, receiver_id=agent2.aid)
     msg = await agent2.inbox.get()
     _, content, meta = msg
     agent2.handle_msg(content=content, meta=meta)
@@ -93,7 +93,7 @@ async def test_schedule_acl_message():
     agent = MyAgent(c)
     agent2 = MyAgent(c)
 
-    agent.schedule_instant_acl_message("", receiver_addr=agent._container.addr, receiver_id=agent2.aid)
+    agent.schedule_instant_acl_message("", receiver_addr=agent.context.addr, receiver_id=agent2.aid)
     msg = await agent2.inbox.get()
     _, content, meta = msg
     agent2.handle_msg(content=content, meta=meta)
