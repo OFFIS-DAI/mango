@@ -1066,7 +1066,7 @@ class MosaikContainer(Container):
             codec=codec,
             proto_msgs_module=proto_msgs_module,
             loop=loop,
-            name=f"{addr[0]}:{addr[1]}",
+            name=addr,
             clock=clock,
         )
 
