@@ -5,12 +5,14 @@ Message exchange
 ***************
 Receiving messages
 ***************
-Custom agents that inherit from the ``Agent`` class are able to receive messages from other agents via the method ``handle_message``. Hence this method has to be overwritten. The structure of this method looks like this:
+Custom agents that inherit from the ``Agent`` class are able to receive messages from
+other agents via the method ``handle_message``.
+Hence this method has to be overwritten. The structure of this method looks like this:
 
 .. code-block:: python3
 
     @abstractmethod
-    def handle_msg(self, content, meta: Dict[str, Any]):
+    def handle_message(self, content, meta: Dict[str, Any]):
 
         raise NotImplementedError
 
@@ -36,7 +38,7 @@ A simple agent, that just prints the content and meta information of incoming me
         def __init__(self, container):
             super().__init__(container)
 
-        def handle_msg(self, content, meta):
+        def handle_message(self, content, meta):
             print(f'{self._aid} received a message with content {content} and'
                 f'meta {meta}')
 
