@@ -14,6 +14,36 @@ from ..util.scheduling import ScheduledProcessTask, ScheduledTask, Scheduler
 
 logger = logging.getLogger(__name__)
 
+class AgentMessageHandle(ABC):
+
+    def init(self, scheduler, context, delegate):
+        pass
+
+    @abstractmethod
+    def handle(self, content, meta, delegate):
+        # delegate(content, meta)
+        pass
+
+
+class MessageBufferingHandle:
+
+    def __init__(self, check_inbox_interval = 0.1) -> None:
+        self._content_buffer = []
+        self._meta_buffer = []
+        self._check_inbox_interval = check_inbox_interval
+
+    def init(self, agent, delegate):
+        async def process():
+            delegate(self._content_buffer, self._meta_buffer)
+
+        agent._scheduler.schedule_periodic_task(process, delay=self._check_inbox_interval)
+
+    @abstractmethod
+    def handle(self, content, meta, delegate):
+        self._content_buffer.append(content)
+        self._meta_buffer.append(meta)
+
+
 
 class Agent(ABC):
     """Base class for all agents."""
@@ -31,12 +61,16 @@ class Agent(ABC):
         self._container = container
         self._aid = aid
         self.inbox = asyncio.Queue()
+        self._agent_message_handles = []
         self._scheduler = Scheduler(clock=container.clock)
         self._check_inbox_task = asyncio.create_task(self._check_inbox())
         self._check_inbox_task.add_done_callback(self.raise_exceptions)
         self.stopped = asyncio.Future()
 
         logger.info('Agent %s: start running in container %s', aid, container.addr)
+
+    def register_message_handle(self, message_handle, applies_to):
+        self._agent_message_handles.append((message_handle, applies_to))
 
     @property
     def current_timestamp(self) -> float:
@@ -272,6 +306,10 @@ class Agent(ABC):
         """Task for waiting on new message in the inbox"""
 
         logger.debug('Agent %s: Start waiting for messages', self.aid)
+
+        for message_handle, _ in self._agent_message_handles:
+            message_handle.init(self, self.handle_message)
+        
         while True:
             # run in infinite loop until it is cancelled from outside
             message = await self.inbox.get()
@@ -280,12 +318,20 @@ class Agent(ABC):
             # message should be tuples of (priority, content, meta)
             priority, content, meta = message
             meta['priority'] = priority
-            try:
-                self.handle_message(content=content, meta=meta)
-            except NotImplementedError:
-                self.handle_msg(content=content, meta=meta)
-                warnings.warn("The function handle_msg is renamed and is now called handle_message."
-                              "The use of handle_msg will be removed in the next release.", DeprecationWarning)
+            
+            handled = False
+            for message_handle, applies_to in self._agent_message_handles:
+                if applies_to(content, meta):
+                    handled = True
+                    message_handle.handle(content, meta, self.handle_message)
+            
+            if not handled:
+                try:
+                    self.handle_message(content=content, meta=meta)
+                except NotImplementedError:
+                    self.handle_msg(content=content, meta=meta)
+                    warnings.warn("The function handle_msg is renamed and is now called handle_message."
+                                "The use of handle_msg will be removed in the next release.", DeprecationWarning)
 
             # signal to the Queue that the message is handled
             self.inbox.task_done()

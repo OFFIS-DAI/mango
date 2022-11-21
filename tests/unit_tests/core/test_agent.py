@@ -4,7 +4,7 @@ from typing import Any, Dict
 import pytest
 import asyncio
 
-from mango.core.agent import Agent
+from mango.core.agent import Agent, MessageBufferingHandle
 from mango.core.container import Container
 
 
@@ -125,3 +125,35 @@ async def test_handle_msg_deprecation():
         await agent.received_message
     assert agent.incoming_msgs == 1
     await c.shutdown()
+
+
+
+@pytest.mark.asyncio
+async def test_buffer_message_handle():
+    class TestContent():
+        data = 1
+    class TestAgent(Agent):
+        def __init__(self, container):
+            super().__init__(container)
+            self.register_message_handle(MessageBufferingHandle(), lambda content, _: isinstance(content, TestContent))
+            self.received_message = asyncio.Future()
+            self.incoming_msgs = 0
+
+        def handle_message(self, content, meta):
+            self.incoming_msgs += len(content)
+            self.received_message.set_result(True)
+
+    c = await Container.factory(addr=('127.0.0.2', 5555))
+    agent = TestAgent(c)
+    await c.send_acl_message(TestContent(), receiver_addr=c.addr, receiver_id=agent.aid)
+    await c.send_acl_message(TestContent(), receiver_addr=c.addr, receiver_id=agent.aid)
+    await c.send_acl_message(TestContent(), receiver_addr=c.addr, receiver_id=agent.aid)
+    await c.send_acl_message(TestContent(), receiver_addr=c.addr, receiver_id=agent.aid)
+    await c.send_acl_message(TestContent(), receiver_addr=c.addr, receiver_id=agent.aid)
+
+    await agent.received_message
+
+    assert agent.incoming_msgs == 5
+    await c.shutdown()
+
+
