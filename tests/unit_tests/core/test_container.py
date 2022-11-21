@@ -1,9 +1,8 @@
 
 import pytest
 
-from mango.container.core import Container
-
 import mango.container.factory as container_factory
+from mango.agent.core import Agent
 
 class LooksLikeAgent():
     async def shutdown(self):
@@ -166,3 +165,33 @@ async def test_create_acl_not_anon():
 
     assert actual_acl_message.sender_addr is not None
     await c.shutdown()
+
+class ExampleAgent(Agent):
+
+    def handle_msg(self, content, meta):
+        self.content = content
+
+class Data():
+    i = 0
+
+@pytest.mark.asyncio
+async def test_send_message_no_copy():
+    c = await container_factory.create(addr=('127.0.0.2', 5555), copy_internal_messages=False)
+    agent1 = ExampleAgent(c)
+    message_to_send = Data()
+
+    await c.send_acl_message(message_to_send, receiver_addr=c.addr, receiver_id=agent1.aid)
+    await c.shutdown()
+
+    assert agent1.content == message_to_send
+
+@pytest.mark.asyncio
+async def test_send_message_copy():
+    c = await container_factory.create(addr=('127.0.0.2', 5555), copy_internal_messages=True)
+    agent1 = ExampleAgent(c)
+    message_to_send = Data()
+
+    await c.send_acl_message(message_to_send, receiver_addr=c.addr, receiver_id=agent1.aid)
+    await c.shutdown()
+
+    assert agent1.content != message_to_send

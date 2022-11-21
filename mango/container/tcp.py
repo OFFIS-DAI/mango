@@ -27,6 +27,7 @@ class TCPContainer(Container):
         loop: asyncio.AbstractEventLoop,
         proto_msgs_module=None,
         clock: Clock,
+        **kwargs
     ):
         """
         Initializes a TCP container. Do not directly call this method but use
@@ -44,6 +45,7 @@ class TCPContainer(Container):
             loop=loop,
             name=f"{addr[0]}:{addr[1]}",
             clock=clock,
+            **kwargs
         )
 
         self.server = None  # will be set within the factory method
@@ -130,38 +132,22 @@ class TCPContainer(Container):
         if receiver_addr == self.addr:
             if not receiver_id:
                 receiver_id = message.receiver_id
+                
             # internal message
-
-            success = self._send_internal_message(receiver_id, message)
+            meta = {
+                "network_protocol" : "tcp"
+            }
+            receiver = self._agents.get(receiver_id, None)
+            if receiver is None:
+                logger.warning(
+                    f"Sending internal message not successful, receiver id unknown;{receiver_id}"
+                )
+                return False
+            success = self._send_internal_message(message, default_meta=meta, target_inbox_overwrite=receiver.inbox)
         else:
             success = await self._send_external_message(receiver_addr, message)
 
         return success
-
-    def _send_internal_message(self, receiver_id, message) -> bool:
-        """
-        Sends a message to an agent that lives in the same container
-        :param receiver_id: ID of the receiver
-        :param message:
-        :return: boolean indicating whether sending was successful
-        """
-
-        receiver = self._agents.get(receiver_id, None)
-        if receiver is None:
-            logger.warning(
-                f"Sending internal message not successful, receiver id unknown;{receiver_id}"
-            )
-            return False
-        # TODO priority assignment could be specified here,
-        priority = 0
-        if hasattr(message, "split_content_and_meta"):
-            content, meta = message.split_content_and_meta()
-        else:
-            content = message
-            meta = {}
-        meta["network_protocol"] = "tcp"
-        receiver.inbox.put_nowait((priority, content, meta))
-        return True
 
     async def _send_external_message(self, addr, message) -> bool:
         """

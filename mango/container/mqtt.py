@@ -29,6 +29,7 @@ class MQTTContainer(Container):
         mqtt_client: paho.Client,
         codec: Codec = JSON,
         proto_msgs_module=None,
+        **kwargs
     ):
         """
         Initializes a container. Do not directly call this method but use
@@ -51,6 +52,7 @@ class MQTTContainer(Container):
             loop=loop,
             clock=clock,
             name=client_id,
+            **kwargs
         )
 
         self.client_id: str = client_id
@@ -277,15 +279,7 @@ class MQTTContainer(Container):
                 "retain": False,
                 "network_protocol": "mqtt",
             }
-
-            if hasattr(message, "split_content_and_meta"):
-                content, msg_meta = message.split_content_and_meta()
-                meta.update(msg_meta)
-            else:
-                content = message
-
-            self.inbox.put_nowait((0, content, meta))
-            return True
+            return self._send_internal_message(message, default_meta=meta)
 
         else:
             self._send_external_message(topic=receiver_addr, message=message)
