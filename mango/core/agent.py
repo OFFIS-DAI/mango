@@ -6,9 +6,10 @@ Every agent must live in a container. Containers are responsible for making
 """
 import asyncio
 import logging
+import warnings
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any, Dict, Optional, Tuple, Union
 from ..util.scheduling import ScheduledProcessTask, ScheduledTask, Scheduler
 
 logger = logging.getLogger(__name__)
@@ -43,6 +44,66 @@ class Agent(ABC):
         Method that returns the current unix timestamp given the clock within the container
         """
         return self._container.clock.time
+
+    async def send_message(self,
+        content,
+        receiver_addr: Union[str, Tuple[str, int]],
+        receiver_id: Optional[str] = None,
+        **kwargs):
+        """
+        See container.send_message(...)
+        """
+        return await self._container.send_message(content, receiver_addr=receiver_addr, receiver_id=receiver_id, **kwargs)
+
+    async def send_acl_message(self,
+        content,
+        receiver_addr: Union[str, Tuple[str, int]],
+        receiver_id: Optional[str] = None,
+        acl_metadata: Optional[Dict[str, Any]] = None,
+        **kwargs):
+        """
+        See container.send_acl_message(...)
+        """
+        return await self._container.send_acl_message(content, receiver_addr=receiver_addr, receiver_id=receiver_id, acl_metadata=acl_metadata, **kwargs)
+
+    def schedule_instant_message(self,
+        content,
+        receiver_addr: Union[str, Tuple[str, int]],
+        receiver_id: Optional[str] = None,
+        **kwargs):
+        """
+        Schedules sending a message without any delay. This is equivalent to using the schedulers 'schedule_instant_task' with the coroutine created by
+        'container.send_message'.
+        
+        :param content: The content of the message
+        :param receiver_addr: The address passed to the container
+        :param receiver_id: The agent id of the receiver
+        :param kwargs: Additional parameters to provide protocol specific settings 
+        :returns: asyncio.Task for the scheduled coroutine
+        """
+
+        return self.schedule_instant_task(self.send_message(content, receiver_addr=receiver_addr, receiver_id=receiver_id, **kwargs))
+
+
+    def schedule_instant_acl_message(self,
+        content,
+        receiver_addr: Union[str, Tuple[str, int]],
+        receiver_id: Optional[str] = None,
+        acl_metadata: Optional[Dict[str, Any]] = None,
+        **kwargs):
+        """
+        Schedules sending an acl message without any delay. This is equivalent to using the schedulers 'schedule_instant_task' with the coroutine created by
+        'container.send_acl_message'.
+        
+        :param content: The content of the message
+        :param receiver_addr: The address passed to the container
+        :param receiver_id: The agent id of the receiver
+        :param acl_metadata: Metadata for the acl message
+        :param kwargs: Additional parameters to provide protocol specific settings 
+        :returns: asyncio.Task for the scheduled coroutine
+        """
+
+        return self.schedule_instant_task(self.send_acl_message(content, receiver_addr=receiver_addr, receiver_id=receiver_id, acl_metadata=acl_metadata, **kwargs))
 
     def schedule_conditional_process_task(self, coroutine_creator, condition_func, lookup_delay=0.1, src=None):
         """Schedule a process task when a specified condition is met.
@@ -210,33 +271,48 @@ class Agent(ABC):
     async def _check_inbox(self):
         """Task for waiting on new message in the inbox"""
 
-        logger.debug('Agent %s: Start waiting for msgs', self.aid)
+        logger.debug('Agent %s: Start waiting for messages', self.aid)
         while True:
             # run in infinite loop until it is cancelled from outside
-            msg = await self.inbox.get()
-            logger.debug('Agent %s: Received message;%s}', self.aid, str(msg))
+            message = await self.inbox.get()
+            logger.debug('Agent %s: Received message;%s}', self.aid, str(message))
 
-            # msgs should be tuples of (priority, content)
-            priority, content, meta = msg
+            # message should be tuples of (priority, content, meta)
+            priority, content, meta = message
             meta['priority'] = priority
-            self.handle_msg(content=content, meta=meta)
+            try:
+                self.handle_message(content=content, meta=meta)
+            except NotImplementedError:
+                self.handle_msg(content=content, meta=meta)
+                warnings.warn("The function handle_msg is renamed and is now called handle_message."
+                              "The use of handle_msg will be removed in the next release.", DeprecationWarning)
 
             # signal to the Queue that the message is handled
             self.inbox.task_done()
 
-    @abstractmethod
-    def handle_msg(self, content, meta: Dict[str, Any]):
+    def handle_message(self, content, meta: Dict[str, Any]):
         """
 
         Has to be implemented by the user.
+        This method is called when a message is received at the agents inbox.
+        :param content: The deserialized message object
+        :param meta: Meta details of the message. In case of mqtt this dict
+        includes at least the field 'topic'
+        """
+        raise NotImplementedError
+
+    def handle_msg(self, content, meta: Dict[str, Any]):
+        """
+        .. deprecated:: 0.4.0
+            Use 'agent.handle_message' instead. In the next version this method
+            will be dropped entirely, and it will be mandatory to overwrite handle_message.
+
         This method is called when a message is received.
-        The message with the lowest priority number
-        in the que is handled first.
         This is a blocking call, if non-blocking message handling is desired,
         one should call asyncio.create_task() in order to handle more than
         one message at a time
         :param content: The deserialized message object
-        :param meta: Meta details of the msg. In case of mqtt this dict
+        :param meta: Meta details of the message. In case of mqtt this dict
         includes at least the field 'topic'
         """
         raise NotImplementedError

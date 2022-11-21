@@ -94,7 +94,7 @@ class InitiatorAgent(Agent):
 
         self.got_reply = asyncio.Future()
 
-    def handle_msg(self, content, meta):
+    def handle_message(self, content, meta):
         if content == M2:
             self.got_reply.set_result(True)
 
@@ -105,22 +105,20 @@ class InitiatorAgent(Agent):
         await asyncio.sleep(0.1)
 
         # send initial message
-        await self._container.send_message(
+        await self._container.send_acl_message(
             M1,
             self.target,
             receiver_id=self.other_aid,
-            create_acl=True,
         )
 
         # await reply
         await self.got_reply
 
         # answer to reply
-        await self._container.send_message(
+        await self._container.send_acl_message(
             M3,
             self.target,
             receiver_id=self.other_aid,
-            create_acl=True,
         )
 
         # shut down
@@ -141,7 +139,7 @@ class ReplierAgent(Agent):
         self.got_first = asyncio.Future()
         self.got_second = asyncio.Future()
 
-    def handle_msg(self, content, meta):
+    def handle_message(self, content, meta):
         if content == M1:
             self.got_first.set_result(True)
         elif content == M3:
@@ -155,11 +153,10 @@ class ReplierAgent(Agent):
         await self.got_first
 
         # send reply
-        await self._container.send_message(
+        await self._container.send_acl_message(
             M2,
             self.target,
-            receiver_id=self.other_aid,
-            create_acl=True,
+            receiver_id=self.other_aid
         )
 
         # await reply

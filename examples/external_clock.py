@@ -11,12 +11,11 @@ class Caller(Agent):
                                      timestamp=self.current_timestamp + 5)
 
     async def send_hello_world(self, receiver_addr, receiver_id):
-        await self._container.send_message(receiver_addr=receiver_addr,
+        await self._container.send_acl_message(receiver_addr=receiver_addr,
                                            receiver_id=receiver_id,
-                                           content='Hello World',
-                                           create_acl=True)
+                                           content='Hello World')
 
-    def handle_msg(self, content, meta):
+    def handle_message(self, content, meta):
         pass
 
 
@@ -25,7 +24,7 @@ class Receiver(Agent):
         super().__init__(container)
         self.wait_for_reply = asyncio.Future()
 
-    def handle_msg(self, content, meta):
+    def handle_message(self, content, meta):
         print(f'Received a message with the following content {content}.')
         self.wait_for_reply.set_result(True)
 

@@ -24,24 +24,24 @@ Consider a simple example class we wish to encode as json:
 .. code-block:: python3
 
     class MyClass:
-    def __init__(self, x, y):
-        self.x = x
-        self._y = y
+        def __init__(self, x, y):
+            self.x = x
+            self._y = y
 
-    @property
-    def y(self):
-        return self._y
+        @property
+        def y(self):
+            return self._y
 
-    def __asdict__(self):
-        return {"x": self.x, "y": self.y}
+        def __asdict__(self):
+            return {"x": self.x, "y": self.y}
 
-    @classmethod
-    def __fromdict__(cls, attrs):
-        return cls(**attrs)
+        @classmethod
+        def __fromdict__(cls, attrs):
+            return cls(**attrs)
 
-    @classmethod
-    def __serializer__(cls):
-        return (cls, cls.__asdict__, cls.__fromdict__)
+        @classmethod
+        def __serializer__(cls):
+            return (cls, cls.__asdict__, cls.__fromdict__)
 
 
 If we try to encode an object of ``MyClass`` without adding a serializer we get an SerializationError:
@@ -79,6 +79,51 @@ We have to make the type known to the codec to use it:
     python main.py
     abc 123
     abc 123
+
+All that is left to do now is to pass our codec to the container. This is done during container creation in the ``factory`` method.
+
+.. code-block:: python3
+
+    class SimpleReceivingAgent(Agent):
+        def __init__(self, container):
+            super().__init__(container)
+
+        def handle_message(self, content, meta):
+            print(f"{self._aid} received a message with content {content} and meta f{meta}")
+            if isinstance(content, MyClass):
+                print(content.x)
+                print(content.y)
+
+
+    async def main():
+        codec = codecs.JSON()
+        codec.add_serializer(*MyClass.__serializer__())
+
+        # codecs can be passed directly to the container
+        # if no codec is passed a new instance of JSON() is created
+        sending_container = await Container.factory(addr=("localhost", 5556), codec=codec)
+        receiving_container = await Container.factory(addr=("localhost", 5555), codec=codec)
+        receiving_agent = SimpleReceivingAgent(receiving_container)
+
+        # agents can now directly pass content of type MyClass to each other
+        my_object = MyClass("abc", 123)
+        await sending_container.send_acl_message(
+            content=my_object, receiver_addr=("localhost", 5555), receiver_id="agent0"
+        )
+
+        await receiving_container.shutdown()
+        await sending_container.shutdown()
+
+
+    if __name__ == "__main__":
+        asyncio.run(main())
+
+.. code-block:: bash
+
+    python main.py
+    agent0 received a message with content <__main__.MyClass object at 0x7f42c930edc0> and meta f{'sender_id': None, 'sender_addr': ['localhost', 5556], 'receiver_id': 'agent0', 'receiver_addr': ['localhost', 5555], 'performative': None, 'conversation_id': None, 'reply_by': None, 'in_reply_to': None, 'protocol': None, 'language': None, 'encoding': None, 'ontology': None, 'reply_with': None, 'network_protocol': 'tcp', 'priority': 0}
+    abc
+    123
 
 **@json_serializable decorator**
 

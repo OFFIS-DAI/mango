@@ -135,39 +135,40 @@ class RoleHandler:
                 if message_condition(content, meta):
                     method(content, meta)
 
-    async def send_message(
-            self, content,
-            receiver_addr: Union[str, Tuple[str, int]], *,
-            receiver_id: Optional[str] = None,
-            create_acl: bool = False,
-            acl_metadata: Optional[Dict[str, Any]] = None,
-            mqtt_kwargs: Optional[Dict[str, Any]] = None,
-    ):
-        """Send a message to another agent. Delegates the call to the agent-container.
-
-        :param content: the message you want to send
-        :param receiver_addr: address of the recipient
-        :param receiver_id: ip of the recipient. Defaults to None.
-        :param create_acl: set true if you want to create an acl. Defaults to False.
-        :param acl_metadata: Metadata of the acl. Defaults to None
-        :param mqtt_kwargs: Args for mqtt. Defaults to None.
-        """
+    def _notify_send_message_subs(self, content, receiver_addr, receiver_id, **kwargs):
         for role in self._send_msg_subs:
             for sub in self._send_msg_subs[role]:
                 if self._is_role_active(role):
                     sub(content=content, receiver_addr=receiver_addr,
                         receiver_id=receiver_id,
-                        create_acl=create_acl,
-                        acl_metadata=acl_metadata,
-                        mqtt_kwargs=mqtt_kwargs)
+                        **kwargs)
+
+
+    async def send_message(self, content,
+                           receiver_addr: Union[str, Tuple[str, int]], *,
+                           receiver_id: Optional[str] = None,
+                           **kwargs
+    ):
+        self._notify_send_message_subs(content, receiver_addr, receiver_id, **kwargs)
         return await self._container.send_message(
             content=content,
             receiver_addr=receiver_addr,
             receiver_id=receiver_id,
-            create_acl=create_acl,
-            acl_metadata=acl_metadata,
-            mqtt_kwargs=mqtt_kwargs)
+            **kwargs)
 
+    async def send_acl_message(self, content,
+                           receiver_addr: Union[str, Tuple[str, int]], *,
+                           receiver_id: Optional[str] = None,
+                           acl_metadata: Optional[Dict[str, Any]] = None,
+                           **kwargs):
+        self._notify_send_message_subs(content, receiver_addr, receiver_id, **kwargs)
+        return await self._container.send_acl_message(
+            content=content,
+            receiver_addr=receiver_addr,
+            receiver_id=receiver_id,
+            acl_metadata=acl_metadata,
+            **kwargs)
+        
     def subscribe_message(self, role, method, message_condition, priority=0):
         if len(self._message_subs) == 0:
             self._message_subs.append((role, message_condition, method, priority))
@@ -288,30 +289,29 @@ class RoleAgentContext(RoleContext):
     def schedule_task(self, task: ScheduledTask, src=None):
         return self._scheduler.schedule_task(task, src=src)
 
-    async def send_message(
-            self, content,
-            receiver_addr: Union[str, Tuple[str, int]], *,
-            receiver_id: Optional[str] = None,
-            create_acl: bool = False,
-            acl_metadata: Optional[Dict[str, Any]] = None,
-            mqtt_kwargs: Optional[Dict[str, Any]] = None,
+    async def send_message(self, content,
+                           receiver_addr: Union[str, Tuple[str, int]], *,
+                           receiver_id: Optional[str] = None,
+                           **kwargs
     ):
-        """Send a message to another agent. Delegates the call to the agent-container.
-
-        :param content: the message you want to send
-        :param receiver_addr: address of the recipient
-        :param receiver_id: ip of the recipient. Defaults to None.
-        :param create_acl: set true if you want to create an acl. Defaults to False.
-        :param acl_metadata: Metadata of the acl. Defaults to None
-        :param mqtt_kwargs: Args for mqtt. Defaults to None.
-        """
         return await self._role_handler.send_message(
             content=content,
             receiver_addr=receiver_addr,
             receiver_id=receiver_id,
-            create_acl=create_acl,
+            **kwargs)
+
+    async def send_acl_message(self, content,
+                           receiver_addr: Union[str, Tuple[str, int]], *,
+                           receiver_id: Optional[str] = None,
+                           acl_metadata: Optional[Dict[str, Any]] = None,
+                           **kwargs
+    ):
+        return await self._role_handler.send_acl_message(
+            content=content,
+            receiver_addr=receiver_addr,
+            receiver_id=receiver_id,
             acl_metadata=acl_metadata,
-            mqtt_kwargs=mqtt_kwargs)
+            **kwargs)
 
     @property
     def addr(self):
@@ -374,7 +374,7 @@ class RoleAgent(Agent):
         """
         return self._role_handler.roles
 
-    def handle_msg(self, content, meta: Dict[str, Any]):
+    def handle_message(self, content, meta: Dict[str, Any]):
         self._agent_context.handle_msg(content, meta)
 
     async def shutdown(self):

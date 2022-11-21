@@ -1,14 +1,16 @@
 ========
 Agents and container
 ========
-In order to speed up message exchange between agents that run on the same physical hardware,
-agents live in a ``container``.
-Agents living in one container can exchange messages without having to send it through the network.
-A container is responsible for the message distribution (sending and receiving) of its agents.
 
 ***************
 mango container
 ***************
+
+In mango, agents live in a ``container``. The container is responsible for everything network related of the agent.
+This includes in particular sending and receiving of messages, but also message distribution to the correct agent or
+(de-)serialization of messages.
+Container also help to to speed up message exchange between agents that run on the same physical hardware,
+as data that is exchanged between such agents will not have to be sent through the network.
 
 In mango, a container is created using the classmethod ``mango.core.container.Container.factory``:
 
@@ -36,7 +38,7 @@ A simple container, that uses plain tcp for message exchange can be created as f
 
 A container can be parametrized regarding its connection type ('tcp' or 'MQTT') and
 regarding the codec that is used for message serialization.
-The default codec is JSON (see section codecs for more information). It is also possible to
+The default codec is JSON (see section :doc:`codecs` for more information). It is also possible to
 define the clock that an agents scheduler should use (see section scheduling).
 
 After a container is created, it is waiting for incoming messages on the given address.
