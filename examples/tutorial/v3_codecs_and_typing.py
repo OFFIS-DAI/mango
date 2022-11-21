@@ -1,8 +1,8 @@
 import asyncio
 from dataclasses import dataclass
 
-from mango.core.agent import Agent
-from mango.core.container import Container
+from mango.agent.core import Agent
+from mango.container.core import Container
 import mango.messages.codecs as codecs
 
 """

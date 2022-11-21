@@ -3,9 +3,9 @@ from typing import Any, Dict
 
 import pytest, asyncio
 
-from mango.core.agent import Agent
-from mango.core.container import Container
+from mango.agent.core import Agent
 
+import mango.container.factory as container_factory
 
 class MyAgent(Agent): 
     
@@ -18,7 +18,7 @@ class MyAgent(Agent):
 @pytest.mark.asyncio
 async def test_periodic_facade():
     # GIVEN        
-    c = await Container.factory(addr=('127.0.0.2', 5555))
+    c = await container_factory.create(addr=('127.0.0.2', 5555))
     agent = MyAgent(c)
     l = []
 
@@ -40,7 +40,7 @@ async def test_periodic_facade():
 @pytest.mark.asyncio
 async def test_send_message():
     # GIVEN        
-    c = await Container.factory(addr=('127.0.0.2', 5555))
+    c = await container_factory.create(addr=('127.0.0.2', 5555))
     agent = MyAgent(c)
     agent2 = MyAgent(c)
 
@@ -57,7 +57,7 @@ async def test_send_message():
 @pytest.mark.asyncio
 async def test_send_acl_message():
     # GIVEN        
-    c = await Container.factory(addr=('127.0.0.2', 5555))
+    c = await container_factory.create(addr=('127.0.0.2', 5555))
     agent = MyAgent(c)
     agent2 = MyAgent(c)
 
@@ -73,7 +73,7 @@ async def test_send_acl_message():
 @pytest.mark.asyncio
 async def test_schedule_message():
     # GIVEN        
-    c = await Container.factory(addr=('127.0.0.2', 5555))
+    c = await container_factory.create(addr=('127.0.0.2', 5555))
     agent = MyAgent(c)
     agent2 = MyAgent(c)
 
@@ -89,7 +89,7 @@ async def test_schedule_message():
 @pytest.mark.asyncio
 async def test_schedule_acl_message():
     # GIVEN        
-    c = await Container.factory(addr=('127.0.0.2', 5555))
+    c = await container_factory.create(addr=('127.0.0.2', 5555))
     agent = MyAgent(c)
     agent2 = MyAgent(c)
 

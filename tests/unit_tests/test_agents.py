@@ -1,8 +1,8 @@
 import pytest
 import asyncio
 from typing import Dict, Any
-from mango.core.container import Container
-from mango.core.agent import Agent
+from mango.agent.core import Agent
+import mango.container.factory as container_factory
 
 
 class PingPongAgent(Agent):
@@ -70,7 +70,7 @@ class PingPongAgent(Agent):
 
 @pytest.mark.asyncio
 async def test_init_and_shutdown():
-    c = await Container.factory(addr=('127.0.0.1', 5555))
+    c = await container_factory.create(addr=('127.0.0.1', 5555))
     a = PingPongAgent(c)
     assert a.aid is not None
     assert not a._check_inbox_task.done()
@@ -89,7 +89,7 @@ async def test_send_ping_pong(num_agents, num_containers):
     # create containers
     containers = []
     for i in range(num_containers):
-        c = await Container.factory(addr=('127.0.0.2', 5555 + i))
+        c = await container_factory.create(addr=('127.0.0.2', 5555 + i))
         containers.append(c)
 
     # create agents

@@ -10,7 +10,7 @@ from typing import Any, Dict, Optional, Union, Tuple, List
 import datetime
 
 from mango.util.scheduling import ScheduledProcessTask, ScheduledTask, Scheduler
-from mango.core.agent import Agent
+from mango.agent.core import Agent
 from mango.role.api import Role, RoleContext
 
 

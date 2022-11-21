@@ -1,8 +1,9 @@
 
-
 import pytest
 
-from mango.core.container import Container
+from mango.container.core import Container
+
+import mango.container.factory as container_factory
 
 class LooksLikeAgent():
     async def shutdown(self):
@@ -11,7 +12,7 @@ class LooksLikeAgent():
 @pytest.mark.asyncio
 async def test_register_aid_pattern_match():
     # GIVEN
-    c = await Container.factory(addr=('127.0.0.2', 5555))
+    c = await container_factory.create(addr=('127.0.0.2', 5555))
     agent = LooksLikeAgent()
     suggested_aid = "agent12"
 
@@ -26,7 +27,7 @@ async def test_register_aid_pattern_match():
 @pytest.mark.asyncio
 async def test_register_aid_success():
     # GIVEN
-    c = await Container.factory(addr=('127.0.0.2', 5555))
+    c = await container_factory.create(addr=('127.0.0.2', 5555))
     agent = LooksLikeAgent()
     suggested_aid = "cagent12"
 
@@ -41,7 +42,7 @@ async def test_register_aid_success():
 @pytest.mark.asyncio
 async def test_register_no_suggested():
     # GIVEN
-    c = await Container.factory(addr=('127.0.0.2', 5555))
+    c = await container_factory.create(addr=('127.0.0.2', 5555))
     agent = LooksLikeAgent()
 
     # WHEN
@@ -54,7 +55,7 @@ async def test_register_no_suggested():
 @pytest.mark.asyncio
 async def test_register_pattern_half_match():
     # GIVEN
-    c = await Container.factory(addr=('127.0.0.2', 5555))
+    c = await container_factory.create(addr=('127.0.0.2', 5555))
     agent = LooksLikeAgent()
     suggested_aid = "agentABC"
 
@@ -69,7 +70,7 @@ async def test_register_pattern_half_match():
 @pytest.mark.asyncio
 async def test_register_existing():
     # GIVEN
-    c = await Container.factory(addr=('127.0.0.2', 5555))
+    c = await container_factory.create(addr=('127.0.0.2', 5555))
     agent = LooksLikeAgent()
     suggested_aid = "agentABC"
 
@@ -86,7 +87,7 @@ async def test_register_existing():
 @pytest.mark.asyncio
 async def test_is_aid_available():
     # GIVEN
-    c = await Container.factory(addr=('127.0.0.2', 5555))
+    c = await container_factory.create(addr=('127.0.0.2', 5555))
     aid_to_check = "agentABC"
 
     # WHEN
@@ -99,7 +100,7 @@ async def test_is_aid_available():
 @pytest.mark.asyncio
 async def test_is_aid_available_but_match():
     # GIVEN
-    c = await Container.factory(addr=('127.0.0.2', 5555))
+    c = await container_factory.create(addr=('127.0.0.2', 5555))
     aid_to_check = "agent5"
 
     # WHEN
@@ -112,7 +113,7 @@ async def test_is_aid_available_but_match():
 @pytest.mark.asyncio
 async def test_is_aid_not_available():
     # GIVEN
-    c = await Container.factory(addr=('127.0.0.2', 5555))
+    c = await container_factory.create(addr=('127.0.0.2', 5555))
     c._register_agent(LooksLikeAgent(), "abc")
     aid_to_check = "abc"
 
@@ -126,7 +127,7 @@ async def test_is_aid_not_available():
 @pytest.mark.asyncio
 async def test_is_aid_not_available_and_match():
     # GIVEN
-    c = await Container.factory(addr=('127.0.0.2', 5555))
+    c = await container_factory.create(addr=('127.0.0.2', 5555))
     c._register_agent(LooksLikeAgent())
     aid_to_check = "agent0"
 
@@ -140,7 +141,7 @@ async def test_is_aid_not_available_and_match():
 
 @pytest.mark.asyncio
 async def test_create_acl_no_modify():
-    c = await Container.factory(addr=('127.0.0.2', 5555))
+    c = await container_factory.create(addr=('127.0.0.2', 5555))
     common_acl_q = {}
     actual_acl_message = c._create_acl("", receiver_addr="", receiver_id="", acl_metadata=common_acl_q)
 
@@ -152,7 +153,7 @@ async def test_create_acl_no_modify():
 
 @pytest.mark.asyncio
 async def test_create_acl_anon():
-    c = await Container.factory(addr=('127.0.0.2', 5555))
+    c = await container_factory.create(addr=('127.0.0.2', 5555))
     actual_acl_message = c._create_acl("", receiver_addr="", receiver_id="", is_anonymous_acl=True)
 
     assert actual_acl_message.sender_addr is None
@@ -160,7 +161,7 @@ async def test_create_acl_anon():
 
 @pytest.mark.asyncio
 async def test_create_acl_not_anon():
-    c = await Container.factory(addr=('127.0.0.2', 5555))
+    c = await container_factory.create(addr=('127.0.0.2', 5555))
     actual_acl_message = c._create_acl("", receiver_addr="", receiver_id="", is_anonymous_acl=False)
 
     assert actual_acl_message.sender_addr is not None

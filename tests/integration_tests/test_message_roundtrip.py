@@ -1,13 +1,16 @@
 import pytest
-from mango.core.agent import Agent
-from mango.core.container import Container
+from mango.agent.core import Agent
+from mango.container.core import Container
 from mango.messages.codecs import JSON, PROTOBUF
 from msg_pb2 import MyMsg
 import asyncio
 
+import mango.container.factory as container_factory
+
 M1 = "Hello"
 M2 = "Hello2"
 M3 = "Goodbye"
+
 
 
 def str_to_proto(my_str):
@@ -49,13 +52,13 @@ async def setup_and_run_test_case(connection_type, codec):
         "transport": "tcp",
     }
 
-    container_1 = await Container.factory(
+    container_1 = await container_factory.create(
         connection_type=connection_type,
         codec=codec,
         addr=init_addr,
         mqtt_kwargs=mqtt_kwargs_1,
     )
-    container_2 = await Container.factory(
+    container_2 = await container_factory.create(
         connection_type=connection_type,
         codec=codec,
         addr=repl_addr,

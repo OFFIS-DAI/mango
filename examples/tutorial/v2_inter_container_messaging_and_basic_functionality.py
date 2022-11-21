@@ -1,7 +1,7 @@
 import asyncio
 
-from mango.core.agent import Agent
-from mango.core.container import Container
+from mango.agent.core import Agent
+from mango.container.core import Container
 from mango.messages.message import Performatives
 
 """

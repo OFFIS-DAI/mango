@@ -1,7 +1,7 @@
 import asyncio
-from mango.core.container import Container
-from mango.core.agent import Agent
-from mango.util.clock import AsyncioClock, ExternalClock
+from mango.container.core import Container
+from mango.agent.core import Agent
+from mango.util.clock import ExternalClock
 
 
 class Caller(Agent):
