@@ -54,7 +54,7 @@ class PVAgent(Agent):
         super().__init__(container, suggested_aid=suggested_aid)
         self.max_feed_in = -1
 
-    def handle_msg(self, content, meta):
+    def handle_message(self, content, meta):
         sender_addr = meta["sender_addr"]
         sender_id = meta["sender_id"]
 
@@ -100,7 +100,7 @@ class ControllerAgent(Agent):
         self.reports_done = None
         self.acks_done = None
 
-    def handle_msg(self, content, meta):
+    def handle_message(self, content, meta):
         if isinstance(content, FeedInReplyMsg):
             self.handle_feed_in_reply(content.feed_in)
         elif isinstance(content, MaxFeedInAck):

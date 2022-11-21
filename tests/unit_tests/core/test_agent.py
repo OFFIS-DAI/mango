@@ -1,7 +1,8 @@
 
 from typing import Any, Dict
 
-import pytest, asyncio
+import pytest
+import asyncio
 
 from mango.core.agent import Agent
 from mango.core.container import Container
@@ -11,7 +12,7 @@ class MyAgent(Agent):
     
     test_counter: int = 0
     
-    def handle_msg(self, content, meta: Dict[str, Any]):
+    def handle_message(self, content, meta: Dict[str, Any]):
         self.test_counter += 1
 
 
@@ -47,7 +48,7 @@ async def test_send_message():
     await agent.send_message("", receiver_addr=agent._container.addr, receiver_id=agent2.aid)
     msg = await agent2.inbox.get()
     _, content, meta = msg
-    agent2.handle_msg(content=content, meta=meta)
+    agent2.handle_message(content=content, meta=meta)
 
     # THEN
     assert agent2.test_counter == 1
@@ -64,11 +65,12 @@ async def test_send_acl_message():
     await agent.send_acl_message("", receiver_addr=agent._container.addr, receiver_id=agent2.aid)
     msg = await agent2.inbox.get()
     _, content, meta = msg
-    agent2.handle_msg(content=content, meta=meta)
+    agent2.handle_message(content=content, meta=meta)
 
     # THEN
     assert agent2.test_counter == 1
     await c.shutdown()
+
 
 @pytest.mark.asyncio
 async def test_schedule_message():
@@ -80,11 +82,12 @@ async def test_schedule_message():
     agent.schedule_instant_message("", receiver_addr=agent._container.addr, receiver_id=agent2.aid)
     msg = await agent2.inbox.get()
     _, content, meta = msg
-    agent2.handle_msg(content=content, meta=meta)
+    agent2.handle_message(content=content, meta=meta)
 
     # THEN
     assert agent2.test_counter == 1
     await c.shutdown()
+
 
 @pytest.mark.asyncio
 async def test_schedule_acl_message():
@@ -96,8 +99,29 @@ async def test_schedule_acl_message():
     agent.schedule_instant_acl_message("", receiver_addr=agent._container.addr, receiver_id=agent2.aid)
     msg = await agent2.inbox.get()
     _, content, meta = msg
-    agent2.handle_msg(content=content, meta=meta)
+    agent2.handle_message(content=content, meta=meta)
 
     # THEN
     assert agent2.test_counter == 1
+    await c.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_handle_msg_deprecation():
+    class TestAgent(Agent):
+        def __init__(self, container):
+            super().__init__(container)
+            self.incoming_msgs = 0
+            self.received_message = asyncio.Future()
+
+        def handle_msg(self, content, meta):
+            self.incoming_msgs += 1
+            self.received_message.set_result(True)
+
+    c = await Container.factory(addr=('127.0.0.2', 5555))
+    agent = TestAgent(container=c)
+    with pytest.deprecated_call():
+        await c.send_acl_message(content='', receiver_addr=c.addr, receiver_id=agent.aid)
+        await agent.received_message
+    assert agent.incoming_msgs == 1
     await c.shutdown()

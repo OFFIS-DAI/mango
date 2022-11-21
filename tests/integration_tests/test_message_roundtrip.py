@@ -94,7 +94,7 @@ class InitiatorAgent(Agent):
 
         self.got_reply = asyncio.Future()
 
-    def handle_msg(self, content, meta):
+    def handle_message(self, content, meta):
         if content == M2:
             self.got_reply.set_result(True)
 
@@ -139,7 +139,7 @@ class ReplierAgent(Agent):
         self.got_first = asyncio.Future()
         self.got_second = asyncio.Future()
 
-    def handle_msg(self, content, meta):
+    def handle_message(self, content, meta):
         if content == M1:
             self.got_first.set_result(True)
         elif content == M3:
