@@ -1,7 +1,8 @@
 
 from typing import Any, Dict
 
-import pytest, asyncio
+import pytest
+import asyncio
 
 from mango.core.agent import Agent
 from mango.core.container import Container
@@ -70,6 +71,7 @@ async def test_send_acl_message():
     assert agent2.test_counter == 1
     await c.shutdown()
 
+
 @pytest.mark.asyncio
 async def test_schedule_message():
     # GIVEN        
@@ -86,6 +88,7 @@ async def test_schedule_message():
     assert agent2.test_counter == 1
     await c.shutdown()
 
+
 @pytest.mark.asyncio
 async def test_schedule_acl_message():
     # GIVEN        
@@ -100,4 +103,25 @@ async def test_schedule_acl_message():
 
     # THEN
     assert agent2.test_counter == 1
+    await c.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_handle_msg_deprecation():
+    class TestAgent(Agent):
+        def __init__(self, container):
+            super().__init__(container)
+            self.incoming_msgs = 0
+            self.received_message = asyncio.Future()
+
+        def handle_msg(self, content, meta):
+            self.incoming_msgs += 1
+            self.received_message.set_result(True)
+
+    c = await Container.factory(addr=('127.0.0.2', 5555))
+    agent = TestAgent(container=c)
+    with pytest.deprecated_call():
+        await c.send_acl_message(content='', receiver_addr=c.addr, receiver_id=agent.aid)
+        await agent.received_message
+    assert agent.incoming_msgs == 1
     await c.shutdown()
