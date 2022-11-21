@@ -275,3 +275,121 @@ async def test_task_as_process_suspend():
         
     scheduler.shutdown()
     
+
+@pytest.mark.asyncio
+async def test_future_wait_task():
+    # GIVEN
+    scheduler = Scheduler()
+    l = []
+
+    fut = asyncio.Future()
+    input = [1]
+    async def do_something():
+        await asyncio.sleep(0.1)
+        input[0] = 10
+        fut.set_result(True)
+
+    async def increase_counter():
+        assert input[0] == 10
+        l.append(1)
+    
+    # WHEN
+    t = scheduler.schedule_awaiting_task(coroutine=increase_counter(), awaited_coroutine=fut)
+
+    try:
+        asyncio.create_task(do_something())
+        await asyncio.wait_for(t, timeout=1)
+    except asyncio.exceptions.TimeoutError:
+        pass
+
+    # THEN
+    assert len(l) == 1
+    assert input[0] == 10
+
+
+
+
+@pytest.mark.asyncio
+async def test_tasks_complete():
+    # GIVEN
+    scheduler = Scheduler()
+    l = []
+    async def increase_counter():
+        await asyncio.sleep(0.1)
+        l.append(1)
+    scheduler.schedule_instant_task(coroutine=increase_counter())
+    scheduler.schedule_instant_task(coroutine=increase_counter())
+
+    assert len(l) == 0
+
+    # WHEN
+    await scheduler.tasks_complete()
+
+    # THEN
+    assert len(l) == 2
+
+@pytest.mark.asyncio
+async def test_tasks_complete_spwaning_no_rec():
+    # GIVEN
+    scheduler = Scheduler()
+    l = []
+    async def increase_counter():
+        await asyncio.sleep(0.1)
+        l.append(1)
+        if len(l) == 2:
+            scheduler.schedule_instant_task(coroutine=increase_counter())
+
+    scheduler.schedule_instant_task(coroutine=increase_counter())
+    scheduler.schedule_instant_task(coroutine=increase_counter())
+
+    assert len(l) == 0
+
+    # WHEN
+    await scheduler.tasks_complete()
+
+    # THEN
+    assert len(l) == 2
+
+@pytest.mark.asyncio
+async def test_tasks_complete_spwaning_rec():
+    # GIVEN
+    scheduler = Scheduler()
+    l = []
+    async def increase_counter():
+        await asyncio.sleep(0.1)
+        l.append(1)
+        if len(l) == 2 or len(l) == 3:
+            scheduler.schedule_instant_task(coroutine=increase_counter())
+
+    scheduler.schedule_instant_task(coroutine=increase_counter())
+    scheduler.schedule_instant_task(coroutine=increase_counter())
+
+    assert len(l) == 0
+
+    # WHEN
+    await scheduler.tasks_complete(recursive=True)
+
+    # THEN
+    assert len(l) == 4
+
+
+@pytest.mark.asyncio
+async def test_task_on_stop():
+    # GIVEN
+    scheduler = Scheduler()
+    l = []
+    async def increase_counter():
+        await asyncio.sleep(0.1)
+        l.append(1)
+    def on_stop(fut):
+        l.append(2)
+
+    scheduler.schedule_instant_task(coroutine=increase_counter(), on_stop=on_stop)
+
+    # WHEN
+    await scheduler.tasks_complete()
+
+    # THEN
+    assert len(l) == 2
+    assert l[1] == 2
+

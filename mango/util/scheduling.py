@@ -149,7 +149,7 @@ class AwaitingTask(ScheduledTask):
 
     async def run(self):
         await self._awaited_coroutine
-        return await self._coro
+        return await self._coroutine
 
 class InstantScheduledTask(TimestampScheduledTask):
     """
@@ -417,6 +417,19 @@ class Scheduler:
         :type src: Object
         """
         return self.schedule_task(DateTimeScheduledTask(coroutine=coroutine, date_time=date_time, clock=self.clock, 
+                                    on_stop=on_stop), src=src)
+
+    def schedule_awaiting_task(self, coroutine, awaited_coroutine, on_stop=None, src=None):
+        """Schedule a task at specified datetime.
+
+        :param coroutine: coroutine to be scheduled
+        :type coroutine: Coroutine
+        :param date_time: datetime defining when the task should start
+        :type date_time: datetime
+        :param src: creator of the task
+        :type src: Object
+        """
+        return self.schedule_task(AwaitingTask(coroutine=coroutine, awaited_coroutine=awaited_coroutine, clock=self.clock, 
                                     on_stop=on_stop), src=src)
 
     # conv. methods for process tasks
