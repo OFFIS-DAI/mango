@@ -305,7 +305,7 @@ class Agent(ABC):
         """
         .. deprecated:: 0.4.0
             Use 'agent.handle_message' instead. In the next version this method
-            will be dropped entirely and it will be mandatory to overwrite handle_message.
+            will be dropped entirely, and it will be mandatory to overwrite handle_message.
 
         This method is called when a message is received.
         This is a blocking call, if non-blocking message handling is desired,
