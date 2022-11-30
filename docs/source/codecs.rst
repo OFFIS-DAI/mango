@@ -14,6 +14,13 @@ New known types can be added to a codec with the ``add_serializer`` method.
 This method expects a type together with a serialization method and a deserialization method that translate the object into a format
 the codec can handle (for example a json-serializable string for the json codec).
 
+.. warning::
+    When using the json codec certain types can not be exactly serialized and deserialized between containers.
+    One example are ``tuple`` and classes derived from it like ``namedtuple``. The core of the json codec uses
+    pythons json serializer for any type that the json serializer can handle by itself. Tuples are translated to
+    json lists without any further information by this serializer. Consequently, a receiving container will only
+    see a json list and deserialize it to a python list.
+
 Quickstart
 ###########
 
