@@ -403,16 +403,16 @@ class Container(ABC):
         if "receiver_addr" not in acl_metadata.keys():
             acl_metadata["receiver_addr"] = receiver_addr            
         elif acl_metadata["receiver_addr"] != receiver_addr:
-            warnings.warn("The argument receiver_addr is not equal to acl_metadata['receiver_addr']. For consistency, \
-                            the value in acl_metadata['receiver_addr'] was overwritten with receiver_addr.", UserWarning)
+            warnings.warn(f"The argument receiver_addr ({receiver_addr}) is not equal to acl_metadata['receiver_addr'] ({acl_metadata['receiver_addr']}). \
+                            For consistency, the value in acl_metadata['receiver_addr'] was overwritten with receiver_addr.", UserWarning)
             acl_metadata["receiver_addr"] = receiver_addr    
 
         if receiver_id:
             if "receiver_id" not in acl_metadata.keys():
                 acl_metadata["receiver_id"] = receiver_id
             elif acl_metadata["receiver_id"] != receiver_id:
-                warnings.warn("The argument receiver_id is not equal to acl_metadata['receiver_id']. For consistency, \
-                               the value in acl_metadata['receiver_id'] was overwritten with receiver_id.", UserWarning)
+                warnings.warn(f"The argument receiver_id ({receiver_id}) is not equal to acl_metadata['receiver_id'] ({acl_metadata['receiver_id']}). \
+                               For consistency, the value in acl_metadata['receiver_id'] was overwritten with receiver_id.", UserWarning)
                 acl_metadata["receiver_id"] = receiver_id
 
         # add sender_addr if not defined and not anonymous
