@@ -1,8 +1,6 @@
 
 import pytest
 
-from mango.container.core import Container
-
 import mango.container.factory as container_factory
 
 class LooksLikeAgent():
