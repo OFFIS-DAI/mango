@@ -398,11 +398,23 @@ class Container(ABC):
         :return:
         """
         acl_metadata = {} if acl_metadata is None else acl_metadata.copy()
+
         # analyse and complete acl_metadata
         if "receiver_addr" not in acl_metadata.keys():
-            acl_metadata["receiver_addr"] = receiver_addr
-        if "receiver_id" not in acl_metadata.keys() and receiver_id:
-            acl_metadata["receiver_id"] = receiver_id
+            acl_metadata["receiver_addr"] = receiver_addr            
+        elif acl_metadata["receiver_addr"] != receiver_addr:
+            warnings.warn(f"The argument receiver_addr ({receiver_addr}) is not equal to acl_metadata['receiver_addr'] ({acl_metadata['receiver_addr']}). \
+                            For consistency, the value in acl_metadata['receiver_addr'] was overwritten with receiver_addr.", UserWarning)
+            acl_metadata["receiver_addr"] = receiver_addr    
+
+        if receiver_id:
+            if "receiver_id" not in acl_metadata.keys():
+                acl_metadata["receiver_id"] = receiver_id
+            elif acl_metadata["receiver_id"] != receiver_id:
+                warnings.warn(f"The argument receiver_id ({receiver_id}) is not equal to acl_metadata['receiver_id'] ({acl_metadata['receiver_id']}). \
+                               For consistency, the value in acl_metadata['receiver_id'] was overwritten with receiver_id.", UserWarning)
+                acl_metadata["receiver_id"] = receiver_id
+
         # add sender_addr if not defined and not anonymous
         if not is_anonymous_acl:
             if "sender_addr" not in acl_metadata.keys() and self.addr is not None:
