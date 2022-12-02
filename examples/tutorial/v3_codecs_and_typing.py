@@ -1,8 +1,8 @@
 import asyncio
 from dataclasses import dataclass
 
-from mango.agent.core import Agent
-from mango.container.core import Container
+from mango import Agent
+from mango import create_container
 import mango.messages.codecs as codecs
 
 """
@@ -186,9 +186,9 @@ async def main():
     my_codec.add_serializer(*FeedInReplyMsg.__serializer__())
     my_codec.add_serializer(*MaxFeedInAck.__serializer__())
 
-    pv_container = await Container.factory(addr=PV_CONTAINER_ADDRESS, codec=my_codec)
+    pv_container = await create_container(addr=PV_CONTAINER_ADDRESS, codec=my_codec)
 
-    controller_container = await Container.factory(
+    controller_container = await create_container(
         addr=CONTROLLER_CONTAINER_ADDRESS, codec=my_codec
     )
 

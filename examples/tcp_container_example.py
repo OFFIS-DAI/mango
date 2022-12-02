@@ -1,14 +1,14 @@
 import asyncio
 
 import mango.messages.other_proto_msgs_pb2 as  other_proto_msg
-from mango.core.container import Container
+from mango import create_container
 from examples.simple_agent import SimpleAgent
 
 
 async def one_container_two_agents():
     # ip and port of container
     addr1 = ('127.0.0.1', 5555)
-    container1 = await Container.factory(connection_type='tcp',
+    container1 = await create_container(connection_type='tcp',
                                          codec='json', addr=addr1)
     agent_a = SimpleAgent(container1)
 

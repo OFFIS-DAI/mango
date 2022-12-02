@@ -80,7 +80,7 @@ We have to make the type known to the codec to use it:
     abc 123
     abc 123
 
-All that is left to do now is to pass our codec to the container. This is done during container creation in the ``factory`` method.
+All that is left to do now is to pass our codec to the container. This is done during container creation in the ``create_container`` method.
 
 .. code-block:: python3
 
@@ -101,8 +101,8 @@ All that is left to do now is to pass our codec to the container. This is done d
 
         # codecs can be passed directly to the container
         # if no codec is passed a new instance of JSON() is created
-        sending_container = await Container.factory(addr=("localhost", 5556), codec=codec)
-        receiving_container = await Container.factory(addr=("localhost", 5555), codec=codec)
+        sending_container = await create_container(addr=("localhost", 5556), codec=codec)
+        receiving_container = await create_container(addr=("localhost", 5555), codec=codec)
         receiving_agent = SimpleReceivingAgent(receiving_container)
 
         # agents can now directly pass content of type MyClass to each other
