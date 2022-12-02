@@ -164,3 +164,14 @@ async def test_create_acl_not_anon():
 
     assert actual_acl_message.sender_addr is not None
     await c.shutdown()
+    
+@pytest.mark.asyncio
+async def test_create_acl_diff_receiver():
+    c = await Container.factory(addr=('127.0.0.2', 5555))
+    with pytest.warns(UserWarning) as record:
+        actual_acl_message = c._create_acl("", receiver_addr="A", receiver_id="A", acl_metadata={"receiver_id": "B", "receiver_addr": "B"}, is_anonymous_acl=False)
+
+    assert actual_acl_message.receiver_addr == "A"
+    assert actual_acl_message.receiver_id == "A"
+    assert len(record) == 2
+    await c.shutdown()

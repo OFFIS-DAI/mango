@@ -1,5 +1,5 @@
 import asyncio
-import logging
+import logging, warnings
 from abc import ABC, abstractmethod
 from typing import Optional, Union, Tuple, Dict, Any
 from ..messages.codecs import Codec, ACLMessage
@@ -40,7 +40,8 @@ class Container(ABC):
 
     def is_aid_available(self, aid):
         """
-        Check if the aid is available and registrable (it is not possible to register aids matching the regular pattern "agentX")
+        Check if the aid is available and allowed.
+        It is not possible to register aids matching the regular pattern "agentX".
         :param aid: the aid you want to check
         :return True if the aid is available, False if it is not
         """
@@ -131,7 +132,7 @@ class Container(ABC):
         *,
         receiver_id: Optional[str] = None,
         acl_metadata: Optional[Dict[str, Any]] = None,
-        is_anonymous_acl = False,
+        is_anonymous_acl=False,
         **kwargs
     ) -> bool:
         """
@@ -145,14 +146,17 @@ class Container(ABC):
         :param is_anonymous_acl: If set to True, the sender information won't be written in the ACL header 
         :param kwargs: Additional parameters to provide protocol specific settings 
         """
-        return await self.send_message(self._create_acl(content, 
-                receiver_addr=receiver_addr, 
-                receiver_id=receiver_id, 
-                acl_metadata=acl_metadata,
-                is_anonymous_acl=is_anonymous_acl), 
+        return await self.send_message(self._create_acl(
+            content,
+            receiver_addr=receiver_addr,
+            receiver_id=receiver_id,
+            acl_metadata=acl_metadata,
+            is_anonymous_acl=is_anonymous_acl),
             receiver_addr=receiver_addr, 
             receiver_id=receiver_id,
-            **kwargs)
+            **kwargs
+        )
+
 
     def _create_acl(
         self,
@@ -170,11 +174,20 @@ class Container(ABC):
         :return:
         """
         acl_metadata = {} if acl_metadata is None else acl_metadata.copy()
-        # analyse and complete acl_metadata
+	        # analyse and complete acl_metadata
         if "receiver_addr" not in acl_metadata.keys():
-            acl_metadata["receiver_addr"] = receiver_addr
-        if "receiver_id" not in acl_metadata.keys() and receiver_id:
-            acl_metadata["receiver_id"] = receiver_id
+            acl_metadata["receiver_addr"] = receiver_addr            
+        elif acl_metadata["receiver_addr"] != receiver_addr:
+            warnings.warn(f"The argument receiver_addr ({receiver_addr}) is not equal to acl_metadata['receiver_addr'] ({acl_metadata['receiver_addr']}). \
+                            For consistency, the value in acl_metadata['receiver_addr'] was overwritten with receiver_addr.", UserWarning)
+            acl_metadata["receiver_addr"] = receiver_addr    
+        if receiver_id:
+            if "receiver_id" not in acl_metadata.keys():
+                acl_metadata["receiver_id"] = receiver_id
+            elif acl_metadata["receiver_id"] != receiver_id:
+                warnings.warn(f"The argument receiver_id ({receiver_id}) is not equal to acl_metadata['receiver_id'] ({acl_metadata['receiver_id']}). \
+                               For consistency, the value in acl_metadata['receiver_id'] was overwritten with receiver_id.", UserWarning)
+                acl_metadata["receiver_id"] = receiver_id
         # add sender_addr if not defined and not anonymous
         if not is_anonymous_acl:
             if "sender_addr" not in acl_metadata.keys() and self.addr is not None:
@@ -205,20 +218,20 @@ class Container(ABC):
 
         while True:
             data = await self.inbox.get()
-            priority, msg_content, meta = data
+            priority, content, meta = data
             task = asyncio.create_task(
-                self._handle_msg(priority=priority, msg_content=msg_content, meta=meta)
+                self._handle_message(priority=priority, content=content, meta=meta)
             )
             task.add_done_callback(raise_exceptions)
             self.inbox.task_done()  # signals that the queue object is
             # processed
 
     @abstractmethod
-    async def _handle_msg(self, *, priority: int, msg_content, meta: Dict[str, Any]):
+    async def _handle_message(self, *, priority: int, content, meta: Dict[str, Any]):
         """
         This is called as a separate task for every message that is read
-        :param priority: priority of the msg
-        :param msg_content: Deserialized content of the message
+        :param priority: priority of the message
+        :param content: Deserialized content of the message
         :param meta: Dict with additional information (e.g. topic)
         """
         raise NotImplementedError

@@ -14,7 +14,7 @@ class PingPongAgent(Agent):
         self.open_ping_requests = {}
         self.sending_tasks = []
 
-    def handle_msg(self, content, meta: Dict[str, Any]):
+    def handle_message(self, content, meta: Dict[str, Any]):
         # answer on ping
         if content == 'ping':
             assert 'sender_addr' in meta.keys() and 'sender_id' in meta.keys()

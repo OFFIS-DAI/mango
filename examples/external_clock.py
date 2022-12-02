@@ -15,7 +15,7 @@ class Caller(Agent):
                                            receiver_id=receiver_id,
                                            content='Hello World')
 
-    def handle_msg(self, content, meta):
+    def handle_message(self, content, meta):
         pass
 
 
@@ -24,7 +24,7 @@ class Receiver(Agent):
         super().__init__(container)
         self.wait_for_reply = asyncio.Future()
 
-    def handle_msg(self, content, meta):
+    def handle_message(self, content, meta):
         print(f'Received a message with the following content {content}.')
         self.wait_for_reply.set_result(True)
 

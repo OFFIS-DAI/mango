@@ -16,9 +16,9 @@ NAME = 'mango-agents'
 DESCRIPTION = 'Modular Python Agent Framework'
 # URL = 'https://github.com/me/myproject'
 EMAIL = 'mango@offis.de'
-AUTHOR = 'Mango Team'
+AUTHOR = 'mango Team'
 REQUIRES_PYTHON = '>=3.7.0'
-VERSION = '0.3.0'
+VERSION = '0.4.0'
 
 # What packages are required for this module to be executed?
 REQUIRED = [

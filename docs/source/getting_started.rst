@@ -22,7 +22,7 @@ all messages it receives:
             super().__init__(container)
             print(f"Hello world! My id is {self._aid}.")
 
-        def handle_msg(self, content, meta):
+        def handle_message(self, content, meta):
             # This method defines what the agent will do with incoming messages.
             print(f"Received a message with the following content: {content}")
 
@@ -74,7 +74,7 @@ then shutdown the container:
             super().__init__(container)
             print(f"Hello world! My id is {self._aid}.")
 
-        def handle_msg(self, content, meta):
+        def handle_message(self, content, meta):
             # This method defines what the agent will do with incoming messages.
             print(f"Received a message with the following content: {content}")
 
@@ -111,7 +111,7 @@ to another agent:
                     content="Hello world!")
                 )
 
-            def handle_msg(self, content, meta):
+            def handle_messafe(self, content, meta):
                 print(f"Received a message with the following content: {content}")
 
 We are using the scheduling API, which is explained in further detail in the section :doc:`scheduling`.
@@ -135,7 +135,7 @@ a RepeatingAgent and let them run.
             super().__init__(container)
             print(f"Hello world! My id is {self._aid}.")
 
-        def handle_msg(self, content, meta):
+        def handle_message(self, content, meta):
             # This method defines what the agent will do with incoming messages.
             print(f"Received a message with the following content: {content}")
 
@@ -149,7 +149,7 @@ a RepeatingAgent and let them run.
                 content="Hello world!"
             )
 
-        def handle_msg(self, content, meta):
+        def handle_message(self, content, meta):
             print(f"Received a message with the following content: {content}")
 
 

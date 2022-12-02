@@ -30,7 +30,7 @@ class PVAgent(Agent):
         super().__init__(container, suggested_aid=suggested_aid)
         self.max_feed_in = -1
 
-    def handle_msg(self, content, meta):
+    def handle_message(self, content, meta):
         performative = meta["performative"]
         sender_addr = meta["sender_addr"]
         sender_id = meta["sender_id"]
@@ -82,7 +82,7 @@ class ControllerAgent(Agent):
         self.reports_done = None
         self.acks_done = None
 
-    def handle_msg(self, content, meta):
+    def handle_message(self, content, meta):
         performative = meta['performative']
         if performative == Performatives.inform:
             # feed_in_reply message

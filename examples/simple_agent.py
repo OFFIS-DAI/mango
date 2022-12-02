@@ -41,7 +41,7 @@ class SimpleAgent(Agent):
                 message_content, self.other_addr, receiver_id=self.other_aid, acl_metadata=acl_meta
             )
 
-    def handle_msg(self, content, meta):
+    def handle_message(self, content, meta):
         """
         decide which actions shall be performed as reaction to message
         :param content: the content of the mssage
