@@ -6,7 +6,7 @@ import asyncio
 
 from mango.agent.core import Agent
 
-import mango.container.factory as container_factory
+from mango import create_container
 
 class MyAgent(Agent): 
     
@@ -19,7 +19,7 @@ class MyAgent(Agent):
 @pytest.mark.asyncio
 async def test_periodic_facade():
     # GIVEN        
-    c = await container_factory.create(addr=('127.0.0.2', 5555))
+    c = await create_container(addr=('127.0.0.2', 5555))
     agent = MyAgent(c)
     l = []
 
@@ -41,7 +41,7 @@ async def test_periodic_facade():
 @pytest.mark.asyncio
 async def test_send_message():
     # GIVEN        
-    c = await container_factory.create(addr=('127.0.0.2', 5555))
+    c = await create_container(addr=('127.0.0.2', 5555))
     agent = MyAgent(c)
     agent2 = MyAgent(c)
 
@@ -58,7 +58,7 @@ async def test_send_message():
 @pytest.mark.asyncio
 async def test_send_acl_message():
     # GIVEN        
-    c = await container_factory.create(addr=('127.0.0.2', 5555))
+    c = await create_container(addr=('127.0.0.2', 5555))
     agent = MyAgent(c)
     agent2 = MyAgent(c)
 
@@ -75,7 +75,7 @@ async def test_send_acl_message():
 @pytest.mark.asyncio
 async def test_schedule_message():
     # GIVEN        
-    c = await container_factory.create(addr=('127.0.0.2', 5555))
+    c = await create_container(addr=('127.0.0.2', 5555))
     agent = MyAgent(c)
     agent2 = MyAgent(c)
 
@@ -92,7 +92,7 @@ async def test_schedule_message():
 @pytest.mark.asyncio
 async def test_schedule_acl_message():
     # GIVEN        
-    c = await container_factory.create(addr=('127.0.0.2', 5555))
+    c = await create_container(addr=('127.0.0.2', 5555))
     agent = MyAgent(c)
     agent2 = MyAgent(c)
 
@@ -118,7 +118,7 @@ async def test_handle_msg_deprecation():
             self.incoming_msgs += 1
             self.received_message.set_result(True)
 
-    c = await Container.factory(addr=('127.0.0.2', 5555))
+    c = await create_container(addr=('127.0.0.2', 5555))
     agent = TestAgent(container=c)
     with pytest.deprecated_call():
         await c.send_acl_message(content='', receiver_addr=c.addr, receiver_id=agent.aid)
