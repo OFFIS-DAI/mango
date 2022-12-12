@@ -16,29 +16,28 @@ logger = logging.getLogger(__name__)
 
 class AgentMessageHandle(ABC):
 
-    def init(self, scheduler, context, delegate):
+    @abstractmethod
+    def init(self, scheduler, delegate):
         pass
 
     @abstractmethod
     def handle(self, content, meta, delegate):
-        # delegate(content, meta)
         pass
 
 
-class MessageBufferingHandle:
+class MessageBufferingHandle(AgentMessageHandle):
 
     def __init__(self, check_inbox_interval = 0.1) -> None:
         self._content_buffer = []
         self._meta_buffer = []
         self._check_inbox_interval = check_inbox_interval
 
-    def init(self, agent, delegate):
+    def init(self, scheduler, delegate):
         async def process():
             delegate(self._content_buffer, self._meta_buffer)
 
-        agent._scheduler.schedule_periodic_task(process, delay=self._check_inbox_interval)
+        scheduler.schedule_periodic_task(process, delay=self._check_inbox_interval)
 
-    @abstractmethod
     def handle(self, content, meta, delegate):
         self._content_buffer.append(content)
         self._meta_buffer.append(meta)
@@ -308,7 +307,7 @@ class Agent(ABC):
         logger.debug('Agent %s: Start waiting for messages', self.aid)
 
         for message_handle, _ in self._agent_message_handles:
-            message_handle.init(self, self.handle_message)
+            message_handle.init(self._scheduler, self.handle_message)
         
         while True:
             # run in infinite loop until it is cancelled from outside
