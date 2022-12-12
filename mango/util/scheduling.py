@@ -97,7 +97,7 @@ class ScheduledTask:
     passed as lambda while the scheduling logic is inside of class inheriting from this one.
     """
 
-    def __init__(self, clock: Clock = None, on_stop = None) -> None:
+    def __init__(self, clock: Clock=None, on_stop=None) -> None:
         self.clock = clock if clock is not None else AsyncioClock()
         self._on_stop_hook_in = on_stop
 
@@ -110,7 +110,7 @@ class ScheduledTask:
         """
         raise NotImplementedError
 
-    def on_stop(self, fut: asyncio.Future = None):
+    def on_stop(self, fut: asyncio.Future=None):
         """
         Called when the task is cancelled or finished.
         """
@@ -123,7 +123,7 @@ class TimestampScheduledTask(ScheduledTask):
     Timestamp based one-shot task. This task will get executed when a given unix timestamp is reached.
     """
 
-    def __init__(self, coroutine, timestamp: float, clock=None, on_stop = None):
+    def __init__(self, coroutine, timestamp: float, clock=None, on_stop=None):
         super().__init__(clock, on_stop=on_stop)
         self._timestamp = timestamp
         self._coro = coroutine
@@ -142,7 +142,7 @@ class AwaitingTask(ScheduledTask):
     Can be useful if you want to execute something after a Future has finished.
     """
 
-    def __init__(self, coroutine, awaited_coroutine, clock=None, on_stop = None):
+    def __init__(self, coroutine, awaited_coroutine, clock=None, on_stop=None):
         super().__init__(clock, on_stop=on_stop)
         self._coroutine = coroutine
         self._awaited_coroutine = awaited_coroutine
@@ -156,7 +156,7 @@ class InstantScheduledTask(TimestampScheduledTask):
     One-shot task, which will get executed instantly.
     """
 
-    def __init__(self, coroutine, clock: Clock = None, on_stop = None):
+    def __init__(self, coroutine, clock: Clock=None, on_stop=None):
         if clock is None:
             clock = AsyncioClock()
         super().__init__(coroutine, clock.time, clock=clock, on_stop=on_stop)
@@ -168,7 +168,7 @@ class PeriodicScheduledTask(ScheduledTask):
     which will get executed periodically with a specified delay.
     """
 
-    def __init__(self, coroutine_func, delay, clock: Clock = None, on_stop = None):
+    def __init__(self, coroutine_func, delay, clock: Clock=None, on_stop=None):
         super().__init__(clock, on_stop=on_stop)
 
         self._stopped = False
@@ -185,7 +185,7 @@ class ConditionalTask(ScheduledTask):
     """Task which will get executed as soon as the given condition is fulfilled.
     """
 
-    def __init__(self, coroutine, condition_func, lookup_delay=0.1, clock: Clock = None, on_stop = None):
+    def __init__(self, coroutine, condition_func, lookup_delay=0.1, clock: Clock=None, on_stop=None):
         super().__init__(clock=clock, on_stop=on_stop)
 
         self._condition = condition_func
@@ -203,7 +203,7 @@ class DateTimeScheduledTask(ScheduledTask):
     DateTime based one-shot task. This task will get executed using a given datetime-object.
     """
 
-    def __init__(self, coroutine, date_time: datetime.datetime, clock=None, on_stop = None):
+    def __init__(self, coroutine, date_time: datetime.datetime, clock=None, on_stop=None):
         super().__init__(clock, on_stop=on_stop)
         warnings.warn('DateTimeScheduleTask is deprecated. Use TimestampScheduledTask instead.', DeprecationWarning)
         self._datetime = date_time
@@ -232,7 +232,7 @@ class ScheduledProcessTask(ScheduledTask):
     via pythons IPC implementation.
     """
 
-    def __init__(self, clock: Clock, on_stop = None):
+    def __init__(self, clock: Clock, on_stop=None):
         if isinstance(clock, ExternalClock):
             raise ValueError('Process Tasks do currently not work with external clocks')
         super().__init__(clock=clock, on_stop=on_stop)
@@ -243,7 +243,7 @@ class TimestampScheduledProcessTask(TimestampScheduledTask, ScheduledProcessTask
     Timestamp based one-shot task.
     """
 
-    def __init__(self, coroutine_creator, timestamp: float, clock=None, on_stop = None):
+    def __init__(self, coroutine_creator, timestamp: float, clock=None, on_stop=None):
         super().__init__(coroutine_creator, timestamp, clock, on_stop=on_stop)
 
     async def run(self):
@@ -255,7 +255,7 @@ class AwaitingProcessTask(AwaitingTask, ScheduledProcessTask):
     Await a coroutine, then execute another.
     """
 
-    def __init__(self, coroutine_creator, awaited_coroutine_creator, clock=None, on_stop = None):
+    def __init__(self, coroutine_creator, awaited_coroutine_creator, clock=None, on_stop=None):
         super().__init__(coroutine_creator, awaited_coroutine_creator, clock, on_stop=on_stop)
 
     async def run(self):
@@ -267,14 +267,14 @@ class InstantScheduledProcessTask(TimestampScheduledProcessTask):
     """One-shot task, which will get executed instantly.
     """
 
-    def __init__(self, coroutine_creator, clock: Clock = None, on_stop = None):
+    def __init__(self, coroutine_creator, clock: Clock=None, on_stop=None):
         if clock is None:
             clock = AsyncioClock()
         super().__init__(coroutine_creator, timestamp=clock.time, clock=clock, on_stop=on_stop)
 
 
 class PeriodicScheduledProcessTask(PeriodicScheduledTask, ScheduledProcessTask):
-    def __init__(self, coroutine_func, delay, clock: Clock = None, on_stop = None):
+    def __init__(self, coroutine_func, delay, clock: Clock=None, on_stop=None):
         super().__init__(coroutine_func, delay, clock, on_stop=on_stop)
 
 
@@ -283,7 +283,7 @@ class ConditionalProcessTask(ConditionalTask, ScheduledProcessTask):
     Task which will get executed as soon as the given condition is fulfilled.
     """
 
-    def __init__(self, coro_func, condition_func, lookup_delay=0.1, clock: Clock = None, on_stop = None):
+    def __init__(self, coro_func, condition_func, lookup_delay=0.1, clock: Clock=None, on_stop=None):
         super().__init__(coro_func, condition_func, lookup_delay, clock=clock, on_stop=on_stop)
 
     async def run(self):
@@ -297,7 +297,7 @@ class DateTimeScheduledProcessTask(DateTimeScheduledTask, ScheduledProcessTask):
     DateTime based one-shot task. This task will get executed using a given datetime-object.
     """
 
-    def __init__(self, coroutine_creator, date_time: datetime.datetime, clock=None, on_stop = None):
+    def __init__(self, coroutine_creator, date_time: datetime.datetime, clock=None, on_stop=None):
         super().__init__(coroutine_creator, date_time, clock, on_stop=on_stop)
 
     async def run(self):
