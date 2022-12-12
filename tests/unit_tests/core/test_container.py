@@ -183,7 +183,7 @@ async def test_send_message_no_copy():
     await c.send_acl_message(message_to_send, receiver_addr=c.addr, receiver_id=agent1.aid)
     await c.shutdown()
 
-    assert agent1.content == message_to_send
+    assert agent1.content is message_to_send
 
 @pytest.mark.asyncio
 async def test_send_message_copy():
@@ -194,4 +194,4 @@ async def test_send_message_copy():
     await c.send_acl_message(message_to_send, receiver_addr=c.addr, receiver_id=agent1.aid)
     await c.shutdown()
 
-    assert agent1.content != message_to_send
+    assert agent1.content is not message_to_send
