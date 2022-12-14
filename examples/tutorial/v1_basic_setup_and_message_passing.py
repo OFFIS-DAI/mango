@@ -1,7 +1,7 @@
 import asyncio
 
-from mango.agent.core import Agent
-from mango.container.core import Container
+from mango import Agent
+from mango import create_container
 
 """
 For your first mango tutorial you will learn the fundamentals of creating mango agents and containers as well
@@ -22,13 +22,13 @@ class PVAgent(Agent):
         super().__init__(container)
         print(f"Hello I am a PV agent! My id is {self.aid}.")
 
-    def handle_msg(self, content, meta):
+    def handle_message(self, content, meta):
         print(f"Received message with content: {content} and meta {meta}.")
 
 
 async def main():
     # defaults to tcp connection
-    pv_container = await Container.factory(addr=PV_CONTAINER_ADDRESS)
+    pv_container = await create_container(addr=PV_CONTAINER_ADDRESS)
 
     # agents always live inside a container
     pv_agent_0 = PVAgent(pv_container)

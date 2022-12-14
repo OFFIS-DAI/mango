@@ -2,9 +2,9 @@ import asyncio
 from dataclasses import dataclass
 
 # note that our imports changed because we now use the specialized RoleAgent superclass
-from mango.role.core import RoleAgent
-from mango.role.api import Role
-from mango.core.container import Container
+from mango import RoleAgent
+from mango import Role
+from mango import create_container
 import mango.messages.codecs as codecs
 
 """
@@ -296,9 +296,9 @@ async def main():
     my_codec.add_serializer(*Ping.__serializer__())
     my_codec.add_serializer(*Pong.__serializer__())
 
-    pv_container = await Container.factory(addr=PV_CONTAINER_ADDRESS, codec=my_codec)
+    pv_container = await create_container(addr=PV_CONTAINER_ADDRESS, codec=my_codec)
 
-    controller_container = await Container.factory(
+    controller_container = await create_container(
         addr=CONTROLLER_CONTAINER_ADDRESS, codec=my_codec
     )
 

@@ -195,3 +195,14 @@ async def test_send_message_copy():
     await c.shutdown()
 
     assert agent1.content is not message_to_send
+    
+@pytest.mark.asyncio
+async def test_create_acl_diff_receiver():
+    c = await container_factory.create(addr=('127.0.0.2', 5555))
+    with pytest.warns(UserWarning) as record:
+        actual_acl_message = c._create_acl("", receiver_addr="A", receiver_id="A", acl_metadata={"receiver_id": "B", "receiver_addr": "B"}, is_anonymous_acl=False)
+
+    assert actual_acl_message.receiver_addr == "A"
+    assert actual_acl_message.receiver_id == "A"
+    assert len(record) == 2
+    await c.shutdown()

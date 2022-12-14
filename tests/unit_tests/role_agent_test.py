@@ -2,11 +2,25 @@ import datetime
 import pytest
 import asyncio
 from typing import Dict, Any
-from mango.role.api import Role, RoleContext, SimpleReactiveRole
-from mango.role.core import RoleAgent
+from mango.agent.role import Role, RoleContext
+from mango.agent.role import RoleAgent
 from mango.util.scheduling import DateTimeScheduledTask
+from abc import abstractmethod
 
 import mango.container.factory as container_factory
+
+class SimpleReactiveRole(Role):
+
+    def setup(self):
+        self.context.subscribe_message(
+            self, self.handle_msg, self.is_applicable)
+
+    @abstractmethod
+    def handle_msg(self, content, meta: Dict[str, Any]) -> None:
+        pass
+    def is_applicable(self, content, meta: Dict[str, Any]) -> bool:
+        return True
+
 
 class PongRole(SimpleReactiveRole):
     def __init__(self):

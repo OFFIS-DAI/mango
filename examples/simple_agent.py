@@ -2,7 +2,7 @@
 
 import asyncio
 
-from mango.agent.core import Agent
+from mango import Agent
 from mango.messages import other_proto_msgs_pb2 as other_proto_msg
 from mango.messages.acl_message_pb2 import ACLMessage as ACLMessage_proto
 from mango.messages.message import ACLMessage as ACLMessage_json, \
@@ -41,7 +41,7 @@ class SimpleAgent(Agent):
                 message_content, self.other_addr, receiver_id=self.other_aid, acl_metadata=acl_meta
             )
 
-    def handle_msg(self, content, meta):
+    def handle_message(self, content, meta):
         """
         decide which actions shall be performed as reaction to message
         :param content: the content of the mssage

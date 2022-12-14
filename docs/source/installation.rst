@@ -1,7 +1,7 @@
 Installation
 ========
 *mango* requires Python >= 3.8 and runs on Linux, OSX and Windows.
-For installation of mango you should use
+For installation of mango you could use
 virtualenv__ which can create isolated Python environments for different projects.
 
 It is also recommended to install virtualenvwrapper__ which makes it easier to manage

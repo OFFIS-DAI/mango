@@ -51,21 +51,20 @@ class TCPContainer(Container):
         self.server = None  # will be set within the factory method
         self.running = True
 
-    async def _handle_msg(self, *, priority: int, msg_content, meta: Dict[str, Any]):
+    async def _handle_message(self, *, priority: int, content, meta: Dict[str, Any]):
         """
-
         :param priority:
-        :param msg_content:
+        :param content:
         :param meta:
         :return:
         """
         logger.debug(
-            f"Received msg with content and meta;{str(msg_content)};{str(meta)}"
+            f"Received message with content and meta;{str(content)};{str(meta)}"
         )
         receiver_id = meta.get("receiver_id", None)
         if receiver_id and receiver_id in self._agents.keys():
             receiver = self._agents[receiver_id]
-            await receiver.inbox.put((priority, msg_content, meta))
+            await receiver.inbox.put((priority, content, meta))
         else:
             logger.warning(f"Received a message for an unknown receiver;{receiver_id}")
 
@@ -105,10 +104,10 @@ class TCPContainer(Container):
         :param kwargs: Additional parameters to provide protocol specific settings 
         """
         if create_acl is not None or acl_metadata is not None:
-            warnings.warn("The parameters create_acl and acl_metadata are deprecated and will " \
+            warnings.warn("The parameters create_acl and acl_metadata are deprecated and will "
                           "be removed in the next release. Use send_acl_message instead.", DeprecationWarning)
         if mqtt_kwargs is not None:
-            warnings.warn("The parameter mqtt_kwargs is deprecated and will " \
+            warnings.warn("The parameter mqtt_kwargs is deprecated and will "
                           "be removed in the next release. Use kwargs instead.", DeprecationWarning)
 
         if isinstance(receiver_addr, str) and ":" in receiver_addr:

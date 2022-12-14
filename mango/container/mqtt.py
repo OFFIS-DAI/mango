@@ -98,7 +98,7 @@ class MQTTContainer(Container):
 
         self.mqtt_client.on_subscribe = on_sub
 
-        def on_msg(client, userdata, message):
+        def on_message(client, userdata, message):
             # extract the meta information first
             meta = {
                 "network_protocol": "mqtt",
@@ -106,21 +106,18 @@ class MQTTContainer(Container):
                 "qos": message.qos,
                 "retain": message.retain,
             }
-            # decode message and extract msg_content and meta
-            msg_content, msg_meta = self.decode_mqtt_msg(
+            # decode message and extract content and meta
+            content, message_meta = self.decode_mqtt_message(
                 payload=message.payload, topic=message.topic
             )
             # update meta dict
-            meta.update(msg_meta)
-
+            meta.update(message_meta)
             # put information to inbox
-            if msg_content is not None:
+            if content is not None:
                 self.loop.call_soon_threadsafe(
-                    self.inbox.put_nowait, (0, msg_content, meta)
+                    self.inbox.put_nowait, (0, content, meta)
                 )
-
-        self.mqtt_client.on_message = on_msg
-
+        self.mqtt_client.on_message = on_message
         self.mqtt_client.enable_logger(logger)
 
     async def shutdown(self):
@@ -132,9 +129,9 @@ class MQTTContainer(Container):
         self.mqtt_client.disconnect()
         self.mqtt_client.loop_stop()
 
-    def decode_mqtt_msg(self, *, topic, payload):
+    def decode_mqtt_message(self, *, topic, payload):
         """
-        deserializes a mqtt msg.
+        deserializes a mqtt message.
         Checks if for the topic a special class is defined, otherwise assumes
         an ACLMessage
         :param topic: the topic on which the message arrived
@@ -158,31 +155,28 @@ class MQTTContainer(Container):
 
         return decoded, meta
 
-    async def _handle_msg(self, *, priority: int, msg_content, meta: Dict[str, Any]):
+    async def _handle_message(self, *, priority: int, content, meta: Dict[str, Any]):
         """
         This is called as a separate task for every message that is read
-        :param priority: priority of the msg
-        :param msg_content: Deserialized content of the message
+        :param priority: priority of the message
+        :param content: Deserialized content of the message
         :param meta: Dict with additional information (e.g. topic)
-
         """
         topic = meta["topic"]
         logger.debug(
-            f"Received msg with content and meta;{str(msg_content)};{str(meta)}"
+            f"Received message with content and meta;{str(content)};{str(meta)}"
         )
-
-        if hasattr(msg_content, "split_content_and_meta"):
-            content, msg_meta = msg_content.split_content_and_meta()
-            meta.update(msg_meta)
-            msg_content = content
-
+        if hasattr(content, "split_content_and_meta"):
+            content, message_meta = content.split_content_and_meta()
+            meta.update(message_meta)
+            content = content
         if topic == self.inbox_topic:
             # General inbox topic, so no receiver is specified by the topic
             # try to find the receiver from meta
             receiver_id = meta.get("receiver_id", None)
             if receiver_id and receiver_id in self._agents.keys():
                 receiver = self._agents[receiver_id]
-                await receiver.inbox.put((priority, msg_content, meta))
+                await receiver.inbox.put((priority, content, meta))
             else:
                 logger.warning(f"Receiver ID is unknown;{receiver_id}")
         else:
@@ -198,9 +192,8 @@ class MQTTContainer(Container):
             else:
                 for receiver_id in receivers:
                     receiver = self._agents[receiver_id]
-
-                    await receiver.inbox.put((priority, msg_content, meta))
-
+                    await receiver.inbox.put((priority, content, meta))
+                
     async def send_message(
         self,
         content,
@@ -247,10 +240,10 @@ class MQTTContainer(Container):
         """
 
         if create_acl is not None or acl_metadata is not None:
-            warnings.warn("The parameters create_acl and acl_metadata are deprecated and will " \
+            warnings.warn("The parameters create_acl and acl_metadata are deprecated and will "
                           "be removed in the next release. Use send_acl_message instead.", DeprecationWarning)
         if mqtt_kwargs is not None:
-            warnings.warn("The parameter mqtt_kwargs is deprecated and will " \
+            warnings.warn("The parameter mqtt_kwargs is deprecated and will "
                           "be removed in the next release. Use kwargs instead.", DeprecationWarning)
 
         if create_acl:
@@ -292,16 +285,10 @@ class MQTTContainer(Container):
         :param message: The ACL message
         :return:
         """
-        encoded_msg = self.codec.encode(message)
-        # if self.codec == "json":
-        #     encoded_msg = message.encode()
-        # elif self.codec == "protobuf":
-        #     encoded_msg = message.SerializeToString()
-        # else:
-        #     raise ValueError("Unknown codec")
+        encoded_message = self.codec.encode(message)
         logger.debug(f"Sending message;{message};{topic}")
-        self.mqtt_client.publish(topic, encoded_msg)
-
+        self.mqtt_client.publish(topic, encoded_message)
+    
     async def subscribe_for_agent(
         self, *, aid: str, topic: str, qos: int = 0, expected_class=None
     ) -> bool:
