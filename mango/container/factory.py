@@ -19,6 +19,7 @@ async def create(*,
     clock: Clock = None,
     addr: Optional[Union[str, Tuple[str, int]]] = None,
     proto_msgs_module=None,
+    copy_internal_messages=True,
     mqtt_kwargs: Dict[str, Any] = None,
 ):
     """
@@ -54,7 +55,7 @@ async def create(*,
     if connection_type == "tcp":
         # initialize TCPContainer
         container = TCPContainer(
-            addr=addr, codec=codec, loop=loop, proto_msgs_module=proto_msgs_module, clock=clock
+            addr=addr, codec=codec, loop=loop, proto_msgs_module=proto_msgs_module, clock=clock, copy_internal_messages=copy_internal_messages
         )
 
         # create a TCP server bound to host and port that uses the
@@ -224,4 +225,5 @@ async def create(*,
             mqtt_client=mqtt_messenger,
             codec=codec,
             proto_msgs_module=proto_msgs_module,
+            copy_internal_messages=copy_internal_messages
         )

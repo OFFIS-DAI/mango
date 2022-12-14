@@ -1,4 +1,5 @@
 import asyncio
+import copy
 import logging, warnings
 from abc import ABC, abstractmethod
 from typing import Optional, Union, Tuple, Dict, Any
@@ -12,10 +13,11 @@ AGENT_PATTERN_NAME_PRE = "agent"
 class Container(ABC):
     """Superclass for a mango container"""
 
-    def __init__(self, *, addr, name: str, codec, proto_msgs_module=None, loop, clock: Clock):
+    def __init__(self, *, addr, name: str, codec, proto_msgs_module=None, loop, clock: Clock, copy_internal_messages=True):
         self.name: str = name
         self.addr = addr
         self.clock = clock
+        self._copy_internal_messages = copy_internal_messages
 
         self.codec: Codec = codec
         if codec == "protobuf":
@@ -199,6 +201,22 @@ class Container(ABC):
         for key, value in acl_metadata.items():
             setattr(message, key, value)
         return message
+
+    def _send_internal_message(self, message, priority=0, default_meta=None, target_inbox_overwrite=None) -> bool:
+        meta = {}
+        
+        message_to_send = copy.deepcopy(message) if self._copy_internal_messages else message
+        target_inbox = self.inbox if target_inbox_overwrite is None else target_inbox_overwrite
+
+        if hasattr(message_to_send, "split_content_and_meta"):
+            content, meta = message_to_send.split_content_and_meta()
+        else:
+            content = message_to_send
+        meta.update(default_meta)
+        
+        target_inbox.put_nowait((priority, content, meta))
+        return True
+
 
     async def _check_inbox(self):
         """
