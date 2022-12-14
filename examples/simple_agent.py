@@ -2,7 +2,7 @@
 
 import asyncio
 
-from mango.core.agent import Agent
+from mango import Agent
 from mango.messages import other_proto_msgs_pb2 as other_proto_msg
 from mango.messages.acl_message_pb2 import ACLMessage as ACLMessage_proto
 from mango.messages.message import ACLMessage as ACLMessage_json, \

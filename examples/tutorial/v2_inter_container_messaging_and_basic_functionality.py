@@ -1,7 +1,7 @@
 import asyncio
 
-from mango.core.agent import Agent
-from mango.core.container import Container
+from mango import Agent
+from mango import create_container
 from mango.messages.message import Performatives
 
 """
@@ -157,8 +157,8 @@ class ControllerAgent(Agent):
 
 
 async def main():
-    pv_container = await Container.factory(addr=PV_CONTAINER_ADDRESS)
-    controller_container = await Container.factory(addr=CONTROLLER_CONTAINER_ADDRESS)
+    pv_container = await create_container(addr=PV_CONTAINER_ADDRESS)
+    controller_container = await create_container(addr=CONTROLLER_CONTAINER_ADDRESS)
 
     # agents always live inside a container
     pv_agent_0 = PVAgent(pv_container, suggested_aid='PV Agent 0')

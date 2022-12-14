@@ -1,6 +1,6 @@
 
-from mango.role.core import RoleHandler
-from mango.role.api import Role
+from mango.agent.role import RoleHandler
+from mango.agent.role import Role
 from mango.util.scheduling import Scheduler
 
 class RoleModel:

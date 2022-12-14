@@ -1,4 +1,4 @@
-from mango.core.agent import Agent
+from mango.agent.core import Agent
 
 
 class RepeatingAgent(Agent):

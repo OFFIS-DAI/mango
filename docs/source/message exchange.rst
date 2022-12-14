@@ -32,7 +32,7 @@ A simple agent, that just prints the content and meta information of incoming me
 
 .. code-block:: python3
 
-    from mango.core.agent import Agent
+    from mango import Agent
 
     class SimpleReceivingAgent(Agent):
         def __init__(self, container):
