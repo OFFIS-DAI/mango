@@ -80,7 +80,7 @@ class AgentDelegates:
 
         return self.schedule_instant_task(self.send_acl_message(content, receiver_addr=receiver_addr, receiver_id=receiver_id, acl_metadata=acl_metadata, **kwargs))
 
-    def schedule_conditional_process_task(self, coroutine_creator, condition_func, lookup_delay=0.1, src=None):
+    def schedule_conditional_process_task(self, coroutine_creator, condition_func, lookup_delay=0.1, on_stop=None, src=None):
         """Schedule a process task when a specified condition is met.
 
         :param coroutine_creator: coroutine_creator creating coroutine to be scheduled
@@ -93,9 +93,9 @@ class AgentDelegates:
         :type src: Object
         """
         return self._scheduler.schedule_conditional_process_task(
-            coroutine_creator=coroutine_creator, condition_func=condition_func, lookup_delay=lookup_delay, src=src)
+            coroutine_creator=coroutine_creator, condition_func=condition_func, lookup_delay=lookup_delay, on_stop=on_stop, src=src)
 
-    def schedule_conditional_task(self, coroutine, condition_func, lookup_delay=0.1, src=None):
+    def schedule_conditional_task(self, coroutine, condition_func, lookup_delay=0.1, on_stop=None, src=None):
         """Schedule a task when a specified condition is met.
 
         :param coroutine: coroutine to be scheduled
@@ -108,9 +108,9 @@ class AgentDelegates:
         :type src: Object
         """
         return self._scheduler.schedule_conditional_task(coroutine=coroutine, condition_func=condition_func,
-                                                         lookup_delay=lookup_delay, src=src)
+                                                         lookup_delay=lookup_delay, on_stop=on_stop, src=src)
 
-    def schedule_datetime_process_task(self, coroutine_creator, date_time: datetime, src=None):
+    def schedule_datetime_process_task(self, coroutine_creator, date_time: datetime, on_stop=None, src=None):
         """Schedule a task at specified datetime in another process.
 
         :param coroutine_creator: coroutine_creator creating couroutine to be scheduled
@@ -121,9 +121,9 @@ class AgentDelegates:
         :type src: Object
         """
         return self._scheduler.schedule_datetime_process_task(coroutine_creator=coroutine_creator,
-                                                              date_time=date_time, src=src)
+                                                              date_time=date_time, on_stop=on_stop, src=src)
 
-    def schedule_datetime_task(self, coroutine, date_time: datetime, src=None):
+    def schedule_datetime_task(self, coroutine, date_time: datetime, on_stop=None, src=None):
         """Schedule a task at specified datetime.
 
         :param coroutine: coroutine to be scheduled
@@ -133,9 +133,9 @@ class AgentDelegates:
         :param src: creator of the task
         :type src: Object
         """
-        return self._scheduler.schedule_datetime_task(coroutine=coroutine, date_time=date_time, src=src)
+        return self._scheduler.schedule_datetime_task(coroutine=coroutine, date_time=date_time, on_stop=on_stop, src=src)
 
-    def schedule_timestamp_task(self, coroutine, timestamp: float, src=None):
+    def schedule_timestamp_task(self, coroutine, timestamp: float, on_stop=None, src=None):
         """Schedule a task at specified timestamp.
 
         :param coroutine: coroutine to be scheduled
@@ -145,9 +145,9 @@ class AgentDelegates:
         :param src: creator of the task
         :type src: Object
         """
-        return self._scheduler.schedule_timestamp_task(coroutine=coroutine, timestamp=timestamp, src=src)
+        return self._scheduler.schedule_timestamp_task(coroutine=coroutine, timestamp=timestamp, on_stop=on_stop, src=src)
 
-    def schedule_timestamp_process_task(self, coroutine_creator, timestamp: float, src=None):
+    def schedule_timestamp_process_task(self, coroutine_creator, timestamp: float, on_stop=None, src=None):
         """Schedule a task at specified datetime dispatched to another process.
 
         :param coroutine_creator: coroutine_creator creating coroutine to be scheduled
@@ -158,9 +158,9 @@ class AgentDelegates:
         :type src: Object
         """
         return self._scheduler.schedule_timestamp_process_task(
-            coroutine_creator=coroutine_creator, timestamp=timestamp, src=src)
+            coroutine_creator=coroutine_creator, timestamp=timestamp, on_stop=on_stop, src=src)
 
-    def schedule_periodic_process_task(self, coroutine_creator, delay, src = None):
+    def schedule_periodic_process_task(self, coroutine_creator, delay, on_stop=None, src = None):
         """Schedule an open end periodically executed task in another process.
 
         :param coroutine_creator: coroutine function creating coros to be scheduled
@@ -170,9 +170,9 @@ class AgentDelegates:
         :param src: creator of the task
         :type src: Object
         """
-        return self._scheduler.schedule_periodic_process_task(coroutine_creator=coroutine_creator, delay=delay, src=src)
+        return self._scheduler.schedule_periodic_process_task(coroutine_creator=coroutine_creator, delay=delay, on_stop=on_stop, src=src)
 
-    def schedule_periodic_task(self, coroutine_func, delay, src = None):
+    def schedule_periodic_task(self, coroutine_func, delay, on_stop=None, src = None):
         """Schedule an open end peridocally executed task.
 
         :param coroutine_func: coroutine function creating coros to be scheduled
@@ -182,9 +182,9 @@ class AgentDelegates:
         :param src: creator of the task
         :type src: Object
         """
-        return self._scheduler.schedule_periodic_task(coroutine_func=coroutine_func, delay=delay, src=src)
+        return self._scheduler.schedule_periodic_task(coroutine_func=coroutine_func, delay=delay, on_stop=on_stop, src=src)
 
-    def schedule_instant_process_task(self, coroutine_creator, src = None):
+    def schedule_instant_process_task(self, coroutine_creator, on_stop=None, src = None):
         """Schedule an instantly executed task in another processes.
 
         :param coroutine_creator: coroutine_creator creating coroutine to be scheduled
@@ -192,9 +192,9 @@ class AgentDelegates:
         :param src: creator of the task
         :type src: Object
         """
-        return self._scheduler.schedule_instant_process_task(coroutine_creator=coroutine_creator, src=src)
+        return self._scheduler.schedule_instant_process_task(coroutine_creator=coroutine_creator, on_stop=on_stop, src=src)
 
-    def schedule_instant_task(self, coroutine, src=None):
+    def schedule_instant_task(self, coroutine, on_stop=None, src=None):
         """Schedule an instantly executed task.
 
         :param coroutine: coroutine to be scheduled
@@ -202,7 +202,7 @@ class AgentDelegates:
         :param src: creator of the task
         :type src: Object
         """
-        return self._scheduler.schedule_instant_task(coroutine=coroutine, src=src)
+        return self._scheduler.schedule_instant_task(coroutine=coroutine, on_stop=on_stop, src=src)
 
     def schedule_process_task(self, task: ScheduledProcessTask, src = None):
         """Schedule a task with asyncio in another process. When the task is finished, if finite, its automatically
