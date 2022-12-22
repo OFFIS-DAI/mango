@@ -6,7 +6,8 @@ Every agent must live in a container. Containers are responsible for making
 """
 import asyncio
 import logging
-from abc import ABC, abstractmethod
+import warnings
+from abc import ABC
 from datetime import datetime
 from typing import Any, Dict, Optional, Tuple, Union
 from ..util.scheduling import ScheduledProcessTask, ScheduledTask, Scheduler
@@ -305,39 +306,54 @@ class Agent(ABC, AgentDelegates):
             logger.error('Agent %s: Caught the following exception in _check_inbox: %s', self.aid, fut.exception())
             raise fut.exception()
 
-    @abstractmethod
-    def handle_msg(self, content, meta: Dict[str, Any]):
+    async def _check_inbox(self):
+        """Task for waiting on new message in the inbox"""
+
+        logger.debug('Agent %s: Start waiting for messages', self.aid)
+        while True:
+            # run in infinite loop until it is cancelled from outside
+            message = await self.inbox.get()
+            logger.debug('Agent %s: Received message;%s}', self.aid, str(message))
+
+            # message should be tuples of (priority, content, meta)
+            priority, content, meta = message
+            meta['priority'] = priority
+            try:
+                self.handle_message(content=content, meta=meta)
+            except NotImplementedError:
+                self.handle_msg(content=content, meta=meta)
+                warnings.warn("The function handle_msg is renamed and is now called handle_message."
+                              "The use of handle_msg will be removed in the next release.", DeprecationWarning)
+
+            # signal to the Queue that the message is handled
+            self.inbox.task_done()
+
+    def handle_message(self, content, meta: Dict[str, Any]):
         """
 
         Has to be implemented by the user.
-        This method is called when a message is received.
-        The message with the lowest priority number
-        in the que is handled first.
-        This is a blocking call, if non-blocking message handling is desired,
-        one should call asyncio.create_task() in order to handle more than
-        one message at a time
+        This method is called when a message is received at the agents inbox.
         :param content: The deserialized message object
-        :param meta: Meta details of the msg. In case of mqtt this dict
+        :param meta: Meta details of the message. In case of mqtt this dict
         includes at least the field 'topic'
         """
         raise NotImplementedError
 
-    async def _check_inbox(self):
-        """Task for waiting on new message in the inbox"""
+    def handle_msg(self, content, meta: Dict[str, Any]):
+        """
+        .. deprecated:: 0.4.0
+            Use 'agent.handle_message' instead. In the next version this method
+            will be dropped entirely, and it will be mandatory to overwrite handle_message.
 
-        logger.debug('Agent %s: Start waiting for msgs', self.aid)
-        while True:
-            # run in infinite loop until it is cancelled from outside
-            msg = await self.inbox.get()
-            logger.debug('Agent %s: Received message;%s}', self.aid, str(msg))
-
-            # msgs should be tuples of (priority, content)
-            priority, content, meta = msg
-            meta['priority'] = priority
-            self.handle_msg(content=content, meta=meta)
-
-            # signal to the Queue that the message is handled
-            self.inbox.task_done()
+        This method is called when a message is received.
+        This is a blocking call, if non-blocking message handling is desired,
+        one should call asyncio.create_task() in order to handle more than
+        one message at a time
+        :param content: The deserialized message object
+        :param meta: Meta details of the message. In case of mqtt this dict
+        includes at least the field 'topic'
+        """
+        raise NotImplementedError
 
     async def shutdown(self):
         """Shutdown all tasks that are running

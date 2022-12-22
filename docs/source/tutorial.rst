@@ -44,18 +44,18 @@ This example covers:
 
 First, we want to create two simple agents and have the container send a message to one of them.
 An agent is created by defining a class that inherits from the base Agent class of mango.
-Every agent must implement the ``handle_msg`` method to which incoming messages are forwarded by the container.
+Every agent must implement the ``handle_message`` method to which incoming messages are forwarded by the container.
 
 .. code-block:: python
 
-    from mango.core.agent import Agent
+    from mango import Agent
 
     class PVAgent(Agent):
         def __init__(self, container):
             super().__init__(container)
             print(f"Hello I am a PV agent! My id is {self.aid}.")
 
-        def handle_msg(self, content, meta):
+        def handle_message(self, content, meta):
             print(f"Received message with content: {content} and meta {meta}.")
 
 Now we are ready to instantiate our system. mango is fundamentally built on top of asyncio and a lot of its functions
@@ -73,7 +73,7 @@ pattern:
     if __name__ == "__main__":
         asyncio.run(main())
 
-First, we create the container. A container is created via the ``container.factory`` coroutine which requires at least
+First, we create the container. A container is created via the ``mango.create_container`` coroutine which requires at least
 the address of the container as a parameter.
 
 .. code-block:: python
@@ -81,7 +81,7 @@ the address of the container as a parameter.
     PV_CONTAINER_ADDRESS = ("localhost", 5555)
 
     # defaults to tcp connection
-    pv_container = await Container.factory(addr=PV_CONTAINER_ADDRESS)
+    pv_container = await create_container(addr=PV_CONTAINER_ADDRESS)
 
 
 Now we can create our agents. Agents always live inside a container and this container must be passed to their constructor.
@@ -178,7 +178,7 @@ the full ACL object ourselves every time, within this example we always use the 
     class ControllerAgent(Agent):
         """..."""
 
-        def handle_msg(self, content, meta):
+        def handle_message(self, content, meta):
             performative = meta['performative']
             if performative == Performatives.inform:
                 # feed_in_reply message
@@ -210,7 +210,7 @@ We do the same for our PV agents. We will also enable user defined agent ids her
             super().__init__(container, suggested_aid=suggested_aid)
             self.max_feed_in = -1
 
-        def handle_msg(self, content, meta):
+        def handle_message(self, content, meta):
             performative = meta["performative"]
             sender_addr = meta["sender_addr"]
             sender_id = meta["sender_id"]
@@ -341,8 +341,8 @@ Lastly, we call all relevant instantiations and the run function within our main
     }
 
     async def main():
-        pv_container = await Container.factory(addr=PV_CONTAINER_ADDRESS)
-        controller_container = await Container.factory(addr=CONTROLLER_CONTAINER_ADDRESS)
+        pv_container = await create_container(addr=PV_CONTAINER_ADDRESS)
+        controller_container = await create_container(addr=CONTROLLER_CONTAINER_ADDRESS)
 
         # agents always live inside a container
         pv_agent_0 = PVAgent(pv_container, suggested_aid='PV Agent 0')
@@ -447,9 +447,9 @@ Next, we need to create a codec, make our message objects known to it, and pass 
     my_codec.add_serializer(*FeedInReplyMsg.__serializer__())
     my_codec.add_serializer(*MaxFeedInAck.__serializer__())
 
-    pv_container = await Container.factory(addr=PV_CONTAINER_ADDRESS, codec=my_codec)
+    pv_container = await create_container(addr=PV_CONTAINER_ADDRESS, codec=my_codec)
 
-    controller_container = await Container.factory(
+    controller_container = await create_container(
         addr=CONTROLLER_CONTAINER_ADDRESS, codec=my_codec
     )
 
@@ -465,7 +465,7 @@ With this, the message handling in our agent classes can be simplified:
     class ControllerAgent(Agent):
         """..."""
 
-        def handle_msg(self, content, meta):
+        def handle_message(self, content, meta):
             if isinstance(content, FeedInReplyMsg):
                 self.handle_feed_in_reply(content.feed_in)
             elif isinstance(content, MaxFeedInAck):
@@ -477,7 +477,7 @@ With this, the message handling in our agent classes can be simplified:
     class PVAgent(Agent):
         """..."""
 
-        def handle_msg(self, content, meta):
+        def handle_message(self, content, meta):
             sender_addr = meta["sender_addr"]
             sender_id = meta["sender_id"]
 
@@ -551,7 +551,7 @@ also run tasks at specific times. For a full overview we refer to the documentat
 
 .. code-block:: python
 
-    from mango.role.api import Role
+    from mango import Role
 
     class PingRole(Role):
         def __init__(self, ping_recipients, time_between_pings):
@@ -700,7 +700,7 @@ The definition of the agent classes itself now simply boils down to assigning it
 
 .. code-block:: python
 
-    from mango.role.core import RoleAgent
+    from mango import RoleAgent
 
     class PVAgent(RoleAgent):
         def __init__(self, container):

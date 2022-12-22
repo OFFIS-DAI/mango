@@ -1,17 +1,43 @@
 """
-Internal module, which implements the framework API of the role package. Provides an
-implementation of the :class:`RoleContext`, the RoleAgent and some internal handlers
-for the communication between roles.
+API classes for using the role system. The role system is based on the idea, that
+everything an agent can do, is described as role/responsibility and is implemented in
+one separate class. For example participating in a coalition would be a separate role,
+monitoring grid voltage another one.
+
+A role is part of a :class:`RoleAgent` which inherits from :class:`Agent`.
+
+There are essentially two APIs for acting resp reacting:
+* [Reacting] :func:`RoleContext.subscribe_message`, which allows you to subscribe to
+             certain message types and lets you handle the message
+* [Acting] :func:`RoleContext.schedule_task`, this allows you to schedule a task with
+            delay/repeating/...
+
+To interact with the environment an instance of the role context is provided. This context
+provides methods to share data with other roles and to communicate with other agents. 
+
+A message can be send using the method :func:`RoleContext.send_message`.
+
+There are often dependencies between different parts of an agent, there are options to
+interact with other roles: Roles have the possibility to use shared models and to act on
+changes of these models. A role can subscribe specific data that another role provides.
+To set this up, a model has to be created via
+:func:`RoleContext.get_or_create_model`. To notify other roles
+:func:`RoleContext.update` has to be called. In order to let a Role subscribe to a model you can use
+:func:`subscribe_model`.
+If you prefer a lightweight variant you can use :func:`RoleContext.data` to assign/access shared data.
+
+Furthermore there are two lifecycle methods to know about:
+* :func:`Role.setup` is called when the Role is added to the agent, so its the perfect place
+                     for initialization and scheduling of tasks
+* :func:`Role.on_stop` is called when the container the agent lives in, is shut down
 """
+from abc import ABC
+from typing import Union, Tuple, Optional, Any, Dict, List
+
+from mango.agent.core import Agent, AgentContext, AgentDelegates
+from mango.util.scheduling import Scheduler
 
 import asyncio
-
-from typing import Any, Dict, Optional, Union, Tuple, List
-
-from mango.util.scheduling import Scheduler
-from mango.core.agent import Agent, AgentContext
-from mango.role.api import Role, RoleContext
-
 
 class DataContainer:
 
@@ -19,18 +45,76 @@ class DataContainer:
         return self.__getattribute__(key)
 
 
+class RoleContext: 
+    pass
+
+class Role(ABC):
+    """General role class, defining the API every role can use. A role implements one responsibility
+    of an agent.
+
+    Every role
+    must be added to a :class:`RoleAgent` and is defined by some lifecycle methods:
+    * :func:`Role.setup` is called when the Role is added to the agent, so its the perfect place for
+                         initialization and scheduling of tasks
+    * :func:`Role.on_stop` is called when the container the agent lives in, is shut down
+
+    To interact with the environment you have to use the context, accessible via :func:Role.context.
+    """
+
+    def __init__(self) -> None:
+        """Initialize the roles internals.
+        !!Care!! the role context is unknown at this point!
+        """
+        self._context = None
+
+    def bind(self, context: RoleContext) -> None:
+        """Method used internal to set the context, do not override!
+
+        :param context: the role context
+        """
+        self._context = context
+
+    @property
+    def context(self) -> RoleContext:
+        """Return the context of the role. This context can be send as bridge to the agent.
+
+        :return: the context of the role
+        """
+        return self._context
+
+    def setup(self) -> None:
+        """Lifecycle hook in, which will be called on adding the role to agent. The role context
+        is known from hereon.
+        """
+
+    def on_change_model(self, model) -> None:
+        """Will be invoked when a subscribed model changes via :func:`RoleContext.update`.
+
+        :param model: the model
+        """
+
+    def on_deactivation(self, src) -> None:
+        """Hook in, which will be called when another role deactivates this instance (temporarily)
+        """
+
+    async def on_stop(self) -> None:
+        """Lifecycle hook in, which will be called when the container is shut down or if the role got removed.
+        """
+
+
+
 class RoleHandler:
     """Contains all roles and their models. Implements the communication between roles.
     """
 
-    def __init__(self, container, scheduler):
+    def __init__(self, agent_context, scheduler):
         self._role_models = {}
         self._roles = []
         self._role_to_active = {}
         self._role_model_type_to_subs = {}
         self._message_subs = []
         self._send_msg_subs = {}
-        self._container = container
+        self._agent_context = agent_context
         self._scheduler = scheduler
         self._data = DataContainer()
 
@@ -149,7 +233,7 @@ class RoleHandler:
                            **kwargs
     ):
         self._notify_send_message_subs(content, receiver_addr, receiver_id, **kwargs)
-        return await self._container.send_message(
+        return await self._agent_context.send_message(
             content=content,
             receiver_addr=receiver_addr,
             receiver_id=receiver_id,
@@ -161,7 +245,7 @@ class RoleHandler:
                            acl_metadata: Optional[Dict[str, Any]] = None,
                            **kwargs):
         self._notify_send_message_subs(content, receiver_addr, receiver_id, **kwargs)
-        return await self._container.send_acl_message(
+        return await self._agent_context.send_acl_message(
             content=content,
             receiver_addr=receiver_addr,
             receiver_id=receiver_id,
@@ -188,8 +272,8 @@ class RoleHandler:
             self._send_msg_subs[role] = [method]
 
 
-class DefaultRoleContext(RoleContext):
-    """Implementation of the RoleContext-API.
+class RoleContext(AgentDelegates):
+    """Implementation of the RoleContext.
     """
 
     def __init__(self, agent_context: AgentContext, scheduler: Scheduler, role_handler: RoleHandler, aid: str, inbox):
@@ -198,6 +282,15 @@ class DefaultRoleContext(RoleContext):
         self._aid = aid
         self._scheduler = scheduler
         self._inbox = inbox
+
+    @property
+    def data(self):
+        """Return data container of the agent
+
+        :return: the data container
+        :rtype: DataContainer
+        """
+        return self._get_container()
 
     @property
     def current_timestamp(self) -> float:
@@ -281,6 +374,7 @@ class DefaultRoleContext(RoleContext):
         self._role_handler.activate(role)
 
 
+
 class RoleAgent(Agent):
     """Agent, which support the role API-system. When you want to use the role-api you always need
     a RoleAgent as base for your agents. A role can be added with :func:`RoleAgent.add_role`.
@@ -296,7 +390,8 @@ class RoleAgent(Agent):
         super().__init__(container, suggested_aid=suggested_aid)
 
         self._role_handler = RoleHandler(self.context, self.scheduler)
-        self._role_context = DefaultRoleContext(self.context, self.scheduler, self._role_handler, self.aid, self.inbox)
+        self._role_context = RoleContext(
+            self.context, self.scheduler, self._role_handler, self.aid, self.inbox)
 
     def add_role(self, role: Role):
         """Add a role to the agent. This will lead to the call of :func:`Role.setup`.
@@ -326,7 +421,7 @@ class RoleAgent(Agent):
         """
         return self._role_handler.roles
 
-    def handle_msg(self, content, meta: Dict[str, Any]):
+    def handle_message(self, content, meta: Dict[str, Any]):
         self._role_context.handle_message(content, meta)
 
     async def shutdown(self):
