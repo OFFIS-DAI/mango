@@ -7,43 +7,18 @@ Every agent must live in a container. Containers are responsible for making
 import asyncio
 import logging
 import warnings
-from abc import ABC, abstractmethod
+from abc import ABC
 from datetime import datetime
 from typing import Any, Dict, Optional, Tuple, Union
 from ..util.scheduling import ScheduledProcessTask, ScheduledTask, Scheduler
 
 logger = logging.getLogger(__name__)
 
+class AgentDelegates:
 
-class Agent(ABC):
-    """Base class for all agents."""
-
-    def __init__(self, container, suggested_aid: str = None):
-        """Initialize an agent and register it with its container
-        :param container: The container that the agent lives in. Must be a Container
-        :param suggested_aid: (Optional) suggested aid, if the aid is already taken, a generated aid is used. 
-                              Using the generated aid-style ("agentX") is not allowed.
-        """
-        # if not isinstance(container, mango.core.container.Container):
-        #     raise TypeError('"container" must be a "Container" instance but '
-        #                     'is {}'.format(container))
-        aid = container._register_agent(self, suggested_aid=suggested_aid)
-        self._container = container
-        self._aid = aid
-        self.inbox = asyncio.Queue()
-        self._scheduler = Scheduler(clock=container.clock)
-        self._check_inbox_task = asyncio.create_task(self._check_inbox())
-        self._check_inbox_task.add_done_callback(self.raise_exceptions)
-        self.stopped = asyncio.Future()
-
-        logger.info('Agent %s: start running in container %s', aid, container.addr)
-
-    @property
-    def current_timestamp(self) -> float:
-        """
-        Method that returns the current unix timestamp given the clock within the container
-        """
-        return self._container.clock.time
+    def __init__(self, context, scheduler) -> None:
+        self._context = context
+        self._scheduler = scheduler
 
     async def send_message(self,
         content,
@@ -53,7 +28,7 @@ class Agent(ABC):
         """
         See container.send_message(...)
         """
-        return await self._container.send_message(content, receiver_addr=receiver_addr, receiver_id=receiver_id, **kwargs)
+        return await self._context.send_message(content, receiver_addr=receiver_addr, receiver_id=receiver_id, **kwargs)
 
     async def send_acl_message(self,
         content,
@@ -64,7 +39,8 @@ class Agent(ABC):
         """
         See container.send_acl_message(...)
         """
-        return await self._container.send_acl_message(content, receiver_addr=receiver_addr, receiver_id=receiver_id, acl_metadata=acl_metadata, **kwargs)
+        return await self._context.send_acl_message(content, receiver_addr=receiver_addr, receiver_id=receiver_id, acl_metadata=acl_metadata, **kwargs)
+
 
     def schedule_instant_message(self,
         content,
@@ -105,7 +81,7 @@ class Agent(ABC):
 
         return self.schedule_instant_task(self.send_acl_message(content, receiver_addr=receiver_addr, receiver_id=receiver_id, acl_metadata=acl_metadata, **kwargs))
 
-    def schedule_conditional_process_task(self, coroutine_creator, condition_func, lookup_delay=0.1, src=None):
+    def schedule_conditional_process_task(self, coroutine_creator, condition_func, lookup_delay=0.1, on_stop=None, src=None):
         """Schedule a process task when a specified condition is met.
 
         :param coroutine_creator: coroutine_creator creating coroutine to be scheduled
@@ -118,9 +94,9 @@ class Agent(ABC):
         :type src: Object
         """
         return self._scheduler.schedule_conditional_process_task(
-            coroutine_creator=coroutine_creator, condition_func=condition_func, lookup_delay=lookup_delay, src=src)
+            coroutine_creator=coroutine_creator, condition_func=condition_func, lookup_delay=lookup_delay, on_stop=on_stop, src=src)
 
-    def schedule_conditional_task(self, coroutine, condition_func, lookup_delay=0.1, src=None):
+    def schedule_conditional_task(self, coroutine, condition_func, lookup_delay=0.1, on_stop=None, src=None):
         """Schedule a task when a specified condition is met.
 
         :param coroutine: coroutine to be scheduled
@@ -133,9 +109,9 @@ class Agent(ABC):
         :type src: Object
         """
         return self._scheduler.schedule_conditional_task(coroutine=coroutine, condition_func=condition_func,
-                                                         lookup_delay=lookup_delay, src=src)
+                                                         lookup_delay=lookup_delay, on_stop=on_stop, src=src)
 
-    def schedule_datetime_process_task(self, coroutine_creator, date_time: datetime, src=None):
+    def schedule_datetime_process_task(self, coroutine_creator, date_time: datetime, on_stop=None, src=None):
         """Schedule a task at specified datetime in another process.
 
         :param coroutine_creator: coroutine_creator creating couroutine to be scheduled
@@ -146,9 +122,9 @@ class Agent(ABC):
         :type src: Object
         """
         return self._scheduler.schedule_datetime_process_task(coroutine_creator=coroutine_creator,
-                                                              date_time=date_time, src=src)
+                                                              date_time=date_time, on_stop=on_stop, src=src)
 
-    def schedule_datetime_task(self, coroutine, date_time: datetime, src=None):
+    def schedule_datetime_task(self, coroutine, date_time: datetime, on_stop=None, src=None):
         """Schedule a task at specified datetime.
 
         :param coroutine: coroutine to be scheduled
@@ -158,9 +134,9 @@ class Agent(ABC):
         :param src: creator of the task
         :type src: Object
         """
-        return self._scheduler.schedule_datetime_task(coroutine=coroutine, date_time=date_time, src=src)
+        return self._scheduler.schedule_datetime_task(coroutine=coroutine, date_time=date_time, on_stop=on_stop, src=src)
 
-    def schedule_timestamp_task(self, coroutine, timestamp: float, src=None):
+    def schedule_timestamp_task(self, coroutine, timestamp: float, on_stop=None, src=None):
         """Schedule a task at specified timestamp.
 
         :param coroutine: coroutine to be scheduled
@@ -170,9 +146,9 @@ class Agent(ABC):
         :param src: creator of the task
         :type src: Object
         """
-        return self._scheduler.schedule_timestamp_task(coroutine=coroutine, timestamp=timestamp, src=src)
+        return self._scheduler.schedule_timestamp_task(coroutine=coroutine, timestamp=timestamp, on_stop=on_stop, src=src)
 
-    def schedule_timestamp_process_task(self, coroutine_creator, timestamp: float, src=None):
+    def schedule_timestamp_process_task(self, coroutine_creator, timestamp: float, on_stop=None, src=None):
         """Schedule a task at specified datetime dispatched to another process.
 
         :param coroutine_creator: coroutine_creator creating coroutine to be scheduled
@@ -183,9 +159,9 @@ class Agent(ABC):
         :type src: Object
         """
         return self._scheduler.schedule_timestamp_process_task(
-            coroutine_creator=coroutine_creator, timestamp=timestamp, src=src)
+            coroutine_creator=coroutine_creator, timestamp=timestamp, on_stop=on_stop, src=src)
 
-    def schedule_periodic_process_task(self, coroutine_creator, delay, src = None):
+    def schedule_periodic_process_task(self, coroutine_creator, delay, on_stop=None, src = None):
         """Schedule an open end periodically executed task in another process.
 
         :param coroutine_creator: coroutine function creating coros to be scheduled
@@ -195,9 +171,9 @@ class Agent(ABC):
         :param src: creator of the task
         :type src: Object
         """
-        return self._scheduler.schedule_periodic_process_task(coroutine_creator=coroutine_creator, delay=delay, src=src)
+        return self._scheduler.schedule_periodic_process_task(coroutine_creator=coroutine_creator, delay=delay, on_stop=on_stop, src=src)
 
-    def schedule_periodic_task(self, coroutine_func, delay, src = None):
+    def schedule_periodic_task(self, coroutine_func, delay, on_stop=None, src = None):
         """Schedule an open end peridocally executed task.
 
         :param coroutine_func: coroutine function creating coros to be scheduled
@@ -207,9 +183,9 @@ class Agent(ABC):
         :param src: creator of the task
         :type src: Object
         """
-        return self._scheduler.schedule_periodic_task(coroutine_func=coroutine_func, delay=delay, src=src)
+        return self._scheduler.schedule_periodic_task(coroutine_func=coroutine_func, delay=delay, on_stop=on_stop, src=src)
 
-    def schedule_instant_process_task(self, coroutine_creator, src = None):
+    def schedule_instant_process_task(self, coroutine_creator, on_stop=None, src = None):
         """Schedule an instantly executed task in another processes.
 
         :param coroutine_creator: coroutine_creator creating coroutine to be scheduled
@@ -217,9 +193,9 @@ class Agent(ABC):
         :param src: creator of the task
         :type src: Object
         """
-        return self._scheduler.schedule_instant_process_task(coroutine_creator=coroutine_creator, src=src)
+        return self._scheduler.schedule_instant_process_task(coroutine_creator=coroutine_creator, on_stop=on_stop, src=src)
 
-    def schedule_instant_task(self, coroutine, src=None):
+    def schedule_instant_task(self, coroutine, on_stop=None, src=None):
         """Schedule an instantly executed task.
 
         :param coroutine: coroutine to be scheduled
@@ -227,7 +203,7 @@ class Agent(ABC):
         :param src: creator of the task
         :type src: Object
         """
-        return self._scheduler.schedule_instant_task(coroutine=coroutine, src=src)
+        return self._scheduler.schedule_instant_task(coroutine=coroutine, on_stop=on_stop, src=src)
 
     def schedule_process_task(self, task: ScheduledProcessTask, src = None):
         """Schedule a task with asyncio in another process. When the task is finished, if finite, its automatically
@@ -254,6 +230,73 @@ class Agent(ABC):
         """
         await self._scheduler.tasks_complete(timeout=timeout)
 
+class AgentContext:
+
+    def __init__(self, container) -> None: 
+        self._container = container
+
+    @property
+    def current_timestamp(self) -> float:
+        """
+        Method that returns the current unix timestamp given the clock within the container
+        """
+        return self._container.clock.time
+    
+    @property
+    def addr(self):
+        return self._container.addr
+
+    def register_agent(self, agent, suggested_aid):
+        return self._container._register_agent(agent, suggested_aid=suggested_aid)
+    
+    def deregister_agent(self, aid):
+        if self._container.running:
+            self._container.deregister_agent(aid)
+
+    async def send_message(self,
+        content,
+        receiver_addr: Union[str, Tuple[str, int]],
+        receiver_id: Optional[str] = None,
+        **kwargs):
+        """
+        See container.send_message(...)
+        """
+        return await self._container.send_message(content, receiver_addr=receiver_addr, receiver_id=receiver_id, **kwargs)
+
+    async def send_acl_message(self,
+        content,
+        receiver_addr: Union[str, Tuple[str, int]],
+        receiver_id: Optional[str] = None,
+        acl_metadata: Optional[Dict[str, Any]] = None,
+        **kwargs):
+        """
+        See container.send_acl_message(...)
+        """
+        return await self._container.send_acl_message(content, receiver_addr=receiver_addr, receiver_id=receiver_id, acl_metadata=acl_metadata, **kwargs)
+
+
+class Agent(ABC, AgentDelegates):
+    """Base class for all agents."""
+
+    def __init__(self, container, suggested_aid: str = None):
+        """Initialize an agent and register it with its container
+        :param container: The container that the agent lives in. Must be a Container
+        :param suggested_aid: (Optional) suggested aid, if the aid is already taken, a generated aid is used. 
+                              Using the generated aid-style ("agentX") is not allowed.
+        """
+        self.scheduler = Scheduler(clock=container.clock)
+        self.context = AgentContext(container)
+        self.aid = self.context.register_agent(self, suggested_aid)
+        self.inbox = asyncio.Queue()
+
+        super().__init__(self.context, self.scheduler)
+        
+        self._check_inbox_task = asyncio.create_task(self._check_inbox())
+        self._check_inbox_task.add_done_callback(self.raise_exceptions)
+        self._stopped = asyncio.Future()
+
+        logger.info('Agent %s: start running in container %s', self.aid, container.addr)
+
     def raise_exceptions(self, fut: asyncio.Future):
         """
         Inline function used as a callback to raise exceptions
@@ -262,11 +305,6 @@ class Agent(ABC):
         if fut.exception() is not None:
             logger.error('Agent %s: Caught the following exception in _check_inbox: %s', self.aid, fut.exception())
             raise fut.exception()
-
-    @property
-    def aid(self):
-        """Return the agents ID"""
-        return self._aid
 
     async def _check_inbox(self):
         """Task for waiting on new message in the inbox"""
@@ -321,10 +359,9 @@ class Agent(ABC):
         """Shutdown all tasks that are running
          and deregister from the container"""
 
-        if not self.stopped.done():
-            self.stopped.set_result(True)
-        if self._container.running:
-            self._container.deregister_agent(self._aid)
+        if not self._stopped.done():
+            self._stopped.set_result(True)
+        self.context.deregister_agent(self.aid)
         try:
             # Shutdown reactive inbox task
             self._check_inbox_task.remove_done_callback(self.raise_exceptions)
