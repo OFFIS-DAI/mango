@@ -14,6 +14,11 @@ from mango.container.mosaik import MosaikContainer
 
 logger = logging.getLogger(__name__)
 
+TCP_CONNECTION = 'tcp'
+MQTT_CONNECTION = 'mqtt'
+MOSAIK_CONNECTION = 'mosaik'
+
+
 async def create(*,
     connection_type: str = "tcp",
     codec: Codec = None,
@@ -43,7 +48,7 @@ async def create(*,
     :return: The instance of a MQTTContainer or a TCPContainer
     """
     connection_type = connection_type.lower()
-    if connection_type not in ["tcp", "mqtt", "mosaik"]:
+    if connection_type not in [TCP_CONNECTION, MQTT_CONNECTION, MOSAIK_CONNECTION]:
         raise ValueError(f"Unknown connection type {connection_type}")
 
     loop = asyncio.get_running_loop()

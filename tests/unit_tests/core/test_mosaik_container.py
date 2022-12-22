@@ -4,13 +4,14 @@ import pytest
 from mango.messages.message import ACLMessage
 from mango.container.mosaik import MosaikAgentMessage
 import mango.container.factory as container_factory
+from mango.container.factory import MOSAIK_CONNECTION
 from mango.agent.core import Agent
 from mango.util.clock import ExternalClock
 
 
 @pytest.mark.asyncio
 async def test_init():
-    mosaik_container = await container_factory.create(addr="mosaik_eid_1234", connection_type='mosaik')
+    mosaik_container = await container_factory.create(addr="mosaik_eid_1234", connection_type=MOSAIK_CONNECTION)
     assert mosaik_container.addr == "mosaik_eid_1234"
     assert isinstance(mosaik_container.clock, ExternalClock)
     await mosaik_container.shutdown()
@@ -18,7 +19,7 @@ async def test_init():
 
 @pytest.mark.asyncio
 async def test_send_msg():
-    mosaik_container = await container_factory.create(addr="mosaik_eid_1234", connection_type='mosaik')
+    mosaik_container = await container_factory.create(addr="mosaik_eid_1234", connection_type=MOSAIK_CONNECTION)
     await mosaik_container.send_message(content='test', receiver_addr='eid321', receiver_id='Agent0', create_acl=True)
     assert len(mosaik_container.message_buffer) == 1
     mosaik_agent_msg: MosaikAgentMessage = mosaik_container.message_buffer[0]
@@ -32,7 +33,7 @@ async def test_send_msg():
 
 @pytest.mark.asyncio
 async def test_step():
-    mosaik_container = await container_factory.create(addr="mosaik_eid_1234", connection_type='mosaik')
+    mosaik_container = await container_factory.create(addr="mosaik_eid_1234", connection_type=MOSAIK_CONNECTION)
     await mosaik_container.send_message(content='test', receiver_addr='eid321', receiver_id='Agent0', create_acl=True)
     step_output = await mosaik_container.step(simulation_time=12, incoming_messages=[])
     assert mosaik_container.message_buffer == []
@@ -98,7 +99,7 @@ class WaitForMessageAgent(Agent):
 
 @pytest.mark.asyncio
 async def test_step_with_cond_task():
-    mosaik_container = await container_factory.create(addr="mosaik_eid_1", connection_type='mosaik')
+    mosaik_container = await container_factory.create(addr="mosaik_eid_1", connection_type=MOSAIK_CONNECTION)
     agent_1 = WaitForMessageAgent(mosaik_container)
     print('Agent init')
 
@@ -108,13 +109,11 @@ async def test_step_with_cond_task():
         current_time += 1
         # advance time without anything happening
         print('starting step')
-        return_values = await asyncio.wait_for(mosaik_container.step(simulation_time=current_time, incoming_messages=[]), timeout=1)
+        return_values = await asyncio.wait_for(mosaik_container.step(simulation_time=current_time,
+                                                                     incoming_messages=[]), timeout=1)
 
         print('One step done')
-
-
         assert return_values.next_activity == current_time + 1 and return_values.messages == []
-
 
     # create and send message in next step
     message = mosaik_container._create_acl(content='', receiver_addr=mosaik_container.addr, receiver_id=agent_1.aid)
@@ -159,7 +158,7 @@ class SelfSendAgent(Agent):
 
 @pytest.mark.asyncio
 async def test_send_internal_messages():
-    mosaik_container = await container_factory.create(addr="mosaik_eid_1", connection_type='mosaik')
+    mosaik_container = await container_factory.create(addr="mosaik_eid_1", connection_type=MOSAIK_CONNECTION)
     agent_1 = SelfSendAgent(container=mosaik_container, final_number=3)
     message = mosaik_container._create_acl(content='', receiver_addr=mosaik_container.addr, receiver_id=agent_1.aid)
     encoded_msg = mosaik_container.codec.encode(message)
@@ -171,7 +170,7 @@ async def test_send_internal_messages():
 
 @pytest.mark.asyncio
 async def test_step_with_replying_agent():
-    mosaik_container = await container_factory.create(addr="mosaik_eid_1", connection_type='mosaik')
+    mosaik_container = await container_factory.create(addr="mosaik_eid_1", connection_type=MOSAIK_CONNECTION)
     reply_agent = ReplyAgent(container=mosaik_container)
     new_acl_msg = ACLMessage()
     new_acl_msg.content = 'hello you'
