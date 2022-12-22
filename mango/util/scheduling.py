@@ -197,10 +197,8 @@ class ConditionalTask(ScheduledTask):
     async def run(self):
         while not self._condition():
             sleep_future: asyncio.Future = self.clock.sleep(self._delay)
-            print('Notify sleeping')
             self.notify_sleeping()
             await sleep_future
-            print('Notify Running')
             self.notify_running()
         return await self._coro
 
