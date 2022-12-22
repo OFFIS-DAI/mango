@@ -62,25 +62,6 @@ class MosaikContainer(Container):
         self._new_internal_message: bool = False
         self.message_buffer = []
 
-    async def _handle_message(self, *, priority: int, content, meta: Dict[str, Any]):
-        """
-
-        :param priority:
-        :param content:
-        :param meta:
-        :return:
-        """
-        logger.debug(
-            f"Received msg with content and meta;{str(content)};{str(meta)}"
-        )
-        receiver_id = meta.get("receiver_id", None)
-        print('Receiver', receiver_id)
-        if receiver_id and receiver_id in self._agents.keys():
-            receiver = self._agents[receiver_id]
-            await receiver.inbox.put((priority, content, meta))
-        else:
-            logger.warning(f"Received a message for an unknown receiver;{receiver_id}")
-
     async def send_message(self, content, receiver_addr: Union[str, Tuple[str, int]], *,
                            receiver_id: Optional[str] = None, create_acl: bool = False,
                            acl_metadata: Optional[Dict[str, Any]] = None, mqtt_kwargs: Dict[str, Any] = None,
