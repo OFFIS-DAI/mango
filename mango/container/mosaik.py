@@ -45,7 +45,6 @@ class MosaikContainer(Container):
         :param addr: The container sid / eid respectively
         :param codec: The codec to use
         :param loop: Current event loop
-        :param proto_msgs_module: The module for proto msgs in case of
         proto as codec
         """
 
