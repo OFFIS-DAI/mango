@@ -2,10 +2,25 @@ import datetime
 import pytest
 import asyncio
 from typing import Dict, Any
-from mango.core.container import Container
-from mango.role.api import Role, RoleContext, SimpleReactiveRole
-from mango.role.core import RoleAgent, RoleAgentContext
+from mango.agent.role import Role, RoleContext
+from mango.agent.role import RoleAgent
 from mango.util.scheduling import DateTimeScheduledTask
+from abc import abstractmethod
+
+import mango.container.factory as container_factory
+
+class SimpleReactiveRole(Role):
+
+    def setup(self):
+        self.context.subscribe_message(
+            self, self.handle_msg, self.is_applicable)
+
+    @abstractmethod
+    def handle_msg(self, content, meta: Dict[str, Any]) -> None:
+        pass
+    def is_applicable(self, content, meta: Dict[str, Any]) -> bool:
+        return True
+
 
 
 class PongRole(SimpleReactiveRole):
@@ -93,7 +108,7 @@ async def test_send_ping_pong(num_agents, num_containers):
     # create containers
     containers = []
     for i in range(num_containers):
-        c = await Container.factory(addr=('127.0.0.2', 5555 + i))
+        c = await container_factory.create(addr=('127.0.0.2', 5555 + i))
         containers.append(c)
 
     # create agents
@@ -135,7 +150,7 @@ async def test_send_ping_pong_deactivated_pong(num_agents, num_containers):
     # create containers
     containers = []
     for i in range(num_containers):
-        c = await Container.factory(addr=('127.0.0.2', 5555 + i))
+        c = await container_factory.create(addr=('127.0.0.2', 5555 + i))
         containers.append(c)
 
     # create agents

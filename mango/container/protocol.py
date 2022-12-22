@@ -2,9 +2,6 @@ import asyncio
 import logging
 import struct
 
-from ..messages.message import ACLMessage as JsonAcl
-from ..messages.acl_message_pb2 import ACLMessage as ProtoAcl
-
 
 # The struct module performs conversions between python values and
 # C structs represented as Python bytes objects.

@@ -1,7 +1,7 @@
 import asyncio
 
-from mango.core.agent import Agent
-from mango.core.container import Container
+from mango import Agent
+from mango import create_container
 from mango.messages.message import Performatives
 
 """
@@ -30,7 +30,7 @@ class PVAgent(Agent):
         super().__init__(container, suggested_aid=suggested_aid)
         self.max_feed_in = -1
 
-    def handle_msg(self, content, meta):
+    def handle_message(self, content, meta):
         performative = meta["performative"]
         sender_addr = meta["sender_addr"]
         sender_id = meta["sender_id"]
@@ -82,7 +82,7 @@ class ControllerAgent(Agent):
         self.reports_done = None
         self.acks_done = None
 
-    def handle_msg(self, content, meta):
+    def handle_message(self, content, meta):
         performative = meta['performative']
         if performative == Performatives.inform:
             # feed_in_reply message
@@ -157,8 +157,8 @@ class ControllerAgent(Agent):
 
 
 async def main():
-    pv_container = await Container.factory(addr=PV_CONTAINER_ADDRESS)
-    controller_container = await Container.factory(addr=CONTROLLER_CONTAINER_ADDRESS)
+    pv_container = await create_container(addr=PV_CONTAINER_ADDRESS)
+    controller_container = await create_container(addr=CONTROLLER_CONTAINER_ADDRESS)
 
     # agents always live inside a container
     pv_agent_0 = PVAgent(pv_container, suggested_aid='PV Agent 0')

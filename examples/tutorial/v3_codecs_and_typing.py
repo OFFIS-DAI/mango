@@ -1,8 +1,8 @@
 import asyncio
 from dataclasses import dataclass
 
-from mango.core.agent import Agent
-from mango.core.container import Container
+from mango import Agent
+from mango import create_container
 import mango.messages.codecs as codecs
 
 """
@@ -54,7 +54,7 @@ class PVAgent(Agent):
         super().__init__(container, suggested_aid=suggested_aid)
         self.max_feed_in = -1
 
-    def handle_msg(self, content, meta):
+    def handle_message(self, content, meta):
         sender_addr = meta["sender_addr"]
         sender_id = meta["sender_id"]
 
@@ -100,7 +100,7 @@ class ControllerAgent(Agent):
         self.reports_done = None
         self.acks_done = None
 
-    def handle_msg(self, content, meta):
+    def handle_message(self, content, meta):
         if isinstance(content, FeedInReplyMsg):
             self.handle_feed_in_reply(content.feed_in)
         elif isinstance(content, MaxFeedInAck):
@@ -186,9 +186,9 @@ async def main():
     my_codec.add_serializer(*FeedInReplyMsg.__serializer__())
     my_codec.add_serializer(*MaxFeedInAck.__serializer__())
 
-    pv_container = await Container.factory(addr=PV_CONTAINER_ADDRESS, codec=my_codec)
+    pv_container = await create_container(addr=PV_CONTAINER_ADDRESS, codec=my_codec)
 
-    controller_container = await Container.factory(
+    controller_container = await create_container(
         addr=CONTROLLER_CONTAINER_ADDRESS, codec=my_codec
     )
 

@@ -99,8 +99,8 @@ control how fast or slow time passes within your agent system:
 .. code-block:: python3
 
     import asyncio
-    from mango.core.container import Container
-    from mango.core.agent import Agent
+    from mango import create_container
+    from mango import Agent
     from mango.util.clock import AsyncioClock, ExternalClock
 
 
@@ -134,7 +134,7 @@ control how fast or slow time passes within your agent system:
         clock = AsyncioClock()
         # clock = ExternalClock(start_time=1000)
         addr = ('127.0.0.1', 5555)
-        c = await Container.factory(addr=addr, clock=clock)
+        c = await create_container(addr=addr, clock=clock)
         receiver = Receiver(c)
         caller = Caller(c, addr, receiver.aid)
         await receiver.wait_for_reply
@@ -157,7 +157,7 @@ If you comment in the ExternalClock and change your main() as follows, the progr
         clock = ExternalClock(start_time=1000)
         addr = ('127.0.0.1', 5555)
 
-        c = await Container.factory(addr=addr, clock=clock)
+        c = await create_container(addr=addr, clock=clock)
         receiver = Receiver(c)
         caller = Caller(c, addr, receiver.aid)
         if isinstance(clock, ExternalClock):
