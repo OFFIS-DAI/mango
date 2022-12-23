@@ -232,7 +232,7 @@ class AgentDelegates:
 
 class AgentContext:
 
-    def __init__(self, container) -> None: 
+    def __init__(self, container) -> None:
         self._container = container
 
     @property
@@ -241,14 +241,14 @@ class AgentContext:
         Method that returns the current unix timestamp given the clock within the container
         """
         return self._container.clock.time
-    
+
     @property
     def addr(self):
         return self._container.addr
 
     def register_agent(self, agent, suggested_aid):
         return self._container._register_agent(agent, suggested_aid=suggested_aid)
-    
+
     def deregister_agent(self, aid):
         if self._container.running:
             self._container.deregister_agent(aid)
@@ -281,7 +281,7 @@ class Agent(ABC, AgentDelegates):
     def __init__(self, container, suggested_aid: str = None):
         """Initialize an agent and register it with its container
         :param container: The container that the agent lives in. Must be a Container
-        :param suggested_aid: (Optional) suggested aid, if the aid is already taken, a generated aid is used. 
+        :param suggested_aid: (Optional) suggested aid, if the aid is already taken, a generated aid is used.
                               Using the generated aid-style ("agentX") is not allowed.
         """
         self.scheduler = Scheduler(clock=container.clock)
@@ -290,7 +290,7 @@ class Agent(ABC, AgentDelegates):
         self.inbox = asyncio.Queue()
 
         super().__init__(self.context, self.scheduler)
-        
+
         self._check_inbox_task = asyncio.create_task(self._check_inbox())
         self._check_inbox_task.add_done_callback(self.raise_exceptions)
         self._stopped = asyncio.Future()

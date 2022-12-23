@@ -1,6 +1,7 @@
 import asyncio
 import copy
-import logging, warnings
+import logging
+import warnings
 from abc import ABC, abstractmethod
 from typing import Optional, Union, Tuple, Dict, Any
 from ..messages.codecs import Codec, ACLMessage
@@ -10,10 +11,12 @@ logger = logging.getLogger(__name__)
 
 AGENT_PATTERN_NAME_PRE = "agent"
 
+
 class Container(ABC):
     """Superclass for a mango container"""
 
-    def __init__(self, *, addr, name: str, codec, proto_msgs_module=None, loop, clock: Clock, copy_internal_messages=True):
+    def __init__(self, *, addr, name: str, codec, proto_msgs_module=None, loop, clock: Clock,
+                 copy_internal_messages=True):
         self.name: str = name
         self.addr = addr
         self.clock = clock
@@ -159,14 +162,13 @@ class Container(ABC):
             **kwargs
         )
 
-
     def _create_acl(
         self,
         content,
         receiver_addr: Union[str, Tuple[str, int]],
         receiver_id: Optional[str] = None,
         acl_metadata: Optional[Dict[str, Any]] = None,
-        is_anonymous_acl = False
+        is_anonymous_acl=False
     ):
         """
         :param content:
@@ -176,19 +178,23 @@ class Container(ABC):
         :return:
         """
         acl_metadata = {} if acl_metadata is None else acl_metadata.copy()
-	        # analyse and complete acl_metadata
+        # analyse and complete acl_metadata
         if "receiver_addr" not in acl_metadata.keys():
             acl_metadata["receiver_addr"] = receiver_addr            
         elif acl_metadata["receiver_addr"] != receiver_addr:
-            warnings.warn(f"The argument receiver_addr ({receiver_addr}) is not equal to acl_metadata['receiver_addr'] ({acl_metadata['receiver_addr']}). \
-                            For consistency, the value in acl_metadata['receiver_addr'] was overwritten with receiver_addr.", UserWarning)
+            warnings.warn(f"The argument receiver_addr ({receiver_addr}) is not equal to "
+                          f"acl_metadata['receiver_addr'] ({acl_metadata['receiver_addr']}). \
+                            For consistency, the value in acl_metadata['receiver_addr'] "
+                          f"was overwritten with receiver_addr.", UserWarning)
             acl_metadata["receiver_addr"] = receiver_addr    
         if receiver_id:
             if "receiver_id" not in acl_metadata.keys():
                 acl_metadata["receiver_id"] = receiver_id
             elif acl_metadata["receiver_id"] != receiver_id:
-                warnings.warn(f"The argument receiver_id ({receiver_id}) is not equal to acl_metadata['receiver_id'] ({acl_metadata['receiver_id']}). \
-                               For consistency, the value in acl_metadata['receiver_id'] was overwritten with receiver_id.", UserWarning)
+                warnings.warn(f"The argument receiver_id ({receiver_id}) is not equal to "
+                              f"acl_metadata['receiver_id'] ({acl_metadata['receiver_id']}). \
+                               For consistency, the value in acl_metadata['receiver_id'] "
+                              f"was overwritten with receiver_id.", UserWarning)
                 acl_metadata["receiver_id"] = receiver_id
         # add sender_addr if not defined and not anonymous
         if not is_anonymous_acl:
@@ -217,7 +223,6 @@ class Container(ABC):
         target_inbox.put_nowait((priority, content, meta))
         return True
 
-
     async def _check_inbox(self):
         """
         Task that checks, if there is a message in inbox and then creates a
@@ -244,7 +249,6 @@ class Container(ABC):
             self.inbox.task_done()  # signals that the queue object is
             # processed
 
-    @abstractmethod
     async def _handle_message(self, *, priority: int, content, meta: Dict[str, Any]):
         """
         This is called as a separate task for every message that is read
@@ -252,7 +256,16 @@ class Container(ABC):
         :param content: Deserialized content of the message
         :param meta: Dict with additional information (e.g. topic)
         """
-        raise NotImplementedError
+
+        logger.debug(
+            f"Received message with content and meta;{str(content)};{str(meta)}"
+        )
+        receiver_id = meta.get("receiver_id", None)
+        if receiver_id and receiver_id in self._agents.keys():
+            receiver = self._agents[receiver_id]
+            await receiver.inbox.put((priority, content, meta))
+        else:
+            logger.warning(f"Received a message for an unknown receiver;{receiver_id}")
 
     async def shutdown(self):
         """Shutdown all agents in the container and the container itself"""
@@ -273,4 +286,3 @@ class Container(ABC):
                 pass
             finally:
                 logger.info("Successfully shutdown")
-

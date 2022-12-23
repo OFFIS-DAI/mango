@@ -51,23 +51,6 @@ class TCPContainer(Container):
         self.server = None  # will be set within the factory method
         self.running = True
 
-    async def _handle_message(self, *, priority: int, content, meta: Dict[str, Any]):
-        """
-        :param priority:
-        :param content:
-        :param meta:
-        :return:
-        """
-        logger.debug(
-            f"Received message with content and meta;{str(content)};{str(meta)}"
-        )
-        receiver_id = meta.get("receiver_id", None)
-        if receiver_id and receiver_id in self._agents.keys():
-            receiver = self._agents[receiver_id]
-            await receiver.inbox.put((priority, content, meta))
-        else:
-            logger.warning(f"Received a message for an unknown receiver;{receiver_id}")
-
     async def send_message(
         self,
         content,

@@ -21,8 +21,10 @@ class SimpleReactiveRole(Role):
         return True
 
 
+
 class PongRole(SimpleReactiveRole):
     def __init__(self):
+        super().__init__()
         self.sending_tasks = []
 
     def handle_msg(self, content, meta: Dict[str, Any]):
@@ -42,6 +44,7 @@ class PongRole(SimpleReactiveRole):
 
     def is_applicable(self, content, meta):
         return content == 'ping'
+
 
 class PingRole(SimpleReactiveRole):
     def __init__(self, addr, expect_no_answer=False):

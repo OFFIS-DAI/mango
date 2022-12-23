@@ -1,12 +1,15 @@
 
+
 import pytest
 
 import mango.container.factory as container_factory
 from mango.agent.core import Agent
 
-class LooksLikeAgent():
+
+class LooksLikeAgent:
     async def shutdown(self):
         pass
+
 
 @pytest.mark.asyncio
 async def test_register_aid_pattern_match():
@@ -50,7 +53,8 @@ async def test_register_no_suggested():
     # THEN
     assert actual_aid == "agent0"
     await c.shutdown()
-    
+
+
 @pytest.mark.asyncio
 async def test_register_pattern_half_match():
     # GIVEN
@@ -65,7 +69,7 @@ async def test_register_pattern_half_match():
     assert actual_aid == "agentABC"
     await c.shutdown()
 
-    
+
 @pytest.mark.asyncio
 async def test_register_existing():
     # GIVEN
@@ -82,7 +86,7 @@ async def test_register_existing():
     assert actual_aid2 == "agent0"
     await c.shutdown()
 
-    
+
 @pytest.mark.asyncio
 async def test_is_aid_available():
     # GIVEN
@@ -95,7 +99,8 @@ async def test_is_aid_available():
     # THEN
     assert available
     await c.shutdown()
-    
+
+
 @pytest.mark.asyncio
 async def test_is_aid_available_but_match():
     # GIVEN
@@ -108,6 +113,7 @@ async def test_is_aid_available_but_match():
     # THEN
     assert not available
     await c.shutdown()
+
 
 @pytest.mark.asyncio
 async def test_is_aid_not_available():
@@ -122,6 +128,7 @@ async def test_is_aid_not_available():
     # THEN
     assert not available
     await c.shutdown()
+
 
 @pytest.mark.asyncio
 async def test_is_aid_not_available_and_match():
@@ -195,7 +202,7 @@ async def test_send_message_copy():
     await c.shutdown()
 
     assert agent1.content is not message_to_send
-    
+
 @pytest.mark.asyncio
 async def test_create_acl_diff_receiver():
     c = await container_factory.create(addr=('127.0.0.2', 5555))
