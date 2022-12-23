@@ -59,7 +59,7 @@ class ReplyAgent(Agent):
         self.tasks.append(self.schedule_periodic_task(self.send_ping, delay=10))
 
     async def send_ping(self):
-        await self._container.send_message(content=f'ping{self.current_ping}', receiver_addr='ping_receiver_addr',
+        await self.context.send_message(content=f'ping{self.current_ping}', receiver_addr='ping_receiver_addr',
                                            receiver_id='ping_receiver_id', create_acl=True)
         self.current_ping += 1
 
@@ -67,10 +67,10 @@ class ReplyAgent(Agent):
         self.schedule_instant_task(self.sleep_and_answer(content, meta))
 
     async def sleep_and_answer(self, content, meta):
-        await self._container.send_message(content=f'I received {content}', receiver_addr=meta['sender_addr'],
+        await self.context.send_message(content=f'I received {content}', receiver_addr=meta['sender_addr'],
                                            receiver_id=['sender_id'], create_acl=True)
         await asyncio.sleep(0.1)
-        await self._container.send_message(content=f'Thanks for sending {content}', receiver_addr=meta['sender_addr'],
+        await self.context.send_message(content=f'Thanks for sending {content}', receiver_addr=meta['sender_addr'],
                                            receiver_id=['sender_id'], create_acl=True)
 
     async def stop_tasks(self):
@@ -151,7 +151,7 @@ class SelfSendAgent(Agent):
             i += 1
         # send message to yourself if necessary
         if self.no_received_msg < self.final_no:
-            self.schedule_instant_acl_message(receiver_addr=self._container.addr, receiver_id=self.aid, content=content)
+            self.schedule_instant_acl_message(receiver_addr=self.context.addr, receiver_id=self.aid, content=content)
         else:
             self.schedule_instant_acl_message(receiver_addr='AnyOtherAddr', receiver_id='AnyOtherId', content=content)
 
