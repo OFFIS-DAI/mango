@@ -25,7 +25,7 @@ Furthermore there are convenience methods to get rid of the class imports when u
 
 .. code-block:: python3
 
-    from mango.core.agent import Agent
+    from mango import Agent
     from mango.util.scheduling import InstantScheduledTask
 
         class ScheduleAgent(Agent):
@@ -61,7 +61,7 @@ Analogues to the normal API there are two different ways, first you create a Sch
 
 .. code-block:: python3
 
-    from mango.core.agent import Agent
+    from mango import Agent
     from mango.util.scheduling import InstantScheduledProcessTask
 
         class ScheduleAgent(Agent):

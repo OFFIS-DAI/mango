@@ -81,7 +81,7 @@ class SimpleAgent(Agent):
                 assert False, f'got strange reply_by: {reply_by}'
             if self.codec == 'json':
                 message = ACLMessage_json(
-                    sender_id=self._aid,
+                    sender_id=self.aid,
                     sender_addr=self.addr_str,
                     receiver_id=sender_id,
                     receiver_addr=sender_addr,
@@ -92,7 +92,7 @@ class SimpleAgent(Agent):
                     performative=Performatives.inform)
             elif self.codec == 'protobuf':
                 message = ACLMessage_proto()
-                message.sender_id = self._aid
+                message.sender_id = self.aid
                 message.sender_addr = self.addr_str
                 message.receiver_id = sender_id
                 message.in_reply_to = reply_by

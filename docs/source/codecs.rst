@@ -98,7 +98,7 @@ All that is left to do now is to pass our codec to the container. This is done d
             super().__init__(container)
 
         def handle_message(self, content, meta):
-            print(f"{self._aid} received a message with content {content} and meta f{meta}")
+            print(f"{self.aid} received a message with content {content} and meta f{meta}")
             if isinstance(content, MyClass):
                 print(content.x)
                 print(content.y)

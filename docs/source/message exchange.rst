@@ -39,7 +39,7 @@ A simple agent, that just prints the content and meta information of incoming me
             super().__init__(container)
 
         def handle_message(self, content, meta):
-            print(f'{self._aid} received a message with content {content} and'
+            print(f'{self.aid} received a message with content {content} and'
                 f'meta {meta}')
 
 

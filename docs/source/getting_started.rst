@@ -20,7 +20,7 @@ all messages it receives:
         def __init__(self, container):
             # We must pass a reference of the container to "mango.Agent":
             super().__init__(container)
-            print(f"Hello world! My id is {self._aid}.")
+            print(f"Hello world! My id is {self.aid}.")
 
         def handle_message(self, content, meta):
             # This method defines what the agent will do with incoming messages.
@@ -72,7 +72,7 @@ then shutdown the container:
         def __init__(self, container):
             # We must pass a ref. to the container to "mango.Agent":
             super().__init__(container)
-            print(f"Hello world! My id is {self._aid}.")
+            print(f"Hello world! My id is {self.aid}.")
 
         def handle_message(self, content, meta):
             # This method defines what the agent will do with incoming messages.
@@ -133,7 +133,7 @@ a RepeatingAgent and let them run.
         def __init__(self, container):
             # We must pass a ref. to the container to "mango.Agent":
             super().__init__(container)
-            print(f"Hello world! My id is {self._aid}.")
+            print(f"Hello world! My id is {self.aid}.")
 
         def handle_message(self, content, meta):
             # This method defines what the agent will do with incoming messages.

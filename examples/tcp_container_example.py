@@ -12,7 +12,7 @@ async def one_container_two_agents():
                                          codec='json', addr=addr1)
     agent_a = SimpleAgent(container1)
 
-    agent_id1 = agent_a._aid
+    agent_id1 = agent_a.aid
 
     # initialize an agent in container2 and tell him the id of the first agent
     agent_b = SimpleAgent(container1, agent_id1, addr1)
