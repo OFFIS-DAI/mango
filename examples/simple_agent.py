@@ -7,6 +7,9 @@ from mango.messages import other_proto_msgs_pb2 as other_proto_msg
 from mango.messages.acl_message_pb2 import ACLMessage as ACLMessage_proto
 from mango.messages.message import ACLMessage as ACLMessage_json, \
     Performatives
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class SimpleAgent(Agent):
@@ -47,7 +50,7 @@ class SimpleAgent(Agent):
         :param content: the content of the mssage
         :param meta: meta information
         """
-        self.agent_logger.info(
+        logger.info(
             f'Received message: {content} with meta {meta}')
 
         # so far we only expect and react to greetings
@@ -104,7 +107,7 @@ class SimpleAgent(Agent):
                 sub_msg.text = message_out_content
                 message.content_class = type(sub_msg).__name__
                 message.content = sub_msg.SerializeToString()
-            self.agent_logger.debug(f'Going to send {message}')
+            logger.debug(f'Going to send {message}')
             await self.context.send_message(message, sender_addr)
 
         # shutdown if no more open conversations
