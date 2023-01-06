@@ -5,6 +5,7 @@ from mango.util.clock import ExternalClock
 from datetime import datetime
 from dateutil import rrule
 
+
 class Caller(Agent):
     def __init__(self, container, receiver_addr, receiver_id, recurrency):
         super().__init__(container)
@@ -15,11 +16,12 @@ class Caller(Agent):
     async def send_hello_world(self):
         time = datetime.fromtimestamp(self._scheduler.clock.time)
         await self.context.send_acl_message(receiver_addr=self.receiver_addr,
-                                               receiver_id=self.receiver_id,
-                                               content=f'Current time is {time}')
+                                            receiver_id=self.receiver_id,
+                                            content=f'Current time is {time}')
 
     def handle_message(self, content, meta):
         pass
+
 
 class Receiver(Agent):
     def __init__(self, container):
