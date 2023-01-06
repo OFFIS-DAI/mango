@@ -37,7 +37,7 @@ class SimpleAgent(Agent):
                 'performative': Performatives.inform.value,
                 'sender_id': self.aid,
             }
-            await self._container.send_acl_message(
+            await self.context.send_acl_message(
                 message_content, self.other_addr, receiver_id=self.other_aid, acl_metadata=acl_meta
             )
 
@@ -105,7 +105,7 @@ class SimpleAgent(Agent):
                 message.content_class = type(sub_msg).__name__
                 message.content = sub_msg.SerializeToString()
             self.agent_logger.debug(f'Going to send {message}')
-            await self._container.send_message(message, sender_addr)
+            await self.context.send_message(message, sender_addr)
 
         # shutdown if no more open conversations
         if len(self.conversations) == 0:

@@ -48,11 +48,11 @@ class PVAgent(Agent):
         reported_feed_in = PV_FEED_IN[self.aid]  # PV_FEED_IN must be defined at the top
         content = reported_feed_in
 
-        acl_meta = {"sender_addr": self._container.addr, "sender_id": self._aid,
+        acl_meta = {"sender_addr": self.context.addr, "sender_id": self._aid,
                     "performative": Performatives.inform}
 
         self.schedule_instant_task(
-            self._container.send_acl_message(
+            self.context.send_acl_message(
                 content=content,
                 receiver_addr=sender_addr,
                 receiver_id=sender_id,
@@ -64,7 +64,7 @@ class PVAgent(Agent):
         self.max_feed_in = float(max_feed_in)
         print(f"{self._aid}: Limiting my feed_in to {max_feed_in}")
         self.schedule_instant_task(
-            self._container.send_acl_message(
+            self.context.send_acl_message(
                 content=None,
                 receiver_addr=sender_addr,
                 receiver_id=sender_id,
@@ -118,11 +118,11 @@ class ControllerAgent(Agent):
         # ask pv agent feed-ins
         for addr, aid in self.known_agents:
             content = None
-            acl_meta = {"sender_addr": self._container.addr, "sender_id": self._aid,
+            acl_meta = {"sender_addr": self.context.addr, "sender_id": self._aid,
                         "performative": Performatives.request}
             # alternatively we could call send_acl_message here directly and await it
             self.schedule_instant_task(
-                self._container.send_acl_message(
+                self.context.send_acl_message(
                     content=content,
                     receiver_addr=addr,
                     receiver_id=aid,
@@ -139,12 +139,12 @@ class ControllerAgent(Agent):
 
         for addr, aid in self.known_agents:
             content = min_feed_in
-            acl_meta = {"sender_addr": self._container.addr, "sender_id": self._aid,
+            acl_meta = {"sender_addr": self.context.addr, "sender_id": self._aid,
                         "performative": Performatives.propose}
 
             # alternatively we could call send_acl_message here directly and await it
             self.schedule_instant_task(
-                self._container.send_acl_message(
+                self.context.send_acl_message(
                     content=content,
                     receiver_addr=addr,
                     receiver_id=aid,
