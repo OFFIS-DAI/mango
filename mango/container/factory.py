@@ -6,7 +6,7 @@ import paho.mqtt.client as paho
 
 from ..messages.codecs import Codec
 from ..util.clock import Clock, AsyncioClock
-from mango.messages.codecs import JSON
+from mango.messages.codecs import JSON, PROTOBUF
 from mango.container.tcp import TCPContainer
 from mango.container.mqtt import MQTTContainer
 from mango.container.protocol import ContainerProtocol
@@ -21,7 +21,7 @@ MOSAIK_CONNECTION = 'mosaik'
 
 async def create(*,
     connection_type: str = "tcp",
-    codec: Codec = None,
+    codec: Codec = "json",
     clock: Clock = None,
     addr: Optional[Union[str, Tuple[str, int]]] = None,
     proto_msgs_module=None,
@@ -53,8 +53,13 @@ async def create(*,
 
     loop = asyncio.get_running_loop()
 
-    if codec is None:
-        codec = JSON()
+    if type(codec) == str:
+        if codec == 'json':
+            codec = JSON()
+        elif codec == 'protobuf':
+            codec = PROTOBUF()
+        else:
+            raise Exception(f'unknown codec string {codec}')
     if clock is None:
         clock = AsyncioClock()
 
