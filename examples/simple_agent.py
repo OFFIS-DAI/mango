@@ -7,6 +7,9 @@ from mango.messages import other_proto_msgs_pb2 as other_proto_msg
 from mango.messages.acl_message_pb2 import ACLMessage as ACLMessage_proto
 from mango.messages.message import ACLMessage as ACLMessage_json, \
     Performatives
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class SimpleAgent(Agent):
@@ -37,7 +40,7 @@ class SimpleAgent(Agent):
                 'performative': Performatives.inform.value,
                 'sender_id': self.aid,
             }
-            await self._container.send_acl_message(
+            await self.context.send_acl_message(
                 message_content, self.other_addr, receiver_id=self.other_aid, acl_metadata=acl_meta
             )
 
@@ -47,7 +50,7 @@ class SimpleAgent(Agent):
         :param content: the content of the mssage
         :param meta: meta information
         """
-        self.agent_logger.info(
+        logger.info(
             f'Received message: {content} with meta {meta}')
 
         # so far we only expect and react to greetings
@@ -81,7 +84,7 @@ class SimpleAgent(Agent):
                 assert False, f'got strange reply_by: {reply_by}'
             if self.codec == 'json':
                 message = ACLMessage_json(
-                    sender_id=self._aid,
+                    sender_id=self.aid,
                     sender_addr=self.addr_str,
                     receiver_id=sender_id,
                     receiver_addr=sender_addr,
@@ -92,7 +95,7 @@ class SimpleAgent(Agent):
                     performative=Performatives.inform)
             elif self.codec == 'protobuf':
                 message = ACLMessage_proto()
-                message.sender_id = self._aid
+                message.sender_id = self.aid
                 message.sender_addr = self.addr_str
                 message.receiver_id = sender_id
                 message.in_reply_to = reply_by
@@ -104,8 +107,8 @@ class SimpleAgent(Agent):
                 sub_msg.text = message_out_content
                 message.content_class = type(sub_msg).__name__
                 message.content = sub_msg.SerializeToString()
-            self.agent_logger.debug(f'Going to send {message}')
-            await self._container.send_message(message, sender_addr)
+            logger.debug(f'Going to send {message}')
+            await self.context.send_message(message, sender_addr)
 
         # shutdown if no more open conversations
         if len(self.conversations) == 0:

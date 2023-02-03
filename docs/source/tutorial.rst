@@ -187,7 +187,7 @@ the full ACL object ourselves every time, within this example we always use the 
                 # set_max_ack message
                 self.handle_set_max_ack()
             else:
-                print(f"{self._aid}: Received an unexpected message  with content {content} and meta {meta}")
+                print(f"{self.aid}: Received an unexpected message  with content {content} and meta {meta}")
 
         def handle_feed_in_reply(self, feed_in_value):
             self.reported_feed_ins.append(float(feed_in_value))
@@ -222,7 +222,7 @@ We do the same for our PV agents. We will also enable user defined agent ids her
                 # set_max_feed_in message
                 self.handle_set_feed_in_max(content, sender_addr, sender_id)
             else:
-                print(f"{self._aid}: Received an unexpected message with content {content} and meta {meta}")
+                print(f"{self.aid}: Received an unexpected message with content {content} and meta {meta}")
 
 
 When a PV agent receives a request from the controller, it immediately answers. Note two important changes to the first
@@ -240,12 +240,12 @@ Second, we set ``acl_meta`` to contain the typing information of our message.
             reported_feed_in = PV_FEED_IN[self.aid]  # PV_FEED_IN must be defined at the top
             content = reported_feed_in
 
-            acl_meta = {"sender_addr": self._container.addr, "sender_id": self._aid,
+            acl_meta = {"sender_addr": self.context.addr, "sender_id": self.aid,
                         "performative": Performatives.inform}
 
             # Note, could be shortened using self.schedule_instant_acl_message
             self.schedule_instant_task(
-                self._container.send_acl_message(
+                self.context.send_acl_message(
                     content=content,
                     receiver_addr=sender_addr,
                     receiver_id=sender_id,
@@ -255,9 +255,9 @@ Second, we set ``acl_meta`` to contain the typing information of our message.
 
         def handle_set_feed_in_max(self, max_feed_in, sender_addr, sender_id):
             self.max_feed_in = float(max_feed_in)
-            print(f"{self._aid}: Limiting my feed_in to {max_feed_in}")
+            print(f"{self.aid}: Limiting my feed_in to {max_feed_in}")
             self.schedule_instant_task(
-                self._container.send_acl_message(
+                self.context.send_acl_message(
                     content=None,
                     receiver_addr=sender_addr,
                     receiver_id=sender_id,
@@ -292,11 +292,11 @@ perform its active actions. We do this by implementing a ``run`` function with t
             # ask pv agent feed-ins
             for addr, aid in self.known_agents:
                 content = None
-                acl_meta = {"sender_addr": self._container.addr, "sender_id": self._aid,
+                acl_meta = {"sender_addr": self.context.addr, "sender_id": self.aid,
                             "performative": Performatives.request}
                 # alternatively we could call send_acl_message here directly and await it
                 self.schedule_instant_task(
-                    self._container.send_acl_message(
+                    self.context.send_acl_message(
                         content=content,
                         receiver_addr=addr,
                         receiver_id=aid,
@@ -308,17 +308,17 @@ perform its active actions. We do this by implementing a ``run`` function with t
             await self.reports_done
 
             # limit both pv agents to the smaller ones feed-in
-            print(f"{self._aid}: received feed_ins: {self.reported_feed_ins}")
+            print(f"{self.aid}: received feed_ins: {self.reported_feed_ins}")
             min_feed_in = min(self.reported_feed_ins)
 
             for addr, aid in self.known_agents:
                 content = min_feed_in
-                acl_meta = {"sender_addr": self._container.addr, "sender_id": self._aid,
+                acl_meta = {"sender_addr": self.context.addr, "sender_id": self.aid,
                             "performative": Performatives.propose}
 
                 # alternatively we could call send_acl_message here directly and await it
                 self.schedule_instant_task(
-                    self._container.send_acl_message(
+                    self.context.send_acl_message(
                         content=content,
                         receiver_addr=addr,
                         receiver_id=aid,
@@ -471,7 +471,7 @@ With this, the message handling in our agent classes can be simplified:
             elif isinstance(content, MaxFeedInAck):
                 self.handle_set_max_ack()
             else:
-                print(f"{self._aid}: Received a message of unknown type {type(content)}")
+                print(f"{self.aid}: Received a message of unknown type {type(content)}")
 
 
     class PVAgent(Agent):
@@ -486,7 +486,7 @@ With this, the message handling in our agent classes can be simplified:
             elif isinstance(content, SetMaxFeedInMsg):
                 self.handle_set_feed_in_max(content.max_feed_in, sender_addr, sender_id)
             else:
-                print(f"{self._aid}: Received a message of unknown type {type(content)}")
+                print(f"{self.aid}: Received a message of unknown type {type(content)}")
 
 
 This concludes the third part of our tutorial. If you run the code,

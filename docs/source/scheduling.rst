@@ -25,19 +25,19 @@ Furthermore there are convenience methods to get rid of the class imports when u
 
 .. code-block:: python3
 
-    from mango.core.agent import Agent
+    from mango import Agent
     from mango.util.scheduling import InstantScheduledTask
 
         class ScheduleAgent(Agent):
             def __init__(self, container, other_addr, other_id):
-                self.schedule_instant_task(coroutine=self._container.send_message(
+                self.schedule_instant_task(coroutine=self.context.send_message(
                     receiver_addr=other_addr,
                     receiver_id=other_id,
                     content="Hello world!",
                     create_acl=True)
                 )
                 # equivalent to
-                self.schedule_task(InstantScheduledTask(coroutine=self._container.send_message(
+                self.schedule_task(InstantScheduledTask(coroutine=self.context.send_message(
                     receiver_addr=other_addr,
                     receiver_id=other_id,
                     content="Hello world!",
@@ -61,19 +61,19 @@ Analogues to the normal API there are two different ways, first you create a Sch
 
 .. code-block:: python3
 
-    from mango.core.agent import Agent
+    from mango import Agent
     from mango.util.scheduling import InstantScheduledProcessTask
 
         class ScheduleAgent(Agent):
             def __init__(self, container, other_addr, other_id):
-                self.schedule_instant_process_task(coroutine_creator=lambda: self._container.send_message(
+                self.schedule_instant_process_task(coroutine_creator=lambda: self.context.send_message(
                     receiver_addr=other_addr,
                     receiver_id=other_id,
                     content="Hello world!",
                     create_acl=True)
                 )
                 # equivalent to
-                self.schedule_process_task(InstantScheduledProcessTask(coroutine_creator=lambda: self._container.send_message(
+                self.schedule_process_task(InstantScheduledProcessTask(coroutine_creator=lambda: self.context.send_message(
                     receiver_addr=other_addr,
                     receiver_id=other_id,
                     content="Hello world!",
@@ -111,7 +111,7 @@ control how fast or slow time passes within your agent system:
                                          timestamp=self.current_timestamp + 5)
 
         async def send_hello_world(self, receiver_addr, receiver_id):
-            await self._container.send_message(receiver_addr=receiver_addr,
+            await self.context.send_message(receiver_addr=receiver_addr,
                                                receiver_id=receiver_id,
                                                content='Hello World',
                                                create_acl=True)
