@@ -14,7 +14,7 @@ from setuptools import find_packages, setup, Command
 # Package meta-data.
 NAME = 'mango-agents'
 DESCRIPTION = 'Modular Python Agent Framework'
-# URL = 'https://github.com/me/myproject'
+URL = 'https://gitlab.com/mango-agents/mango'
 EMAIL = 'mango@offis.de'
 AUTHOR = 'mango Team'
 REQUIRES_PYTHON = '>=3.7.0'
@@ -40,7 +40,7 @@ here = os.path.abspath(os.path.dirname(__file__))
 # Import the README and use it as the long-description.
 # Note: this will only work if 'README.md' is present in your MANIFEST.in file!
 try:
-    with io.open(os.path.join(here, 'README.md'), encoding='utf-8') as f:
+    with io.open(os.path.join(here, 'readme.md'), encoding='utf-8') as f:
         long_description = '\n' + f.read()
 except FileNotFoundError:
     long_description = DESCRIPTION
