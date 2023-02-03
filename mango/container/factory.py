@@ -58,7 +58,7 @@ async def create(*,
     if clock is None:
         clock = AsyncioClock()
 
-    if connection_type == "tcp":
+    if connection_type == TCP_CONNECTION:
         # initialize TCPContainer
         container = TCPContainer(
             addr=addr, codec=codec, loop=loop, proto_msgs_module=proto_msgs_module, clock=clock, copy_internal_messages=copy_internal_messages
@@ -73,10 +73,10 @@ async def create(*,
         )
         return container
 
-    if connection_type == "mosaik":
+    if connection_type == MOSAIK_CONNECTION:
         return MosaikContainer(addr=addr, loop=loop, codec=codec)
 
-    if connection_type == "mqtt":
+    if connection_type == MQTT_CONNECTION:
         # get and check relevant kwargs from mqtt_kwargs
         # client_id
         client_id = mqtt_kwargs.pop("client_id", None)
