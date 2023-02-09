@@ -295,7 +295,7 @@ class Agent(ABC, AgentDelegates):
         self._check_inbox_task.add_done_callback(self.raise_exceptions)
         self._stopped = asyncio.Future()
 
-        logger.info('Agent %s: start running in container %s', self.aid, container.addr)
+        logger.info(f'Agent {self.aid}: start running in container {container.addr}')
 
     def raise_exceptions(self, fut: asyncio.Future):
         """
@@ -303,17 +303,17 @@ class Agent(ABC, AgentDelegates):
         :param fut: The Future object of the task
         """
         if fut.exception() is not None:
-            logger.error('Agent %s: Caught the following exception in _check_inbox: %s', self.aid, fut.exception())
+            logger.error(f'Agent {self.aid}: Caught the following exception in _check_inbox: {fut.exception()}')
             raise fut.exception()
 
     async def _check_inbox(self):
         """Task for waiting on new message in the inbox"""
 
-        logger.debug('Agent %s: Start waiting for messages', self.aid)
+        logger.debug(f'Agent {self.aid}: Start waiting for messages')
         while True:
             # run in infinite loop until it is cancelled from outside
             message = await self.inbox.get()
-            logger.debug('Agent %s: Received message;%s}', self.aid, str(message))
+            logger.debug(f'Agent {self.aid}: Received message;{message}')
 
             # message should be tuples of (priority, content, meta)
             priority, content, meta = message
@@ -372,4 +372,4 @@ class Agent(ABC, AgentDelegates):
         except asyncio.CancelledError:
             pass
         finally:
-            logger.info('Agent %s: Shutdown successful', self.aid)
+            logger.info(f'Agent {self.aid}: Shutdown successful')

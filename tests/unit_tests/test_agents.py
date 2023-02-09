@@ -62,8 +62,8 @@ class PingPongAgent(Agent):
             try:
                 await asyncio.wait_for(fut, timeout=timeout)
             except asyncio.TimeoutError:
-                print('Timeout occurred while waiting for the ping response of %s, '
-                      'going to check if all messages could be send' % str(addr_tuple))
+                print(f'Timeout occurred while waiting for the ping response of {addr_tuple}, '
+                      'going to check if all messages could be send')
                 await self.wait_for_sending_messages()
                 assert False, 'Not all pong replies have arrived on time'
 

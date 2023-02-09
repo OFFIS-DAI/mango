@@ -86,8 +86,8 @@ class PingRole(SimpleReactiveRole):
                 await asyncio.wait_for(fut, timeout=timeout)
                 assert not self._expect_no_answer
             except asyncio.TimeoutError:
-                print('Timeout occurred while waiting for the ping response of %s, '
-                      'going to check if all messages could be send' % str(addr_tuple))
+                print(f'Timeout occurred while waiting for the ping response of {addr_tuple}, '
+                      'going to check if all messages could be send')
                 assert self._expect_no_answer, 'Not all pong replies have arrived on time'
     
 class DeactivateAllRoles(Role):

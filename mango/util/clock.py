@@ -62,7 +62,7 @@ class ExternalClock(Clock):
         New time is set
         """
         if t < self._time:
-            raise ValueError('Time must be > %s but is %s.', self._time, t)
+            raise ValueError(f'Time must be > {self._time} but is {t}.')
         # set time
         self._time = t
         # search for all futures that have to be triggerd
