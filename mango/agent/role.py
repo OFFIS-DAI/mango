@@ -45,7 +45,7 @@ class DataContainer:
         return self.__getattribute__(key)
 
 
-class RoleContext:
+class RoleContext():
     pass
 
 class Role(ABC):
@@ -387,9 +387,9 @@ class RoleAgent(Agent):
         """
         super().__init__(container, suggested_aid=suggested_aid)
 
-        self._role_handler = RoleHandler(self.context, self.scheduler)
+        self._role_handler = RoleHandler(self._context, self._scheduler)
         self._role_context = RoleContext(
-            self.context, self.scheduler, self._role_handler, self.aid, self.inbox)
+            self._context, self._scheduler, self._role_handler, self.aid, self.inbox)
 
     def add_role(self, role: Role):
         """Add a role to the agent. This will lead to the call of :func:`Role.setup`.

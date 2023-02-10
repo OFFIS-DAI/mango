@@ -57,7 +57,7 @@ class Container(ABC):
             and aid[len(AGENT_PATTERN_NAME_PRE) :].isnumeric()
         )
 
-    def _register_agent(self, agent, suggested_aid: str = None):
+    def register_agent(self, agent, suggested_aid: str = None):
         """
         Register *agent* and return the agent id
         :param agent: The agent instance
