@@ -9,6 +9,7 @@ class Clock(ABC):
     """
     Abstract class for clocks that can be used in mango
     """
+
     @property
     def time(self) -> float:
         """
@@ -21,10 +22,11 @@ class Clock(ABC):
         raise NotImplementedError
 
 
-class AsyncioClock (Clock):
+class AsyncioClock(Clock):
     """
     The AsyncioClock
     """
+
     def __init__(self):
         pass
 
@@ -46,6 +48,7 @@ class ExternalClock(Clock):
     """
     An external clock that proceeds only when set_time is called
     """
+
     def __init__(self, start_time: float = 0):
         self._time: float = start_time
         self._futures: List[Tuple[float, asyncio.Future]] = []  # list of all futures to be triggered
@@ -72,8 +75,9 @@ class ExternalClock(Clock):
         current_futures, self._futures = self._futures[:threshold], self._futures[threshold:]
         # Tuple of time, future
         for _, future in current_futures:
-            # set result of future
-            future.set_result(True)
+            # set result of future, if future is not already done
+            if not future.done():
+                future.set_result(True)
 
     def sleep(self, t: float):
         """
@@ -86,7 +90,7 @@ class ExternalClock(Clock):
             return f
         # insert future in sorted list of futures
         keys = [k[0] for k in self._futures]
-        index = bisect.bisect_right(keys, self.time + t,)
+        index = bisect.bisect_right(keys, self.time + t, )
         self._futures.insert(index, (self.time + t, f))
         return f
 

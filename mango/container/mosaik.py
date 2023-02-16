@@ -33,11 +33,11 @@ class MosaikContainer(Container):
     clock: ExternalClock  # type hint
 
     def __init__(
-        self,
-        *,
-        addr: str,
-        codec: Codec,
-        loop: asyncio.AbstractEventLoop,
+            self,
+            *,
+            addr: str,
+            codec: Codec,
+            loop: asyncio.AbstractEventLoop,
     ):
         """
         Initializes a MosaikContainer. Do not directly call this method but use
@@ -141,7 +141,7 @@ class MosaikContainer(Container):
         # store message in the buffer, which will be emptied in step
         self.message_buffer.append(
             MosaikAgentMessage(
-                time=time.time()-self.current_start_time_of_step + self.clock.time,
+                time=time.time() - self.current_start_time_of_step + self.clock.time,
                 receiver=addr,
                 message=encoded_msg
             )
@@ -160,10 +160,8 @@ class MosaikContainer(Container):
         # now we will decode and distribute the incoming messages
         for encoded_msg in incoming_messages:
             message = self.codec.decode(encoded_msg)
-            print('decoding done')
 
             content, acl_meta = message.split_content_and_meta()
-            print('split content done')
             acl_meta["network_protocol"] = "mosaik"
 
             await self.inbox.put((0, content, acl_meta))
@@ -177,10 +175,9 @@ class MosaikContainer(Container):
         while True:
             self._new_internal_message = False
             for agent in self._agents.values():
-                await agent.inbox.join()    # make sure inbox of agent is empty and all messages are processed
+                await agent.inbox.join()  # make sure inbox of agent is empty and all messages are processed
                 # TODO In the following we should also be able to recognize manual sleeps (maybe)
-                print('Going to wait for scheduler')
-                await agent._scheduler.tasks_complete_or_sleeping()   # wait until agent is done with all tasks
+                await agent._scheduler.tasks_complete_or_sleeping()  # wait until agent is done with all tasks
             if not self._new_internal_message:
                 # if there have
                 break
@@ -190,7 +187,7 @@ class MosaikContainer(Container):
         messages_this_step, self.message_buffer = self.message_buffer, []
 
         return MosaikContainerOutput(
-            duration=end_time-self.current_start_time_of_step,
+            duration=end_time - self.current_start_time_of_step,
             messages=messages_this_step,
             next_activity=self.clock.get_next_activity()
         )
