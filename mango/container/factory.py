@@ -14,17 +14,17 @@ from mango.container.mosaik import MosaikContainer
 
 logger = logging.getLogger(__name__)
 
-TCP_CONNECTION = 'tcp'
-MQTT_CONNECTION = 'mqtt'
-MOSAIK_CONNECTION = 'mosaik'
+TCP_CONNECTION = "tcp"
+MQTT_CONNECTION = "mqtt"
+MOSAIK_CONNECTION = "mosaik"
 
 
-async def create(*,
+async def create(
+    *,
     connection_type: str = "tcp",
     codec: Codec = "json",
     clock: Clock = None,
     addr: Optional[Union[str, Tuple[str, int]]] = None,
-    proto_msgs_module=None,
     copy_internal_messages=True,
     mqtt_kwargs: Dict[str, Any] = None,
 ):
@@ -40,8 +40,6 @@ async def create(*,
     to be a tuple of (host, port). If connection_type == 'mqtt' this can
     optionally define an inbox_topic that is used similarly than
     a tcp address.
-    :param proto_msgs_module: The compiled python module where the
-        additional proto msgs are defined. Ignored if codec != 'protobuf'
     :param mqtt_kwargs: Dictionary of keyword arguments for connection to a mqtt broker. At least
     the keys 'broker_addr' and 'client_id' have to be provided.
     Ignored if connection_type != 'mqtt'
@@ -54,19 +52,23 @@ async def create(*,
     loop = asyncio.get_running_loop()
 
     if type(codec) == str:
-        if codec == 'json':
+        if codec == "json":
             codec = JSON()
-        elif codec == 'protobuf':
+        elif codec == "protobuf":
             codec = PROTOBUF()
         else:
-            raise Exception(f'unknown codec string {codec}')
+            raise Exception(f"unknown codec string {codec}")
     if clock is None:
         clock = AsyncioClock()
 
     if connection_type == TCP_CONNECTION:
         # initialize TCPContainer
         container = TCPContainer(
-            addr=addr, codec=codec, loop=loop, proto_msgs_module=proto_msgs_module, clock=clock, copy_internal_messages=copy_internal_messages
+            addr=addr,
+            codec=codec,
+            loop=loop,
+            clock=clock,
+            copy_internal_messages=copy_internal_messages,
         )
 
         # create a TCP server bound to host and port that uses the
@@ -116,9 +118,7 @@ async def create(*,
             )
 
         # create paho.Client object for mqtt communication
-        mqtt_messenger: paho.Client = paho.Client(
-            client_id=client_id, **init_kwargs
-        )
+        mqtt_messenger: paho.Client = paho.Client(client_id=client_id, **init_kwargs)
 
         # set TLS options if provided
         # expected as a dict:
@@ -190,8 +190,7 @@ async def create(*,
         if addr is not None:
             # connection has been set up, subscribe to inbox topic now
             print(
-                f"[{client_id}]: Going to subscribe to {addr} "
-                f"as inbox topic... ",
+                f"[{client_id}]: Going to subscribe to {addr} " f"as inbox topic... ",
                 end="",
             )
 
@@ -238,7 +237,5 @@ async def create(*,
             clock=clock,
             mqtt_client=mqtt_messenger,
             codec=codec,
-            proto_msgs_module=proto_msgs_module,
-            copy_internal_messages=copy_internal_messages
+            copy_internal_messages=copy_internal_messages,
         )
-

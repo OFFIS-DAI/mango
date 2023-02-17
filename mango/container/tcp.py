@@ -25,9 +25,8 @@ class TCPContainer(Container):
         addr: Tuple[str, int],
         codec: Codec,
         loop: asyncio.AbstractEventLoop,
-        proto_msgs_module=None,
         clock: Clock,
-        **kwargs
+        **kwargs,
     ):
         """
         Initializes a TCP container. Do not directly call this method but use
@@ -35,17 +34,14 @@ class TCPContainer(Container):
         :param addr: The container address
         :param codec: The codec to use
         :param loop: Current event loop
-        :param proto_msgs_module: The module for proto msgs in case of
-        proto as codec
         """
         super().__init__(
             addr=addr,
             codec=codec,
-            proto_msgs_module=proto_msgs_module,
             loop=loop,
             name=f"{addr[0]}:{addr[1]}",
             clock=clock,
-            **kwargs
+            **kwargs,
         )
 
         self.server = None  # will be set within the factory method
@@ -60,38 +56,44 @@ class TCPContainer(Container):
         create_acl: bool = None,
         acl_metadata: Optional[Dict[str, Any]] = None,
         mqtt_kwargs: Dict[str, Any] = None,
-        **kwargs
+        **kwargs,
     ) -> bool:
         """
         The Container sends a message to an agent using TCP.
-        
+
         :param content: The content of the message
         :param receiver_addr: Tuple of host, port
         :param receiver_id: The agent id of the receiver
         :param create_acl: True if an acl message shall be created around the
             content.
-            
+
             .. deprecated:: 0.4.0
                 Use 'container.send_acl_message' instead. In the next version this parameter
                 will be dropped entirely.
         :param acl_metadata: metadata for the acl_header.
             Ignored if create_acl == False
-            
+
             .. deprecated:: 0.4.0
                 Use 'container.send_acl_message' instead. In the next version this parameter
                 will be dropped entirely.
-        :param mqtt_kwargs: 
+        :param mqtt_kwargs:
             .. deprecated:: 0.4.0
                 Use 'kwargs' instead. In the next version this parameter
                 will be dropped entirely.
-        :param kwargs: Additional parameters to provide protocol specific settings 
+        :param kwargs: Additional parameters to provide protocol specific settings
         """
         if create_acl is not None or acl_metadata is not None:
-            warnings.warn("The parameters create_acl and acl_metadata are deprecated and will "
-                          "be removed in the next release. Use send_acl_message instead.", DeprecationWarning)
+            warnings.warn(
+                "The parameters create_acl and acl_metadata are deprecated and will "
+                "be removed in the next release. Use send_acl_message instead.",
+                DeprecationWarning,
+            )
         if mqtt_kwargs is not None:
-            warnings.warn("The parameter mqtt_kwargs is deprecated and will "
-                          "be removed in the next release. Use kwargs instead.", DeprecationWarning)
+            warnings.warn(
+                "The parameter mqtt_kwargs is deprecated and will "
+                "be removed in the next release. Use kwargs instead.",
+                DeprecationWarning,
+            )
 
         if isinstance(receiver_addr, str) and ":" in receiver_addr:
             receiver_addr = receiver_addr.split(":")
@@ -114,18 +116,18 @@ class TCPContainer(Container):
         if receiver_addr == self.addr:
             if not receiver_id:
                 receiver_id = message.receiver_id
-                
+
             # internal message
-            meta = {
-                "network_protocol" : "tcp"
-            }
+            meta = {"network_protocol": "tcp"}
             receiver = self._agents.get(receiver_id, None)
             if receiver is None:
                 logger.warning(
                     f"Sending internal message not successful, receiver id unknown;{receiver_id}"
                 )
                 return False
-            success = self._send_internal_message(message, default_meta=meta, target_inbox_overwrite=receiver.inbox)
+            success = self._send_internal_message(
+                message, default_meta=meta, target_inbox_overwrite=receiver.inbox
+            )
         else:
             success = await self._send_external_message(receiver_addr, message)
 
