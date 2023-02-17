@@ -15,16 +15,15 @@ AGENT_PATTERN_NAME_PRE = "agent"
 class Container(ABC):
     """Superclass for a mango container"""
 
-    def __init__(self, *, addr, name: str, codec, proto_msgs_module=None, loop, clock: Clock,
-                 copy_internal_messages=True):
+    def __init__(
+        self, *, addr, name: str, codec, loop, clock: Clock, copy_internal_messages=True
+    ):
         self.name: str = name
         self.addr = addr
         self.clock = clock
         self._copy_internal_messages = copy_internal_messages
 
         self.codec: Codec = codec
-        if codec == "protobuf":
-            self.other_msgs = proto_msgs_module
         self.loop: asyncio.AbstractEventLoop = loop
 
         # dict of agents. aid: agent instance
@@ -53,21 +52,26 @@ class Container(ABC):
         return aid not in self._agents and not self.__check_agent_aid_pattern_match(aid)
 
     def __check_agent_aid_pattern_match(self, aid):
-        return aid.startswith(AGENT_PATTERN_NAME_PRE) and aid[len(AGENT_PATTERN_NAME_PRE):].isnumeric()
+        return (
+            aid.startswith(AGENT_PATTERN_NAME_PRE)
+            and aid[len(AGENT_PATTERN_NAME_PRE) :].isnumeric()
+        )
 
     def _register_agent(self, agent, suggested_aid: str = None):
         """
         Register *agent* and return the agent id
         :param agent: The agent instance
-        :param suggested_aid: (Optional) suggested aid, if the aid is already taken, a generated aid is used. 
+        :param suggested_aid: (Optional) suggested aid, if the aid is already taken, a generated aid is used.
                               Using the generated aid-style ("agentX") is not allowed.
         :return The agent ID
         """
         if not self._no_agents_running or self._no_agents_running.done():
             self._no_agents_running = asyncio.Future()
-        if suggested_aid is None or \
-           suggested_aid in self._agents or \
-           self.__check_agent_aid_pattern_match(suggested_aid):
+        if (
+            suggested_aid is None
+            or suggested_aid in self._agents
+            or self.__check_agent_aid_pattern_match(suggested_aid)
+        ):
             aid = f"{AGENT_PATTERN_NAME_PRE}{self._aid_counter}"
             self._aid_counter += 1
         else:
@@ -97,24 +101,24 @@ class Container(ABC):
         create_acl: bool = None,
         acl_metadata: Optional[Dict[str, Any]] = None,
         mqtt_kwargs: Dict[str, Any] = None,
-        **kwargs
+        **kwargs,
     ) -> bool:
         """
         The Container sends a message to an agent according the container protocol.
-        
+
         :param content: The content of the message
         :param receiver_addr: In case of TCP this is a tuple of host, port
             In case of MQTT this is the topic to publish to.
         :param receiver_id: The agent id of the receiver
         :param create_acl: True if an acl message shall be created around the
             content.
-            
+
             .. deprecated:: 0.4.0
                 Use 'container.send_acl_message' instead. In the next version this parameter
                 will be dropped entirely.
         :param acl_metadata: metadata for the acl_header.
             Ignored if create_acl == False
-            
+
             .. deprecated:: 0.4.0
                 Use 'container.send_acl_message' instead. In the next version this parameter
                 will be dropped entirely.
@@ -126,7 +130,7 @@ class Container(ABC):
             .. deprecated:: 0.4.0
                 Use 'kwargs' instead. In the next version this parameter
                 will be dropped entirely.
-        :param kwargs: Additional parameters to provide protocol specific settings 
+        :param kwargs: Additional parameters to provide protocol specific settings
         """
         raise NotImplementedError
 
@@ -138,7 +142,7 @@ class Container(ABC):
         receiver_id: Optional[str] = None,
         acl_metadata: Optional[Dict[str, Any]] = None,
         is_anonymous_acl=False,
-        **kwargs
+        **kwargs,
     ) -> bool:
         """
         The Container sends a message, wrapped in an ACL message, to an agent according the container protocol.
@@ -148,18 +152,20 @@ class Container(ABC):
         In case of MQTT this is the topic to publish to.
         :param receiver_id: The agent id of the receiver
         :param acl_metadata: metadata for the acl_header.
-        :param is_anonymous_acl: If set to True, the sender information won't be written in the ACL header 
-        :param kwargs: Additional parameters to provide protocol specific settings 
+        :param is_anonymous_acl: If set to True, the sender information won't be written in the ACL header
+        :param kwargs: Additional parameters to provide protocol specific settings
         """
-        return await self.send_message(self._create_acl(
-            content,
+        return await self.send_message(
+            self._create_acl(
+                content,
+                receiver_addr=receiver_addr,
+                receiver_id=receiver_id,
+                acl_metadata=acl_metadata,
+                is_anonymous_acl=is_anonymous_acl,
+            ),
             receiver_addr=receiver_addr,
             receiver_id=receiver_id,
-            acl_metadata=acl_metadata,
-            is_anonymous_acl=is_anonymous_acl),
-            receiver_addr=receiver_addr, 
-            receiver_id=receiver_id,
-            **kwargs
+            **kwargs,
         )
 
     def _create_acl(
@@ -168,7 +174,7 @@ class Container(ABC):
         receiver_addr: Union[str, Tuple[str, int]],
         receiver_id: Optional[str] = None,
         acl_metadata: Optional[Dict[str, Any]] = None,
-        is_anonymous_acl=False
+        is_anonymous_acl=False,
     ):
         """
         :param content:
@@ -180,21 +186,27 @@ class Container(ABC):
         acl_metadata = {} if acl_metadata is None else acl_metadata.copy()
         # analyse and complete acl_metadata
         if "receiver_addr" not in acl_metadata.keys():
-            acl_metadata["receiver_addr"] = receiver_addr            
+            acl_metadata["receiver_addr"] = receiver_addr
         elif acl_metadata["receiver_addr"] != receiver_addr:
-            warnings.warn(f"The argument receiver_addr ({receiver_addr}) is not equal to "
-                          f"acl_metadata['receiver_addr'] ({acl_metadata['receiver_addr']}). \
+            warnings.warn(
+                f"The argument receiver_addr ({receiver_addr}) is not equal to "
+                f"acl_metadata['receiver_addr'] ({acl_metadata['receiver_addr']}). \
                             For consistency, the value in acl_metadata['receiver_addr'] "
-                          f"was overwritten with receiver_addr.", UserWarning)
-            acl_metadata["receiver_addr"] = receiver_addr    
+                f"was overwritten with receiver_addr.",
+                UserWarning,
+            )
+            acl_metadata["receiver_addr"] = receiver_addr
         if receiver_id:
             if "receiver_id" not in acl_metadata.keys():
                 acl_metadata["receiver_id"] = receiver_id
             elif acl_metadata["receiver_id"] != receiver_id:
-                warnings.warn(f"The argument receiver_id ({receiver_id}) is not equal to "
-                              f"acl_metadata['receiver_id'] ({acl_metadata['receiver_id']}). \
+                warnings.warn(
+                    f"The argument receiver_id ({receiver_id}) is not equal to "
+                    f"acl_metadata['receiver_id'] ({acl_metadata['receiver_id']}). \
                                For consistency, the value in acl_metadata['receiver_id'] "
-                              f"was overwritten with receiver_id.", UserWarning)
+                    f"was overwritten with receiver_id.",
+                    UserWarning,
+                )
                 acl_metadata["receiver_id"] = receiver_id
         # add sender_addr if not defined and not anonymous
         if not is_anonymous_acl:
@@ -208,18 +220,24 @@ class Container(ABC):
             setattr(message, key, value)
         return message
 
-    def _send_internal_message(self, message, priority=0, default_meta=None, target_inbox_overwrite=None) -> bool:
+    def _send_internal_message(
+        self, message, priority=0, default_meta=None, target_inbox_overwrite=None
+    ) -> bool:
         meta = {}
-        
-        message_to_send = copy.deepcopy(message) if self._copy_internal_messages else message
-        target_inbox = self.inbox if target_inbox_overwrite is None else target_inbox_overwrite
+
+        message_to_send = (
+            copy.deepcopy(message) if self._copy_internal_messages else message
+        )
+        target_inbox = (
+            self.inbox if target_inbox_overwrite is None else target_inbox_overwrite
+        )
 
         if hasattr(message_to_send, "split_content_and_meta"):
             content, meta = message_to_send.split_content_and_meta()
         else:
             content = message_to_send
         meta.update(default_meta)
-        
+
         target_inbox.put_nowait((priority, content, meta))
         return True
 

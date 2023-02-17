@@ -11,6 +11,7 @@ from mango.container.core import Container
 
 logger = logging.getLogger(__name__)
 
+
 class MQTTContainer(Container):
     """
     Container for agents.
@@ -28,8 +29,7 @@ class MQTTContainer(Container):
         clock: Clock,
         mqtt_client: paho.Client,
         codec: Codec = JSON,
-        proto_msgs_module=None,
-        **kwargs
+        **kwargs,
     ):
         """
         Initializes a container. Do not directly call this method but use
@@ -42,17 +42,9 @@ class MQTTContainer(Container):
         communication with the broker
         :param codec: The codec to use. Currently only 'json' or 'protobuf' are
          allowed
-        :param proto_msgs_module: The compiled python module where the
-         additional proto msgs are defined
         """
         super().__init__(
-            codec=codec,
-            addr=addr,
-            proto_msgs_module=proto_msgs_module,
-            loop=loop,
-            clock=clock,
-            name=client_id,
-            **kwargs
+            codec=codec, addr=addr, loop=loop, clock=clock, name=client_id, **kwargs
         )
 
         self.client_id: str = client_id
@@ -117,6 +109,7 @@ class MQTTContainer(Container):
                 self.loop.call_soon_threadsafe(
                     self.inbox.put_nowait, (0, content, meta)
                 )
+
         self.mqtt_client.on_message = on_message
         self.mqtt_client.enable_logger(logger)
 
@@ -193,7 +186,7 @@ class MQTTContainer(Container):
                 for receiver_id in receivers:
                     receiver = self._agents[receiver_id]
                     await receiver.inbox.put((priority, content, meta))
-                
+
     async def send_message(
         self,
         content,
@@ -203,23 +196,23 @@ class MQTTContainer(Container):
         create_acl: bool = None,
         acl_metadata: Optional[Dict[str, Any]] = None,
         mqtt_kwargs: Dict[str, Any] = None,
-        **kwargs
+        **kwargs,
     ):
         """
         The container sends the message of one of its own agents to a specific topic.
-        
+
         :param content: The content of the message
         :param receiver_addr: The topic to publish to.
         :param receiver_id: The agent id of the receiver
         :param create_acl: True if an acl message shall be created around the
             content.
-            
+
             .. deprecated:: 0.4.0
                 Use 'container.send_acl_message' instead. In the next version this parameter
                 will be dropped entirely.
         :param acl_metadata: metadata for the acl_header.
             Ignored if create_acl == False
-            
+
             .. deprecated:: 0.4.0
                 Use 'container.send_acl_message' instead. In the next version this parameter
                 will be dropped entirely.
@@ -231,7 +224,7 @@ class MQTTContainer(Container):
             .. deprecated:: 0.4.0
                 Use 'kwargs' instead. In the next version this parameter
                 will be dropped entirely.
-        :param kwargs: Additional parameters to provide protocol specific settings 
+        :param kwargs: Additional parameters to provide protocol specific settings
             Possible fields:
             qos: The quality of service to use for publishing
             retain: Indicates, weather the retain flag should be set
@@ -240,11 +233,17 @@ class MQTTContainer(Container):
         """
 
         if create_acl is not None or acl_metadata is not None:
-            warnings.warn("The parameters create_acl and acl_metadata are deprecated and will "
-                          "be removed in the next release. Use send_acl_message instead.", DeprecationWarning)
+            warnings.warn(
+                "The parameters create_acl and acl_metadata are deprecated and will "
+                "be removed in the next release. Use send_acl_message instead.",
+                DeprecationWarning,
+            )
         if mqtt_kwargs is not None:
-            warnings.warn("The parameter mqtt_kwargs is deprecated and will "
-                          "be removed in the next release. Use kwargs instead.", DeprecationWarning)
+            warnings.warn(
+                "The parameter mqtt_kwargs is deprecated and will "
+                "be removed in the next release. Use kwargs instead.",
+                DeprecationWarning,
+            )
 
         if create_acl:
             message = self._create_acl(
@@ -288,7 +287,7 @@ class MQTTContainer(Container):
         encoded_message = self.codec.encode(message)
         logger.debug(f"Sending message;{message};{topic}")
         self.mqtt_client.publish(topic, encoded_message)
-    
+
     async def subscribe_for_agent(
         self, *, aid: str, topic: str, qos: int = 0, expected_class=None
     ) -> bool:
@@ -349,4 +348,3 @@ class MQTTContainer(Container):
         for subscription in empty_subscriptions:
             self.additional_subscriptions.pop(subscription)
             self.mqtt_client.unsubscribe(topic=subscription)
-
