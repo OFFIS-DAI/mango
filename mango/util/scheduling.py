@@ -221,8 +221,12 @@ class RecurrentScheduledTask(ScheduledTask):
             await self._coroutine_func()
             current_time = datetime.datetime.fromtimestamp(self.clock.time)
             after = self._recurrency_rule.after(current_time)
-            delay = (after - current_time).total_seconds()
-            await self.clock.sleep(delay)
+            # after can be None, if until or count was set on the rrule
+            if after is None:
+                self._stopped = True
+            else:
+                delay = (after - current_time).total_seconds()
+                await self.clock.sleep(delay)
 
 
 class ConditionalTask(ScheduledTask):
