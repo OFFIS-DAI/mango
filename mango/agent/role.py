@@ -13,7 +13,7 @@ There are essentially two APIs for acting resp reacting:
             delay/repeating/...
 
 To interact with the environment an instance of the role context is provided. This context
-provides methods to share data with other roles and to communicate with other agents. 
+provides methods to share data with other roles and to communicate with other agents.
 
 A message can be send using the method :func:`RoleContext.send_message`.
 
@@ -45,7 +45,7 @@ class DataContainer:
         return self.__getattribute__(key)
 
 
-class RoleContext: 
+class RoleContext:
     pass
 
 class Role(ABC):
@@ -185,7 +185,7 @@ class RoleHandler:
         self._scheduler.suspend(role)
 
     def activate(self, role) -> None:
-        """Activates the given role. 
+        """Activates the given role.
 
         :param role: the role to activate
         :type role: Role
@@ -206,17 +206,16 @@ class RoleHandler:
 
     def handle_message(self, content, meta: Dict[str, Any]):
         """Handle an incoming message, delegating it to all applicable subscribers
-        for role in self._role_handler.roles:
-            if role.is_applicable(content, meta):
-                role.handle_msg(content, meta, self)
+        for role, message_condition, method, _ in self._message_subs:
+            if self._is_role_active(role) and message_condition(content, meta):
+                method(content, meta)
 
         :param content: content
         :param meta: meta
         """
         for role, message_condition, method, _ in self._message_subs:
-            if self._is_role_active(role):
-                if message_condition(content, meta):
-                    method(content, meta)
+            if self._is_role_active(role) and message_condition(content, meta):
+                method(content, meta)
 
     def _notify_send_message_subs(self, content, receiver_addr, receiver_id, **kwargs):
         for role in self._send_msg_subs:
@@ -251,7 +250,7 @@ class RoleHandler:
             receiver_id=receiver_id,
             acl_metadata=acl_metadata,
             **kwargs)
-        
+
     def subscribe_message(self, role, method, message_condition, priority=0):
         if len(self._message_subs) == 0:
             self._message_subs.append((role, message_condition, method, priority))
@@ -326,9 +325,9 @@ class RoleContext(AgentDelegates):
 
     def handle_message(self, content, meta: Dict[str, Any]):
         """Handle an incoming message, delegating it to all applicable subscribers
-        for role in self._role_handler.roles:
-            if role.is_applicable(content, meta):
-                role.handle_message(content, meta, self)
+        for role, message_condition, method, _ in self._message_subs:
+            if self._is_role_active(role) and message_condition(content, meta):
+                method(content, meta)
 
         :param content: content
         :param meta: meta
@@ -374,7 +373,6 @@ class RoleContext(AgentDelegates):
         self._role_handler.activate(role)
 
 
-
 class RoleAgent(Agent):
     """Agent, which support the role API-system. When you want to use the role-api you always need
     a RoleAgent as base for your agents. A role can be added with :func:`RoleAgent.add_role`.
@@ -384,7 +382,7 @@ class RoleAgent(Agent):
         """Create a role-agent
 
         :param container: container the agent lives in
-        :param suggested_aid: (Optional) suggested aid, if the aid is already taken, a generated aid is used. 
+        :param suggested_aid: (Optional) suggested aid, if the aid is already taken, a generated aid is used.
                               Using the generated aid-style ("agentX") is not allowed.
         """
         super().__init__(container, suggested_aid=suggested_aid)

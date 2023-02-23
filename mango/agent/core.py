@@ -137,7 +137,7 @@ class AgentDelegates:
         return self._scheduler.schedule_datetime_task(coroutine=coroutine, date_time=date_time, on_stop=on_stop, src=src)
 
     def schedule_timestamp_task(self, coroutine, timestamp: float, on_stop=None, src=None):
-        """Schedule a task at specified timestamp.
+        """Schedule a task at specified  unix timestamp.
 
         :param coroutine: coroutine to be scheduled
         :type coroutine: Coroutine
@@ -149,7 +149,7 @@ class AgentDelegates:
         return self._scheduler.schedule_timestamp_task(coroutine=coroutine, timestamp=timestamp, on_stop=on_stop, src=src)
 
     def schedule_timestamp_process_task(self, coroutine_creator, timestamp: float, on_stop=None, src=None):
-        """Schedule a task at specified datetime dispatched to another process.
+        """Schedule a task at specified unix timestamp dispatched to another process.
 
         :param coroutine_creator: coroutine_creator creating coroutine to be scheduled
         :type coroutine_creator: coroutine_creator
@@ -167,7 +167,7 @@ class AgentDelegates:
         :param coroutine_creator: coroutine function creating coros to be scheduled
         :type coroutine_creator:  Coroutine Function
         :param delay: delay in between the cycles
-        :type dealy: float
+        :type delay: float
         :param src: creator of the task
         :type src: Object
         """
@@ -179,7 +179,7 @@ class AgentDelegates:
         :param coroutine_func: coroutine function creating coros to be scheduled
         :type coroutine_func:  Coroutine Function
         :param delay: delay in between the cycles
-        :type dealy: float
+        :type delay: float
         :param src: creator of the task
         :type src: Object
         """

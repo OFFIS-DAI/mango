@@ -53,7 +53,7 @@ all messages it receives:
             super().__init__(container)
             print(f"Hello world! My id is {self.aid}.")
 
-        def handle_msg(self, content, meta):
+        def handle_message(self, content, meta):
             # This method defines what the agent will do with incoming messages.
             print(f"Received a message with the following content: {content}")
 ```
@@ -96,7 +96,7 @@ then shutdown the container:
                 super().__init__(container)
                 print(f"Hello world! My id is {self.aid}.")
 
-            def handle_msg(self, content, meta):
+            def handle_message(self, content, meta):
                 # This method defines what the agent will do with incoming messages.
                 print(f"Received a message with the following content: {content}")
 
@@ -132,7 +132,7 @@ to another agent:
                     create_acl=True)
                 )
 
-            def handle_msg(self, content, meta):
+            def handle_message(self, content, meta):
                 print(f"Received a message with the following content: {content}")
 ```
 #### Connecting two agents
@@ -149,7 +149,7 @@ class RepeatingAgent(Agent):
         super().__init__(container)
         print(f"Hello world! My id is {self.aid}.")
 
-    def handle_msg(self, content, meta):
+    def handle_message(self, content, meta):
         # This method defines what the agent will do with incoming messages.
         print(f"Received a message with the following content: {content}")
 
@@ -163,7 +163,7 @@ class HelloWorldAgent(Agent):
             create_acl=True)
         )
 
-    def handle_msg(self, content, meta):
+    def handle_message(self, content, meta):
         print(f"Received a message with the following content: {content}")
 
 

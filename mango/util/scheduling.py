@@ -384,7 +384,7 @@ class Scheduler:
         return l_task
 
     def schedule_timestamp_task(self, coroutine, timestamp: float, on_stop=None, src=None):
-        """Schedule a task at specified datetime.
+        """Schedule a task at specified unix timestamp.
 
         :param coroutine: coroutine to be scheduled
         :type coroutine: Coroutine
@@ -487,7 +487,7 @@ class Scheduler:
         return l_task
 
     def schedule_timestamp_process_task(self, coroutine_creator, timestamp: float, on_stop=None, src=None):
-        """Schedule a task at specified datetime dispatched to another process.
+        """Schedule a task at specified unix timestamp dispatched to another process.
 
         :param coroutine_creator: coroutine_creator creating coroutine to be scheduled
         :type coroutine_creator: coroutine_creator

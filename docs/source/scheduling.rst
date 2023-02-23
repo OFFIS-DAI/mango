@@ -44,7 +44,7 @@ Furthermore there are convenience methods to get rid of the class imports when u
                     create_acl=True))
                 )
 
-            def handle_msg(self, content, meta: Dict[str, Any]):
+            def handle_message(self, content, meta: Dict[str, Any]):
                 pass
 
 
@@ -80,7 +80,7 @@ Analogues to the normal API there are two different ways, first you create a Sch
                     create_acl=True))
                 )
 
-            def handle_msg(self, content, meta: Dict[str, Any]):
+            def handle_message(self, content, meta: Dict[str, Any]):
                 pass
 
 *******************************
@@ -116,7 +116,7 @@ control how fast or slow time passes within your agent system:
                                                content='Hello World',
                                                create_acl=True)
 
-        def handle_msg(self, content, meta):
+        def handle_message(self, content, meta):
             pass
 
 
@@ -125,7 +125,7 @@ control how fast or slow time passes within your agent system:
             super().__init__(container)
             self.wait_for_reply = asyncio.Future()
 
-        def handle_msg(self, content, meta):
+        def handle_message(self, content, meta):
             print(f'Received a message with the following content {content}.')
             self.wait_for_reply.set_result(True)
 
