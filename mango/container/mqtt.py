@@ -106,10 +106,9 @@ class MQTTContainer(Container):
             # update meta dict
             meta.update(message_meta)
             # put information to inbox
-            if content is not None:
-                self.loop.call_soon_threadsafe(
-                    self.inbox.put_nowait, (0, content, meta)
-                )
+            self.loop.call_soon_threadsafe(
+                self.inbox.put_nowait, (0, content, meta)
+            )
 
         self.mqtt_client.on_message = on_message
         self.mqtt_client.enable_logger(logger)
