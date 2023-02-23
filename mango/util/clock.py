@@ -18,7 +18,7 @@ class Clock(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def sleep(self, t: float):
+    def sleep(self, t: float) -> asyncio.Future:
         raise NotImplementedError
 
 
@@ -37,7 +37,7 @@ class AsyncioClock(Clock):
         """
         return time.time()
 
-    def sleep(self, t):
+    def sleep(self, t) -> asyncio.Future:
         """
         Sleeping via asyncio sleep
         """
@@ -54,7 +54,7 @@ class ExternalClock(Clock):
         self._futures: List[Tuple[float, asyncio.Future]] = []  # list of all futures to be triggered
 
     @property
-    def time(self):
+    def time(self) -> float:
         """
         Current time of the external clock
         """
@@ -79,7 +79,7 @@ class ExternalClock(Clock):
             if not future.done():
                 future.set_result(True)
 
-    def sleep(self, t: float):
+    def sleep(self, t: float) -> asyncio.Future:
         """
         Sleeps for t based on the external clock
         """
@@ -94,5 +94,5 @@ class ExternalClock(Clock):
         self._futures.insert(index, (self.time + t, f))
         return f
 
-    def get_next_activity(self):
+    def get_next_activity(self) -> float:
         return None if len(self._futures) == 0 else self._futures[0][0]
