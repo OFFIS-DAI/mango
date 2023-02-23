@@ -22,7 +22,7 @@ MOSAIK_CONNECTION = "mosaik"
 async def create(
     *,
     connection_type: str = "tcp",
-    codec: Codec = "json",
+    codec: Codec = None,
     clock: Clock = None,
     addr: Optional[Union[str, Tuple[str, int]]] = None,
     copy_internal_messages=True,
@@ -51,13 +51,11 @@ async def create(
 
     loop = asyncio.get_running_loop()
 
-    if type(codec) == str:
-        if codec == "json":
-            codec = JSON()
-        elif codec == "protobuf":
-            codec = PROTOBUF()
-        else:
-            raise Exception(f"unknown codec string {codec}")
+    # not initialized by the default parameter because then
+    # containers could unexpectedly share the same codec object
+    if codec is None:
+        codec = JSON()
+
     if clock is None:
         clock = AsyncioClock()
 
