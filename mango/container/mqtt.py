@@ -28,7 +28,7 @@ class MQTTContainer(Container):
         loop: asyncio.AbstractEventLoop,
         clock: Clock,
         mqtt_client: paho.Client,
-        codec: Codec = JSON,
+        codec: Codec,
         **kwargs,
     ):
         """
