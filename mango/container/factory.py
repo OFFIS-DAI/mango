@@ -7,10 +7,12 @@ import paho.mqtt.client as paho
 from ..messages.codecs import Codec
 from ..util.clock import Clock, AsyncioClock
 from mango.messages.codecs import JSON, PROTOBUF
+from mango.container.core import Container
 from mango.container.tcp import TCPContainer
 from mango.container.mqtt import MQTTContainer
 from mango.container.protocol import ContainerProtocol
 from mango.container.mosaik import MosaikContainer
+
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +29,7 @@ async def create(
     addr: Optional[Union[str, Tuple[str, int]]] = None,
     copy_internal_messages=True,
     mqtt_kwargs: Dict[str, Any] = None,
-):
+) -> Container:
     """
     This method is called to instantiate a container instance, either
     a TCPContainer or a MQTTContainer, depending on the parameter

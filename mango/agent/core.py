@@ -11,14 +11,61 @@ from abc import ABC
 from datetime import datetime
 from typing import Any, Dict, Optional, Tuple, Union
 from ..util.scheduling import ScheduledProcessTask, ScheduledTask, Scheduler
+from ..container.core import Container
 
 logger = logging.getLogger(__name__)
+
+
+class AgentContext:
+
+    def __init__(self, container) -> None:
+        self._container: Container = container
+
+    @property
+    def current_timestamp(self) -> float:
+        """
+        Method that returns the current unix timestamp given the clock within the container
+        """
+        return self._container.clock.time
+
+    @property
+    def addr(self):
+        return self._container.addr
+
+    def register_agent(self, agent, suggested_aid):
+        return self._container.register_agent(agent, suggested_aid=suggested_aid)
+
+    def deregister_agent(self, aid):
+        if self._container.running:
+            self._container.deregister_agent(aid)
+
+    async def send_message(self,
+        content,
+        receiver_addr: Union[str, Tuple[str, int]],
+        receiver_id: Optional[str] = None,
+        **kwargs):
+        """
+        See container.send_message(...)
+        """
+        return await self._container.send_message(content, receiver_addr=receiver_addr, receiver_id=receiver_id, **kwargs)
+
+    async def send_acl_message(self,
+        content,
+        receiver_addr: Union[str, Tuple[str, int]],
+        receiver_id: Optional[str] = None,
+        acl_metadata: Optional[Dict[str, Any]] = None,
+        **kwargs):
+        """
+        See container.send_acl_message(...)
+        """
+        return await self._container.send_acl_message(content, receiver_addr=receiver_addr, receiver_id=receiver_id, acl_metadata=acl_metadata, **kwargs)
+
 
 class AgentDelegates:
 
     def __init__(self, context, scheduler) -> None:
-        self._context = context
-        self._scheduler = scheduler
+        self._context: AgentContext = context
+        self._scheduler: Scheduler = scheduler
 
     async def send_message(self,
         content,
@@ -260,72 +307,37 @@ class AgentDelegates:
         """
         await self._scheduler.tasks_complete(timeout=timeout)
 
-class AgentContext:
-
-    def __init__(self, container) -> None:
-        self._container = container
-
-    @property
-    def current_timestamp(self) -> float:
-        """
-        Method that returns the current unix timestamp given the clock within the container
-        """
-        return self._container.clock.time
-
-    @property
-    def addr(self):
-        return self._container.addr
-
-    def register_agent(self, agent, suggested_aid):
-        return self._container._register_agent(agent, suggested_aid=suggested_aid)
-
-    def deregister_agent(self, aid):
-        if self._container.running:
-            self._container.deregister_agent(aid)
-
-    async def send_message(self,
-        content,
-        receiver_addr: Union[str, Tuple[str, int]],
-        receiver_id: Optional[str] = None,
-        **kwargs):
-        """
-        See container.send_message(...)
-        """
-        return await self._container.send_message(content, receiver_addr=receiver_addr, receiver_id=receiver_id, **kwargs)
-
-    async def send_acl_message(self,
-        content,
-        receiver_addr: Union[str, Tuple[str, int]],
-        receiver_id: Optional[str] = None,
-        acl_metadata: Optional[Dict[str, Any]] = None,
-        **kwargs):
-        """
-        See container.send_acl_message(...)
-        """
-        return await self._container.send_acl_message(content, receiver_addr=receiver_addr, receiver_id=receiver_id, acl_metadata=acl_metadata, **kwargs)
-
-
 class Agent(ABC, AgentDelegates):
     """Base class for all agents."""
 
-    def __init__(self, container, suggested_aid: str = None):
+    def __init__(self, container: Container, suggested_aid: str = None):
         """Initialize an agent and register it with its container
         :param container: The container that the agent lives in. Must be a Container
         :param suggested_aid: (Optional) suggested aid, if the aid is already taken, a generated aid is used.
                               Using the generated aid-style ("agentX") is not allowed.
         """
-        self.scheduler = Scheduler(clock=container.clock)
-        self.context = AgentContext(container)
-        self.aid = self.context.register_agent(self, suggested_aid)
+        scheduler = Scheduler(clock=container.clock)
+        context = AgentContext(container)
+        self.aid = context.register_agent(self, suggested_aid)
         self.inbox = asyncio.Queue()
 
-        super().__init__(self.context, self.scheduler)
+        super().__init__(context, scheduler)
 
         self._check_inbox_task = asyncio.create_task(self._check_inbox())
         self._check_inbox_task.add_done_callback(self.raise_exceptions)
         self._stopped = asyncio.Future()
 
         logger.info(f'Agent {self.aid}: start running in container {container.addr}')
+
+    @property
+    def scheduler(self) -> Scheduler:
+        warnings.warn("The use of scheduler is deprecated.", DeprecationWarning)
+        return self._scheduler
+
+    @property
+    def context(self) -> AgentContext:
+        warnings.warn("The use of context is deprecated.", DeprecationWarning)
+        return self._context
 
     def raise_exceptions(self, fut: asyncio.Future):
         """
@@ -391,7 +403,7 @@ class Agent(ABC, AgentDelegates):
 
         if not self._stopped.done():
             self._stopped.set_result(True)
-        self.context.deregister_agent(self.aid)
+        self._context.deregister_agent(self.aid)
         try:
             # Shutdown reactive inbox task
             self._check_inbox_task.remove_done_callback(self.raise_exceptions)

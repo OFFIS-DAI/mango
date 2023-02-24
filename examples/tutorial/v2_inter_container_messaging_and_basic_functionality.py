@@ -52,7 +52,7 @@ class PVAgent(Agent):
                     "performative": Performatives.inform}
 
         self.schedule_instant_task(
-            self.context.send_acl_message(
+            self.send_acl_message(
                 content=content,
                 receiver_addr=sender_addr,
                 receiver_id=sender_id,
