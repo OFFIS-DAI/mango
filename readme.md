@@ -1,7 +1,7 @@
 # mango
 
 [PyPi](https://pypi.org/project/mango-agents/) | [Read the Docs](https://mango-agents.readthedocs.io)
-| [Gitlab](https://gitlab.com/mango-agents/mango) | [mail](mango@offis.de)
+| [Gitlab](https://gitlab.com/mango-agents/mango) | [mail](mailto:mango@offis.de)
 
 **Note:** _This project is still in an early development stage. 
 We appreciate constructive feedback and suggestions for improvement._
@@ -19,7 +19,7 @@ The main features of mango are:
  - Built-in codecs: JSON and protobuf
  - Supports communication between agents directly via TCP or via an external MQTT broker
 
-A detailed documentation for this project can be found at [mango-agents.readthedocs.io](mango-agents.readthedocs.io)
+A detailed documentation for this project can be found at [mango-agents.readthedocs.io](https://mango-agents.readthedocs.io)
 
 ## Installation
 
@@ -195,8 +195,8 @@ You should now see the following output:
 You have now successfully created two agents and connected them.
 
 ## Support
-- Documentation: [mango-agents.readthedocs.io](mango-agents.readthedocs.io)
-- E-mail: [mango@offis.de](mango@offis.de)
+- Documentation: [mango-agents.readthedocs.io](https://mango-agents.readthedocs.io)
+- E-mail: [mango@offis.de](mailto:mango@offis.de)
 
 ## License
 
