@@ -185,6 +185,36 @@ class AgentDelegates:
         """
         return self._scheduler.schedule_periodic_task(coroutine_func=coroutine_func, delay=delay, on_stop=on_stop, src=src)
 
+    def schedule_recurrent_process_task(self, coroutine_creator, recurrency, on_stop=None, src=None):
+        """Schedule a task using a fine-grained recurrency rule in another process.
+
+        :param coroutine_creator: coroutine function creating coros to be scheduled
+        :type coroutine_creator:  Coroutine Function
+        :param recurrency: recurrency rule to calculate next event
+        :type recurrency: dateutil.rrule.rrule
+        :param src: creator of the task
+        :type src: Object
+        """
+        return self._scheduler.schedule_recurrent_process_task(coroutine_creator=coroutine_creator,
+                                                               recurrency=recurrency,
+                                                               on_stop=on_stop,
+                                                               src=src)
+
+    def schedule_recurrent_task(self, coroutine_func, recurrency, on_stop=None, src=None):
+        """Schedule a task using a fine-grained recurrency rule in another process.
+
+        :param coroutine_creator: coroutine function creating coros to be scheduled
+        :type coroutine_creator:  Coroutine Function
+        :param recurrency: recurrency rule to calculate next event
+        :type recurrency: dateutil.rrule.rrule
+        :param src: creator of the task
+        :type src: Object
+        """
+        return self._scheduler.schedule_recurrent_task(coroutine_func=coroutine_func,
+                                                       recurrency=recurrency,
+                                                       on_stop=on_stop,
+                                                       src=src)
+
     def schedule_instant_process_task(self, coroutine_creator, on_stop=None, src = None):
         """Schedule an instantly executed task in another processes.
 

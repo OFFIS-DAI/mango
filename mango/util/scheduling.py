@@ -8,6 +8,7 @@ import datetime
 import concurrent.futures
 import warnings
 from multiprocessing import Manager
+from dateutil.rrule import rrule
 
 from mango.util.clock import Clock, AsyncioClock, ExternalClock
 
@@ -203,6 +204,31 @@ class PeriodicScheduledTask(ScheduledTask):
             self.notify_running()
 
 
+class RecurrentScheduledTask(ScheduledTask):
+    """
+    Class for periodic scheduled tasks. It enables to create a task for an agent
+    which will get executed periodically with a specified delay.
+    """
+
+    def __init__(self, coroutine_func, recurrency: rrule, clock: Clock = None, on_stop=None):
+        super().__init__(clock, on_stop=on_stop)
+        self._recurrency_rule = recurrency
+        self._stopped = False
+        self._coroutine_func = coroutine_func
+
+    async def run(self):
+        while not self._stopped:
+            await self._coroutine_func()
+            current_time = datetime.datetime.fromtimestamp(self.clock.time)
+            after = self._recurrency_rule.after(current_time)
+            # after can be None, if until or count was set on the rrule
+            if after is None:
+                self._stopped = True
+            else:
+                delay = (after - current_time).total_seconds()
+                await self.clock.sleep(delay)
+
+
 class ConditionalTask(ScheduledTask):
     """Task which will get executed as soon as the given condition is fulfilled.
     """
@@ -304,6 +330,11 @@ class InstantScheduledProcessTask(TimestampScheduledProcessTask):
 class PeriodicScheduledProcessTask(PeriodicScheduledTask, ScheduledProcessTask):
     def __init__(self, coroutine_func, delay, clock: Clock=None, on_stop=None):
         super().__init__(coroutine_func, delay, clock, on_stop=on_stop)
+
+
+class RecurrentScheduledProcessTask(RecurrentScheduledTask, ScheduledProcessTask):
+    def __init__(self, coroutine_func, recurrency: rrule, clock: Clock = None, on_stop=None):
+        super().__init__(coroutine_func, recurrency, clock, on_stop=on_stop)
 
 
 class ConditionalProcessTask(ConditionalTask, ScheduledProcessTask):
@@ -417,7 +448,21 @@ class Scheduler:
         :type src: Object
         """
         return self.schedule_task(PeriodicScheduledTask(coroutine_func=coroutine_func, delay=delay, clock=self.clock,
-                                    on_stop=on_stop), src=src)
+                                  on_stop=on_stop), src=src)
+
+    def schedule_recurrent_task(self, coroutine_func, recurrency, on_stop=None, src=None):
+        """Schedule a task using a fine-grained recurrency rule.
+
+        :param coroutine_func: coroutine function creating coros to be scheduled
+        :type coroutine_func:  Coroutine Function
+        :param recurrency: recurrency rule to calculate next event
+        :type recurrency: dateutil.rrule.rrule
+        :param src: creator of the task
+        :type src: Object
+        """
+        return self.schedule_task(RecurrentScheduledTask(coroutine_func=coroutine_func,
+                                  recurrency=recurrency, clock=self.clock, on_stop=on_stop),
+                                  src=src)
 
     def schedule_conditional_task(self, coroutine, condition_func, lookup_delay: float = 0.1, on_stop=None, src=None):
         """
@@ -523,6 +568,20 @@ class Scheduler:
         return self.schedule_process_task(PeriodicScheduledProcessTask(coroutine_func=coroutine_creator,
                                                                        delay=delay, clock=self.clock,
                                                                        on_stop=on_stop), src=src)
+
+    def schedule_recurrent_process_task(self, coroutine_creator, recurrency, on_stop=None, src=None):
+        """Schedule an open end periodically executed task dispatched to another process.
+
+        :param coroutine_creator: coroutine function creating coros to be scheduled
+        :type coroutine_creator: Coroutine Function
+        :param recurrency: rrule object which gets executed
+        :type recurrency: dateutil.rrule.rrule
+        :param src: creator of the task
+        :type src: Object
+        """
+        return self.schedule_process_task(RecurrentScheduledProcessTask(coroutine_func=coroutine_creator,
+                                                                        recurrency=recurrency, clock=self.clock,
+                                                                        on_stop=on_stop), src=src)
 
     def schedule_conditional_process_task(self, coroutine_creator, condition_func, lookup_delay: float = 0.1, on_stop=None, src=None):
         """
