@@ -1,0 +1,10 @@
+version: '3'
+services:
+  mqtt-broker:
+    container_name: mango-broker
+    image: eclipse-mosquitto:2
+    restart: always
+    volumes:
+      - ./mqtt.conf:/mosquitto/config/mosquitto.conf
+    ports:
+      - "1883:1883/tcp"
