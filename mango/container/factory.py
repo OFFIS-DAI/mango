@@ -132,7 +132,7 @@ async def create(
 
         # callbacks to check for successful connection
         def on_con(client, userdata, flags, returncode):
-            print(f"Connection Callback with the following flags: {flags}")
+            logger.info(f"Connection Callback with the following flags: {flags}")
             loop.call_soon_threadsafe(connected.set_result, returncode)
 
         mqtt_messenger.on_connect = on_con
@@ -159,10 +159,7 @@ async def create(
                 raise ValueError("Invalid broker address")
             mqtt_messenger.connect(broker_addr, **mqtt_kwargs)
 
-        print(
-            f"[{client_id}]: Going to connect to broker " f"at {broker_addr}... ",
-            end="",
-        )
+        logger.info(f"[{client_id}]: Going to connect to broker at {broker_addr}..")
 
         counter = 0
         # process MQTT messages for maximum of 10 seconds to
@@ -186,13 +183,10 @@ async def create(
                 f"{connected.result()}"
             )
 
-        print("done.")
+        logger.info("sucessfully connected to mqtt broker")
         if addr is not None:
             # connection has been set up, subscribe to inbox topic now
-            print(
-                f"[{client_id}]: Going to subscribe to {addr} " f"as inbox topic... ",
-                end="",
-            )
+            logger.info(f"[{client_id}]: Going to subscribe to {addr} " f"as inbox topic..")
 
             # create Future that is triggered on successful subscription
             subscribed = asyncio.Future()
@@ -224,7 +218,7 @@ async def create(
                     f"Subscription request to {addr} at {broker_addr} "
                     f"did not succeed after {counter * 0.1} seconds."
                 )
-            print("done.")
+            logger.info("successfully susbsribed to topic")
 
         # connection and subscription is successful, remove callbacks
         mqtt_messenger.on_subscribe = None
