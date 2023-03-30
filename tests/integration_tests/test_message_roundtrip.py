@@ -12,6 +12,7 @@ M1 = "Hello"
 M2 = "Hello2"
 M3 = "Goodbye"
 
+
 def str_to_proto(my_str):
     msg = MyMsg()
     msg.content = bytes(my_str, "utf-8")
@@ -158,11 +159,7 @@ class ReplierAgent(Agent):
         await self.got_first
 
         # send reply
-        await self.context.send_acl_message(
-            M2,
-            self.target,
-            receiver_id=self.other_aid
-        )
+        await self.context.send_acl_message(M2, self.target, receiver_id=self.other_aid)
 
         # await reply
         await self.got_second

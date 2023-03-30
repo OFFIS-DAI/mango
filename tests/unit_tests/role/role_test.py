@@ -1,4 +1,3 @@
-
 from mango.agent.role import Role, RoleHandler
 from mango.util.scheduling import Scheduler
 
@@ -8,6 +7,7 @@ class RoleModel:
         self.model_property_a = 1
         self.model_property_b = 1
 
+
 class SubRole(Role):
     def __init__(self):
         self.counter = 1
@@ -15,6 +15,7 @@ class SubRole(Role):
     def on_change_model(self, model):
         self.counter = self.counter + 1
         self.last_model = model
+
 
 def test_subscription():
     # GIVEN
@@ -34,6 +35,7 @@ def test_subscription():
     assert ex_role2.counter == 2
     assert ex_role.last_model == role_model
 
+
 def test_subscription_deactivated():
     # GIVEN
     role_handler = RoleHandler(None, Scheduler())
@@ -52,7 +54,8 @@ def test_subscription_deactivated():
     assert ex_role.counter == 2
     assert ex_role2.counter == 1
     assert ex_role.last_model == role_model
-    
+
+
 def test_no_subscription_update():
     # GIVEN
     role_handler = RoleHandler(None, None)
@@ -65,7 +68,8 @@ def test_no_subscription_update():
 
     # THEN
     assert ex_role.counter == 1
-    
+
+
 def test_append_message_subs():
     # GIVEN
     role_handler = RoleHandler(None, None)

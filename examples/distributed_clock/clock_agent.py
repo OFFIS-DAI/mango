@@ -38,10 +38,10 @@ class BiddingRole(Role):
             content="Hello Market",
             receiver_addr=self.receiver_addr,
             receiver_id=self.receiver_id,
-            acl_metadata= {
-                'sender_id': self.context.aid,
-                'sender_addr': self.context.addr,
-            }
+            acl_metadata={
+                "sender_id": self.context.aid,
+                "sender_addr": self.context.addr,
+            },
         )
 
     def handle_message(self, content, meta):
@@ -49,30 +49,31 @@ class BiddingRole(Role):
         print(self.context.current_timestamp)
 
     async def set_bids(self):
-        #await asyncio.sleep(1)
+        # await asyncio.sleep(1)
         price = self.price + 0.01 * self.price * np.random.random()
 
         acl_metadata = {
-            'performative': Performatives.inform,
-            'sender_id': self.context.aid,
-            'sender_addr': self.context.addr,
-            'conversation_id': 'conversation01'
+            "performative": Performatives.inform,
+            "sender_id": self.context.aid,
+            "sender_addr": self.context.addr,
+            "conversation_id": "conversation01",
         }
         await self.context.send_acl_message(
-            content={'price': price, 'volume': self.volume},
+            content={"price": price, "volume": self.volume},
             receiver_addr=self.receiver_addr,
             receiver_id=self.receiver_id,
             acl_metadata=acl_metadata,
         )
 
+
 async def main():
     clock = ExternalClock(start_time=0)
     # connection_type = 'mqtt'
-    connection_type = 'tcp'
+    connection_type = "tcp"
 
-    if connection_type == 'mqtt':
-        addr = 'c2'
-        other_container_addr = 'c1'
+    if connection_type == "mqtt":
+        addr = "c2"
+        other_container_addr = "c1"
     else:
         addr = ("localhost", 5556)
         other_container_addr = ("localhost", 5555)
@@ -84,7 +85,7 @@ async def main():
             "client_id": "container_2",
             "broker_addr": ("localhost", 1883, 60),
             "transport": "tcp",
-        }
+        },
     }
 
     c = await create_container(**container_kwargs)
@@ -92,12 +93,15 @@ async def main():
     clock_agent = DistributedClockAgent(c)
 
     for i in range(2):
-        agent = RoleAgent(c, suggested_aid=f'a{i}')
-        agent.add_role(BiddingRole(other_container_addr, 'market', price=0.05*(i%9)))
+        agent = RoleAgent(c, suggested_aid=f"a{i}")
+        agent.add_role(
+            BiddingRole(other_container_addr, "market", price=0.05 * (i % 9))
+        )
 
     await clock_agent.stopped
     await c.shutdown()
 
-if __name__ == '__main__':
-    logging.basicConfig(level='INFO')
+
+if __name__ == "__main__":
+    logging.basicConfig(level="INFO")
     asyncio.run(main())

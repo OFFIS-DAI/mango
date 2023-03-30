@@ -14,14 +14,12 @@ class BaseModule:
      be used for the internal message exchange between the modules.
      TODO write more
     """
-    frameworks = {
-        'mqtt': MQTTModule,
-        'rabbit': RabbitModule,
-        'zero': ZeroModule
-    }
 
-    def __init__(self, *, name: str, framework='mqtt', subscr_topics,
-                 pub_topics, broker):
+    frameworks = {"mqtt": MQTTModule, "rabbit": RabbitModule, "zero": ZeroModule}
+
+    def __init__(
+        self, *, name: str, framework="mqtt", subscr_topics, pub_topics, broker
+    ):
         """
         Initialization of the module
         :param name: name of the module (str)
@@ -43,7 +41,8 @@ class BaseModule:
             name=self.name,
             subscr_topics=self.subscr_topics,
             pub_topics=self.pub_topics,
-            broker=self.broker)
+            broker=self.broker,
+        )
 
         self.add_message_callback = self.messenger.add_message_callback
         self.start_mq_thread = self.messenger.start_mq_thread
@@ -60,8 +59,8 @@ class BaseModule:
         if exception is not None:
             tb = traceback.format_exc()
             print(tb)
-            print(f'exception in {self.name}')
-            print(f'exception: {exception}')
+            print(f"exception in {self.name}")
+            print(f"exception: {exception}")
             raise exception
 
     # def handle_exception(loop, context):

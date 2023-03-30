@@ -19,8 +19,8 @@ This example covers:
 PV_CONTAINER_ADDRESS = ("localhost", 5555)
 CONTROLLER_CONTAINER_ADDRESS = ("localhost", 5556)
 PV_FEED_IN = {
-    'PV Agent 0': 2.0,
-    'PV Agent 1': 1.0,
+    "PV Agent 0": 2.0,
+    "PV Agent 1": 1.0,
 }
 
 
@@ -191,15 +191,17 @@ async def main():
         addr=CONTROLLER_CONTAINER_ADDRESS, codec=my_codec
     )
 
-    pv_agent_0 = PVAgent(pv_container, suggested_aid='PV Agent 0')
-    pv_agent_1 = PVAgent(pv_container, suggested_aid='PV Agent 1')
+    pv_agent_0 = PVAgent(pv_container, suggested_aid="PV Agent 0")
+    pv_agent_1 = PVAgent(pv_container, suggested_aid="PV Agent 1")
 
     known_agents = [
         (PV_CONTAINER_ADDRESS, pv_agent_0.aid),
         (PV_CONTAINER_ADDRESS, pv_agent_1.aid),
     ]
 
-    controller_agent = ControllerAgent(controller_container, known_agents, suggested_aid='Controller')
+    controller_agent = ControllerAgent(
+        controller_container, known_agents, suggested_aid="Controller"
+    )
     await controller_agent.run()
 
     # always properly shut down your containers

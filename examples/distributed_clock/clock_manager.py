@@ -41,33 +41,32 @@ class OneSidedMarketRole(Role):
 
     async def clear_market(self):
         time = datetime.fromtimestamp(self.context.current_timestamp)
-        i = time.hour + time.minute/60
+        i = time.hour + time.minute / 60
         df = pd.DataFrame.from_dict(self.bids)
         self.bids = []
         price = 0
         if not df.empty:
             # simple merit order calculation
-            df = df.sort_values('price')
-            df['cumsum'] = df['volume'].cumsum()
-            filtered = df[df['cumsum'] >= self.demand]
+            df = df.sort_values("price")
+            df["cumsum"] = df["volume"].cumsum()
+            filtered = df[df["cumsum"] >= self.demand]
             if filtered.empty:
                 # demand could not be matched
                 price = 100
             else:
-                price = filtered['price'].values[0]
+                price = filtered["price"].values[0]
         self.results.append(price)
         self.demands.append(self.demand)
         acl_metadata = {
-            'performative': Performatives.inform,
-            'sender_id': self.context.aid,
-            'sender_addr': self.context.addr,
-            'conversation_id': 'conversation01'
+            "performative": Performatives.inform,
+            "sender_id": self.context.aid,
+            "sender_addr": self.context.addr,
+            "conversation_id": "conversation01",
         }
         resp = []
         for receiver_addr, receiver_id in self.receiver_ids:
             r = self.context.send_acl_message(
-                content={'message': f'Current time is {time}',
-                         'price': price},
+                content={"message": f"Current time is {time}", "price": price},
                 receiver_addr=receiver_addr,
                 receiver_id=receiver_id,
                 acl_metadata=acl_metadata,
@@ -78,7 +77,7 @@ class OneSidedMarketRole(Role):
 
     def handle_message(self, content, meta):
         # content is SimpleBid
-        content['sender_id'] = meta['sender_id']
+        content["sender_id"] = meta["sender_id"]
         self.bids.append(content)
 
     def handle_other(self, content, meta):
@@ -92,11 +91,11 @@ class OneSidedMarketRole(Role):
 async def main(start):
     clock = ExternalClock(start_time=start.timestamp())
     # connection_type = 'mqtt'
-    connection_type = 'tcp'
+    connection_type = "tcp"
 
-    if connection_type == 'mqtt':
-        addr = 'c1'
-        other_container_addr = 'c2'
+    if connection_type == "mqtt":
+        addr = "c1"
+        other_container_addr = "c2"
     else:
         addr = ("localhost", 5555)
         other_container_addr = ("localhost", 5556)
@@ -108,15 +107,17 @@ async def main(start):
             "client_id": "container_1",
             "broker_addr": ("localhost", 1883, 60),
             "transport": "tcp",
-        }
+        },
     }
 
     c = await create_container(**container_kwargs)
-    market = RoleAgent(c, suggested_aid='market')
-    receiver_ids = [(other_container_addr, 'a0'), (other_container_addr, 'a1')]
+    market = RoleAgent(c, suggested_aid="market")
+    receiver_ids = [(other_container_addr, "a0"), (other_container_addr, "a1")]
     market.add_role(OneSidedMarketRole(demand=1000, receiver_ids=receiver_ids))
 
-    clock_agent = DistributedClockManager(c, receiver_clock_addresses=[other_container_addr])
+    clock_agent = DistributedClockManager(
+        c, receiver_clock_addresses=[other_container_addr]
+    )
 
     if isinstance(clock, ExternalClock):
         for i in tqdm(range(30)):
@@ -125,7 +126,8 @@ async def main(start):
             clock.set_time(next_event)
     await c.shutdown()
 
-if __name__ == '__main__':
-    logging.basicConfig(level='INFO')
+
+if __name__ == "__main__":
+    logging.basicConfig(level="INFO")
     start = datetime(2023, 1, 1)
     asyncio.run(main(start))

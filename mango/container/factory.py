@@ -186,7 +186,9 @@ async def create(
         logger.info("sucessfully connected to mqtt broker")
         if addr is not None:
             # connection has been set up, subscribe to inbox topic now
-            logger.info(f"[{client_id}]: Going to subscribe to {addr} " f"as inbox topic..")
+            logger.info(
+                f"[{client_id}]: Going to subscribe to {addr} " f"as inbox topic.."
+            )
 
             # create Future that is triggered on successful subscription
             subscribed = asyncio.Future()

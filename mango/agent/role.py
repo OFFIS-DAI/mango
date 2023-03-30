@@ -40,13 +40,13 @@ from mango.util.scheduling import Scheduler
 
 
 class DataContainer:
-
     def __getitem__(self, key):
         return self.__getattribute__(key)
 
 
-class RoleContext():
+class RoleContext:
     pass
+
 
 class Role(ABC):
     """General role class, defining the API every role can use. A role implements one responsibility
@@ -94,18 +94,14 @@ class Role(ABC):
         """
 
     def on_deactivation(self, src) -> None:
-        """Hook in, which will be called when another role deactivates this instance (temporarily)
-        """
+        """Hook in, which will be called when another role deactivates this instance (temporarily)"""
 
     async def on_stop(self) -> None:
-        """Lifecycle hook in, which will be called when the container is shut down or if the role got removed.
-        """
-
+        """Lifecycle hook in, which will be called when the container is shut down or if the role got removed."""
 
 
 class RoleHandler:
-    """Contains all roles and their models. Implements the communication between roles.
-    """
+    """Contains all roles and their models. Implements the communication between roles."""
 
     def __init__(self, agent_context, scheduler):
         self._role_models = {}
@@ -199,8 +195,7 @@ class RoleHandler:
         return True
 
     async def on_stop(self):
-        """Notify all roles when the container is shutdown
-        """
+        """Notify all roles when the container is shutdown"""
         for role in self._roles:
             await role.on_stop()
 
@@ -221,35 +216,46 @@ class RoleHandler:
         for role in self._send_msg_subs:
             for sub in self._send_msg_subs[role]:
                 if self._is_role_active(role):
-                    sub(content=content, receiver_addr=receiver_addr,
+                    sub(
+                        content=content,
+                        receiver_addr=receiver_addr,
                         receiver_id=receiver_id,
-                        **kwargs)
+                        **kwargs
+                    )
 
-
-    async def send_message(self, content,
-                           receiver_addr: Union[str, Tuple[str, int]], *,
-                           receiver_id: Optional[str] = None,
-                           **kwargs
+    async def send_message(
+        self,
+        content,
+        receiver_addr: Union[str, Tuple[str, int]],
+        *,
+        receiver_id: Optional[str] = None,
+        **kwargs
     ):
         self._notify_send_message_subs(content, receiver_addr, receiver_id, **kwargs)
         return await self._agent_context.send_message(
             content=content,
             receiver_addr=receiver_addr,
             receiver_id=receiver_id,
-            **kwargs)
+            **kwargs
+        )
 
-    async def send_acl_message(self, content,
-                           receiver_addr: Union[str, Tuple[str, int]], *,
-                           receiver_id: Optional[str] = None,
-                           acl_metadata: Optional[Dict[str, Any]] = None,
-                           **kwargs):
+    async def send_acl_message(
+        self,
+        content,
+        receiver_addr: Union[str, Tuple[str, int]],
+        *,
+        receiver_id: Optional[str] = None,
+        acl_metadata: Optional[Dict[str, Any]] = None,
+        **kwargs
+    ):
         self._notify_send_message_subs(content, receiver_addr, receiver_id, **kwargs)
         return await self._agent_context.send_acl_message(
             content=content,
             receiver_addr=receiver_addr,
             receiver_id=receiver_id,
             acl_metadata=acl_metadata,
-            **kwargs)
+            **kwargs
+        )
 
     def subscribe_message(self, role, method, message_condition, priority=0):
         if len(self._message_subs) == 0:
@@ -259,7 +265,9 @@ class RoleHandler:
         for i in range(len(self._message_subs)):
             _, _, _, other_prio = self._message_subs[i]
             if priority < other_prio:
-                self._message_subs.insert(i, (role, message_condition, method, priority))
+                self._message_subs.insert(
+                    i, (role, message_condition, method, priority)
+                )
                 break
             elif i == len(self._message_subs) - 1:
                 self._message_subs.append((role, message_condition, method, priority))
@@ -272,10 +280,16 @@ class RoleHandler:
 
 
 class RoleContext(AgentDelegates):
-    """Implementation of the RoleContext.
-    """
+    """Implementation of the RoleContext."""
 
-    def __init__(self, agent_context: AgentContext, scheduler: Scheduler, role_handler: RoleHandler, aid: str, inbox):
+    def __init__(
+        self,
+        agent_context: AgentContext,
+        scheduler: Scheduler,
+        role_handler: RoleHandler,
+        aid: str,
+        inbox,
+    ):
         self._agent_context = agent_context
         self._role_handler = role_handler
         self._aid = aid
@@ -311,7 +325,9 @@ class RoleContext(AgentDelegates):
         self._role_handler.subscribe(role, role_model_type)
 
     def subscribe_message(self, role, method, message_condition, priority=0):
-        self._role_handler.subscribe_message(role, method, message_condition, priority=priority)
+        self._role_handler.subscribe_message(
+            role, method, message_condition, priority=priority
+        )
 
     def subscribe_send(self, role, method):
         self._role_handler.subscribe_send(role, method)
@@ -334,29 +350,37 @@ class RoleContext(AgentDelegates):
         """
         self._role_handler.handle_message(content, meta)
 
-    async def send_message(self, content,
-                           receiver_addr: Union[str, Tuple[str, int]], *,
-                           receiver_id: Optional[str] = None,
-                           **kwargs
+    async def send_message(
+        self,
+        content,
+        receiver_addr: Union[str, Tuple[str, int]],
+        *,
+        receiver_id: Optional[str] = None,
+        **kwargs
     ):
         return await self._role_handler.send_message(
             content=content,
             receiver_addr=receiver_addr,
             receiver_id=receiver_id,
-            **kwargs)
+            **kwargs
+        )
 
-    async def send_acl_message(self, content,
-                           receiver_addr: Union[str, Tuple[str, int]], *,
-                           receiver_id: Optional[str] = None,
-                           acl_metadata: Optional[Dict[str, Any]] = None,
-                           **kwargs
+    async def send_acl_message(
+        self,
+        content,
+        receiver_addr: Union[str, Tuple[str, int]],
+        *,
+        receiver_id: Optional[str] = None,
+        acl_metadata: Optional[Dict[str, Any]] = None,
+        **kwargs
     ):
         return await self._role_handler.send_acl_message(
             content=content,
             receiver_addr=receiver_addr,
             receiver_id=receiver_id,
             acl_metadata=acl_metadata,
-            **kwargs)
+            **kwargs
+        )
 
     @property
     def addr(self):
@@ -389,7 +413,8 @@ class RoleAgent(Agent):
 
         self._role_handler = RoleHandler(self._context, self._scheduler)
         self._role_context = RoleContext(
-            self._context, self._scheduler, self._role_handler, self.aid, self.inbox)
+            self._context, self._scheduler, self._role_handler, self.aid, self.inbox
+        )
 
     def add_role(self, role: Role):
         """Add a role to the agent. This will lead to the call of :func:`Role.setup`.

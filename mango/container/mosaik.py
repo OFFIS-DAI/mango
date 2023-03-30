@@ -28,17 +28,16 @@ class MosaikContainerOutput:
 
 
 class MosaikContainer(Container):
-    """
+    """ """
 
-    """
     clock: ExternalClock  # type hint
 
     def __init__(
-            self,
-            *,
-            addr: str,
-            codec: Codec,
-            loop: asyncio.AbstractEventLoop,
+        self,
+        *,
+        addr: str,
+        codec: Codec,
+        loop: asyncio.AbstractEventLoop,
     ):
         """
         Initializes a MosaikContainer. Do not directly call this method but use
@@ -63,10 +62,17 @@ class MosaikContainer(Container):
         self._new_internal_message: bool = False
         self.message_buffer = []
 
-    async def send_message(self, content, receiver_addr: Union[str, Tuple[str, int]], *,
-                           receiver_id: Optional[str] = None, create_acl: bool = False,
-                           acl_metadata: Optional[Dict[str, Any]] = None, mqtt_kwargs: Dict[str, Any] = None,
-                           **kwargs) -> bool:
+    async def send_message(
+        self,
+        content,
+        receiver_addr: Union[str, Tuple[str, int]],
+        *,
+        receiver_id: Optional[str] = None,
+        create_acl: bool = False,
+        acl_metadata: Optional[Dict[str, Any]] = None,
+        mqtt_kwargs: Dict[str, Any] = None,
+        **kwargs,
+    ) -> bool:
         """
         The Container sends a message to an agent according the container protocol.
 
@@ -96,11 +102,17 @@ class MosaikContainer(Container):
         :param kwargs: Additional parameters to provide protocol specific settings
         """
         if create_acl is not None or acl_metadata is not None:
-            warnings.warn("The parameters create_acl and acl_metadata are deprecated and will "
-                          "be removed in the next release. Use send_acl_message instead.", DeprecationWarning)
+            warnings.warn(
+                "The parameters create_acl and acl_metadata are deprecated and will "
+                "be removed in the next release. Use send_acl_message instead.",
+                DeprecationWarning,
+            )
         if mqtt_kwargs is not None:
-            warnings.warn("The parameter mqtt_kwargs is deprecated and will "
-                          "be removed in the next release. Use kwargs instead.", DeprecationWarning)
+            warnings.warn(
+                "The parameter mqtt_kwargs is deprecated and will "
+                "be removed in the next release. Use kwargs instead.",
+                DeprecationWarning,
+            )
 
         if create_acl:
             message = self._create_acl(
@@ -124,8 +136,11 @@ class MosaikContainer(Container):
                 return False
             self._new_internal_message = True
             default_meta = {"network_protocol": "mosaik"}
-            success = self._send_internal_message(message=message, default_meta=default_meta,
-                                                  target_inbox_overwrite=receiver.inbox)
+            success = self._send_internal_message(
+                message=message,
+                default_meta=default_meta,
+                target_inbox_overwrite=receiver.inbox,
+            )
         else:
             success = await self._send_external_message(receiver_addr, message)
 
@@ -144,15 +159,19 @@ class MosaikContainer(Container):
             MosaikAgentMessage(
                 time=time.time() - self.current_start_time_of_step + self.clock.time,
                 receiver=addr,
-                message=encoded_msg
+                message=encoded_msg,
             )
         )
         return True
 
-    async def step(self, simulation_time: float, incoming_messages: List[bytes]) -> MosaikContainerOutput:
+    async def step(
+        self, simulation_time: float, incoming_messages: List[bytes]
+    ) -> MosaikContainerOutput:
 
         if self.message_buffer:
-            logger.warning('There are messages in teh message buffer to be sent, at the start when step was called.')
+            logger.warning(
+                "There are messages in teh message buffer to be sent, at the start when step was called."
+            )
 
         self.current_start_time_of_step = time.time()
 
@@ -190,7 +209,7 @@ class MosaikContainer(Container):
         return MosaikContainerOutput(
             duration=end_time - self.current_start_time_of_step,
             messages=messages_this_step,
-            next_activity=self.clock.get_next_activity()
+            next_activity=self.clock.get_next_activity(),
         )
 
     async def shutdown(self):

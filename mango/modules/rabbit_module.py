@@ -7,8 +7,7 @@ import pika
 
 
 class RabbitModule(ABC):
-
-    def __init__(self, *, name:str, subscr_topics, pub_topics, broker):
+    def __init__(self, *, name: str, subscr_topics, pub_topics, broker):
         """
 
         :param name: name of the module (str)
@@ -37,13 +36,15 @@ class RabbitModule(ABC):
         # set up publishing connection
         # we separate this because each thread needs its own connection and we want to be able to call
         # publish from outside
-        self.pub_connection = pika.BlockingConnection(pika.ConnectionParameters(host=broker[0], port=broker[1]))
+        self.pub_connection = pika.BlockingConnection(
+            pika.ConnectionParameters(host=broker[0], port=broker[1])
+        )
 
         self.pub_channel = self.pub_connection.channel()
 
         for topic in self.pub_topics:
-            #self.pub_channel.queue_declare(queue=topic[0])
-            self.pub_channel.exchange_declare(exchange=topic[0], exchange_type='fanout')
+            # self.pub_channel.queue_declare(queue=topic[0])
+            self.pub_channel.exchange_declare(exchange=topic[0], exchange_type="fanout")
 
         # run the sub thread
         self.mq_thread.start()
@@ -63,17 +64,16 @@ class RabbitModule(ABC):
         while not self.setup_done:
             continue
 
-
     def run_mq(self):
         # set up stuff
-        self.sub_connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
+        self.sub_connection = pika.BlockingConnection(
+            pika.ConnectionParameters(host="localhost")
+        )
         self.sub_channel = self.sub_connection.channel()
 
-
-
         for topic in self.subscr_topics:
-            #self.sub_channel.queue_declare(queue=topic[0])
-            self.sub_channel.exchange_declare(exchange=topic[0], exchange_type='fanout')
+            # self.sub_channel.queue_declare(queue=topic[0])
+            self.sub_channel.exchange_declare(exchange=topic[0], exchange_type="fanout")
 
         self.thread_active = True
 
@@ -84,12 +84,14 @@ class RabbitModule(ABC):
                 # set up saved callback
                 for cb in self.known_registers:
                     queues = []
-                    result = self.sub_channel.queue_declare(queue='', exclusive=True)
+                    result = self.sub_channel.queue_declare(queue="", exclusive=True)
                     queues.append(result.method.queue)
                     self.sub_channel.queue_bind(exchange=cb[0], queue=queues[-1])
 
                     f = partial(self.bind_callback, cb[0], cb[1])
-                    self.sub_channel.basic_consume(queue=queues[-1], on_message_callback=f, auto_ack=True)
+                    self.sub_channel.basic_consume(
+                        queue=queues[-1], on_message_callback=f, auto_ack=True
+                    )
 
                 self.setup_done = True
 
@@ -111,9 +113,8 @@ class RabbitModule(ABC):
         self.thread_running = False
 
     def publish_mq_message(self, topic, payload):
-        self.pub_channel.basic_publish(exchange=topic, routing_key='', body=payload)
+        self.pub_channel.basic_publish(exchange=topic, routing_key="", body=payload)
 
     # the actual binding to whatever signature the frameworks callbacks have happens here
     def bind_callback(self, topic, func, ch, method, properties, message):
         func(payload=message, topic=topic)
-

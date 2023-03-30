@@ -4,8 +4,13 @@ from dataclasses import dataclass
 import pytest
 from msg_pb2 import MyMsg
 
-from mango.messages.codecs import (JSON, PROTOBUF, Codec, SerializationError,
-                                   json_serializable)
+from mango.messages.codecs import (
+    JSON,
+    PROTOBUF,
+    Codec,
+    SerializationError,
+    json_serializable,
+)
 from mango.messages.message import ACLMessage, Performatives
 
 testcodecs = [JSON, PROTOBUF]

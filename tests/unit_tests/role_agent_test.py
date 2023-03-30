@@ -11,17 +11,15 @@ from mango.util.scheduling import DateTimeScheduledTask
 
 
 class SimpleReactiveRole(Role):
-
     def setup(self):
-        self.context.subscribe_message(
-            self, self.handle_msg, self.is_applicable)
+        self.context.subscribe_message(self, self.handle_msg, self.is_applicable)
 
     @abstractmethod
     def handle_msg(self, content, meta: Dict[str, Any]) -> None:
         pass
+
     def is_applicable(self, content, meta: Dict[str, Any]) -> bool:
         return True
-
 
 
 class PongRole(SimpleReactiveRole):
@@ -30,22 +28,28 @@ class PongRole(SimpleReactiveRole):
         self.sending_tasks = []
 
     def handle_msg(self, content, meta: Dict[str, Any]):
-        assert 'sender_addr' in meta.keys() and 'sender_id' in meta.keys()
+        assert "sender_addr" in meta.keys() and "sender_id" in meta.keys()
 
         # get addr and id from sender
-        receiver_host, receiver_port = meta['sender_addr']
-        receiver_id = meta['sender_id']
+        receiver_host, receiver_port = meta["sender_addr"]
+        receiver_id = meta["sender_id"]
         # send back pong, providing your own details
-        t = asyncio.create_task(self.context.send_acl_message(
-            content='pong', receiver_addr=(receiver_host, receiver_port), receiver_id=receiver_id,
-            acl_metadata={'sender_addr': self.context.addr,
-                            'sender_id': self.context.aid})
+        t = asyncio.create_task(
+            self.context.send_acl_message(
+                content="pong",
+                receiver_addr=(receiver_host, receiver_port),
+                receiver_id=receiver_id,
+                acl_metadata={
+                    "sender_addr": self.context.addr,
+                    "sender_id": self.context.aid,
+                },
+            )
         )
 
         self.sending_tasks.append(t)
 
     def is_applicable(self, content, meta):
-        return content == 'ping'
+        return content == "ping"
 
 
 class PingRole(SimpleReactiveRole):
@@ -55,28 +59,46 @@ class PingRole(SimpleReactiveRole):
         self._expect_no_answer = expect_no_answer
 
     def handle_msg(self, content, meta: Dict[str, Any]):
-        assert 'sender_addr' in meta.keys() and 'sender_id' in meta.keys()
+        assert "sender_addr" in meta.keys() and "sender_id" in meta.keys()
         # get host, port and id from sender
-        sender_host, sender_port = meta['sender_addr']
-        sender_id = meta['sender_id']
+        sender_host, sender_port = meta["sender_addr"]
+        sender_id = meta["sender_id"]
         assert ((sender_host, sender_port), sender_id) in self.open_ping_requests.keys()
 
-        self.open_ping_requests[((sender_host, sender_port), sender_id)].set_result(True)
+        self.open_ping_requests[((sender_host, sender_port), sender_id)].set_result(
+            True
+        )
 
     def is_applicable(self, content, meta):
-        return content == 'pong'
+        return content == "pong"
 
     def setup(self):
         super().setup()
-        for task in list(map(lambda a: DateTimeScheduledTask(self.send_ping_to_other(a[0], a[1], self.context), datetime.datetime.now()), self._addr)):
+        for task in list(
+            map(
+                lambda a: DateTimeScheduledTask(
+                    self.send_ping_to_other(a[0], a[1], self.context),
+                    datetime.datetime.now(),
+                ),
+                self._addr,
+            )
+        ):
             self.context.schedule_task(task)
 
-    async def send_ping_to_other(self, other_addr, other_id, agent_context : RoleContext):
+    async def send_ping_to_other(
+        self, other_addr, other_id, agent_context: RoleContext
+    ):
         # create
         self.open_ping_requests[(other_addr, other_id)] = asyncio.Future()
         success = await agent_context.send_acl_message(
-            content='ping', receiver_addr=other_addr, receiver_id=other_id,
-            acl_metadata={'sender_addr': agent_context.addr, 'sender_id': agent_context.aid})
+            content="ping",
+            receiver_addr=other_addr,
+            receiver_id=other_id,
+            acl_metadata={
+                "sender_addr": agent_context.addr,
+                "sender_id": agent_context.aid,
+            },
+        )
         assert success
 
     async def on_stop(self):
@@ -88,10 +110,15 @@ class PingRole(SimpleReactiveRole):
                 await asyncio.wait_for(fut, timeout=timeout)
                 assert not self._expect_no_answer
             except asyncio.TimeoutError:
-                print(f'Timeout occurred while waiting for the ping response of {addr_tuple}, '
-                      'going to check if all messages could be send')
-                assert self._expect_no_answer, 'Not all pong replies have arrived on time'
-    
+                print(
+                    f"Timeout occurred while waiting for the ping response of {addr_tuple}, "
+                    "going to check if all messages could be send"
+                )
+                assert (
+                    self._expect_no_answer
+                ), "Not all pong replies have arrived on time"
+
+
 class DeactivateAllRoles(Role):
     def __init__(self, roles):
         self.roles = roles
@@ -103,13 +130,14 @@ class DeactivateAllRoles(Role):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("num_agents,num_containers",
-                         [(1, 1), (2, 1), (2, 2), (10, 2), (10, 10)])
+@pytest.mark.parametrize(
+    "num_agents,num_containers", [(1, 1), (2, 1), (2, 2), (10, 2), (10, 10)]
+)
 async def test_send_ping_pong(num_agents, num_containers):
     # create containers
     containers = []
     for i in range(num_containers):
-        c = await container_factory.create(addr=('127.0.0.2', 5555 + i))
+        c = await container_factory.create(addr=("127.0.0.2", 5555 + i))
         containers.append(c)
 
     # create agents
@@ -131,8 +159,8 @@ async def test_send_ping_pong(num_agents, num_containers):
             if a._check_inbox_task.exception() is not None:
                 raise a._check_inbox_task.exception()
             else:
-                assert False, f'check_inbox terminated unexpectedly.'
-    
+                assert False, f"check_inbox terminated unexpectedly."
+
     for a in agents:
         await a.tasks_complete()
 
@@ -144,14 +172,14 @@ async def test_send_ping_pong(num_agents, num_containers):
 
     assert len(asyncio.all_tasks()) == 1
 
+
 @pytest.mark.asyncio
-@pytest.mark.parametrize("num_agents,num_containers",
-                         [(2, 1)])
+@pytest.mark.parametrize("num_agents,num_containers", [(2, 1)])
 async def test_send_ping_pong_deactivated_pong(num_agents, num_containers):
     # create containers
     containers = []
     for i in range(num_containers):
-        c = await container_factory.create(addr=('127.0.0.2', 5555 + i))
+        c = await container_factory.create(addr=("127.0.0.2", 5555 + i))
         containers.append(c)
 
     # create agents
@@ -175,8 +203,8 @@ async def test_send_ping_pong_deactivated_pong(num_agents, num_containers):
             if a._check_inbox_task.exception() is not None:
                 raise a._check_inbox_task.exception()
             else:
-                assert False, f'check_inbox terminated unexpectedly.'
-    
+                assert False, f"check_inbox terminated unexpectedly."
+
     for a in agents:
         await a.tasks_complete()
 
