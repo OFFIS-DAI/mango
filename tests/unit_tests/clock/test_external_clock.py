@@ -1,8 +1,10 @@
-import pytest
 import asyncio
 import time
-from mango.util.scheduling import Scheduler
+
+import pytest
+
 from mango.util.clock import AsyncioClock, ExternalClock
+from mango.util.scheduling import Scheduler
 
 
 async def example_coro(name, t_start, results_dict):

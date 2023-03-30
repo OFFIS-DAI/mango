@@ -1,8 +1,10 @@
-import pytest
 import asyncio
-from typing import Dict, Any
-from mango.agent.core import Agent
+from typing import Any, Dict
+
+import pytest
+
 import mango.container.factory as container_factory
+from mango.agent.core import Agent
 
 
 class PingPongAgent(Agent):

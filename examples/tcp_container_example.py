@@ -1,8 +1,9 @@
 import asyncio
 
-import mango.messages.other_proto_msgs_pb2 as  other_proto_msg
-from mango import create_container
+import mango.messages.other_proto_msgs_pb2 as other_proto_msg
 from examples.simple_agent import SimpleAgent
+from mango import create_container
+
 
 async def one_container_two_agents():
     # ip and port of container

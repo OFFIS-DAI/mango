@@ -1,10 +1,12 @@
 """This module contains the base class for basic modules that can be used
  inside agents to encapsulate complex functionality """
 
+import traceback
+
 from .mqtt_module import MQTTModule
 from .rabbit_module import RabbitModule
 from .zero_module import ZeroModule
-import traceback
+
 
 class BaseModule:
     """An agent can have multiple specialized modules which inherit

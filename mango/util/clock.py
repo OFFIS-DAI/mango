@@ -1,8 +1,8 @@
-import time
-from typing import Tuple, List
 import asyncio
 import bisect
+import time
 from abc import ABC, abstractmethod
+from typing import List, Tuple
 
 
 class Clock(ABC):

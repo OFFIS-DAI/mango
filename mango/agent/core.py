@@ -10,8 +10,9 @@ import warnings
 from abc import ABC
 from datetime import datetime
 from typing import Any, Dict, Optional, Tuple, Union
-from ..util.scheduling import ScheduledProcessTask, ScheduledTask, Scheduler
+
 from ..container.core import Container
+from ..util.scheduling import ScheduledProcessTask, ScheduledTask, Scheduler
 
 logger = logging.getLogger(__name__)
 

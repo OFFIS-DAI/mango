@@ -1,10 +1,9 @@
+import pickle
+import threading
+import time
 from abc import ABC
 
 import zmq
-import threading
-import pickle
-import time
-
 
 
 class ZeroModule(ABC):

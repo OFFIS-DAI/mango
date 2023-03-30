@@ -1,7 +1,6 @@
 import asyncio
 
-from mango import Agent
-from mango import create_container
+from mango import Agent, create_container
 
 """
 For your first mango tutorial you will learn the fundamentals of creating mango agents and containers as well

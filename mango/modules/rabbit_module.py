@@ -1,9 +1,8 @@
+import threading
+import time
 from abc import ABC
 from functools import partial
 
-
-import time
-import threading
 import pika
 
 

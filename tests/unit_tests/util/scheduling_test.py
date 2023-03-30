@@ -1,11 +1,17 @@
-import pytest
 import asyncio
 import datetime
 import time
+
+import pytest
 from dateutil import rrule
-from mango.util.scheduling import ConditionalProcessTask, DateTimeScheduledTask, InstantScheduledProcessTask, \
-    InstantScheduledTask, Scheduler, PeriodicScheduledTask, TimestampScheduledTask, RecurrentScheduledTask
+
 from mango.util.clock import ExternalClock
+from mango.util.scheduling import (ConditionalProcessTask,
+                                   DateTimeScheduledTask,
+                                   InstantScheduledProcessTask,
+                                   InstantScheduledTask, PeriodicScheduledTask,
+                                   RecurrentScheduledTask, Scheduler,
+                                   TimestampScheduledTask)
 
 
 @pytest.mark.asyncio

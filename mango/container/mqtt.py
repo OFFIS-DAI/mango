@@ -1,13 +1,15 @@
 import asyncio
-import logging, warnings
-from typing import Optional, Union, Tuple, Dict, Any, Set
+import logging
+import warnings
+from typing import Any, Dict, Optional, Set, Tuple, Union
 
 import paho.mqtt.client as paho
 
-from ..messages.codecs import Codec, ACLMessage
-from ..util.clock import Clock
-from mango.messages.codecs import JSON
 from mango.container.core import Container
+from mango.messages.codecs import JSON
+
+from ..messages.codecs import ACLMessage, Codec
+from ..util.clock import Clock
 
 logger = logging.getLogger(__name__)
 

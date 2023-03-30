@@ -1,11 +1,12 @@
+import asyncio
+
 import pytest
+from msg_pb2 import MyMsg
+
+import mango.container.factory as container_factory
 from mango.agent.core import Agent
 from mango.container.core import Container
 from mango.messages.codecs import JSON, PROTOBUF
-from msg_pb2 import MyMsg
-import asyncio
-
-import mango.container.factory as container_factory
 
 M1 = "Hello"
 M2 = "Hello2"

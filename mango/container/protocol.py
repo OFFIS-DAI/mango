@@ -2,7 +2,6 @@ import asyncio
 import logging
 import struct
 
-
 # The struct module performs conversions between python values and
 # C structs represented as Python bytes objects.
 # '!' refers to network byte order(= big-endian)

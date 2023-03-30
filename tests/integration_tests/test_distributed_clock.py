@@ -1,11 +1,12 @@
-import pytest
-from mango import create_container, Agent 
-from mango.messages.codecs import JSON
-from mango.util.clock import ExternalClock
-from mango.util.distributed_clock import DistributedClockManager, DistributedClockAgent
 import asyncio
 
+import pytest
 
+from mango import Agent, create_container
+from mango.messages.codecs import JSON
+from mango.util.clock import ExternalClock
+from mango.util.distributed_clock import (DistributedClockAgent,
+                                          DistributedClockManager)
 
 JSON_CODEC = JSON()
 

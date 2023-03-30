@@ -3,12 +3,15 @@ This module contains the abstract Container class and the subclasses
 TCPContainer and MQTTContainer
 """
 import asyncio
-import logging, warnings
-from typing import Optional, Union, Tuple, Dict, Any
-from .protocol import ContainerProtocol
+import logging
+import warnings
+from typing import Any, Dict, Optional, Tuple, Union
+
+from mango.container.core import Container
+
 from ..messages.codecs import Codec
 from ..util.clock import Clock
-from mango.container.core import Container
+from .protocol import ContainerProtocol
 
 logger = logging.getLogger(__name__)
 

@@ -1,11 +1,13 @@
-from typing import Dict, Any
 import asyncio
+from typing import Any, Dict
+
 import pytest
-from mango.messages.message import ACLMessage
-from mango.container.mosaik import MosaikAgentMessage
+
 import mango.container.factory as container_factory
-from mango.container.factory import MOSAIK_CONNECTION
 from mango.agent.core import Agent
+from mango.container.factory import MOSAIK_CONNECTION
+from mango.container.mosaik import MosaikAgentMessage
+from mango.messages.message import ACLMessage
 from mango.util.clock import ExternalClock
 
 

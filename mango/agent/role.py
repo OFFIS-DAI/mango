@@ -31,13 +31,13 @@ Furthermore there are two lifecycle methods to know about:
                      for initialization and scheduling of tasks
 * :func:`Role.on_stop` is called when the container the agent lives in, is shut down
 """
+import asyncio
 from abc import ABC
-from typing import Union, Tuple, Optional, Any, Dict, List
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from mango.agent.core import Agent, AgentContext, AgentDelegates
 from mango.util.scheduling import Scheduler
 
-import asyncio
 
 class DataContainer:
 

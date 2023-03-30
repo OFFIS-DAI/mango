@@ -1,11 +1,9 @@
 import asyncio
 from dataclasses import dataclass
 
-# note that our imports changed because we now use the specialized RoleAgent superclass
-from mango import RoleAgent
-from mango import Role
-from mango import create_container
 import mango.messages.codecs as codecs
+# note that our imports changed because we now use the specialized RoleAgent superclass
+from mango import Role, RoleAgent, create_container
 
 """
 In example 3, you restructured your code to use codecs for easier handling of typed message objects.

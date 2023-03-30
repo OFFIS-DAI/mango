@@ -1,16 +1,17 @@
 """
 Module for commonly used time based scheduled task executed inside one agent.
 """
-from abc import abstractmethod
-from typing import List, Tuple, Any
 import asyncio
-import datetime
 import concurrent.futures
+import datetime
 import warnings
+from abc import abstractmethod
 from multiprocessing import Manager
+from typing import Any, List, Tuple
+
 from dateutil.rrule import rrule
 
-from mango.util.clock import Clock, AsyncioClock, ExternalClock
+from mango.util.clock import AsyncioClock, Clock, ExternalClock
 
 
 class Suspendable:

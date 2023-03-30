@@ -1,7 +1,7 @@
 
-from mango.agent.role import RoleHandler
-from mango.agent.role import Role
+from mango.agent.role import Role, RoleHandler
 from mango.util.scheduling import Scheduler
+
 
 class RoleModel:
     def __init__(self):

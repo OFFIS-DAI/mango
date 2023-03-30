@@ -11,11 +11,13 @@ Most of this code is taken and adapted from Stefan Scherfkes aiomas:
 https://gitlab.com/sscherfke/aiomas/
 """
 
-import json
 import inspect
-from mango.messages.message import ACLMessage, enum_serializer, Performatives
-from ..messages.other_proto_msgs_pb2 import GenericMsg as GenericProtoMsg
+import json
+
+from mango.messages.message import ACLMessage, Performatives, enum_serializer
+
 from ..messages.acl_message_pb2 import ACLMessage as ACLProto
+from ..messages.other_proto_msgs_pb2 import GenericMsg as GenericProtoMsg
 
 
 def json_serializable(cls=None, repr=True):

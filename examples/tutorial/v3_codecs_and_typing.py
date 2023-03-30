@@ -1,9 +1,8 @@
 import asyncio
 from dataclasses import dataclass
 
-from mango import Agent
-from mango import create_container
 import mango.messages.codecs as codecs
+from mango import Agent, create_container
 
 """
 In example 2 we created some basic agent functionality and established inter-container communication.

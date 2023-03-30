@@ -1,9 +1,10 @@
 import asyncio
-from mango import create_container
-from mango import Agent
-from mango.util.clock import ExternalClock
 from datetime import datetime
+
 from dateutil import rrule
+
+from mango import Agent, create_container
+from mango.util.clock import ExternalClock
 
 
 class Caller(Agent):

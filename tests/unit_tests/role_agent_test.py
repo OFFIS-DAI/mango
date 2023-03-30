@@ -1,12 +1,14 @@
-import datetime
-import pytest
 import asyncio
-from typing import Dict, Any
-from mango.agent.role import Role, RoleContext, RoleAgent
-from mango.util.scheduling import DateTimeScheduledTask
+import datetime
 from abc import abstractmethod
+from typing import Any, Dict
+
+import pytest
 
 import mango.container.factory as container_factory
+from mango.agent.role import Role, RoleAgent, RoleContext
+from mango.util.scheduling import DateTimeScheduledTask
+
 
 class SimpleReactiveRole(Role):
 

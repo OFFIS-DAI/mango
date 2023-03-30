@@ -1,12 +1,12 @@
 
+import asyncio
 from typing import Any, Dict
 
 import pytest
-import asyncio
-
-from mango.agent.core import Agent
 
 from mango import create_container
+from mango.agent.core import Agent
+
 
 class MyAgent(Agent): 
     

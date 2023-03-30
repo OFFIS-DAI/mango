@@ -1,13 +1,13 @@
 """Simple Agent to show basic functionality"""
 
 import asyncio
+import logging
 
 from mango import Agent
 from mango.messages import other_proto_msgs_pb2 as other_proto_msg
 from mango.messages.acl_message_pb2 import ACLMessage as ACLMessage_proto
-from mango.messages.message import ACLMessage as ACLMessage_json, \
-    Performatives
-import logging
+from mango.messages.message import ACLMessage as ACLMessage_json
+from mango.messages.message import Performatives
 
 logger = logging.getLogger(__name__)
 

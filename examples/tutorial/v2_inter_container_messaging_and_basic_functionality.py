@@ -1,7 +1,6 @@
 import asyncio
 
-from mango import Agent
-from mango import create_container
+from mango import Agent, create_container
 from mango.messages.message import Performatives
 
 """
