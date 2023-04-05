@@ -1,15 +1,17 @@
+import asyncio
+
 import pytest
+from msg_pb2 import MyMsg
+
+import mango.container.factory as container_factory
 from mango.agent.core import Agent
 from mango.container.core import Container
 from mango.messages.codecs import JSON, PROTOBUF
-from msg_pb2 import MyMsg
-import asyncio
-
-import mango.container.factory as container_factory
 
 M1 = "Hello"
 M2 = "Hello2"
 M3 = "Goodbye"
+
 
 def str_to_proto(my_str):
     msg = MyMsg()
@@ -157,11 +159,7 @@ class ReplierAgent(Agent):
         await self.got_first
 
         # send reply
-        await self.context.send_acl_message(
-            M2,
-            self.target,
-            receiver_id=self.other_aid
-        )
+        await self.context.send_acl_message(M2, self.target, receiver_id=self.other_aid)
 
         # await reply
         await self.got_second

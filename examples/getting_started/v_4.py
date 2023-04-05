@@ -1,4 +1,5 @@
 import asyncio
+
 from mango import Agent, create_container
 
 
@@ -30,7 +31,9 @@ async def run_container_and_two_agents(first_addr, second_addr):
     first_container = await create_container(addr=first_addr)
     second_container = await create_container(addr=second_addr)
     first_agent = RepeatingAgent(first_container)
-    second_agent = HelloWorldAgent(second_container, first_container.addr, first_agent.aid)
+    second_agent = HelloWorldAgent(
+        second_container, first_container.addr, first_agent.aid
+    )
     await asyncio.sleep(1)
     await first_agent.shutdown()
     await second_agent.shutdown()
@@ -38,6 +41,9 @@ async def run_container_and_two_agents(first_addr, second_addr):
     await second_container.shutdown()
 
 
-if __name__ == '__main__':
-    asyncio.run(run_container_and_two_agents(
-        first_addr=('localhost', 5555), second_addr=('localhost', 5556)))
+if __name__ == "__main__":
+    asyncio.run(
+        run_container_and_two_agents(
+            first_addr=("localhost", 5555), second_addr=("localhost", 5556)
+        )
+    )

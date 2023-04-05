@@ -1,11 +1,10 @@
 import asyncio
 from dataclasses import dataclass
 
-# note that our imports changed because we now use the specialized RoleAgent superclass
-from mango import RoleAgent
-from mango import Role
-from mango import create_container
 import mango.messages.codecs as codecs
+
+# note that our imports changed because we now use the specialized RoleAgent superclass
+from mango import Role, RoleAgent, create_container
 
 """
 In example 3, you restructured your code to use codecs for easier handling of typed message objects.
@@ -32,8 +31,8 @@ This example covers:
 PV_CONTAINER_ADDRESS = ("localhost", 5555)
 CONTROLLER_CONTAINER_ADDRESS = ("localhost", 5556)
 PV_FEED_IN = {
-    'PV Agent 0': 2.0,
-    'PV Agent 1': 1.0,
+    "PV Agent 0": 2.0,
+    "PV Agent 1": 1.0,
 }
 
 
@@ -126,7 +125,9 @@ class PVRole(Role):
         )
 
     def handle_ask_feed_in(self, content, meta):
-        reported_feed_in = PV_FEED_IN[self.context.aid]  # PV_FEED_IN must be defined at the top
+        reported_feed_in = PV_FEED_IN[
+            self.context.aid
+        ]  # PV_FEED_IN must be defined at the top
         msg = FeedInReplyMsg(reported_feed_in)
 
         sender_addr = meta["sender_addr"]
@@ -302,15 +303,17 @@ async def main():
         addr=CONTROLLER_CONTAINER_ADDRESS, codec=my_codec
     )
 
-    pv_agent_0 = PVAgent(pv_container, suggested_aid='PV Agent 0')
-    pv_agent_1 = PVAgent(pv_container, suggested_aid='PV Agent 1')
+    pv_agent_0 = PVAgent(pv_container, suggested_aid="PV Agent 0")
+    pv_agent_1 = PVAgent(pv_container, suggested_aid="PV Agent 1")
 
     known_agents = [
         (PV_CONTAINER_ADDRESS, pv_agent_0.aid),
         (PV_CONTAINER_ADDRESS, pv_agent_1.aid),
     ]
 
-    controller_agent = ControllerAgent(controller_container, known_agents, suggested_aid='Controller')
+    controller_agent = ControllerAgent(
+        controller_container, known_agents, suggested_aid="Controller"
+    )
 
     # no more run call since everything now happens automatically within the roles
     await asyncio.sleep(5)

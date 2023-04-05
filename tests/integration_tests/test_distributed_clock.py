@@ -1,18 +1,19 @@
-import pytest
-from mango import create_container, Agent 
-from mango.messages.codecs import JSON
-from mango.util.clock import ExternalClock
-from mango.util.distributed_clock import DistributedClockManager, DistributedClockAgent
 import asyncio
 
+import pytest
 
+from mango import Agent, create_container
+from mango.messages.codecs import JSON
+from mango.util.clock import ExternalClock
+from mango.util.distributed_clock import DistributedClockAgent, DistributedClockManager
 
 JSON_CODEC = JSON()
 
+
 async def setup_and_run_test_case(connection_type, codec):
     comm_topic = "test_topic"
-    init_addr = ("localhost", 1555) if connection_type == "tcp" else 'c1'
-    repl_addr = ("localhost", 1556) if connection_type == "tcp" else 'c2'
+    init_addr = ("localhost", 1555) if connection_type == "tcp" else "c1"
+    repl_addr = ("localhost", 1556) if connection_type == "tcp" else "c2"
 
     broker = ("localhost", 1883, 60)
     mqtt_kwargs_1 = {
@@ -45,7 +46,9 @@ async def setup_and_run_test_case(connection_type, codec):
     )
 
     clock_agent = DistributedClockAgent(container_ag)
-    clock_manager = DistributedClockManager(container_man, receiver_clock_addresses=[repl_addr])
+    clock_manager = DistributedClockManager(
+        container_man, receiver_clock_addresses=[repl_addr]
+    )
 
     # increasing the time
     clock_man.set_time(100)
@@ -65,6 +68,7 @@ async def setup_and_run_test_case(connection_type, codec):
         container_man.shutdown(),
         container_ag.shutdown(),
     )
+
 
 @pytest.mark.asyncio
 async def test_tcp_json():

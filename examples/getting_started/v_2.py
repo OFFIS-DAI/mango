@@ -1,4 +1,5 @@
 import asyncio
+
 from mango import Agent, create_container
 
 
@@ -19,4 +20,5 @@ async def run_container_and_agent(addr, duration):
     await asyncio.sleep(duration)
     await first_container.shutdown()
 
-asyncio.run(run_container_and_agent(addr=('localhost', 5555), duration=3))
+
+asyncio.run(run_container_and_agent(addr=("localhost", 5555), duration=3))

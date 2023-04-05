@@ -3,8 +3,9 @@ import copy
 import logging
 import warnings
 from abc import ABC, abstractmethod
-from typing import Optional, Union, Tuple, Dict, Any
-from ..messages.codecs import Codec, ACLMessage
+from typing import Any, Dict, Optional, Tuple, Union
+
+from ..messages.codecs import ACLMessage, Codec
 from ..util.clock import Clock
 
 logger = logging.getLogger(__name__)

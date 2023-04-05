@@ -1,8 +1,8 @@
-import time
-from typing import Tuple, List
 import asyncio
 import bisect
+import time
 from abc import ABC, abstractmethod
+from typing import List, Tuple
 
 
 class Clock(ABC):
@@ -51,7 +51,9 @@ class ExternalClock(Clock):
 
     def __init__(self, start_time: float = 0):
         self._time: float = start_time
-        self._futures: List[Tuple[float, asyncio.Future]] = []  # list of all futures to be triggered
+        self._futures: List[
+            Tuple[float, asyncio.Future]
+        ] = []  # list of all futures to be triggered
 
     @property
     def time(self) -> float:
@@ -65,14 +67,17 @@ class ExternalClock(Clock):
         New time is set
         """
         if t < self._time:
-            raise ValueError(f'Time must be > {self._time} but is {t}.')
+            raise ValueError(f"Time must be > {self._time} but is {t}.")
         # set time
         self._time = t
         # search for all futures that have to be triggerd
         keys = [k[0] for k in self._futures]
         threshold = bisect.bisect_right(keys, t)
         # store
-        current_futures, self._futures = self._futures[:threshold], self._futures[threshold:]
+        current_futures, self._futures = (
+            self._futures[:threshold],
+            self._futures[threshold:],
+        )
         # Tuple of time, future
         for _, future in current_futures:
             # set result of future, if future is not already done
@@ -90,7 +95,10 @@ class ExternalClock(Clock):
             return f
         # insert future in sorted list of futures
         keys = [k[0] for k in self._futures]
-        index = bisect.bisect_right(keys, self.time + t, )
+        index = bisect.bisect_right(
+            keys,
+            self.time + t,
+        )
         self._futures.insert(index, (self.time + t, f))
         return f
 
