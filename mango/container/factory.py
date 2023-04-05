@@ -70,14 +70,7 @@ async def create(
             clock=clock,
             copy_internal_messages=copy_internal_messages,
         )
-
-        # create a TCP server bound to host and port that uses the
-        # specified protocol
-        container.server = await loop.create_server(
-            lambda: ContainerProtocol(container=container, loop=loop, codec=codec),
-            addr[0],
-            addr[1],
-        )
+        await container.setup()
         return container
 
     if connection_type == MOSAIK_CONNECTION:

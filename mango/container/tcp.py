@@ -45,9 +45,16 @@ class TCPContainer(Container):
             clock=clock,
             **kwargs,
         )
+        self.server = None  # will be set in async setup()
 
-        self.server = None  # will be set within the factory method
-        self.running = True
+    async def setup(self):
+        # create a TCP server bound to host and port that uses the
+        # specified protocol
+        self.server = await self.loop.create_server(
+            lambda: ContainerProtocol(container=self, loop=self.loop, codec=self.codec),
+            self.addr[0],
+            self.addr[1],
+        )
 
     async def send_message(
         self,
