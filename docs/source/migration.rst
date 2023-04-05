@@ -1,7 +1,7 @@
 Migration
 ========
 
-Some version of mango will break the API, in this cases we may provide instructions on the migration on this page.
+Some mango versions will break the API; in this case, we may provide instructions on the migration on this page.
 
 
 
