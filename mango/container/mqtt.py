@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import warnings
 from typing import Any, Dict, Optional, Set, Tuple, Union
 
 import paho.mqtt.client as paho

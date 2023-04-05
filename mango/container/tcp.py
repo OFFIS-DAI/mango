@@ -4,7 +4,6 @@ TCPContainer and MQTTContainer
 """
 import asyncio
 import logging
-import warnings
 from typing import Any, Dict, Optional, Tuple, Union
 
 from mango.container.core import Container
