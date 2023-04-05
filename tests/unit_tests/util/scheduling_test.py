@@ -8,7 +8,6 @@ from dateutil import rrule
 from mango.util.clock import ExternalClock
 from mango.util.scheduling import (
     ConditionalProcessTask,
-    DateTimeScheduledTask,
     InstantScheduledProcessTask,
     InstantScheduledTask,
     PeriodicScheduledTask,
@@ -111,30 +110,6 @@ async def test_periodic_conv():
     assert len(l) == 2
 
 
-@pytest.mark.asyncio
-@pytest.mark.filterwarnings(
-    "ignore::RuntimeWarning"
-)  # this test will stop the coro before scheduler awaits for it
-async def test_one_shot_timeouted():
-    # GIVEN
-    scheduler = Scheduler()
-    l = []
-
-    async def increase_counter():
-        l.append(1)
-
-    # WHEN
-    t = scheduler.schedule_task(
-        DateTimeScheduledTask(
-            increase_counter(), datetime.datetime.now() + datetime.timedelta(0, 0.3)
-        )
-    )
-    with pytest.raises(asyncio.exceptions.TimeoutError):
-        await asyncio.wait_for(t, timeout=0.2)
-
-    # THEN
-    assert len(l) == 0
-
 
 @pytest.mark.asyncio
 @pytest.mark.filterwarnings(
@@ -149,36 +124,14 @@ async def test_one_shot_timeouted_conv():
         l.append(1)
 
     # WHEN
-    t = scheduler.schedule_datetime_task(
-        increase_counter(), datetime.datetime.now() + datetime.timedelta(seconds=0.3)
+    t = scheduler.schedule_timestamp_task(
+        increase_counter(), (datetime.datetime.now() + datetime.timedelta(seconds=0.3)).timestamp()
     )
     with pytest.raises(asyncio.exceptions.TimeoutError):
         await asyncio.wait_for(t, timeout=0.2)
 
     # THEN
     assert len(l) == 0
-
-
-@pytest.mark.asyncio
-async def test_one_shot():
-    # GIVEN
-    scheduler = Scheduler()
-    l = []
-
-    async def increase_counter():
-        l.append(1)
-
-    # WHEN
-    t = scheduler.schedule_task(
-        DateTimeScheduledTask(
-            increase_counter(),
-            datetime.datetime.now() + datetime.timedelta(seconds=0.1),
-        )
-    )
-    await asyncio.wait_for(t, timeout=0.2)
-
-    # THEN
-    assert len(l) == 1
 
 
 @pytest.mark.asyncio
@@ -216,31 +169,6 @@ async def test_one_shot_timestamp_conv():
     # THEN
     assert len(l) == 1
 
-
-@pytest.mark.asyncio
-async def test_suspend():
-    # GIVEN
-    scheduler = Scheduler()
-    l = []
-
-    async def increase_counter():
-        l.append(1)
-
-    # WHEN
-    t = scheduler.schedule_task(
-        DateTimeScheduledTask(
-            increase_counter(), datetime.datetime.now() + datetime.timedelta(0, 0.3)
-        )
-    )
-    scheduler.suspend(None)
-    assert len(l) == 0
-    try:
-        await asyncio.wait_for(t, timeout=0.4)
-    except asyncio.exceptions.TimeoutError:
-        pass
-
-    # THEN
-    assert len(l) == 0
 
 
 @pytest.mark.asyncio

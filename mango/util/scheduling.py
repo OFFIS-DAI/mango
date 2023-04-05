@@ -4,7 +4,6 @@ Module for commonly used time based scheduled task executed inside one agent.
 import asyncio
 import concurrent.futures
 import datetime
-import warnings
 from abc import abstractmethod
 from multiprocessing import Manager
 from typing import Any, List, Tuple
@@ -257,36 +256,7 @@ class ConditionalTask(ScheduledTask):
             await sleep_future
             self.notify_running()
         return await self._coro
-
-
-class DateTimeScheduledTask(ScheduledTask):
-    """
-    DateTime based one-shot task. This task will get executed using a given datetime-object.
-    """
-
-    def __init__(
-        self, coroutine, date_time: datetime.datetime, clock=None, on_stop=None
-    ):
-        super().__init__(clock, on_stop=on_stop)
-        warnings.warn(
-            "DateTimeScheduleTask is deprecated. Use TimestampScheduledTask instead.",
-            DeprecationWarning,
-        )
-        self._datetime = date_time
-        self._coro = coroutine
-
-    async def _wait(self, date_time: datetime.datetime):
-        sleep_future: asyncio.Future = self.clock.sleep(
-            date_time.timestamp() - self.clock.time
-        )
-        self.notify_sleeping()
-        await sleep_future
-        self.notify_running()
-
-    async def run(self):
-        await self._wait(self._datetime)
-        return await self._coro
-
+    
 
 # process tasks
 
@@ -382,21 +352,6 @@ class ConditionalProcessTask(ConditionalTask, ScheduledProcessTask):
     async def run(self):
         while not self._condition():
             await self.clock.sleep(self._delay)
-        return await self._coro()
-
-
-class DateTimeScheduledProcessTask(DateTimeScheduledTask, ScheduledProcessTask):
-    """
-    DateTime based one-shot task. This task will get executed using a given datetime-object.
-    """
-
-    def __init__(
-        self, coroutine_creator, date_time: datetime.datetime, clock=None, on_stop=None
-    ):
-        super().__init__(coroutine_creator, date_time, clock, on_stop=on_stop)
-
-    async def run(self):
-        await self._wait(self._datetime)
         return await self._coro()
 
 
@@ -561,28 +516,6 @@ class Scheduler:
             src=src,
         )
 
-    def schedule_datetime_task(
-        self, coroutine, date_time: datetime.datetime, on_stop=None, src=None
-    ):
-        """Schedule a task at specified datetime.
-
-        :param coroutine: coroutine to be scheduled
-        :type coroutine: Coroutine
-        :param date_time: datetime defining when the task should start
-        :type date_time: datetime
-        :param src: creator of the task
-        :type src: Object
-        """
-        return self.schedule_task(
-            DateTimeScheduledTask(
-                coroutine=coroutine,
-                date_time=date_time,
-                clock=self.clock,
-                on_stop=on_stop,
-            ),
-            src=src,
-        )
-
     def schedule_awaiting_task(
         self, coroutine, awaited_coroutine, on_stop=None, src=None
     ):
@@ -738,28 +671,6 @@ class Scheduler:
                 lookup_delay=lookup_delay,
                 on_stop=on_stop,
                 clock=self.clock,
-            ),
-            src=src,
-        )
-
-    def schedule_datetime_process_task(
-        self, coroutine_creator, date_time: datetime.datetime, on_stop=None, src=None
-    ):
-        """Schedule a task at specified datetime dispatched to another process.
-
-        :param coroutine_creator: coroutine_creator creating coroutine to be scheduled
-        :type coroutine_creator: coroutine_creator
-        :param date_time: datetime defining when the task should start
-        :type date_time: datetime
-        :param src: creator of the task
-        :type src: Object
-        """
-        return self.schedule_process_task(
-            DateTimeScheduledProcessTask(
-                coroutine_creator=coroutine_creator,
-                date_time=date_time,
-                clock=self.clock,
-                on_stop=on_stop,
             ),
             src=src,
         )

@@ -63,8 +63,7 @@ has to be provided.
 This will appear as the `content` argument at the receivers handle_message() method.
 
 
-If you want to send an ACL-message, you can either call ``container._create_acl`` and pass its result to ``container.send_message`` as content, 
-or you can use the convenience method ``container.send_acl_message``, which will also use ``create_acl`` internally.
+If you want to send an ACL-message use the method ``container.send_acl_message``, which will wrap the content in a ACLMessage using ``create_acl`` internally.
 
 .. code-block:: python3
 

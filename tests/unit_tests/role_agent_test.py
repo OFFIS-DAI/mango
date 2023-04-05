@@ -7,15 +7,15 @@ import pytest
 
 import mango.container.factory as container_factory
 from mango.agent.role import Role, RoleAgent, RoleContext
-from mango.util.scheduling import DateTimeScheduledTask
+from mango.util.scheduling import TimestampScheduledTask
 
 
 class SimpleReactiveRole(Role):
     def setup(self):
-        self.context.subscribe_message(self, self.handle_msg, self.is_applicable)
+        self.context.subscribe_message(self, self.handle_message, self.is_applicable)
 
     @abstractmethod
-    def handle_msg(self, content, meta: Dict[str, Any]) -> None:
+    def handle_message(self, content, meta: Dict[str, Any]) -> None:
         pass
 
     def is_applicable(self, content, meta: Dict[str, Any]) -> bool:
@@ -27,23 +27,21 @@ class PongRole(SimpleReactiveRole):
         super().__init__()
         self.sending_tasks = []
 
-    def handle_msg(self, content, meta: Dict[str, Any]):
+    def handle_message(self, content, meta: Dict[str, Any]):
         assert "sender_addr" in meta.keys() and "sender_id" in meta.keys()
 
         # get addr and id from sender
         receiver_host, receiver_port = meta["sender_addr"]
         receiver_id = meta["sender_id"]
         # send back pong, providing your own details
-        t = asyncio.create_task(
-            self.context.send_acl_message(
-                content="pong",
-                receiver_addr=(receiver_host, receiver_port),
-                receiver_id=receiver_id,
-                acl_metadata={
-                    "sender_addr": self.context.addr,
-                    "sender_id": self.context.aid,
-                },
-            )
+        t = self.context.schedule_instant_acl_message(
+            content="pong",
+            receiver_addr=(receiver_host, receiver_port),
+            receiver_id=receiver_id,
+            acl_metadata={
+                "sender_addr": self.context.addr,
+                "sender_id": self.context.aid,
+            },
         )
 
         self.sending_tasks.append(t)
@@ -58,7 +56,7 @@ class PingRole(SimpleReactiveRole):
         self._addr = addr
         self._expect_no_answer = expect_no_answer
 
-    def handle_msg(self, content, meta: Dict[str, Any]):
+    def handle_message(self, content, meta: Dict[str, Any]):
         assert "sender_addr" in meta.keys() and "sender_id" in meta.keys()
         # get host, port and id from sender
         sender_host, sender_port = meta["sender_addr"]
@@ -76,9 +74,9 @@ class PingRole(SimpleReactiveRole):
         super().setup()
         for task in list(
             map(
-                lambda a: DateTimeScheduledTask(
+                lambda a: TimestampScheduledTask(
                     self.send_ping_to_other(a[0], a[1], self.context),
-                    datetime.datetime.now(),
+                    datetime.datetime.now().timestamp(),
                 ),
                 self._addr,
             )

@@ -14,7 +14,7 @@ The core of this API is the scheduler, which is part of every agent. To schedule
      - Description
    * - InstantScheduledTask
      - Executes the coroutine without delay
-   * - DateTimeScheduledTask
+   * - TimestampScheduledTask
      - Executes the coroutine at a specified datetime
    * - PeriodicScheduledTask
      - Executes a coroutine periodically with a static delay between the cycles
@@ -30,18 +30,16 @@ Furthermore there are convenience methods to get rid of the class imports when u
 
         class ScheduleAgent(Agent):
             def __init__(self, container, other_addr, other_id):
-                self.schedule_instant_task(coroutine=self.context.send_message(
+                self.schedule_instant_acl_message(
                     receiver_addr=other_addr,
                     receiver_id=other_id,
-                    content="Hello world!",
-                    create_acl=True)
+                    content="Hello world!")
                 )
                 # equivalent to
-                self.schedule_task(InstantScheduledTask(coroutine=self.context.send_message(
+                self.schedule_instant_acl_message(
                     receiver_addr=other_addr,
                     receiver_id=other_id,
-                    content="Hello world!",
-                    create_acl=True))
+                    content="Hello world!"))
                 )
 
             def handle_message(self, content, meta: Dict[str, Any]):
@@ -66,18 +64,16 @@ Analogues to the normal API there are two different ways, first you create a Sch
 
         class ScheduleAgent(Agent):
             def __init__(self, container, other_addr, other_id):
-                self.schedule_instant_process_task(coroutine_creator=lambda: self.context.send_message(
+                self.schedule_instant_process_task(coroutine_creator=lambda: self.context.send_acl_message(
                     receiver_addr=other_addr,
                     receiver_id=other_id,
-                    content="Hello world!",
-                    create_acl=True)
+                    content="Hello world!")
                 )
                 # equivalent to
-                self.schedule_process_task(InstantScheduledProcessTask(coroutine_creator=lambda: self.context.send_message(
+                self.schedule_process_task(InstantScheduledProcessTask(coroutine_creator=lambda: self.context.send_acl_message(
                     receiver_addr=other_addr,
                     receiver_id=other_id,
-                    content="Hello world!",
-                    create_acl=True))
+                    content="Hello world!"))
                 )
 
             def handle_message(self, content, meta: Dict[str, Any]):
@@ -111,10 +107,9 @@ control how fast or slow time passes within your agent system:
                                          timestamp=self.current_timestamp + 5)
 
         async def send_hello_world(self, receiver_addr, receiver_id):
-            await self.context.send_message(receiver_addr=receiver_addr,
+            await self.context.send_acl_message(receiver_addr=receiver_addr,
                                                receiver_id=receiver_id,
-                                               content='Hello World',
-                                               create_acl=True)
+                                               content='Hello World')
 
         def handle_message(self, content, meta):
             pass
