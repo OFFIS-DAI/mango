@@ -4,7 +4,6 @@ TCPContainer and MQTTContainer
 """
 import asyncio
 import logging
-import warnings
 from typing import Any, Dict, Optional, Tuple, Union
 
 from mango.container.core import Container
@@ -56,9 +55,6 @@ class TCPContainer(Container):
         receiver_addr: Union[str, Tuple[str, int]],
         *,
         receiver_id: Optional[str] = None,
-        create_acl: bool = None,
-        acl_metadata: Optional[Dict[str, Any]] = None,
-        mqtt_kwargs: Dict[str, Any] = None,
         **kwargs,
     ) -> bool:
         """
@@ -67,37 +63,8 @@ class TCPContainer(Container):
         :param content: The content of the message
         :param receiver_addr: Tuple of host, port
         :param receiver_id: The agent id of the receiver
-        :param create_acl: True if an acl message shall be created around the
-            content.
-
-            .. deprecated:: 0.4.0
-                Use 'container.send_acl_message' instead. In the next version this parameter
-                will be dropped entirely.
-        :param acl_metadata: metadata for the acl_header.
-            Ignored if create_acl == False
-
-            .. deprecated:: 0.4.0
-                Use 'container.send_acl_message' instead. In the next version this parameter
-                will be dropped entirely.
-        :param mqtt_kwargs:
-            .. deprecated:: 0.4.0
-                Use 'kwargs' instead. In the next version this parameter
-                will be dropped entirely.
         :param kwargs: Additional parameters to provide protocol specific settings
         """
-        if create_acl is not None or acl_metadata is not None:
-            warnings.warn(
-                "The parameters create_acl and acl_metadata are deprecated and will "
-                "be removed in the next release. Use send_acl_message instead.",
-                DeprecationWarning,
-            )
-        if mqtt_kwargs is not None:
-            warnings.warn(
-                "The parameter mqtt_kwargs is deprecated and will "
-                "be removed in the next release. Use kwargs instead.",
-                DeprecationWarning,
-            )
-
         if isinstance(receiver_addr, str) and ":" in receiver_addr:
             receiver_addr = receiver_addr.split(":")
         elif isinstance(receiver_addr, (tuple, list)) and len(receiver_addr) == 2:
@@ -106,15 +73,7 @@ class TCPContainer(Container):
             logger.warning(f"Address for sending message is not valid;{receiver_addr}")
             return False
 
-        if create_acl is not None and create_acl:
-            message = self._create_acl(
-                content=content,
-                receiver_addr=receiver_addr,
-                receiver_id=receiver_id,
-                acl_metadata=acl_metadata,
-            )
-        else:
-            message = content
+        message = content
 
         if receiver_addr == self.addr:
             if not receiver_id:

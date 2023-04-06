@@ -99,9 +99,6 @@ class Container(ABC):
         receiver_addr: Union[str, Tuple[str, int]],
         *,
         receiver_id: Optional[str] = None,
-        create_acl: bool = None,
-        acl_metadata: Optional[Dict[str, Any]] = None,
-        mqtt_kwargs: Dict[str, Any] = None,
         **kwargs,
     ) -> bool:
         """
@@ -111,26 +108,6 @@ class Container(ABC):
         :param receiver_addr: In case of TCP this is a tuple of host, port
             In case of MQTT this is the topic to publish to.
         :param receiver_id: The agent id of the receiver
-        :param create_acl: True if an acl message shall be created around the
-            content.
-
-            .. deprecated:: 0.4.0
-                Use 'container.send_acl_message' instead. In the next version this parameter
-                will be dropped entirely.
-        :param acl_metadata: metadata for the acl_header.
-            Ignored if create_acl == False
-
-            .. deprecated:: 0.4.0
-                Use 'container.send_acl_message' instead. In the next version this parameter
-                will be dropped entirely.
-        :param mqtt_kwargs: Dict with possible kwargs for publishing to a mqtt broker
-            Possible fields:
-            qos: The quality of service to use for publishing
-            retain: Indicates, weather the retain flag should be set
-            Ignored if connection_type != 'mqtt'
-            .. deprecated:: 0.4.0
-                Use 'kwargs' instead. In the next version this parameter
-                will be dropped entirely.
         :param kwargs: Additional parameters to provide protocol specific settings
         """
         raise NotImplementedError

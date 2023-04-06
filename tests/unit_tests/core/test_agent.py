@@ -45,7 +45,7 @@ async def test_send_message():
     agent2 = MyAgent(c)
 
     await agent.send_message(
-        "", receiver_addr=agent.context.addr, receiver_id=agent2.aid
+        "", receiver_addr=agent._context.addr, receiver_id=agent2.aid
     )
     msg = await agent2.inbox.get()
     _, content, meta = msg
@@ -64,7 +64,7 @@ async def test_send_acl_message():
     agent2 = MyAgent(c)
 
     await agent.send_acl_message(
-        "", receiver_addr=agent.context.addr, receiver_id=agent2.aid
+        "", receiver_addr=agent._context.addr, receiver_id=agent2.aid
     )
     msg = await agent2.inbox.get()
     _, content, meta = msg
@@ -83,7 +83,7 @@ async def test_schedule_message():
     agent2 = MyAgent(c)
 
     agent.schedule_instant_message(
-        "", receiver_addr=agent.context.addr, receiver_id=agent2.aid
+        "", receiver_addr=agent._context.addr, receiver_id=agent2.aid
     )
     msg = await agent2.inbox.get()
     _, content, meta = msg
@@ -102,7 +102,7 @@ async def test_schedule_acl_message():
     agent2 = MyAgent(c)
 
     agent.schedule_instant_acl_message(
-        "", receiver_addr=agent.context.addr, receiver_id=agent2.aid
+        "", receiver_addr=agent._context.addr, receiver_id=agent2.aid
     )
     msg = await agent2.inbox.get()
     _, content, meta = msg
@@ -110,27 +110,4 @@ async def test_schedule_acl_message():
 
     # THEN
     assert agent2.test_counter == 1
-    await c.shutdown()
-
-
-@pytest.mark.asyncio
-async def test_handle_msg_deprecation():
-    class TestAgent(Agent):
-        def __init__(self, container):
-            super().__init__(container)
-            self.incoming_msgs = 0
-            self.received_message = asyncio.Future()
-
-        def handle_msg(self, content, meta):
-            self.incoming_msgs += 1
-            self.received_message.set_result(True)
-
-    c = await create_container(addr=("127.0.0.2", 5555))
-    agent = TestAgent(container=c)
-    with pytest.deprecated_call():
-        await c.send_acl_message(
-            content="", receiver_addr=c.addr, receiver_id=agent.aid
-        )
-        await agent.received_message
-    assert agent.incoming_msgs == 1
     await c.shutdown()

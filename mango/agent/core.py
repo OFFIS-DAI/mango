@@ -6,7 +6,6 @@ Every agent must live in a container. Containers are responsible for making
 """
 import asyncio
 import logging
-import warnings
 from abc import ABC
 from datetime import datetime
 from typing import Any, Dict, Optional, Tuple, Union
@@ -424,16 +423,6 @@ class Agent(ABC, AgentDelegates):
 
         logger.info(f"Agent {self.aid}: start running in container {container.addr}")
 
-    @property
-    def scheduler(self) -> Scheduler:
-        warnings.warn("The use of scheduler is deprecated.", DeprecationWarning)
-        return self._scheduler
-
-    @property
-    def context(self) -> AgentContext:
-        warnings.warn("The use of context is deprecated.", DeprecationWarning)
-        return self._context
-
     def raise_exceptions(self, fut: asyncio.Future):
         """
         Inline function used as a callback to raise exceptions
@@ -457,15 +446,8 @@ class Agent(ABC, AgentDelegates):
             # message should be tuples of (priority, content, meta)
             priority, content, meta = message
             meta["priority"] = priority
-            try:
-                self.handle_message(content=content, meta=meta)
-            except NotImplementedError:
-                self.handle_msg(content=content, meta=meta)
-                warnings.warn(
-                    "The function handle_msg is renamed and is now called handle_message."
-                    "The use of handle_msg will be removed in the next release.",
-                    DeprecationWarning,
-                )
+            
+            self.handle_message(content=content, meta=meta)
 
             # signal to the Queue that the message is handled
             self.inbox.task_done()
@@ -475,22 +457,6 @@ class Agent(ABC, AgentDelegates):
 
         Has to be implemented by the user.
         This method is called when a message is received at the agents inbox.
-        :param content: The deserialized message object
-        :param meta: Meta details of the message. In case of mqtt this dict
-        includes at least the field 'topic'
-        """
-        raise NotImplementedError
-
-    def handle_msg(self, content, meta: Dict[str, Any]):
-        """
-        .. deprecated:: 0.4.0
-            Use 'agent.handle_message' instead. In the next version this method
-            will be dropped entirely, and it will be mandatory to overwrite handle_message.
-
-        This method is called when a message is received.
-        This is a blocking call, if non-blocking message handling is desired,
-        one should call asyncio.create_task() in order to handle more than
-        one message at a time
         :param content: The deserialized message object
         :param meta: Meta details of the message. In case of mqtt this dict
         includes at least the field 'topic'

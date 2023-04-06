@@ -26,8 +26,8 @@ async def test_send_msg():
     mosaik_container = await container_factory.create(
         addr="mosaik_eid_1234", connection_type=MOSAIK_CONNECTION
     )
-    await mosaik_container.send_message(
-        content="test", receiver_addr="eid321", receiver_id="Agent0", create_acl=True
+    await mosaik_container.send_acl_message(
+        content="test", receiver_addr="eid321", receiver_id="Agent0"
     )
     assert len(mosaik_container.message_buffer) == 1
     mosaik_agent_msg: MosaikAgentMessage = mosaik_container.message_buffer[0]
@@ -44,8 +44,8 @@ async def test_step():
     mosaik_container = await container_factory.create(
         addr="mosaik_eid_1234", connection_type=MOSAIK_CONNECTION
     )
-    await mosaik_container.send_message(
-        content="test", receiver_addr="eid321", receiver_id="Agent0", create_acl=True
+    await mosaik_container.send_acl_message(
+        content="test", receiver_addr="eid321", receiver_id="Agent0"
     )
     step_output = await mosaik_container.step(simulation_time=12, incoming_messages=[])
     assert mosaik_container.message_buffer == []
@@ -70,11 +70,10 @@ class ReplyAgent(Agent):
         self.tasks.append(self.schedule_periodic_task(self.send_ping, delay=10))
 
     async def send_ping(self):
-        await self.context.send_message(
+        await self.send_acl_message(
             content=f"ping{self.current_ping}",
             receiver_addr="ping_receiver_addr",
             receiver_id="ping_receiver_id",
-            create_acl=True,
         )
         self.current_ping += 1
 
@@ -82,18 +81,16 @@ class ReplyAgent(Agent):
         self.schedule_instant_task(self.sleep_and_answer(content, meta))
 
     async def sleep_and_answer(self, content, meta):
-        await self.context.send_message(
+        await self.send_acl_message(
             content=f"I received {content}",
             receiver_addr=meta["sender_addr"],
             receiver_id=["sender_id"],
-            create_acl=True,
         )
         await asyncio.sleep(0.1)
-        await self.context.send_message(
+        await self.send_acl_message(
             content=f"Thanks for sending {content}",
             receiver_addr=meta["sender_addr"],
             receiver_id=["sender_id"],
-            create_acl=True,
         )
 
     async def stop_tasks(self):
@@ -194,7 +191,7 @@ class SelfSendAgent(Agent):
         # send message to yourself if necessary
         if self.no_received_msg < self.final_no:
             self.schedule_instant_acl_message(
-                receiver_addr=self.context.addr, receiver_id=self.aid, content=content
+                receiver_addr=self._context.addr, receiver_id=self.aid, content=content
             )
         else:
             self.schedule_instant_acl_message(

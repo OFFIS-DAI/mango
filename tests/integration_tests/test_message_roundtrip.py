@@ -109,7 +109,7 @@ class InitiatorAgent(Agent):
         await asyncio.sleep(0.1)
 
         # send initial message
-        await self.context.send_acl_message(
+        await self.send_acl_message(
             M1,
             self.target,
             receiver_id=self.other_aid,
@@ -119,7 +119,7 @@ class InitiatorAgent(Agent):
         await self.got_reply
 
         # answer to reply
-        await self.context.send_acl_message(
+        await self.send_acl_message(
             M3,
             self.target,
             receiver_id=self.other_aid,
@@ -159,7 +159,7 @@ class ReplierAgent(Agent):
         await self.got_first
 
         # send reply
-        await self.context.send_acl_message(M2, self.target, receiver_id=self.other_aid)
+        await self.send_acl_message(M2, self.target, receiver_id=self.other_aid)
 
         # await reply
         await self.got_second

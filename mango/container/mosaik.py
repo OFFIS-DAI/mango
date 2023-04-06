@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import time
-import warnings
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -68,9 +67,6 @@ class MosaikContainer(Container):
         receiver_addr: Union[str, Tuple[str, int]],
         *,
         receiver_id: Optional[str] = None,
-        create_acl: bool = False,
-        acl_metadata: Optional[Dict[str, Any]] = None,
-        mqtt_kwargs: Dict[str, Any] = None,
         **kwargs,
     ) -> bool:
         """
@@ -79,50 +75,9 @@ class MosaikContainer(Container):
         :param content: The content of the message
         :param receiver_addr: Address if the receiving container
         :param receiver_id: The agent id of the receiver
-        :param create_acl: True if an acl message shall be created around the
-            content.
-
-            .. deprecated:: 0.4.0
-                Use 'container.send_acl_message' instead. In the next version this parameter
-                will be dropped entirely.
-        :param acl_metadata: metadata for the acl_header.
-            Ignored if create_acl == False
-
-            .. deprecated:: 0.4.0
-                Use 'container.send_acl_message' instead. In the next version this parameter
-                will be dropped entirely.
-        :param mqtt_kwargs: Dict with possible kwargs for publishing to a mqtt broker
-            Possible fields:
-            qos: The quality of service to use for publishing
-            retain: Indicates, whether the retain flag should be set
-            Ignored if connection_type != 'mqtt'
-            .. deprecated:: 0.4.0
-                Use 'kwargs' instead. In the next version this parameter
-                will be dropped entirely.
         :param kwargs: Additional parameters to provide protocol specific settings
         """
-        if create_acl is not None or acl_metadata is not None:
-            warnings.warn(
-                "The parameters create_acl and acl_metadata are deprecated and will "
-                "be removed in the next release. Use send_acl_message instead.",
-                DeprecationWarning,
-            )
-        if mqtt_kwargs is not None:
-            warnings.warn(
-                "The parameter mqtt_kwargs is deprecated and will "
-                "be removed in the next release. Use kwargs instead.",
-                DeprecationWarning,
-            )
-
-        if create_acl:
-            message = self._create_acl(
-                content=content,
-                receiver_addr=receiver_addr,
-                receiver_id=receiver_id,
-                acl_metadata=acl_metadata,
-            )
-        else:
-            message = content
+        message = content
 
         if receiver_addr == self.addr:
             if not receiver_id:

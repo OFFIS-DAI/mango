@@ -181,7 +181,7 @@ async def test_create_acl_not_anon():
 
 
 class ExampleAgent(Agent):
-    def handle_msg(self, content, meta):
+    def handle_message(self, content, meta):
         self.content = content
 
 
