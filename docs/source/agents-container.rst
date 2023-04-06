@@ -12,15 +12,15 @@ This includes in particular sending and receiving of messages, but also message 
 Container also help to to speed up message exchange between agents that run on the same physical hardware,
 as data that is exchanged between such agents will not have to be sent through the network.
 
-In mango, a container is created using the classmethod ``mango.core.container.Container.factory``:
+In mango, a container is created using the classmethod ``mango.create_container``:
 
 .. code-block:: python3
 
     @classmethod
-    async def factory(cls, *, connection_type: str = 'tcp', codec: Codec = None, clock: Clock = None,
+    async def create_container(cls, *, connection_type: str = 'tcp', codec: Codec = None, clock: Clock = None,
                       addr: Optional[Union[str, Tuple[str, int]]] = None,
                       proto_msgs_module=None,
-                      mqtt_kwargs: Dict[str, Any] = None):
+                      **kwargs):
 
 The factory method is a coroutine, so it has to be scheduled within a running asyncio loop.
 A simple container, that uses plain tcp for message exchange can be created as follows:
@@ -28,10 +28,10 @@ A simple container, that uses plain tcp for message exchange can be created as f
 .. code-block:: python3
 
     import asyncio
-    from mango.container import Container
+    from mango import create_container
 
     async def get_simple_container():
-        container = await Container.factory(addr=('localhost', 5555))
+        container = await create_container(addr=('localhost', 5555))
         return container
 
     simple_container = asyncio.run(get_simple_container()))
@@ -52,7 +52,7 @@ in this container and cancel running tasks.
 ***************
 mango agents
 ***************
-mango agents can be implemented by inheriting from the abstract class ``mango.core.agent.Agent``.
+mango agents can be implemented by inheriting from the abstract class ``mango.Agent``.
 This class provides basic functionality such as to register the agent at the container or
 to constantly check the inbox for incoming messages.
 Every agent lives in exactly one container and therefore an instance of a container has to be
@@ -60,7 +60,7 @@ provided when :py:meth:`__init__()` of an agent is called.
 Custom agents that inherit from the ``Agent`` class have to call ``super().__init__(container, suggested_aid: str = None)__``
 on initialization.
 This will register the agent at the provided container instance and will assign a unique agent id
-(``self._aid``) to the agent. However, it is possible to suggest an aid by setting the variable ``suggested_aid`` to your aid wish. 
+(``self.aid``) to the agent. However, it is possible to suggest an aid by setting the variable ``suggested_aid`` to your aid wish. 
 The aid is granted if there is no other agent with this id, and if the aid doesn't interfere with the default aid pattern, otherwise 
 the generated aid will be used. To check if the aid is available beforehand, you can use ``container.is_aid_available``.
 It will also create the task to check for incoming messages.

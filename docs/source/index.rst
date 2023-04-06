@@ -25,6 +25,7 @@ Features
 
    installation
    getting_started
+   migration
    tutorial
    agents-container
    message exchange

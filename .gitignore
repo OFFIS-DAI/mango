@@ -103,3 +103,6 @@ mango/mango/share
 # rtd
 docs/build/
 docs/source/_build
+
+# Git
+*.orig

@@ -2,67 +2,79 @@
 # source: msg.proto
 
 import sys
-_b=sys.version_info[0]<3 and (lambda x:x) or (lambda x:x.encode('latin1'))
+
+_b = sys.version_info[0] < 3 and (lambda x: x) or (lambda x: x.encode("latin1"))
 from google.protobuf import descriptor as _descriptor
 from google.protobuf import message as _message
 from google.protobuf import reflection as _reflection
 from google.protobuf import symbol_database as _symbol_database
+
 # @@protoc_insertion_point(imports)
 
 _sym_db = _symbol_database.Default()
 
 
-
-
 DESCRIPTOR = _descriptor.FileDescriptor(
-  name='msg.proto',
-  package='',
-  syntax='proto3',
-  serialized_options=None,
-  serialized_pb=_b('\n\tmsg.proto\"\x18\n\x05MyMsg\x12\x0f\n\x07\x63ontent\x18\x01 \x01(\x0c\x62\x06proto3')
+    name="msg.proto",
+    package="",
+    syntax="proto3",
+    serialized_options=None,
+    serialized_pb=_b(
+        '\n\tmsg.proto"\x18\n\x05MyMsg\x12\x0f\n\x07\x63ontent\x18\x01 \x01(\x0c\x62\x06proto3'
+    ),
 )
-
-
 
 
 _MYMSG = _descriptor.Descriptor(
-  name='MyMsg',
-  full_name='MyMsg',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='content', full_name='MyMsg.content', index=0,
-      number=1, type=12, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b(""),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-  ],
-  serialized_options=None,
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=13,
-  serialized_end=37,
+    name="MyMsg",
+    full_name="MyMsg",
+    filename=None,
+    file=DESCRIPTOR,
+    containing_type=None,
+    fields=[
+        _descriptor.FieldDescriptor(
+            name="content",
+            full_name="MyMsg.content",
+            index=0,
+            number=1,
+            type=12,
+            cpp_type=9,
+            label=1,
+            has_default_value=False,
+            default_value=_b(""),
+            message_type=None,
+            enum_type=None,
+            containing_type=None,
+            is_extension=False,
+            extension_scope=None,
+            serialized_options=None,
+            file=DESCRIPTOR,
+        ),
+    ],
+    extensions=[],
+    nested_types=[],
+    enum_types=[],
+    serialized_options=None,
+    is_extendable=False,
+    syntax="proto3",
+    extension_ranges=[],
+    oneofs=[],
+    serialized_start=13,
+    serialized_end=37,
 )
 
-DESCRIPTOR.message_types_by_name['MyMsg'] = _MYMSG
+DESCRIPTOR.message_types_by_name["MyMsg"] = _MYMSG
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
-MyMsg = _reflection.GeneratedProtocolMessageType('MyMsg', (_message.Message,), dict(
-  DESCRIPTOR = _MYMSG,
-  __module__ = 'msg_pb2'
-  # @@protoc_insertion_point(class_scope:MyMsg)
-  ))
+MyMsg = _reflection.GeneratedProtocolMessageType(
+    "MyMsg",
+    (_message.Message,),
+    dict(
+        DESCRIPTOR=_MYMSG,
+        __module__="msg_pb2"
+        # @@protoc_insertion_point(class_scope:MyMsg)
+    ),
+)
 _sym_db.RegisterMessage(MyMsg)
 
 

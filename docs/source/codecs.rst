@@ -14,6 +14,15 @@ New known types can be added to a codec with the ``add_serializer`` method.
 This method expects a type together with a serialization method and a deserialization method that translate the object into a format
 the codec can handle (for example a json-serializable string for the json codec).
 
+.. warning::
+    When using the json codec certain types can not be exactly serialized and deserialized between containers.
+    One example are ``tuple`` and classes derived from it like ``namedtuple``. The core of the json codec uses
+    pythons json encoder [1] for any type that this encoder can handle by itself. Tuples are translated to
+    json arrays without any further information by this encoder. Consequently, a receiving container will only
+    see a json array and deserialize it to a python list.
+
+    [1]: https://docs.python.org/3/library/json.html#json.JSONEncoder
+
 Quickstart
 ###########
 
@@ -80,7 +89,7 @@ We have to make the type known to the codec to use it:
     abc 123
     abc 123
 
-All that is left to do now is to pass our codec to the container. This is done during container creation in the ``factory`` method.
+All that is left to do now is to pass our codec to the container. This is done during container creation in the ``create_container`` method.
 
 .. code-block:: python3
 
@@ -89,7 +98,7 @@ All that is left to do now is to pass our codec to the container. This is done d
             super().__init__(container)
 
         def handle_message(self, content, meta):
-            print(f"{self._aid} received a message with content {content} and meta f{meta}")
+            print(f"{self.aid} received a message with content {content} and meta f{meta}")
             if isinstance(content, MyClass):
                 print(content.x)
                 print(content.y)
@@ -101,8 +110,8 @@ All that is left to do now is to pass our codec to the container. This is done d
 
         # codecs can be passed directly to the container
         # if no codec is passed a new instance of JSON() is created
-        sending_container = await Container.factory(addr=("localhost", 5556), codec=codec)
-        receiving_container = await Container.factory(addr=("localhost", 5555), codec=codec)
+        sending_container = await create_container(addr=("localhost", 5556), codec=codec)
+        receiving_container = await create_container(addr=("localhost", 5555), codec=codec)
         receiving_agent = SimpleReceivingAgent(receiving_container)
 
         # agents can now directly pass content of type MyClass to each other

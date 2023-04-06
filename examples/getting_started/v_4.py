@@ -1,13 +1,13 @@
 import asyncio
-from mango.core.agent import Agent
-from mango.core.container import Container
+
+from mango import Agent, create_container
 
 
 class RepeatingAgent(Agent):
     def __init__(self, container):
         # We must pass a ref. to the container to "mango.Agent":
         super().__init__(container)
-        print(f"Hello world! My id is {self._aid}.")
+        print(f"Hello world! My id is {self.aid}.")
 
     def handle_message(self, content, meta):
         # This method defines what the agent will do with incoming messages.
@@ -28,10 +28,12 @@ class HelloWorldAgent(Agent):
 
 
 async def run_container_and_two_agents(first_addr, second_addr):
-    first_container = await Container.factory(addr=first_addr)
-    second_container = await Container.factory(addr=second_addr)
+    first_container = await create_container(addr=first_addr)
+    second_container = await create_container(addr=second_addr)
     first_agent = RepeatingAgent(first_container)
-    second_agent = HelloWorldAgent(second_container, first_container.addr, first_agent.aid)
+    second_agent = HelloWorldAgent(
+        second_container, first_container.addr, first_agent.aid
+    )
     await asyncio.sleep(1)
     await first_agent.shutdown()
     await second_agent.shutdown()
@@ -39,6 +41,9 @@ async def run_container_and_two_agents(first_addr, second_addr):
     await second_container.shutdown()
 
 
-if __name__ == '__main__':
-    asyncio.run(run_container_and_two_agents(
-        first_addr=('localhost', 5555), second_addr=('localhost', 5556)))
+if __name__ == "__main__":
+    asyncio.run(
+        run_container_and_two_agents(
+            first_addr=("localhost", 5555), second_addr=("localhost", 5556)
+        )
+    )

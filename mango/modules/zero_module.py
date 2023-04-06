@@ -1,14 +1,12 @@
+import pickle
+import threading
+import time
 from abc import ABC
 
 import zmq
-import threading
-import pickle
-import time
-
 
 
 class ZeroModule(ABC):
-
     def __init__(self, *, name: str, subscr_topics, pub_topics, broker):
         """
 
@@ -60,7 +58,7 @@ class ZeroModule(ABC):
 
     def publish_mq_message(self, topic, payload):
         pl = pickle.dumps(payload)
-        self.pub_socket.send_multipart([topic.encode('utf-8'), pl])
+        self.pub_socket.send_multipart([topic.encode("utf-8"), pl])
 
     # the actual binding to whatever signature the frameworks callbacks have happens here
     def bind_callback(self, func, client, userdata, message):

@@ -1,4 +1,4 @@
-from mango.core.agent import Agent
+from mango import Agent
 
 
 class HelloWorldAgent(Agent):
@@ -12,4 +12,3 @@ class HelloWorldAgent(Agent):
 
     def handle_message(self, content, meta):
         print(f"Received a message with the following content: {content}")
-        

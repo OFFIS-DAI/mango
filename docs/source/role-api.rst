@@ -14,7 +14,7 @@ The role context is the API to the environment of the role. It provides function
 ********
 The Role
 ********
-To implement a role you have to extend the abstract class ``mango.role.api.Role``. Concrete instances of implementations can be assigned to the general ``mango.role.core.RoleAgent``.
+To implement a role you have to extend the abstract class ``mango.Role``. Concrete instances of implementations can be assigned to the general ``mango.RoleAgent``.
 
 Lifecycle
 *********

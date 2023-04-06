@@ -1,13 +1,13 @@
 import asyncio
-from mango.core.agent import Agent
-from mango.core.container import Container
+
+from mango import Agent, create_container
 
 
 class RepeatingAgent(Agent):
     def __init__(self, container):
         # We must pass a ref. to the container to "mango.Agent":
         super().__init__(container)
-        print(f"Hello world! My id is {self._aid}.")
+        print(f"Hello world! My id is {self.aid}.")
 
     def handle_message(self, content, meta):
         # This method defines what the agent will do with incoming messages.
@@ -15,9 +15,10 @@ class RepeatingAgent(Agent):
 
 
 async def run_container_and_agent(addr, duration):
-    first_container = await Container.factory(addr=addr)
+    first_container = await create_container(addr=addr)
     RepeatingAgent(first_container)
     await asyncio.sleep(duration)
     await first_container.shutdown()
 
-asyncio.run(run_container_and_agent(addr=('localhost', 5555), duration=3))
+
+asyncio.run(run_container_and_agent(addr=("localhost", 5555), duration=3))

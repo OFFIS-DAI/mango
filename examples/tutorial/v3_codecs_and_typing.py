@@ -1,9 +1,8 @@
 import asyncio
 from dataclasses import dataclass
 
-from mango.core.agent import Agent
-from mango.core.container import Container
 import mango.messages.codecs as codecs
+from mango import Agent, create_container
 
 """
 In example 2 we created some basic agent functionality and established inter-container communication.
@@ -20,8 +19,8 @@ This example covers:
 PV_CONTAINER_ADDRESS = ("localhost", 5555)
 CONTROLLER_CONTAINER_ADDRESS = ("localhost", 5556)
 PV_FEED_IN = {
-    'PV Agent 0': 2.0,
-    'PV Agent 1': 1.0,
+    "PV Agent 0": 2.0,
+    "PV Agent 1": 1.0,
 }
 
 
@@ -63,14 +62,14 @@ class PVAgent(Agent):
         elif isinstance(content, SetMaxFeedInMsg):
             self.handle_set_feed_in_max(content.max_feed_in, sender_addr, sender_id)
         else:
-            print(f"{self._aid}: Received a message of unknown type {type(content)}")
+            print(f"{self.aid}: Received a message of unknown type {type(content)}")
 
     def handle_ask_feed_in(self, sender_addr, sender_id):
         reported_feed_in = PV_FEED_IN[self.aid]  # PV_FEED_IN must be defined at the top
         msg = FeedInReplyMsg(reported_feed_in)
 
         self.schedule_instant_task(
-            self._container.send_acl_message(
+            self.context.send_acl_message(
                 content=msg,
                 receiver_addr=sender_addr,
                 receiver_id=sender_id,
@@ -79,11 +78,11 @@ class PVAgent(Agent):
 
     def handle_set_feed_in_max(self, max_feed_in, sender_addr, sender_id):
         self.max_feed_in = float(max_feed_in)
-        print(f"{self._aid}: Limiting my feed_in to {max_feed_in}")
+        print(f"{self.aid}: Limiting my feed_in to {max_feed_in}")
         msg = MaxFeedInAck()
 
         self.schedule_instant_task(
-            self._container.send_acl_message(
+            self.context.send_acl_message(
                 content=msg,
                 receiver_addr=sender_addr,
                 receiver_id=sender_id,
@@ -106,7 +105,7 @@ class ControllerAgent(Agent):
         elif isinstance(content, MaxFeedInAck):
             self.handle_set_max_ack()
         else:
-            print(f"{self._aid}: Received a message of unknown type {type(content)}")
+            print(f"{self.aid}: Received a message of unknown type {type(content)}")
 
     def handle_feed_in_reply(self, feed_in_value):
         self.reported_feed_ins.append(float(feed_in_value))
@@ -133,11 +132,11 @@ class ControllerAgent(Agent):
         # ask pv agent feed-ins
         for addr, aid in self.known_agents:
             msg = AskFeedInMsg()
-            acl_meta = {"sender_addr": self._container.addr, "sender_id": self._aid}
+            acl_meta = {"sender_addr": self.context.addr, "sender_id": self.aid}
 
             # alternatively we could call send_acl_message here directly and await it
             self.schedule_instant_task(
-                self._container.send_acl_message(
+                self.context.send_acl_message(
                     content=msg,
                     receiver_addr=addr,
                     receiver_id=aid,
@@ -149,16 +148,16 @@ class ControllerAgent(Agent):
         await self.reports_done
 
         # limit both pv agents to the smaller ones feed-in
-        print(f"{self._aid} received feed_ins: {self.reported_feed_ins}")
+        print(f"{self.aid} received feed_ins: {self.reported_feed_ins}")
         min_feed_in = min(self.reported_feed_ins)
 
         for addr, aid in self.known_agents:
             msg = SetMaxFeedInMsg(min_feed_in)
-            acl_meta = {"sender_addr": self._container.addr, "sender_id": self._aid}
+            acl_meta = {"sender_addr": self.context.addr, "sender_id": self.aid}
 
             # alternatively we could call send_acl_message here directly and await it
             self.schedule_instant_task(
-                self._container.send_acl_message(
+                self.context.send_acl_message(
                     content=msg,
                     receiver_addr=addr,
                     receiver_id=aid,
@@ -186,21 +185,23 @@ async def main():
     my_codec.add_serializer(*FeedInReplyMsg.__serializer__())
     my_codec.add_serializer(*MaxFeedInAck.__serializer__())
 
-    pv_container = await Container.factory(addr=PV_CONTAINER_ADDRESS, codec=my_codec)
+    pv_container = await create_container(addr=PV_CONTAINER_ADDRESS, codec=my_codec)
 
-    controller_container = await Container.factory(
+    controller_container = await create_container(
         addr=CONTROLLER_CONTAINER_ADDRESS, codec=my_codec
     )
 
-    pv_agent_0 = PVAgent(pv_container, suggested_aid='PV Agent 0')
-    pv_agent_1 = PVAgent(pv_container, suggested_aid='PV Agent 1')
+    pv_agent_0 = PVAgent(pv_container, suggested_aid="PV Agent 0")
+    pv_agent_1 = PVAgent(pv_container, suggested_aid="PV Agent 1")
 
     known_agents = [
         (PV_CONTAINER_ADDRESS, pv_agent_0.aid),
         (PV_CONTAINER_ADDRESS, pv_agent_1.aid),
     ]
 
-    controller_agent = ControllerAgent(controller_container, known_agents, suggested_aid='Controller')
+    controller_agent = ControllerAgent(
+        controller_container, known_agents, suggested_aid="Controller"
+    )
     await controller_agent.run()
 
     # always properly shut down your containers

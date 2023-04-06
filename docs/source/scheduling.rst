@@ -14,7 +14,7 @@ The core of this API is the scheduler, which is part of every agent. To schedule
      - Description
    * - InstantScheduledTask
      - Executes the coroutine without delay
-   * - DateTimeScheduledTask
+   * - TimestampScheduledTask
      - Executes the coroutine at a specified datetime
    * - PeriodicScheduledTask
      - Executes a coroutine periodically with a static delay between the cycles
@@ -25,26 +25,24 @@ Furthermore there are convenience methods to get rid of the class imports when u
 
 .. code-block:: python3
 
-    from mango.core.agent import Agent
+    from mango import Agent
     from mango.util.scheduling import InstantScheduledTask
 
         class ScheduleAgent(Agent):
             def __init__(self, container, other_addr, other_id):
-                self.schedule_instant_task(coroutine=self._container.send_message(
+                self.schedule_instant_acl_message(
                     receiver_addr=other_addr,
                     receiver_id=other_id,
-                    content="Hello world!",
-                    create_acl=True)
+                    content="Hello world!")
                 )
                 # equivalent to
-                self.schedule_task(InstantScheduledTask(coroutine=self._container.send_message(
+                self.schedule_instant_acl_message(
                     receiver_addr=other_addr,
                     receiver_id=other_id,
-                    content="Hello world!",
-                    create_acl=True))
+                    content="Hello world!"))
                 )
 
-            def handle_msg(self, content, meta: Dict[str, Any]):
+            def handle_message(self, content, meta: Dict[str, Any]):
                 pass
 
 
@@ -61,26 +59,24 @@ Analogues to the normal API there are two different ways, first you create a Sch
 
 .. code-block:: python3
 
-    from mango.core.agent import Agent
+    from mango import Agent
     from mango.util.scheduling import InstantScheduledProcessTask
 
         class ScheduleAgent(Agent):
             def __init__(self, container, other_addr, other_id):
-                self.schedule_instant_process_task(coroutine_creator=lambda: self._container.send_message(
+                self.schedule_instant_process_task(coroutine_creator=lambda: self.context.send_acl_message(
                     receiver_addr=other_addr,
                     receiver_id=other_id,
-                    content="Hello world!",
-                    create_acl=True)
+                    content="Hello world!")
                 )
                 # equivalent to
-                self.schedule_process_task(InstantScheduledProcessTask(coroutine_creator=lambda: self._container.send_message(
+                self.schedule_process_task(InstantScheduledProcessTask(coroutine_creator=lambda: self.context.send_acl_message(
                     receiver_addr=other_addr,
                     receiver_id=other_id,
-                    content="Hello world!",
-                    create_acl=True))
+                    content="Hello world!"))
                 )
 
-            def handle_msg(self, content, meta: Dict[str, Any]):
+            def handle_message(self, content, meta: Dict[str, Any]):
                 pass
 
 *******************************
@@ -99,8 +95,8 @@ control how fast or slow time passes within your agent system:
 .. code-block:: python3
 
     import asyncio
-    from mango.core.container import Container
-    from mango.core.agent import Agent
+    from mango import create_container
+    from mango import Agent
     from mango.util.clock import AsyncioClock, ExternalClock
 
 
@@ -111,12 +107,11 @@ control how fast or slow time passes within your agent system:
                                          timestamp=self.current_timestamp + 5)
 
         async def send_hello_world(self, receiver_addr, receiver_id):
-            await self._container.send_message(receiver_addr=receiver_addr,
+            await self.context.send_acl_message(receiver_addr=receiver_addr,
                                                receiver_id=receiver_id,
-                                               content='Hello World',
-                                               create_acl=True)
+                                               content='Hello World')
 
-        def handle_msg(self, content, meta):
+        def handle_message(self, content, meta):
             pass
 
 
@@ -125,7 +120,7 @@ control how fast or slow time passes within your agent system:
             super().__init__(container)
             self.wait_for_reply = asyncio.Future()
 
-        def handle_msg(self, content, meta):
+        def handle_message(self, content, meta):
             print(f'Received a message with the following content {content}.')
             self.wait_for_reply.set_result(True)
 
@@ -134,7 +129,7 @@ control how fast or slow time passes within your agent system:
         clock = AsyncioClock()
         # clock = ExternalClock(start_time=1000)
         addr = ('127.0.0.1', 5555)
-        c = await Container.factory(addr=addr, clock=clock)
+        c = await create_container(addr=addr, clock=clock)
         receiver = Receiver(c)
         caller = Caller(c, addr, receiver.aid)
         await receiver.wait_for_reply
@@ -157,7 +152,7 @@ If you comment in the ExternalClock and change your main() as follows, the progr
         clock = ExternalClock(start_time=1000)
         addr = ('127.0.0.1', 5555)
 
-        c = await Container.factory(addr=addr, clock=clock)
+        c = await create_container(addr=addr, clock=clock)
         receiver = Receiver(c)
         caller = Caller(c, addr, receiver.aid)
         if isinstance(clock, ExternalClock):

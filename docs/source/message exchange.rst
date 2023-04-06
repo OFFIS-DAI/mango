@@ -32,14 +32,14 @@ A simple agent, that just prints the content and meta information of incoming me
 
 .. code-block:: python3
 
-    from mango.core.agent import Agent
+    from mango import Agent
 
     class SimpleReceivingAgent(Agent):
         def __init__(self, container):
             super().__init__(container)
 
         def handle_message(self, content, meta):
-            print(f'{self._aid} received a message with content {content} and'
+            print(f'{self.aid} received a message with content {content} and'
                 f'meta {meta}')
 
 
@@ -63,8 +63,7 @@ has to be provided.
 This will appear as the `content` argument at the receivers handle_message() method.
 
 
-If you want to send an ACL-message, you can either call ``container._create_acl`` and pass its result to ``container.send_message`` as content, 
-or you can use the convenience method ``container.send_acl_message``, which will also use ``create_acl`` internally.
+If you want to send an ACL-message use the method ``container.send_acl_message``, which will wrap the content in a ACLMessage using ``create_acl`` internally.
 
 .. code-block:: python3
 

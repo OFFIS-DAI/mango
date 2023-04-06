@@ -8,7 +8,7 @@
 """
 import pickle
 from enum import Enum
-from typing import Dict, Any
+from typing import Any, Dict
 
 from ..messages.acl_message_pb2 import ACLMessage as ACLProto
 

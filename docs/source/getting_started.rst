@@ -13,14 +13,14 @@ all messages it receives:
 
 .. code-block:: python3
 
-    from mango.core.agent import Agent
+    from mango import Agent
 
 
     class RepeatingAgent(Agent):
         def __init__(self, container):
             # We must pass a reference of the container to "mango.Agent":
             super().__init__(container)
-            print(f"Hello world! My id is {self._aid}.")
+            print(f"Hello world! My id is {self.aid}.")
 
         def handle_message(self, content, meta):
             # This method defines what the agent will do with incoming messages.
@@ -40,14 +40,14 @@ found in :doc:`Agents and container<agents-container>`
 
 .. code-block:: python3
 
-    from mango.core.container import Container
+    from mango import create_container
     # Containers need to be started via a factory function.
     # This method is a coroutine so it needs to be called from a coroutine using the
     # await statement
     async def get_container():
-        return await Container.factory(addr=('localhost', 5555))
+        return await create_container(addr=('localhost', 5555))
 
-This is how a container is created. Since the method :py:meth:`Container.factory()` is a
+This is how a container is created. Since the method :py:meth:`create_container()` is a
 coroutine__ we need to await its result.
 
 __ https://docs.python.org/3.10/library/asyncio-task.html
@@ -64,15 +64,15 @@ then shutdown the container:
 .. code-block:: python3
 
     import asyncio
-    from mango.core.agent import Agent
-    from mango.core.container import Container
+    from mango import Agent
+    from mango import create_container
 
 
     class RepeatingAgent(Agent):
         def __init__(self, container):
             # We must pass a ref. to the container to "mango.Agent":
             super().__init__(container)
-            print(f"Hello world! My id is {self._aid}.")
+            print(f"Hello world! My id is {self.aid}.")
 
         def handle_message(self, content, meta):
             # This method defines what the agent will do with incoming messages.
@@ -80,7 +80,7 @@ then shutdown the container:
 
 
     async def run_container_and_agent(addr, duration):
-        first_container = await Container.factory(addr=addr)
+        first_container = await create_container(addr=addr)
         first_agent = RepeatingAgent(first_container)
         await asyncio.sleep(duration)
         await first_container.shutdown()
@@ -100,12 +100,12 @@ to another agent:
 
 .. code-block:: python3
 
-    from mango.core.agent import Agent
+    from mango import Agent
 
         class HelloWorldAgent(Agent):
             def __init__(self, container, other_addr, other_id):
                 super().__init__(container)
-                self.schedule_instant_task(coroutine=self._container.send_acl_message(
+                self.schedule_instant_task(coroutine=self.context.send_acl_message(
                     receiver_addr=other_addr,
                     receiver_id=other_id,
                     content="Hello world!")
@@ -125,15 +125,15 @@ a RepeatingAgent and let them run.
 .. code-block:: python3
 
     import asyncio
-    from mango.core.agent import Agent
-    from mango.core.container import Container
+    from mango import Agent
+    from mango import create_container
 
 
     class RepeatingAgent(Agent):
         def __init__(self, container):
             # We must pass a ref. to the container to "mango.Agent":
             super().__init__(container)
-            print(f"Hello world! My id is {self._aid}.")
+            print(f"Hello world! My id is {self.aid}.")
 
         def handle_message(self, content, meta):
             # This method defines what the agent will do with incoming messages.
@@ -154,8 +154,8 @@ a RepeatingAgent and let them run.
 
 
     async def run_container_and_two_agents(first_addr, second_addr):
-        first_container = await Container.factory(addr=first_addr)
-        second_container = await Container.factory(addr=second_addr)
+        first_container = await create_container(addr=first_addr)
+        second_container = await create_container(addr=second_addr)
         first_agent = RepeatingAgent(first_container)
         second_agent = HelloWorldAgent(second_container, first_container.addr, first_agent.aid)
         await asyncio.sleep(1)
