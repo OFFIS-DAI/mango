@@ -159,7 +159,7 @@ class MQTTContainer(Container):
                 receiver = self._agents[receiver_id]
                 await receiver.inbox.put((priority, content, meta))
             else:
-                logger.warning(f"Receiver ID is unknown;{receiver_id}")
+                logger.warning("Receiver ID is unknown;%s", receiver_id)
         else:
             # no inbox topic. Check who has subscribed the topic.
             receivers = set()
@@ -227,7 +227,7 @@ class MQTTContainer(Container):
         :return:
         """
         encoded_message = self.codec.encode(message)
-        logger.debug(f"Sending message;{message};{topic}")
+        logger.debug("Sending message;%s;%s", message, topic)
         self.mqtt_client.publish(topic, encoded_message)
 
     async def subscribe_for_agent(
