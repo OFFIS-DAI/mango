@@ -111,7 +111,7 @@ to another agent:
                     content="Hello world!")
                 )
 
-            def handle_messafe(self, content, meta):
+            def handle_message(self, content, meta):
                 print(f"Received a message with the following content: {content}")
 
 We are using the scheduling API, which is explained in further detail in the section :doc:`scheduling`.

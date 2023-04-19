@@ -49,8 +49,12 @@ Linting
 
 Another approach to improve the code quality is static code analysis, or better known as linting. Linting is an easy to set up possibility to make sure that a certain code standard is fulfilled. There are many useful rules, which can be checked automatically, so we have another line of defense and spare some time when reviewing. 
 
-
 Formatting
 *****************
 
 The project is formatted using black + isort with default settings.
+
+```bash
+isort mango examples tests
+black mango examples tests
+```

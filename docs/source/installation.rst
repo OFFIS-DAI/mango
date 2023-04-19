@@ -21,16 +21,19 @@ Once you have created a virtual environment you can just run pip__ to install it
 __ https://pip.pypa.io/en/stable/
 
 ..
-    Installation from source
-    -----------------------
-    **TODO write this section**
+Installation from source
+-----------------------
+To install from source, simply check out this repository and install in editable mode using pip:
 
+.. code-block:: console
+
+    $ pip install -e .
 
 Using a local message broker
 -----------------------
 If you want to make use of the functional mqtt modules to modularize your agent,
 you must have a local message broker running on your system.
-We recommend Mosquitto__. On Ubuntu it can be installed as follows:
+We recommend Mosquitto__. On Debian/Ubuntu it can be installed as follows:
 
 .. code-block:: console
 
