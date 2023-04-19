@@ -77,6 +77,17 @@ class AgentDelegates:
         self._context: AgentContext = context
         self._scheduler: Scheduler = scheduler
 
+    @property
+    def current_timestamp(self) -> float:
+        """
+        Method that returns the current unix timestamp given the clock within the container
+        """
+        return self._context.current_timestamp
+
+    @property
+    def addr(self):
+        return self._context.addr
+
     async def send_message(
         self,
         content,
