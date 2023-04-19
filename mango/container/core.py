@@ -17,7 +17,7 @@ class Container(ABC):
     """Superclass for a mango container"""
 
     def __init__(
-        self, *, addr, name: str, codec, loop, clock: Clock, copy_internal_messages=True
+        self, *, addr, name: str, codec, loop, clock: Clock, copy_internal_messages=False
     ):
         self.name: str = name
         self.addr = addr
