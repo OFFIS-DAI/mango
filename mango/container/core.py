@@ -78,7 +78,7 @@ class Container(ABC):
         else:
             aid = suggested_aid
         self._agents[aid] = agent
-        logger.info(f"Successfully registered agent;{aid}")
+        logger.info("Successfully registered agent;%s", aid)
         return aid
 
     def deregister_agent(self, aid):
@@ -261,7 +261,7 @@ class Container(ABC):
             receiver = self._agents[receiver_id]
             await receiver.inbox.put((priority, content, meta))
         else:
-            logger.warning(f"Received a message for an unknown receiver;{receiver_id}")
+            logger.warning("Received a message for an unknown receiver;%s", receiver_id)
 
     async def shutdown(self):
         """Shutdown all agents in the container and the container itself"""
