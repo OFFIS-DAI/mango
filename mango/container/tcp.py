@@ -4,8 +4,8 @@ TCPContainer and MQTTContainer
 """
 import asyncio
 import logging
-import warnings
-from typing import Any, Dict, Optional, Tuple, Union
+import time
+from typing import Optional, Tuple, Union
 
 from mango.container.core import Container
 
@@ -14,6 +14,72 @@ from ..util.clock import Clock
 from .protocol import ContainerProtocol
 
 logger = logging.getLogger(__name__)
+
+TCP_CONNECTION_TTL = "tcp_connection_ttl"
+TCP_MAX_CONNECTIONS_PER_TARGET = "tcp_max_connections_per_target"
+
+
+class TCPConnectionPool:
+    def __init__(
+        self, asyncio_loop, ttl_in_sec: int = 30, max_connections_per_target: int = 10
+    ) -> None:
+        self._loop = asyncio_loop
+        self._available_connections = {}
+        self._connection_counts = {}
+        self._ttl_in_sec = ttl_in_sec
+        self._max_connections_per_target = max_connections_per_target
+
+    async def obtain_connection(
+        self, host: str, port: int, protocol: ContainerProtocol
+    ):
+        addr_key = (host, port)
+
+        # maintaining connections
+        for addr_key, queue in self._available_connections.items():
+            if queue.qsize() > 0:
+                sec_elapsed = time.time() - queue.get_nowait()[1]
+                if sec_elapsed > self._ttl_in_sec:
+                    self._connection_counts[addr_key] -= 1
+                    connection = (await queue.get())[0]
+                    await connection.shutdown()
+
+        if addr_key not in self._available_connections:
+            self._available_connections[addr_key] = asyncio.Queue(
+                self._max_connections_per_target
+            )
+            self._connection_counts[addr_key] = 0
+
+        # only creat new ones if the max connections number won't be exceeded
+        if (
+            self._available_connections[addr_key].empty()
+            and self._connection_counts[addr_key] < self._max_connections_per_target
+        ):
+            self._connection_counts[addr_key] += 1
+            await self._available_connections[addr_key].put(
+                (
+                    await self._loop.create_connection(
+                        lambda: protocol,
+                        host,
+                        protocol,
+                    ),
+                    time.time(),
+                )
+            )
+
+        # if the queue is empty this will wait until a connection is available again
+        return self._available_connections[addr_key].get()
+
+    def release_connection(self, host: str, port: int, connection):
+        addr_key = (host, port)
+
+        asyncio.create_task(self._available_connections[addr_key].put(connection))
+
+    async def shutdown(self):
+        # maintaining connections
+        for _, queue in self._available_connections.items():
+            while not queue.empty():
+                connection = (await queue.get())[0]
+                await connection.shutdown()
 
 
 class TCPContainer(Container):
@@ -49,6 +115,11 @@ class TCPContainer(Container):
 
         self.server = None  # will be set within the factory method
         self.running = True
+        self._tcp_connection_pool = TCPConnectionPool(
+            loop,
+            ttl_in_sec=kwargs.get(TCP_CONNECTION_TTL, 30),
+            max_connections_per_target=kwargs.get(TCP_MAX_CONNECTIONS_PER_TARGET, 10),
+        )
 
     async def send_message(
         self,
@@ -105,27 +176,29 @@ class TCPContainer(Container):
         """
         if addr is None or not isinstance(addr, (tuple, list)) or len(addr) != 2:
             logger.warning(
-                f"Sending external message not successful, invalid address;{str(addr)}"
+                "Sending external message not successful, invalid address; %s",
+                str(addr),
             )
             return False
 
         try:
-            transport, protocol = await self.loop.create_connection(
+            _, protocol = await self._tcp_connection_pool.obtain_connection(
+                addr[0],
+                addr[1],
                 lambda: ContainerProtocol(
                     container=self, loop=self.loop, codec=self.codec
                 ),
-                addr[0],
-                addr[1],
             )
-            logger.debug(f"Connection established to addr;{str(addr)}")
+            logger.debug("Connection established to addr; %s", str(addr))
 
             protocol.write(self.codec.encode(message))
 
-            logger.debug(f"Message sent to addr;{str(addr)}")
-            await protocol.shutdown()
+            logger.debug("Message sent to addr; %s", str(addr))
+
+            self._tcp_connection_pool.release_connection(addr[0], addr[1], protocol)
         except OSError:
             logger.warning(
-                f"Could not establish connection to receiver of a message;{str(addr)}"
+                "Could not establish connection to receiver of a message; %s", str(addr)
             )
             return False
         return True
@@ -135,5 +208,6 @@ class TCPContainer(Container):
         calls shutdown() from super class Container and closes the server
         """
         await super().shutdown()
+        self._tcp_connection_pool.shutdown()
         self.server.close()
         await self.server.wait_closed()
