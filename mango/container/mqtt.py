@@ -133,7 +133,7 @@ class MQTTContainer(Container):
         content = None
 
         decoded = self.codec.decode(payload)
-        if isinstance(content, ACLMessage):
+        if isinstance(decoded, ACLMessage):
             content, meta = decoded.split_content_and_meta()
         else:
             content = decoded
