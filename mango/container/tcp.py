@@ -70,7 +70,7 @@ class TCPContainer(Container):
         elif isinstance(receiver_addr, (tuple, list)) and len(receiver_addr) == 2:
             receiver_addr = tuple(receiver_addr)
         else:
-            logger.warning(f"Address for sending message is not valid;{receiver_addr}")
+            logger.warning("Address for sending message is not valid;%s", receiver_addr)
             return False
 
         message = content
@@ -84,7 +84,7 @@ class TCPContainer(Container):
             receiver = self._agents.get(receiver_id, None)
             if receiver is None:
                 logger.warning(
-                    f"Sending internal message not successful, receiver id unknown;{receiver_id}"
+                    "Sending internal message not successful, receiver id unknown;%s", receiver_id
                 )
                 return False
             success = self._send_internal_message(
@@ -116,15 +116,15 @@ class TCPContainer(Container):
                 addr[0],
                 addr[1],
             )
-            logger.debug(f"Connection established to addr;{str(addr)}")
+            logger.debug("Connection established to addr;{str(addr)}")
 
             protocol.write(self.codec.encode(message))
 
-            logger.debug(f"Message sent to addr;{str(addr)}")
+            logger.debug("Message sent to addr;%s", addr)
             await protocol.shutdown()
         except OSError:
             logger.warning(
-                f"Could not establish connection to receiver of a message;{str(addr)}"
+                "Could not establish connection to receiver of a message;%s", addr
             )
             return False
         return True

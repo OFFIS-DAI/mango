@@ -54,8 +54,6 @@ class MQTTContainer(Container):
         self.inbox_topic: Optional[str] = addr
         # dict mapping additionally subscribed topics to a set of aids
         self.additional_subscriptions: Dict[str, Set[str]] = {}
-        # dict mapping subscribed topics to the expected class
-        self.subscriptions_to_class: Dict[str, Any] = {}
         # Future for pending sub requests
         self.pending_sub_request: Optional[asyncio.Future] = None
 
@@ -106,10 +104,9 @@ class MQTTContainer(Container):
             # update meta dict
             meta.update(message_meta)
             # put information to inbox
-            if content is not None:
-                self.loop.call_soon_threadsafe(
-                    self.inbox.put_nowait, (0, content, meta)
-                )
+            self.loop.call_soon_threadsafe(
+                self.inbox.put_nowait, (0, content, meta)
+            )
 
         self.mqtt_client.on_message = on_message
         self.mqtt_client.enable_logger(logger)
@@ -135,19 +132,13 @@ class MQTTContainer(Container):
         meta = {}
         content = None
 
-        # check if there is a class definition for the topic
-        for sub, sub_class in self.subscriptions_to_class.items():
-            if paho.topic_matches_sub(sub, topic):
-                # instantiate the provided class
-                content = sub_class()
-                break
-
         decoded = self.codec.decode(payload)
-        if isinstance(content, ACLMessage):
-            meta = decoded.extract_meta()
-            content = decoded.content
+        if isinstance(decoded, ACLMessage):
+            content, meta = decoded.split_content_and_meta()
+        else:
+            content = decoded
 
-        return decoded, meta
+        return content, meta
 
     async def _handle_message(self, *, priority: int, content, meta: Dict[str, Any]):
         """
@@ -160,10 +151,6 @@ class MQTTContainer(Container):
         logger.debug(
             f"Received message with content and meta;{str(content)};{str(meta)}"
         )
-        if hasattr(content, "split_content_and_meta"):
-            content, message_meta = content.split_content_and_meta()
-            meta.update(message_meta)
-            content = content
         if topic == self.inbox_topic:
             # General inbox topic, so no receiver is specified by the topic
             # try to find the receiver from meta
@@ -172,7 +159,7 @@ class MQTTContainer(Container):
                 receiver = self._agents[receiver_id]
                 await receiver.inbox.put((priority, content, meta))
             else:
-                logger.warning(f"Receiver ID is unknown;{receiver_id}")
+                logger.warning("Receiver ID is unknown;%s", receiver_id)
         else:
             # no inbox topic. Check who has subscribed the topic.
             receivers = set()
@@ -240,25 +227,20 @@ class MQTTContainer(Container):
         :return:
         """
         encoded_message = self.codec.encode(message)
-        logger.debug(f"Sending message;{message};{topic}")
+        logger.debug("Sending message;%s;%s", message, topic)
         self.mqtt_client.publish(topic, encoded_message)
 
     async def subscribe_for_agent(
-        self, *, aid: str, topic: str, qos: int = 0, expected_class=None
-    ) -> bool:
+        self, *, aid: str, topic: str, qos: int = 0) -> bool:
         """
 
         :param aid: aid of the corresponding agent
         :param topic: topic to subscribe (wildcards are allowed)
         :param qos: The quality of service for the subscription
-        :param expected_class: The class to expect from the topic, defaults
-        to ACL
         :return: A boolean signaling if subscription was true or not
         """
         if aid not in self._agents.keys():
             raise ValueError("Given aid is not known")
-        if expected_class:
-            self.subscriptions_to_class[topic] = expected_class
 
         if topic in self.additional_subscriptions.keys():
             self.additional_subscriptions[topic].add(aid)
@@ -274,17 +256,6 @@ class MQTTContainer(Container):
 
         await self.pending_sub_request
         return True
-
-    def set_expected_class(self, *, topic: str, expected_class):
-        """
-        Sets an expected class to a subscription
-        wildcards are allowed here
-        :param topic: The subscription
-        :param expected_class: The expected class
-        :return:
-        """
-        self.subscriptions_to_class[topic] = expected_class
-        logger.debug(f"Expected class updated;{self.subscriptions_to_class}")
 
     def deregister_agent(self, aid):
         """
