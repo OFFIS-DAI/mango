@@ -43,6 +43,9 @@ class DataContainer:
     def __getitem__(self, key):
         return self.__getattribute__(key)
 
+    def __contains__(self, key):
+        return hasattr(self, key)
+
 
 class RoleContext:
     pass
