@@ -134,7 +134,7 @@ async def create(
 
         # callbacks to check for successful connection
         def on_con(client, userdata, flags, returncode):
-            logger.info(f"Connection Callback with the following flags: {flags}")
+            logger.info("Connection Callback with the following flags: %s", flags)
             loop.call_soon_threadsafe(connected.set_result, returncode)
 
         mqtt_messenger.on_connect = on_con
@@ -161,7 +161,7 @@ async def create(
                 raise ValueError("Invalid broker address")
             mqtt_messenger.connect(broker_addr, **mqtt_kwargs)
 
-        logger.info(f"[{client_id}]: Going to connect to broker at {broker_addr}..")
+        logger.info("[%s]: Going to connect to broker at %s..", client_id, broker_addr)
 
         counter = 0
         # process MQTT messages for maximum of 10 seconds to

@@ -27,7 +27,7 @@ class DistributedClockManager(ClockAgent):
         else:
             sender_addr = meta["sender_addr"]
 
-        logger.debug(f"clockmanager: {content} from {sender_addr}")
+        logger.debug("clockmanager: %s from %s", content, sender_addr)
         if content:
             assert isinstance(content, float), f"{content} was {type(content)}"
             self.schedules.append(content)
@@ -35,11 +35,11 @@ class DistributedClockManager(ClockAgent):
         if not self.futures[sender_addr].done():
             self.futures[sender_addr].set_result(True)
         else:
-            logger.warning(f"got another message from agent {sender_addr}")
+            logger.warning("got another message from agent %s", sender_addr)
 
     async def broadcast(self, message, add_futures=True):
         for receiver_addr in self.receiver_clock_addresses:
-            logger.debug(f"clockmanager send: {message} - {receiver_addr}")
+            logger.debug("clockmanager send: %s - %s", message, receiver_addr)
             send_worked = await self.send_acl_message(
                 message,
                 receiver_addr,
@@ -60,7 +60,7 @@ class DistributedClockManager(ClockAgent):
         await asyncio.sleep(0.01)
         # wait until all jobs in other containers are finished
         for container_id, fut in self.futures.items():
-            logger.debug(f"waiting for {container_id}")
+            logger.debug("waiting for %s", container_id)
             # waits forever if manager was started first
             # as answer is never received
             await fut
@@ -74,7 +74,7 @@ class DistributedClockManager(ClockAgent):
         else:
             logger.warning("no new events, time stands still")
             next_event = self._scheduler.clock.time
-        logger.debug(f"next event at {next_event}")
+        logger.debug("next event at %s", next_event)
         self.schedule_instant_task(coroutine=self.broadcast(next_event))
         return next_event
 
@@ -87,7 +87,7 @@ class DistributedClockAgent(ClockAgent):
     def handle_message(self, content: float, meta):
         sender_addr = meta["sender_addr"]
         sender_id = meta["sender_id"]
-        logger.info(f"clockagent: {content} from {sender_addr}")
+        logger.info("clockagent: %s from %s", content, sender_addr)
         if content == "stop":
             if not self.stopped.done():
                 self.stopped.set_result(True)

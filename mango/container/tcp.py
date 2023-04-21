@@ -154,7 +154,7 @@ class TCPContainer(Container):
         elif isinstance(receiver_addr, (tuple, list)) and len(receiver_addr) == 2:
             receiver_addr = tuple(receiver_addr)
         else:
-            logger.warning(f"Address for sending message is not valid;{receiver_addr}")
+            logger.warning("Address for sending message is not valid;%s", receiver_addr)
             return False
 
         message = content
@@ -168,7 +168,8 @@ class TCPContainer(Container):
             receiver = self._agents.get(receiver_id, None)
             if receiver is None:
                 logger.warning(
-                    f"Sending internal message not successful, receiver id unknown;{receiver_id}"
+                    "Sending internal message not successful, receiver id unknown;%s",
+                    receiver_id,
                 )
                 return False
             success = self._send_internal_message(
