@@ -24,3 +24,4 @@ six==1.15.0
 toml==0.10.1
 virtualenv==20.0.31
 python-dateutil==2.8.2
+dill==0.3.6

@@ -2,22 +2,41 @@ import asyncio
 import copy
 import logging
 import warnings
+from multiprocessing import Process, Queue
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional, Tuple, Union
 
 from ..messages.codecs import ACLMessage, Codec
 from ..util.clock import Clock
 
+import dill  # do not remove! Necessary for the auto loaded pickle reg extensions
+
 logger = logging.getLogger(__name__)
 
 AGENT_PATTERN_NAME_PRE = "agent"
+
+
+def create_agent_process_environment(agent_creator, message_queue):
+    async def start_agent_loop():
+        pass
+
+    asyncio.set_event_loop(asyncio.new_event_loop())
+    asyncio.run(start_agent_loop)
+    pass
 
 
 class Container(ABC):
     """Superclass for a mango container"""
 
     def __init__(
-        self, *, addr, name: str, codec, loop, clock: Clock, copy_internal_messages=False
+        self,
+        *,
+        addr,
+        name: str,
+        codec,
+        loop,
+        clock: Clock,
+        copy_internal_messages=False,
     ):
         self.name: str = name
         self.addr = addr
@@ -42,6 +61,7 @@ class Container(ABC):
 
         # task that processes the inbox.
         self._check_inbox_task: asyncio.Task = asyncio.create_task(self._check_inbox())
+        self._agent_processes = []
 
     def is_aid_available(self, aid):
         """
@@ -282,3 +302,10 @@ class Container(ABC):
                 pass
             finally:
                 logger.info("Successfully shutdown")
+
+    def as_agent_process(self, agent_creator):
+        agent_process = Process(
+            target=create_agent_process_environment, args=agent_creator
+        )
+        self._agent_processes.append(agent_process)
+        agent_process.start()
