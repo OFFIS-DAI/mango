@@ -8,6 +8,7 @@ import time
 from typing import Optional, Tuple, Union
 
 from mango.container.core import Container
+from multiprocessing import Queue
 
 from ..messages.codecs import Codec
 from ..util.clock import Clock
@@ -92,6 +93,10 @@ class TCPConnectionPool:
                 connection = (await queue.get())[0]
                 queue.task_done()
                 await connection.shutdown()
+
+
+class TCPContainerMirror:
+    pass
 
 
 class TCPContainer(Container):
@@ -226,6 +231,18 @@ class TCPContainer(Container):
             return False
         return True
 
+    def as_agent_process(
+        self,
+        agent_creator,
+        mirror_container_creator=lambda container_data, loop, queue: TCPContainerMirror(
+            container_data, loop, queue
+        ),
+    ):
+        super().as_agent_process(
+            agent_creator=agent_creator,
+            mirror_container_creator=mirror_container_creator,
+        )
+
     async def shutdown(self):
         """
         calls shutdown() from super class Container and closes the server
@@ -234,3 +251,46 @@ class TCPContainer(Container):
         await self._tcp_connection_pool.shutdown()
         self.server.close()
         await self.server.wait_closed()
+
+
+class TCPContainerMirror(TCPContainer):
+    def __init__(
+        self,
+        *,
+        container_data,
+        loop: asyncio.AbstractEventLoop,
+        process_queue: Queue,
+        **kwargs,
+    ):
+        super().__init__(
+            addr=container_data.addr,
+            codec=container_data.codec,
+            clock=container_data.clock,
+            loop=loop,
+            queue=process_queue,
+            **kwargs,
+        )
+
+        self._fetch_from_ipc_task = asyncio.create_task(
+            self.move_incoming_messages_to_inbox(process_queue)
+        )
+
+    async def move_incoming_messages_to_inbox(self, process_queue):
+        while True:
+            await self.inbox.put(process_queue.get())
+
+    async def shutdown(self):
+        """
+        Shutdown container without server, as the mirror does not have an own server instance
+        """
+
+        # cancel _fetch_from_ipc_task
+        if self._fetch_from_ipc_task is not None:
+            self._fetch_from_ipc_task.cancel()
+            try:
+                await self._fetch_from_ipc_task
+            except asyncio.CancelledError:
+                pass
+
+        await super().shutdown()
+        await self._tcp_connection_pool.shutdown()

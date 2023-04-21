@@ -2,6 +2,7 @@ import asyncio
 import copy
 import logging
 import warnings
+from dataclasses import dataclass
 from multiprocessing import Process, Queue
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional, Tuple, Union
@@ -16,13 +17,25 @@ logger = logging.getLogger(__name__)
 AGENT_PATTERN_NAME_PRE = "agent"
 
 
-def create_agent_process_environment(agent_creator, message_queue):
-    async def start_agent_loop():
-        pass
+@dataclass
+class ContainerMirrorData:
+    addr: object
+    codec: Codec
+    clock: Clock
 
+
+def create_agent_process_environment(
+    agent_creator, mirror_container_creator, message_queue
+):
     asyncio.set_event_loop(asyncio.new_event_loop())
+
+    async def start_agent_loop():
+        container = await mirror_container_creator(
+            asyncio.get_event_loop(), message_queue
+        )
+        agent_creator(container)
+
     asyncio.run(start_agent_loop)
-    pass
 
 
 class Container(ABC):
@@ -303,9 +316,10 @@ class Container(ABC):
             finally:
                 logger.info("Successfully shutdown")
 
-    def as_agent_process(self, agent_creator):
+    def as_agent_process(self, agent_creator, mirror_container_creator):
         agent_process = Process(
-            target=create_agent_process_environment, args=agent_creator
+            target=create_agent_process_environment,
+            args=(agent_creator, mirror_container_creator, Queue()),
         )
         self._agent_processes.append(agent_process)
         agent_process.start()
