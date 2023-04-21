@@ -133,6 +133,15 @@ class TCPContainer(Container):
             max_connections_per_target=kwargs.get(TCP_MAX_CONNECTIONS_PER_TARGET, 10),
         )
 
+    async def setup(self):
+        # create a TCP server bound to host and port that uses the
+        # specified protocol
+        self.server = await self.loop.create_server(
+            lambda: ContainerProtocol(container=self, loop=self.loop, codec=self.codec),
+            self.addr[0],
+            self.addr[1],
+        )
+
     async def send_message(
         self,
         content,
