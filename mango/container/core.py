@@ -26,6 +26,7 @@ class IPCEventType(enumerate):
 class IPCEvent:
     type: IPCEventType
     data: object
+    pid: int
 
 
 @dataclass
@@ -272,6 +273,12 @@ class Container(ABC):
             setattr(message, key, value)
         return message
 
+    def _find_sp_queue(self, aid):
+        for pid, aids in self._pid_to_aids:
+            if aid in aids:
+                return self._to_queues_sub_processes[pid]
+        raise ValueError("There is not aid in any subprocess.")
+
     def _send_internal_message(
         self,
         message,
@@ -280,13 +287,16 @@ class Container(ABC):
         default_meta=None,
         inbox=None,
     ) -> bool:
+        target_inbox = inbox
+        if receiver_id not in self._agents:
+            target_inbox = self._find_sp_queue(receiver_id)
+
         meta = {}
         message_to_send = (
             copy.deepcopy(message) if self._copy_internal_messages else message
         )
 
-        target_inbox = inbox
-        if inbox is None:
+        if target_inbox is None:
             receiver = self._agents.get(receiver_id, None)
             if receiver is None:
                 logger.warning(
@@ -337,6 +347,9 @@ class Container(ABC):
                 event: IPCEvent = pipe.recv()
                 if event.type == IPCEventType.AIDS:
                     aid = self._reserve_aid(event.data)
+                    if event.pid not in self._pid_to_aids:
+                        self._pid_to_aids[event.pid] = set()
+                    self._pid_to_aids[event.pid].add(aid)
                     pipe.send(aid)
             else:
                 await asyncio.sleep(PROCESS_POLL_DELAY)
@@ -369,7 +382,12 @@ class Container(ABC):
             receiver = self._agents[receiver_id]
             await receiver.inbox.put((priority, content, meta))
         else:
-            logger.warning("Received a message for an unknown receiver;%s", receiver_id)
+            sp_queue_of_agent = self._find_sp_queue(receiver_id)
+            if sp_queue_of_agent is None:
+                logger.warning(
+                    "Received a message for an unknown receiver;%s", receiver_id
+                )
+            sp_queue_of_agent.put((priority, content, meta))
 
     def as_agent_process(self, agent_creator, mirror_container_creator):
         to_subprocess_message_queue = Queue()
