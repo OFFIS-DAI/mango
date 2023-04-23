@@ -3,7 +3,7 @@ import copy
 import logging
 import warnings
 from dataclasses import dataclass
-from multiprocessing import Process, Queue
+from multiprocessing import Process, Queue, Event, Pipe
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional, Tuple, Union
 
@@ -15,6 +15,17 @@ import dill  # do not remove! Necessary for the auto loaded pickle reg extension
 logger = logging.getLogger(__name__)
 
 AGENT_PATTERN_NAME_PRE = "agent"
+PROCESS_POLL_DELAY = 0.1
+
+
+class IPCEventType(enumerate):
+    AIDS = 1
+
+
+@dataclass
+class IPCEvent:
+    type: IPCEventType
+    data: object
 
 
 @dataclass
@@ -25,13 +36,22 @@ class ContainerMirrorData:
 
 
 def create_agent_process_environment(
-    agent_creator, mirror_container_creator, message_queue
+    agent_creator,
+    mirror_container_creator,
+    from_subprocess_queue,
+    to_subprocess_queue,
+    event_pipe,
+    terminate_event,
 ):
     asyncio.set_event_loop(asyncio.new_event_loop())
 
     async def start_agent_loop():
         container = await mirror_container_creator(
-            asyncio.get_event_loop(), message_queue
+            asyncio.get_event_loop(),
+            from_subprocess_queue,
+            to_subprocess_queue,
+            event_pipe,
+            terminate_event,
         )
         agent_creator(container)
 
@@ -74,7 +94,26 @@ class Container(ABC):
 
         # task that processes the inbox.
         self._check_inbox_task: asyncio.Task = asyncio.create_task(self._check_inbox())
+
+        # For agent multiprocessing support
         self._agent_processes = []
+        self._terminate_sub_processes = Event()
+        self._to_queues_sub_processes = {}
+        self._internal_message_queue = Queue()
+        self._pid_to_pipe = {}
+        self._pid_to_aids = {}
+        self._handle_process_events_task: asyncio.Task = asyncio.create_task(
+            self._handle_process_events()
+        )
+        self._handle_sp_messages_task: asyncio.Task = asyncio.create_task(
+            self._handle_process_messages()
+        )
+
+    def _all_aids(self):
+        all_aids = list(self._agents.keys())
+        for _, aids in self._pid_to_aids:
+            all_aids += aids
+        return set(all_aids)
 
     def is_aid_available(self, aid):
         """
@@ -83,13 +122,23 @@ class Container(ABC):
         :param aid: the aid you want to check
         :return True if the aid is available, False if it is not
         """
-        return aid not in self._agents and not self.__check_agent_aid_pattern_match(aid)
+        return aid not in self._all_aids and not self.__check_agent_aid_pattern_match(
+            aid
+        )
 
     def __check_agent_aid_pattern_match(self, aid):
         return (
             aid.startswith(AGENT_PATTERN_NAME_PRE)
             and aid[len(AGENT_PATTERN_NAME_PRE) :].isnumeric()
         )
+
+    def _reserve_aid(self, suggested_aid=None):
+        if suggested_aid is None or not self.is_aid_available(suggested_aid):
+            aid = f"{AGENT_PATTERN_NAME_PRE}{self._aid_counter}"
+            self._aid_counter += 1
+        else:
+            aid = suggested_aid
+        return aid
 
     def register_agent(self, agent, suggested_aid: str = None):
         """
@@ -101,17 +150,9 @@ class Container(ABC):
         """
         if not self._no_agents_running or self._no_agents_running.done():
             self._no_agents_running = asyncio.Future()
-        if (
-            suggested_aid is None
-            or suggested_aid in self._agents
-            or self.__check_agent_aid_pattern_match(suggested_aid)
-        ):
-            aid = f"{AGENT_PATTERN_NAME_PRE}{self._aid_counter}"
-            self._aid_counter += 1
-        else:
-            aid = suggested_aid
+        aid = self._reserve_aid(suggested_aid)
         self._agents[aid] = agent
-        logger.info("Successfully registered agent;%s", aid)
+        logger.debug("Successfully registered agent;%s", aid)
         return aid
 
     def deregister_agent(self, aid):
@@ -232,16 +273,28 @@ class Container(ABC):
         return message
 
     def _send_internal_message(
-        self, message, priority=0, default_meta=None, target_inbox_overwrite=None
+        self,
+        message,
+        receiver_id,
+        priority=0,
+        default_meta=None,
+        inbox=None,
     ) -> bool:
         meta = {}
-
         message_to_send = (
             copy.deepcopy(message) if self._copy_internal_messages else message
         )
-        target_inbox = (
-            self.inbox if target_inbox_overwrite is None else target_inbox_overwrite
-        )
+
+        target_inbox = inbox
+        if inbox is None:
+            receiver = self._agents.get(receiver_id, None)
+            if receiver is None:
+                logger.warning(
+                    "Sending internal message not successful, receiver id unknown;%s",
+                    receiver_id,
+                )
+                return False
+            target_inbox = receiver.inbox
 
         if hasattr(message_to_send, "split_content_and_meta"):
             content, meta = message_to_send.split_content_and_meta()
@@ -278,6 +331,28 @@ class Container(ABC):
             self.inbox.task_done()  # signals that the queue object is
             # processed
 
+    async def _handle_process_events(self):
+        for _, pipe in self._pid_to_pipe:
+            if pipe.poll():
+                event: IPCEvent = pipe.recv()
+                if event.type == IPCEventType.AIDS:
+                    aid = self._reserve_aid(event.data)
+                    pipe.send(aid)
+            else:
+                await asyncio.sleep(PROCESS_POLL_DELAY)
+
+    async def _handle_process_messages(self):
+        if not self._internal_message_queue.empty():
+            message, receiver_id, prio, meta = self._internal_message_queue.get()
+            await self._send_internal_message(
+                message=message,
+                receiver_id=receiver_id,
+                priority=prio,
+                default_meta=meta,
+            )
+        else:
+            await asyncio.sleep(PROCESS_POLL_DELAY)
+
     async def _handle_message(self, *, priority: int, content, meta: Dict[str, Any]):
         """
         This is called as a separate task for every message that is read
@@ -296,6 +371,33 @@ class Container(ABC):
         else:
             logger.warning("Received a message for an unknown receiver;%s", receiver_id)
 
+    def as_agent_process(self, agent_creator, mirror_container_creator):
+        to_subprocess_message_queue = Queue()
+        from_pipe, to_pipe = Pipe()
+        agent_process = Process(
+            target=create_agent_process_environment,
+            args=(
+                agent_creator,
+                mirror_container_creator,
+                self._internal_message_queue,
+                to_subprocess_message_queue,
+                to_pipe,
+                self._terminate_sub_processes,
+            ),
+        )
+        agent_process.daemon = True
+        self._agent_processes.append(agent_process)
+        agent_process.start()
+        self._to_queues_sub_processes[agent_process.pid] = to_subprocess_message_queue
+        self._pid_to_pipe[agent_process.pid] = from_pipe
+
+    async def _cancel_and_wait_for_task(self, task):
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
     async def shutdown(self):
         """Shutdown all agents in the container and the container itself"""
         self.running = False
@@ -305,21 +407,20 @@ class Container(ABC):
             futs.append(agent.shutdown())
         await asyncio.gather(*futs)
 
+        # send a signal to all sub processes to terminate their message feed in's
+        self._terminate_sub_processes.set(True)
+
+        # wait for and tidy up processes
+        for process in self._agent_processes:
+            process.join()
+            process.terminate()
+            process.close()
+
+        self._cancel_and_wait_for_task(self._handle_process_events_task)
+        self._cancel_and_wait_for_task(self._handle_sp_messages_task)
+
         # cancel check inbox task
         if self._check_inbox_task is not None:
-            logger.debug("check inbox task will be cancelled")
-            self._check_inbox_task.cancel()
-            try:
-                await self._check_inbox_task
-            except asyncio.CancelledError:
-                pass
-            finally:
-                logger.info("Successfully shutdown")
+            self._cancel_and_wait_for_task(self._check_inbox_task)
 
-    def as_agent_process(self, agent_creator, mirror_container_creator):
-        agent_process = Process(
-            target=create_agent_process_environment,
-            args=(agent_creator, mirror_container_creator, Queue()),
-        )
-        self._agent_processes.append(agent_process)
-        agent_process.start()
+        logger.info("Successfully shutdown")

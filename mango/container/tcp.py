@@ -7,8 +7,9 @@ import logging
 import time
 from typing import Optional, Tuple, Union
 
-from mango.container.core import Container
-from multiprocessing import Queue
+from mango.container.core import Container, IPCEvent, IPCEventType
+from multiprocessing import Queue, Event
+from multiprocessing.connection import Connection
 
 from ..messages.codecs import Codec
 from ..util.clock import Clock
@@ -179,15 +180,8 @@ class TCPContainer(Container):
 
             # internal message
             meta = {"network_protocol": "tcp"}
-            receiver = self._agents.get(receiver_id, None)
-            if receiver is None:
-                logger.warning(
-                    "Sending internal message not successful, receiver id unknown;%s",
-                    receiver_id,
-                )
-                return False
             success = self._send_internal_message(
-                message, default_meta=meta, target_inbox_overwrite=receiver.inbox
+                message, receiver_id, default_meta=meta
             )
         else:
             success = await self._send_external_message(receiver_addr, message)
@@ -231,12 +225,23 @@ class TCPContainer(Container):
             return False
         return True
 
+    @staticmethod
+    def _mirror_container_creator(
+        container_data, loop, from_sp_queue, to_sp_queue, event_pipe, terminate_event
+    ):
+        return TCPContainerMirror(
+            container_data,
+            loop,
+            from_sp_queue,
+            to_sp_queue,
+            event_pipe,
+            terminate_event,
+        )
+
     def as_agent_process(
         self,
         agent_creator,
-        mirror_container_creator=lambda container_data, loop, queue: TCPContainerMirror(
-            container_data, loop, queue
-        ),
+        mirror_container_creator=_mirror_container_creator,
     ):
         super().as_agent_process(
             agent_creator=agent_creator,
@@ -259,7 +264,10 @@ class TCPContainerMirror(TCPContainer):
         *,
         container_data,
         loop: asyncio.AbstractEventLoop,
-        process_queue: Queue,
+        from_sp_queue: Queue,
+        to_sp_queue: Queue,
+        event_pipe: Connection,
+        terminate_event: Event,
         **kwargs,
     ):
         super().__init__(
@@ -267,17 +275,62 @@ class TCPContainerMirror(TCPContainer):
             codec=container_data.codec,
             clock=container_data.clock,
             loop=loop,
-            queue=process_queue,
             **kwargs,
         )
 
+        self._from_sp_queue = from_sp_queue
+        self._to_sp_queue = to_sp_queue
+        self._event_pipe = event_pipe
+
         self._fetch_from_ipc_task = asyncio.create_task(
-            self.move_incoming_messages_to_inbox(process_queue)
+            self.move_incoming_messages_to_inbox(to_sp_queue, terminate_event)
         )
 
-    async def move_incoming_messages_to_inbox(self, process_queue):
-        while True:
-            await self.inbox.put(process_queue.get())
+    async def move_incoming_messages_to_inbox(
+        self, process_queue: Queue, terminate_event: Event
+    ):
+        while not terminate_event.is_set():
+            if not process_queue.empty():
+                next_item = process_queue.get()
+                await self.inbox.put(next_item)
+            else:
+                await asyncio.sleep(0.1)
+        self.shutdown()
+
+    def _reserve_aid(self, suggested_aid=None):
+        ipc_event = IPCEvent(IPCEventType.AID, suggested_aid)
+        self._event_pipe.send(ipc_event)
+        return self._event_pipe.recv()
+
+    def _send_internal_message(
+        self,
+        message,
+        receiver_id,
+        priority=0,
+        default_meta=None,
+        inbox=None,
+    ) -> bool:
+        # route internal messages outside of the process to the main container
+        if receiver_id not in self._agents:
+            self._from_sp_queue.put_nowait(
+                (message, receiver_id, priority, default_meta)
+            )
+            return True
+
+        super()._send_internal_message(
+            message=message,
+            receiver_id=receiver_id,
+            priority=priority,
+            default_meta=default_meta,
+            inbox=inbox,
+        )
+
+    def as_agent_process(
+        self,
+        agent_creator,
+        mirror_container_creator,
+    ):
+        raise NotImplementedError("Mirror container do not support agent processes.")
 
     async def shutdown(self):
         """

@@ -104,9 +104,7 @@ class MQTTContainer(Container):
             # update meta dict
             meta.update(message_meta)
             # put information to inbox
-            self.loop.call_soon_threadsafe(
-                self.inbox.put_nowait, (0, content, meta)
-            )
+            self.loop.call_soon_threadsafe(self.inbox.put_nowait, (0, content, meta))
 
         self.mqtt_client.on_message = on_message
         self.mqtt_client.enable_logger(logger)
@@ -213,7 +211,9 @@ class MQTTContainer(Container):
                 "retain": False,
                 "network_protocol": "mqtt",
             }
-            return self._send_internal_message(message, default_meta=meta)
+            return self._send_internal_message(
+                message, receiver_id, default_meta=meta, inbox=self.inbox
+            )
 
         else:
             self._send_external_message(topic=receiver_addr, message=message)
@@ -230,8 +230,7 @@ class MQTTContainer(Container):
         logger.debug("Sending message;%s;%s", message, topic)
         self.mqtt_client.publish(topic, encoded_message)
 
-    async def subscribe_for_agent(
-        self, *, aid: str, topic: str, qos: int = 0) -> bool:
+    async def subscribe_for_agent(self, *, aid: str, topic: str, qos: int = 0) -> bool:
         """
 
         :param aid: aid of the corresponding agent
