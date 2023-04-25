@@ -27,7 +27,7 @@ async def create(
     codec: Codec = None,
     clock: Clock = None,
     addr: Optional[Union[str, Tuple[str, int]]] = None,
-    copy_internal_messages=True,
+    copy_internal_messages=False,
     mqtt_kwargs: Dict[str, Any] = None,
 ) -> Container:
     """
