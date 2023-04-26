@@ -1,4 +1,4 @@
-from mango.agent.role import Role, RoleHandler
+from mango.agent.role import Role, RoleHandler, DataContainer
 from mango.util.scheduling import Scheduler
 
 
@@ -88,3 +88,15 @@ def test_append_message_subs():
     assert role_handler._message_subs[2][2] == str.capitalize
     assert role_handler._message_subs[3][2] == str.casefold
     assert role_handler._message_subs[4][2] == str.endswith
+
+
+def test_data_container():
+    # GIVEN
+    data_container = DataContainer()
+    data_container.abc = "123"
+    data_container.cba = "123"
+
+    # WHEN THEN
+    assert "abc" in data_container
+    assert "cba" in data_container
+    assert not "bca" in data_container
