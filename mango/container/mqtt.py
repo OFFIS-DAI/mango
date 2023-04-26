@@ -4,8 +4,7 @@ from typing import Any, Dict, Optional, Set, Tuple, Union
 
 import paho.mqtt.client as paho
 
-from mango.container.core import Container
-from mango.messages.codecs import JSON
+from mango.container.core import Container, ContainerMirrorData
 
 from ..messages.codecs import ACLMessage, Codec
 from ..util.clock import Clock
@@ -108,15 +107,6 @@ class MQTTContainer(Container):
 
         self.mqtt_client.on_message = on_message
         self.mqtt_client.enable_logger(logger)
-
-    async def shutdown(self):
-        """
-        Shutdown container, disconnect from broker and stop mqtt thread
-        """
-        await super().shutdown()
-        # disconnect to broker
-        self.mqtt_client.disconnect()
-        self.mqtt_client.loop_stop()
 
     def decode_mqtt_message(self, *, topic, payload):
         """
@@ -273,3 +263,22 @@ class MQTTContainer(Container):
         for subscription in empty_subscriptions:
             self.additional_subscriptions.pop(subscription)
             self.mqtt_client.unsubscribe(topic=subscription)
+
+    def as_agent_process(
+        self,
+        agent_creator,
+        mirror_container_creator,
+    ):
+        return super().as_agent_process(
+            agent_creator=agent_creator,
+            mirror_container_creator=mirror_container_creator,
+        )
+
+    async def shutdown(self):
+        """
+        Shutdown container, disconnect from broker and stop mqtt thread
+        """
+        await super().shutdown()
+        # disconnect to broker
+        self.mqtt_client.disconnect()
+        self.mqtt_client.loop_stop()

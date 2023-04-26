@@ -448,20 +448,23 @@ class Agent(ABC, AgentDelegates):
     async def _check_inbox(self):
         """Task for waiting on new message in the inbox"""
 
-        logger.debug("Agent %s: Start waiting for messages", self.aid)
-        while True:
-            # run in infinite loop until it is cancelled from outside
-            message = await self.inbox.get()
-            logger.debug("Agent %s: Received message;%s", self.aid, message)
+        try:
+            logger.debug("Agent %s: Start waiting for messages", self.aid)
+            while True:
+                # run in infinite loop until it is cancelled from outside
+                message = await self.inbox.get()
+                logger.debug("Agent %s: Received message;%s", self.aid, message)
 
-            # message should be tuples of (priority, content, meta)
-            priority, content, meta = message
-            meta["priority"] = priority
-            
-            self.handle_message(content=content, meta=meta)
+                # message should be tuples of (priority, content, meta)
+                priority, content, meta = message
+                meta["priority"] = priority
 
-            # signal to the Queue that the message is handled
-            self.inbox.task_done()
+                self.handle_message(content=content, meta=meta)
+
+                # signal to the Queue that the message is handled
+                self.inbox.task_done()
+        except Exception as e:
+            logger.error(e)
 
     def handle_message(self, content, meta: Dict[str, Any]):
         """
