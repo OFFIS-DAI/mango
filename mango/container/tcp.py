@@ -38,6 +38,7 @@ class TCPConnectionPool:
         addr_key = (host, port)
 
         # maintaining connections
+        shutdown_connections = []
         for key, queue in self._available_connections.items():
             if queue.qsize() > 0:
                 item, item_time = queue.get_nowait()
@@ -46,9 +47,11 @@ class TCPConnectionPool:
                 if sec_elapsed > self._ttl_in_sec:
                     self._connection_counts[key] -= 1
                     connection = item
-                    await connection.shutdown()
+                    shutdown_connections.append(connection)
                 else:
                     queue.put_nowait((item, item_time))
+        for connection in shutdown_connections:
+            await connection.shutdown()
 
         if addr_key not in self._available_connections:
             self._available_connections[addr_key] = asyncio.Queue(
@@ -83,7 +86,11 @@ class TCPConnectionPool:
     async def release_connection(self, host: str, port: int, connection):
         addr_key = (host, port)
 
-        await self._put_in_available_connections(addr_key, connection)
+        if self._ttl_in_sec >= 0:
+            await self._put_in_available_connections(addr_key, connection)
+        else:
+            await connection.shutdown()
+            self._connection_counts[addr_key] -= 1
 
     async def shutdown(self):
         # maintaining connections
@@ -95,7 +102,7 @@ class TCPConnectionPool:
 
 
 def tcp_mirror_container_creator(
-    container_data, loop, from_sp_queue, to_sp_queue, event_pipe, terminate_event
+    container_data, loop, message_pipe, event_pipe, terminate_event
 ):
     return TCPContainer(
         addr=container_data.addr,
@@ -103,8 +110,7 @@ def tcp_mirror_container_creator(
         clock=container_data.clock,
         loop=loop,
         mirror_data=ContainerMirrorData(
-            from_sp_queue=from_sp_queue,
-            to_sp_queue=to_sp_queue,
+            message_pipe=message_pipe,
             event_pipe=event_pipe,
             terminate_event=terminate_event,
         ),
@@ -229,10 +235,11 @@ class TCPContainer(Container):
             await self._tcp_connection_pool.release_connection(
                 addr[0], addr[1], protocol
             )
-        except OSError:
+        except OSError as e:
             logger.warning(
                 "Could not establish connection to receiver of a message; %s", addr
             )
+            logger.error(e)
             return False
         return True
 
@@ -252,5 +259,7 @@ class TCPContainer(Container):
         """
         await super().shutdown()
         await self._tcp_connection_pool.shutdown()
-        self.server.close()
-        await self.server.wait_closed()
+
+        if self.server is not None:
+            self.server.close()
+            await self.server.wait_closed()

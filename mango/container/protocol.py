@@ -27,6 +27,7 @@ class ContainerProtocol(asyncio.Protocol):
         self.transport = None
         self.container = container
         self._loop = loop
+        self._buffer = bytearray()
 
         self._out_msgs = asyncio.Queue()
 
@@ -44,9 +45,7 @@ class ContainerProtocol(asyncio.Protocol):
         :param exc:
         :return:
         """
-        # TODO
-        self._task_process_out_msg.cancel()
-        self.transport.close()
+        super().connection_lost(exc)
 
     def data_received(self, data):
         """
@@ -54,30 +53,32 @@ class ContainerProtocol(asyncio.Protocol):
         :param data:
         :return:
         """
-        buffer = bytearray()
         required_read_size = None
-        buffer.extend(data)
+        self._buffer.extend(data)
         while True:
             # We may have more then one message in the buffer,
             # so we loop over the buffer until we got all complete messages.
 
-            if required_read_size is None and len(buffer) >= HEADER.size:
+            if required_read_size is None and len(self._buffer) >= HEADER.size:
                 # Received the complete header of a new message
                 logger.debug("Received complete header of a message")
 
-                required_read_size = HEADER.unpack_from(buffer)[0]
+                required_read_size = HEADER.unpack_from(self._buffer)[0]
                 # Unpack from buffer, according to the format of the struct.
                 # The result is a tuple even if it contains exactly one item.
                 # The buffer object reamins unchanged
                 # The header is also in the buffer
                 required_read_size += HEADER.size
 
-            if required_read_size is not None and len(buffer) >= required_read_size:
+            if (
+                required_read_size is not None
+                and len(self._buffer) >= required_read_size
+            ):
                 logger.debug("Received complete message")
                 # At least one complete message is in the buffer
                 # read the payload of the message
-                data = buffer[HEADER.size : required_read_size]
-                buffer = buffer[required_read_size:]
+                data = self._buffer[HEADER.size : required_read_size]
+                self._buffer = self._buffer[required_read_size:]
                 required_read_size = None
 
                 message = self.codec.decode(data)
@@ -117,24 +118,23 @@ class ContainerProtocol(asyncio.Protocol):
                 content = await self._out_msgs.get()
                 self.transport.write(content)
         except asyncio.CancelledError:
-            # TODO
-            pass
-            # assert self._connection_lost is not None
+            logging.warning("The TCP message processing was unexpectedly canceled!")
 
     async def flush(self):
         try:
             await self._process_out_msgs()
         except asyncio.CancelledError:
-            pass
+            logging.warning("The TCP message processing was unexpectedly canceled!")
 
     async def shutdown(self):
         """
         Will close the transport and stop the writing task
         :return:
         """
-        self.transport.close()  # this will cause the
-        # self._task_process_out_msg to be cancelled
         try:
             await self._process_out_msgs()
         except asyncio.CancelledError:
-            pass
+            logging.warning("The TCP message processing was unexpectedly canceled!")
+
+        self.transport.close()  # this will cause the
+        # self._task_process_out_msg to be cancelled

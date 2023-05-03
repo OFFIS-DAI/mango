@@ -1,5 +1,4 @@
 import asyncio
-import time
 import pytest
 from mango import create_container, Agent
 
@@ -73,7 +72,7 @@ class P2PTestAgent(Agent):
 )
 async def test_agent_processes_ping_pong(num_sp_agents, num_sp):
     # GIVEN
-    c = await create_container(addr=("127.0.0.2", 5525), copy_internal_messages=False)
+    c = await create_container(addr=("127.0.0.2", 8489), copy_internal_messages=False)
     for i in range(num_sp):
         await c.as_agent_process(
             agent_creator=lambda container: [
@@ -96,14 +95,13 @@ async def test_agent_processes_ping_pong(num_sp_agents, num_sp):
         await asyncio.sleep(0.1)
 
     assert agent.test_counter == num_sp_agents * num_sp
-
     await c.shutdown()
 
 
 @pytest.mark.asyncio
 async def test_agent_processes_ping_pong_p_to_p():
     # GIVEN
-    addr = ("127.0.0.2", 5825)
+    addr = ("127.0.0.2", 5826)
     aid_main_agent = "main_agent"
     c = await create_container(addr=addr, copy_internal_messages=False)
     await c.as_agent_process(
@@ -132,3 +130,7 @@ async def test_agent_processes_ping_pong_p_to_p():
     assert main_agent.test_counter == 1
 
     await c.shutdown()
+
+
+if __name__ == "__main__":
+    asyncio.run(test_agent_processes_ping_pong(5, 5))

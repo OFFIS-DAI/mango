@@ -463,8 +463,8 @@ class Agent(ABC, AgentDelegates):
 
                 # signal to the Queue that the message is handled
                 self.inbox.task_done()
-        except Exception as e:
-            logger.error(e)
+        except Exception:
+            logger.exception("The check inbox task of %s failed!", self.aid)
 
     def handle_message(self, content, meta: Dict[str, Any]):
         """
