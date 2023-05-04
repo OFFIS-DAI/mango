@@ -13,7 +13,8 @@ logger = logging.getLogger(__name__)
 
 
 class ContainerProtocol(asyncio.Protocol):
-    """ """
+    """Protocol for implementing the TCP Container connection. Internally reads the asyncio transport object
+    into a buffer and moves the read messages async to the container inbox."""
 
     def __init__(self, *, container, loop, codec):
         """
@@ -95,6 +96,7 @@ class ContainerProtocol(asyncio.Protocol):
 
     def write(self, msg_payload):
         """
+        Write the message (as bytes) to the connection.
 
         :param msg_payload:  message payload
         :return:
@@ -122,6 +124,7 @@ class ContainerProtocol(asyncio.Protocol):
             # assert self._connection_lost is not None
 
     async def flush(self):
+        """Flush the outgoing-buffer"""
         try:
             await self._process_out_msgs()
         except asyncio.CancelledError:

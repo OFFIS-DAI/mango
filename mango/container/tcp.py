@@ -20,8 +20,19 @@ TCP_MAX_CONNECTIONS_PER_TARGET = "tcp_max_connections_per_target"
 
 
 class TCPConnectionPool:
+    """Pool of async tcp connections. Is able to create arbitrary connections and manages
+    them. This makes reusing connections possible. To obtain a connection, use `obtain_connection`.
+    When you are done with the connection, use `release_connection`.
+
+    There are two parameters to be set, ttl_in_sec (time to live for a connection), max_connections_per_target (max number
+    of connections per connection target).
+    """
+
     def __init__(
-        self, asyncio_loop, ttl_in_sec: float = 30, max_connections_per_target: int = 10
+        self,
+        asyncio_loop,
+        ttl_in_sec: float = 30.0,
+        max_connections_per_target: int = 10,
     ) -> None:
         self._loop = asyncio_loop
         self._available_connections = {}
@@ -35,6 +46,18 @@ class TCPConnectionPool:
     async def obtain_connection(
         self, host: str, port: int, protocol: ContainerProtocol
     ):
+        """Obtain a connection from the pool. If no connection is available, a new connection is
+        created.
+
+        :param host: the host
+        :type host: str
+        :param port: the port
+        :type port: int
+        :param protocol: ContainerProtocol
+        :type protocol: ContainerProtocol
+        :return: connection
+        :rtype: ContainerProtocol with open transport object
+        """
         addr_key = (host, port)
 
         # maintaining connections
@@ -81,6 +104,16 @@ class TCPConnectionPool:
         return connection
 
     async def release_connection(self, host: str, port: int, connection):
+        """Release the connection to the pool. Have to be called after a connection is obtained,
+        otherwise the connection can never return to the pool.
+
+        :param host: the host
+        :type host: str
+        :param port: the port
+        :type port: int
+        :param connection: the connection
+        :type connection: ContainerProtocol
+        """
         addr_key = (host, port)
 
         await self._put_in_available_connections(addr_key, connection)
