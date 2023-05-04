@@ -114,6 +114,7 @@ def tcp_mirror_container_creator(
             event_pipe=event_pipe,
             terminate_event=terminate_event,
         ),
+        **container_data.kwargs,
     )
 
 
@@ -148,7 +149,7 @@ class TCPContainer(Container):
             **kwargs,
         )
 
-        self.server = None  # will be set within the factory method
+        self.server = None  # will be set within setup
         self.running = True
         self._tcp_connection_pool = TCPConnectionPool(
             loop,

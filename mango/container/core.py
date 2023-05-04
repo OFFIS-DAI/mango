@@ -52,6 +52,7 @@ class ContainerData:
     addr: object
     codec: Codec
     clock: Clock
+    kwargs: dict
 
 
 async def cancel_and_wait_for_task(task):
@@ -410,6 +411,7 @@ class MainContainerProcessManager(BaseContainerProcessManager):
                         addr=container.addr,
                         codec=container.codec,
                         clock=container.clock,
+                        kwargs=container._kwargs,
                     ),
                     agent_creator,
                     mirror_container_creator,
@@ -511,6 +513,7 @@ class Container(ABC):
         self._check_inbox_task: asyncio.Task = asyncio.create_task(self._check_inbox())
 
         # multiprocessing
+        self._kwargs = kwargs
         if mirror_data is not None:
             self._container_process_manager = MirrorContainerProcessManager(
                 self, mirror_data
