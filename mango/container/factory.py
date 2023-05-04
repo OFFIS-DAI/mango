@@ -27,8 +27,9 @@ async def create(
     codec: Codec = None,
     clock: Clock = None,
     addr: Optional[Union[str, Tuple[str, int]]] = None,
-    copy_internal_messages=False,
+    copy_internal_messages: bool = False,
     mqtt_kwargs: Dict[str, Any] = None,
+    **kwargs: Dict[str, Any],
 ) -> Container:
     """
     This method is called to instantiate a container instance, either
@@ -69,6 +70,7 @@ async def create(
             loop=loop,
             clock=clock,
             copy_internal_messages=copy_internal_messages,
+            **kwargs,
         )
         await container.setup()
         return container
