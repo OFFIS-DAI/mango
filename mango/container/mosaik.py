@@ -82,20 +82,11 @@ class MosaikContainer(Container):
         if receiver_addr == self.addr:
             if not receiver_id:
                 receiver_id = message.receiver_id
-            # internal message
-            receiver = self._agents.get(receiver_id, None)
-            if receiver is None:
-                logger.warning(
-                    f"Sending internal message not successful, receiver id unknown;{receiver_id}"
-                )
-                return False
-            self._new_internal_message = True
             default_meta = {"network_protocol": "mosaik"}
             success = self._send_internal_message(
-                message=message,
-                default_meta=default_meta,
-                target_inbox_overwrite=receiver.inbox,
+                message=message, receiver_id=receiver_id, default_meta=default_meta
             )
+            self._new_internal_message = True
         else:
             success = await self._send_external_message(receiver_addr, message)
 
@@ -122,7 +113,6 @@ class MosaikContainer(Container):
     async def step(
         self, simulation_time: float, incoming_messages: List[bytes]
     ) -> MosaikContainerOutput:
-
         if self.message_buffer:
             logger.warning(
                 "There are messages in teh message buffer to be sent, at the start when step was called."

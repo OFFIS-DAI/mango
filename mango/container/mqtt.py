@@ -4,8 +4,7 @@ from typing import Any, Dict, Optional, Set, Tuple, Union
 
 import paho.mqtt.client as paho
 
-from mango.container.core import Container
-from mango.messages.codecs import JSON
+from mango.container.core import Container, ContainerMirrorData
 
 from ..messages.codecs import ACLMessage, Codec
 from ..util.clock import Clock
@@ -104,21 +103,10 @@ class MQTTContainer(Container):
             # update meta dict
             meta.update(message_meta)
             # put information to inbox
-            self.loop.call_soon_threadsafe(
-                self.inbox.put_nowait, (0, content, meta)
-            )
+            self.loop.call_soon_threadsafe(self.inbox.put_nowait, (0, content, meta))
 
         self.mqtt_client.on_message = on_message
         self.mqtt_client.enable_logger(logger)
-
-    async def shutdown(self):
-        """
-        Shutdown container, disconnect from broker and stop mqtt thread
-        """
-        await super().shutdown()
-        # disconnect to broker
-        self.mqtt_client.disconnect()
-        self.mqtt_client.loop_stop()
 
     def decode_mqtt_message(self, *, topic, payload):
         """
@@ -213,7 +201,9 @@ class MQTTContainer(Container):
                 "retain": False,
                 "network_protocol": "mqtt",
             }
-            return self._send_internal_message(message, default_meta=meta)
+            return self._send_internal_message(
+                message, receiver_id, default_meta=meta, inbox=self.inbox
+            )
 
         else:
             self._send_external_message(topic=receiver_addr, message=message)
@@ -230,8 +220,7 @@ class MQTTContainer(Container):
         logger.debug("Sending message;%s;%s", message, topic)
         self.mqtt_client.publish(topic, encoded_message)
 
-    async def subscribe_for_agent(
-        self, *, aid: str, topic: str, qos: int = 0) -> bool:
+    async def subscribe_for_agent(self, *, aid: str, topic: str, qos: int = 0) -> bool:
         """
 
         :param aid: aid of the corresponding agent
@@ -274,3 +263,22 @@ class MQTTContainer(Container):
         for subscription in empty_subscriptions:
             self.additional_subscriptions.pop(subscription)
             self.mqtt_client.unsubscribe(topic=subscription)
+
+    def as_agent_process(
+        self,
+        agent_creator,
+        mirror_container_creator,
+    ):
+        return super().as_agent_process(
+            agent_creator=agent_creator,
+            mirror_container_creator=mirror_container_creator,
+        )
+
+    async def shutdown(self):
+        """
+        Shutdown container, disconnect from broker and stop mqtt thread
+        """
+        await super().shutdown()
+        # disconnect to broker
+        self.mqtt_client.disconnect()
+        self.mqtt_client.loop_stop()

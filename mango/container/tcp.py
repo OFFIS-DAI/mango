@@ -7,7 +7,7 @@ import logging
 import time
 from typing import Optional, Tuple, Union
 
-from mango.container.core import Container
+from mango.container.core import Container, ContainerMirrorData
 
 from ..messages.codecs import Codec
 from ..util.clock import Clock
@@ -61,6 +61,7 @@ class TCPConnectionPool:
         addr_key = (host, port)
 
         # maintaining connections
+        shutdown_connections = []
         for key, queue in self._available_connections.items():
             if queue.qsize() > 0:
                 item, item_time = queue.get_nowait()
@@ -69,9 +70,11 @@ class TCPConnectionPool:
                 if sec_elapsed > self._ttl_in_sec:
                     self._connection_counts[key] -= 1
                     connection = item
-                    await connection.shutdown()
+                    shutdown_connections.append(connection)
                 else:
                     queue.put_nowait((item, item_time))
+        for connection in shutdown_connections:
+            await connection.shutdown()
 
         if addr_key not in self._available_connections:
             self._available_connections[addr_key] = asyncio.Queue(
@@ -116,7 +119,11 @@ class TCPConnectionPool:
         """
         addr_key = (host, port)
 
-        await self._put_in_available_connections(addr_key, connection)
+        if self._ttl_in_sec >= 0:
+            await self._put_in_available_connections(addr_key, connection)
+        else:
+            await connection.shutdown()
+            self._connection_counts[addr_key] -= 1
 
     async def shutdown(self):
         # maintaining connections
@@ -125,6 +132,23 @@ class TCPConnectionPool:
                 connection = (await queue.get())[0]
                 queue.task_done()
                 await connection.shutdown()
+
+
+def tcp_mirror_container_creator(
+    container_data, loop, message_pipe, event_pipe, terminate_event
+):
+    return TCPContainer(
+        addr=container_data.addr,
+        codec=container_data.codec,
+        clock=container_data.clock,
+        loop=loop,
+        mirror_data=ContainerMirrorData(
+            message_pipe=message_pipe,
+            event_pipe=event_pipe,
+            terminate_event=terminate_event,
+        ),
+        **container_data.kwargs,
+    )
 
 
 class TCPContainer(Container):
@@ -158,7 +182,7 @@ class TCPContainer(Container):
             **kwargs,
         )
 
-        self.server = None  # will be set within the factory method
+        self.server = None  # will be set within setup
         self.running = True
         self._tcp_connection_pool = TCPConnectionPool(
             loop,
@@ -207,15 +231,8 @@ class TCPContainer(Container):
 
             # internal message
             meta = {"network_protocol": "tcp"}
-            receiver = self._agents.get(receiver_id, None)
-            if receiver is None:
-                logger.warning(
-                    "Sending internal message not successful, receiver id unknown;%s",
-                    receiver_id,
-                )
-                return False
             success = self._send_internal_message(
-                message, default_meta=meta, target_inbox_overwrite=receiver.inbox
+                message, receiver_id, default_meta=meta
             )
         else:
             success = await self._send_external_message(receiver_addr, message)
@@ -252,12 +269,23 @@ class TCPContainer(Container):
             await self._tcp_connection_pool.release_connection(
                 addr[0], addr[1], protocol
             )
-        except OSError:
+        except OSError as e:
             logger.warning(
                 "Could not establish connection to receiver of a message; %s", addr
             )
+            logger.error(e)
             return False
         return True
+
+    def as_agent_process(
+        self,
+        agent_creator,
+        mirror_container_creator=tcp_mirror_container_creator,
+    ):
+        return super().as_agent_process(
+            agent_creator=agent_creator,
+            mirror_container_creator=mirror_container_creator,
+        )
 
     async def shutdown(self):
         """
@@ -265,5 +293,7 @@ class TCPContainer(Container):
         """
         await super().shutdown()
         await self._tcp_connection_pool.shutdown()
-        self.server.close()
-        await self.server.wait_closed()
+
+        if self.server is not None:
+            self.server.close()
+            await self.server.wait_closed()
