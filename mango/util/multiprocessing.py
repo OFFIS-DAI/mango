@@ -169,7 +169,7 @@ class ObjectStreamWriter:
                 self._write(header + buf)
 
     def write_object(self, object):
-        self._write_bytes(ForkingPickler.dumps(object))
+        self._write_bytes(ForkingPickler.dumps(object, protocol=-1))
 
     def write_bytes(self, buf):
         self._write_bytes(buf)

@@ -149,7 +149,6 @@ def test_json_codec_basic():
 
 @pytest.mark.parametrize("codec", testcodecs)
 def test_codec_known(codec):
-
     # known == (Performatives, ACLMessage)
     msg = ACLMessage(
         performative=Performatives.inform,

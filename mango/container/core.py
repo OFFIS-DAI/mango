@@ -151,7 +151,7 @@ class BaseContainerProcessManager:
         """
         return []
 
-    def handle_message_in_sp(self, message, receiver_id, priority, default_meta):
+    def handle_message_in_sp(self, message, receiver_id, priority, meta):
         """Called when a message should be handled by the process manager. This
         happens when the receiver id is unknown to the main container itself.
 
@@ -161,11 +161,14 @@ class BaseContainerProcessManager:
         :type receiver_id: str
         :param priority: prio
         :type priority: int_
-        :param default_meta: meta
-        :type default_meta: dict
+        :param meta: meta
+        :type meta: dict
         :raises NotImplementedError: generally not implemented in mirror container manager
         """
-        raise NotImplementedError()
+
+        raise NotImplementedError(
+            f"{self}-{receiver_id}-{self._container._agents.keys()}"
+        )
 
     def create_agent_process(self, agent_creator, container, mirror_container_creator):
         """Creates a process with an agent, which is created by agent_creator. Further,
@@ -283,8 +286,9 @@ class MirrorContainerProcessManager(BaseContainerProcessManager):
         try:
             async with message_pipe.open_readonly() as rx:
                 while not terminate_event.is_set():
-                    next_item = await rx.read_object()
-                    await self._container.inbox.put(next_item)
+                    priority, message, meta = await rx.read_object()
+
+                    await self._container.inbox.put((priority, message, meta))
         except Exception:
             logger.exception("The Move Message Task Loop has failed!")
 
@@ -448,12 +452,12 @@ class MainContainerProcessManager(BaseContainerProcessManager):
         ipc_event = IPCEvent(IPCEventType.DISPATCH, (coro_func, args), pid)
         self._pid_to_pipe[pid].write_connection.send(ipc_event)
 
-    def handle_message_in_sp(self, message, receiver_id, priority, default_meta):
+    def handle_message_in_sp(self, message, receiver_id, priority, meta):
         sp_queue_of_agent = self._find_sp_queue(receiver_id)
         if sp_queue_of_agent is None:
             logger.warning("Received a message for an unknown receiver;%s", receiver_id)
         else:
-            sp_queue_of_agent.put_nowait((priority, message, default_meta))
+            sp_queue_of_agent.put_nowait((priority, message, meta))
 
     async def shutdown(self):
         if self._active:

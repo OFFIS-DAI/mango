@@ -24,8 +24,9 @@ VERSION = "1.0.1"
 REQUIRED = [
     "paho-mqtt==1.5.1",
     "protobuf==3.19.1",
-    "python-dateutil==2.8.2",
-    "dill==0.3.6",
+    "python-dateutil>=2.8.2",
+    "dill>=0.3.6",
+    "msgspec>=0.14.2",
 ]
 
 # What packages are optional?
