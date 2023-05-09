@@ -467,7 +467,7 @@ class Agent(ABC, AgentDelegates):
 
                 # message should be tuples of (priority, content, meta)
                 priority, content, meta = message
-                # meta["priority"] = priority
+                meta["priority"] = priority
 
                 self.handle_message(content=content, meta=meta)
 
