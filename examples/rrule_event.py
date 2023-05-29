@@ -18,7 +18,7 @@ class Caller(Agent):
 
     async def send_hello_world(self):
         time = datetime.fromtimestamp(self._scheduler.clock.time)
-        await self.context.send_acl_message(
+        await self.send_acl_message(
             receiver_addr=self.receiver_addr,
             receiver_id=self.receiver_id,
             content=f"Current time is {time}",
