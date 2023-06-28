@@ -135,18 +135,18 @@ async def create(
         # check broker_addr input and connect
         if isinstance(broker_addr, tuple):
             if not 0 < len(broker_addr) < 4:
-                raise ValueError(f"Invalid broker address")
+                raise ValueError(f"Invalid broker address argument count")
             if len(broker_addr) > 0 and not isinstance(broker_addr[0], str):
-                raise ValueError("Invalid broker address")
+                raise ValueError("Invalid broker address - host must be str")
             if len(broker_addr) > 1 and not isinstance(broker_addr[1], int):
-                raise ValueError("Invalid broker address")
+                raise ValueError("Invalid broker address - port must be int")
             if len(broker_addr) > 2 and not isinstance(broker_addr[2], int):
-                raise ValueError("Invalid broker address")
+                raise ValueError("Invalid broker address - keepalive must be int")
             mqtt_messenger.connect(*broker_addr, **mqtt_kwargs)
 
         elif isinstance(broker_addr, dict):
             if "hostname" not in broker_addr.keys():
-                raise ValueError("Invalid broker address")
+                raise ValueError("Invalid broker address - host not given")
             mqtt_messenger.connect(**broker_addr, **mqtt_kwargs)
 
         else:
