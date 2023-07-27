@@ -458,6 +458,8 @@ class Agent(ABC, AgentDelegates):
     async def _check_inbox(self):
         """Task for waiting on new message in the inbox"""
 
+        from mango.container.core import MainContainerProcessManager
+
         try:
             logger.debug("Agent %s: Start waiting for messages", self.aid)
             while True:

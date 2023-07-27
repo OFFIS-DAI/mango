@@ -118,6 +118,5 @@ class ContainerProtocol(asyncio.Protocol):
         Will close the transport and stop the writing task
         :return:
         """
-
         self.transport.close()  # this will cause the
         # self._task_process_out_msg to be cancelled

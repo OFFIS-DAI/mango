@@ -72,7 +72,7 @@ class P2PTestAgent(Agent):
 )
 async def test_agent_processes_ping_pong(num_sp_agents, num_sp):
     # GIVEN
-    c = await create_container(addr=("127.0.0.2", 8489), copy_internal_messages=False)
+    c = await create_container(addr=("127.0.0.2", 15589), copy_internal_messages=False)
     for i in range(num_sp):
         await c.as_agent_process(
             agent_creator=lambda container: [

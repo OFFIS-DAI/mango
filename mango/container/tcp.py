@@ -133,7 +133,7 @@ class TCPConnectionPool:
 
 
 def tcp_mirror_container_creator(
-    container_data, loop, message_pipe, event_pipe, terminate_event
+    container_data, loop, message_pipe, main_queue, event_pipe, terminate_event
 ):
     return TCPContainer(
         addr=container_data.addr,
@@ -144,6 +144,7 @@ def tcp_mirror_container_creator(
             message_pipe=message_pipe,
             event_pipe=event_pipe,
             terminate_event=terminate_event,
+            main_queue=main_queue,
         ),
         **container_data.kwargs,
     )

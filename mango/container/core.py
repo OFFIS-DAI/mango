@@ -4,13 +4,14 @@ import logging
 import warnings
 import os
 from dataclasses import dataclass
-from multiprocessing import Process, Event
+from multiprocessing import Process, Event, Queue as MultiprocessingQueue
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional, Tuple, Union, List
 
 from ..messages.codecs import ACLMessage, Codec
 from ..util.clock import Clock
 from ..util.multiprocessing import aioduplex, AioDuplex, PipeToWriteQueue
+
 
 import dill  # do not remove! Necessary for the auto loaded pickle reg extensions
 
@@ -43,6 +44,7 @@ class ContainerMirrorData:
     message_pipe: AioDuplex
     event_pipe: AioDuplex
     terminate_event: Event
+    main_queue: asyncio.Queue
 
 
 @dataclass
@@ -75,6 +77,7 @@ def create_agent_process_environment(
     agent_creator,
     mirror_container_creator,
     message_pipe: AioDuplex,
+    main_queue: asyncio.Queue,
     event_pipe: AioDuplex,
     terminate_event: Event,
     process_initialized_event: Event,
@@ -109,6 +112,7 @@ def create_agent_process_environment(
             container_data,
             asyncio.get_event_loop(),
             message_pipe,
+            main_queue,
             event_pipe,
             terminate_event,
         )
@@ -253,10 +257,18 @@ class MirrorContainerProcessManager(BaseContainerProcessManager):
     ) -> None:
         self._container = container
         self._mirror_data = mirror_data
+        self._out_queue = asyncio.Queue()
 
         self._fetch_from_ipc_task = asyncio.create_task(
             self._move_incoming_messages_to_inbox(
-                self._mirror_data.message_pipe, self._mirror_data.terminate_event
+                self._mirror_data.message_pipe,
+                self._mirror_data.terminate_event,
+            )
+        )
+        self._send_to_message_pipe_task = asyncio.create_task(
+            self._send_to_message_pipe(
+                self._mirror_data.message_pipe,
+                self._mirror_data.terminate_event,
             )
         )
         self._execute_dispatch_events_task = asyncio.create_task(
@@ -288,16 +300,41 @@ class MirrorContainerProcessManager(BaseContainerProcessManager):
                 while not terminate_event.is_set():
                     priority, message, meta = await rx.read_object()
 
-                    await self._container.inbox.put((priority, message, meta))
+                    receiver = self._container._agents.get(meta["receiver_id"], None)
+                    if receiver is None:
+                        logger.error(
+                            f"A message was routed to the wrong process, as the {meta} doesn't contain a known receiver-id"
+                        )
+                    target_inbox = receiver.inbox
+                    target_inbox.put_nowait((priority, message, meta))
+
         except Exception:
             logger.exception("The Move Message Task Loop has failed!")
+
+    async def _send_to_message_pipe(
+        self, message_pipe: AioDuplex, terminate_event: Event
+    ):
+        try:
+            async with message_pipe.open_writeonly() as tx:
+                while not terminate_event.is_set():
+                    data = await self._out_queue.get()
+
+                    tx.write_object(data)
+                    await tx.drain()
+
+        except Exception:
+            logger.exception("The Send Message Task Loop has failed!")
 
     def pre_hook_send_internal_message(
         self, message, receiver_id, priority, default_meta
     ):
+        self._out_queue.put_nowait((message, receiver_id, priority, default_meta))
+        """
         self._mirror_data.message_pipe.write_connection.send(
             (message, receiver_id, priority, default_meta)
         )
+        self._mirror_data.main_queue.put((message, receiver_id, priority, default_meta))
+        """
         return True, None
 
     def pre_hook_reserve_aid(self, suggested_aid=None):
@@ -306,13 +343,9 @@ class MirrorContainerProcessManager(BaseContainerProcessManager):
         return self._mirror_data.event_pipe.read_connection.recv()
 
     async def shutdown(self):
-        # cancel _fetch_from_ipc_task
-        if self._fetch_from_ipc_task is not None:
-            self._fetch_from_ipc_task.cancel()
-            try:
-                await self._fetch_from_ipc_task
-            except asyncio.CancelledError:
-                pass
+        await cancel_and_wait_for_task(self._fetch_from_ipc_task)
+        await cancel_and_wait_for_task(self._execute_dispatch_events_task)
+        await cancel_and_wait_for_task(self._send_to_message_pipe_task)
 
 
 class MainContainerProcessManager(BaseContainerProcessManager):
@@ -336,6 +369,13 @@ class MainContainerProcessManager(BaseContainerProcessManager):
         self._pid_to_aids = {}
         self._handle_process_events_tasks: List[asyncio.Task] = []
         self._handle_sp_messages_tasks: List[asyncio.Task] = []
+        self._main_queue = None
+        """
+        self._main_queue = MultiprocessingQueue()
+        self._handle_sp_messages_main_task = asyncio.create_task(
+            self._handle_process_message(None)
+        )
+        """
 
     @property
     def aids(self):
@@ -356,13 +396,14 @@ class MainContainerProcessManager(BaseContainerProcessManager):
                             self._pid_to_aids[event.pid] = set()
                         self._pid_to_aids[event.pid].add(aid)
                         tx.write_object(aid)
+                        await tx.drain()
         except EOFError:
             # other side disconnected -> task not necessry anymore
             pass
         except Exception:
             logger.exception("The Process Event Loop has failed!")
 
-    async def _handle_process_message(self, pipe):
+    async def _handle_process_message(self, pipe: AioDuplex):
         try:
             async with pipe.open_readonly() as rx:
                 while True:
@@ -372,12 +413,33 @@ class MainContainerProcessManager(BaseContainerProcessManager):
                         prio,
                         meta,
                     ) = await rx.read_object()
+
                     self._container._send_internal_message(
                         message=message,
                         receiver_id=receiver_id,
                         priority=prio,
                         default_meta=meta,
                     )
+
+            """
+            while True:
+                while not self._main_queue.empty():
+                    (
+                        message,
+                        receiver_id,
+                        prio,
+                        meta,
+                    ) = self._main_queue.get()
+
+                    self._container._send_internal_message(
+                        message=message,
+                        receiver_id=receiver_id,
+                        priority=prio,
+                        default_meta=meta,
+                    )
+                await asyncio.sleep(0.0018)
+            """
+
         except EOFError:
             # other side disconnected -> task not necessry anymore
             pass
@@ -420,6 +482,7 @@ class MainContainerProcessManager(BaseContainerProcessManager):
                     agent_creator,
                     mirror_container_creator,
                     to_pipe_message,
+                    self._main_queue,
                     to_pipe,
                     self._terminate_sub_processes,
                     process_initialized,
@@ -434,6 +497,8 @@ class MainContainerProcessManager(BaseContainerProcessManager):
         self._handle_process_events_tasks.append(
             asyncio.create_task(self._handle_process_events(from_pipe))
         )
+        """
+        """
         self._handle_sp_messages_tasks.append(
             asyncio.create_task(self._handle_process_message(from_pipe_message))
         )
@@ -469,6 +534,10 @@ class MainContainerProcessManager(BaseContainerProcessManager):
 
             for task in self._handle_sp_messages_tasks:
                 await cancel_and_wait_for_task(task)
+
+            """
+            await cancel_and_wait_for_task(self._handle_sp_messages_main_task)
+            """
 
             # wait for and tidy up processes
             for process in self._agent_processes:

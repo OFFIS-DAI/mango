@@ -258,7 +258,7 @@ class ConditionalTask(ScheduledTask):
         observable=True,
     ):
         super().__init__(clock=clock, on_stop=on_stop, observable=observable)
-
+        assert coroutine is not None
         self._condition = condition_func
         self._coro = coroutine
         self._delay = lookup_delay

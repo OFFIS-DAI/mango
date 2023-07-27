@@ -25,10 +25,17 @@ import io
 import struct
 from typing import Tuple, Any, ContextManager, AsyncContextManager
 from contextlib import contextmanager, asynccontextmanager
+
+import dill, multiprocessing
+
+"""
+dill.Pickler.dumps, dill.Pickler.loads = dill.dumps, dill.loads
+multiprocessing.reduction.ForkingPickler = dill.Pickler
+multiprocessing.reduction.dump = dill.dump
+"""
+
 from multiprocessing.reduction import ForkingPickler
 from multiprocessing.connection import Connection
-
-""""""
 
 
 def aiopipe() -> Tuple["AioPipeReader", "AioPipeWriter"]:
@@ -87,6 +94,7 @@ class AioPipeStream:
     def _close(self):
         try:
             pass
+            # os.close(self._fd)
         except OSError:
             pass
         finally:
@@ -98,6 +106,9 @@ class AioPipeStream:
 
     def __del__(self):
         self.close()
+
+
+import gzip
 
 
 class ObjectStreamReader:
@@ -135,7 +146,7 @@ class ObjectStreamReader:
 
     async def read_object(self):
         buf = await self._recv_bytes()
-        return ForkingPickler.loads(buf.getbuffer())
+        return dill.loads(buf.getbuffer())
 
     async def read_bytes(self):
         return (await self._recv_bytes()).getbuffer()
@@ -169,10 +180,15 @@ class ObjectStreamWriter:
                 self._write(header + buf)
 
     def write_object(self, object):
-        self._write_bytes(ForkingPickler.dumps(object, protocol=-1))
+        comp = ForkingPickler.dumps(object, protocol=-1)
+        # comp = gzip.compress(comp)
+        self._write_bytes(comp)
 
     def write_bytes(self, buf):
         self._write_bytes(buf)
+
+    async def drain(self):
+        await self._stream_writer.drain()
 
 
 class OwnershiplessConnection(Connection):
@@ -192,6 +208,19 @@ class OwnershiplessConnection(Connection):
     def close(self):
         pass
 
+    def send(self, obj):
+        """Send a (picklable) object"""
+        self._check_closed()
+        self._check_writable()
+        self._send_bytes(ForkingPickler.dumps(obj, protocol=-1))
+
+    def recv(self):
+        """Receive a (picklable) object"""
+        self._check_closed()
+        self._check_readable()
+        buf = self._recv_bytes()
+        return dill.loads(buf.getbuffer())
+
 
 class AioPipeReader(AioPipeStream):
     """Reader for a pipe which can attach its file descriptor to an asyncio
@@ -203,7 +232,7 @@ class AioPipeReader(AioPipeStream):
         self.connection = OwnershiplessConnection(fd, writable=False)
 
     async def _open(self):
-        rx = asyncio.StreamReader()
+        rx = asyncio.StreamReader(limit=2**32)
         transport, _ = await asyncio.get_running_loop().connect_read_pipe(
             lambda: asyncio.StreamReaderProtocol(rx), os.fdopen(self._fd)
         )
@@ -221,7 +250,7 @@ class AioPipeWriter(AioPipeStream):
         self.connection = OwnershiplessConnection(fd, readable=False)
 
     async def _open(self):
-        rx = asyncio.StreamReader()
+        rx = asyncio.StreamReader(limit=2**32)
         transport, proto = await asyncio.get_running_loop().connect_write_pipe(
             lambda: asyncio.StreamReaderProtocol(rx), os.fdopen(self._fd, "w")
         )
@@ -256,12 +285,19 @@ class AioDuplex:
         async with self._rx.open() as rx:
             yield rx
 
+    @asynccontextmanager
+    async def open_writeonly(
+        self,
+    ) -> AsyncContextManager[Tuple["asyncio.StreamWriter"]]:
+        async with self._tx.open() as tx:
+            yield tx
+
     @property
-    def read_connection(self):
+    def read_connection(self) -> Connection:
         return self._rx.connection
 
     @property
-    def write_connection(self):
+    def write_connection(self) -> Connection:
         return self._tx.connection
 
 
