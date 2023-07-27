@@ -18,12 +18,12 @@ URL = "https://gitlab.com/mango-agents/mango"
 EMAIL = "mango@offis.de"
 AUTHOR = "mango Team"
 REQUIRES_PYTHON = ">=3.7.0"
-VERSION = "1.0.1"
+VERSION = "1.0.2"
 
 # What packages are required for this module to be executed?
 REQUIRED = [
     "paho-mqtt==1.5.1",
-    "protobuf==3.19.1",
+    "protobuf>=3.20.3",
     "python-dateutil==2.8.2",
     "dill==0.3.6",
 ]
