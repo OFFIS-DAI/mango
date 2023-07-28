@@ -12,6 +12,7 @@ from ..messages.codecs import ACLMessage, Codec
 from ..util.clock import Clock
 from ..util.multiprocessing import aioduplex, AioDuplex, PipeToWriteQueue
 
+
 import dill  # do not remove! Necessary for the auto loaded pickle reg extensions
 
 logger = logging.getLogger(__name__)
@@ -43,6 +44,7 @@ class ContainerMirrorData:
     message_pipe: AioDuplex
     event_pipe: AioDuplex
     terminate_event: Event
+    main_queue: asyncio.Queue
 
 
 @dataclass
@@ -75,6 +77,7 @@ def create_agent_process_environment(
     agent_creator,
     mirror_container_creator,
     message_pipe: AioDuplex,
+    main_queue: asyncio.Queue,
     event_pipe: AioDuplex,
     terminate_event: Event,
     process_initialized_event: Event,
@@ -109,6 +112,7 @@ def create_agent_process_environment(
             container_data,
             asyncio.get_event_loop(),
             message_pipe,
+            main_queue,
             event_pipe,
             terminate_event,
         )
@@ -151,7 +155,7 @@ class BaseContainerProcessManager:
         """
         return []
 
-    def handle_message_in_sp(self, message, receiver_id, priority, default_meta):
+    def handle_message_in_sp(self, message, receiver_id, priority, meta):
         """Called when a message should be handled by the process manager. This
         happens when the receiver id is unknown to the main container itself.
 
@@ -161,11 +165,14 @@ class BaseContainerProcessManager:
         :type receiver_id: str
         :param priority: prio
         :type priority: int_
-        :param default_meta: meta
-        :type default_meta: dict
+        :param meta: meta
+        :type meta: dict
         :raises NotImplementedError: generally not implemented in mirror container manager
         """
-        raise NotImplementedError()
+
+        raise NotImplementedError(
+            f"{self}-{receiver_id}-{self._container._agents.keys()}"
+        )
 
     def create_agent_process(self, agent_creator, container, mirror_container_creator):
         """Creates a process with an agent, which is created by agent_creator. Further,
@@ -250,10 +257,18 @@ class MirrorContainerProcessManager(BaseContainerProcessManager):
     ) -> None:
         self._container = container
         self._mirror_data = mirror_data
+        self._out_queue = asyncio.Queue()
 
         self._fetch_from_ipc_task = asyncio.create_task(
             self._move_incoming_messages_to_inbox(
-                self._mirror_data.message_pipe, self._mirror_data.terminate_event
+                self._mirror_data.message_pipe,
+                self._mirror_data.terminate_event,
+            )
+        )
+        self._send_to_message_pipe_task = asyncio.create_task(
+            self._send_to_message_pipe(
+                self._mirror_data.message_pipe,
+                self._mirror_data.terminate_event,
             )
         )
         self._execute_dispatch_events_task = asyncio.create_task(
@@ -283,17 +298,37 @@ class MirrorContainerProcessManager(BaseContainerProcessManager):
         try:
             async with message_pipe.open_readonly() as rx:
                 while not terminate_event.is_set():
-                    next_item = await rx.read_object()
-                    await self._container.inbox.put(next_item)
+                    priority, message, meta = await rx.read_object()
+
+                    receiver = self._container._agents.get(meta["receiver_id"], None)
+                    if receiver is None:
+                        logger.error(
+                            f"A message was routed to the wrong process, as the {meta} doesn't contain a known receiver-id"
+                        )
+                    target_inbox = receiver.inbox
+                    target_inbox.put_nowait((priority, message, meta))
+
         except Exception:
             logger.exception("The Move Message Task Loop has failed!")
+
+    async def _send_to_message_pipe(
+        self, message_pipe: AioDuplex, terminate_event: Event
+    ):
+        try:
+            async with message_pipe.open_writeonly() as tx:
+                while not terminate_event.is_set():
+                    data = await self._out_queue.get()
+
+                    tx.write_object(data)
+                    await tx.drain()
+
+        except Exception:
+            logger.exception("The Send Message Task Loop has failed!")
 
     def pre_hook_send_internal_message(
         self, message, receiver_id, priority, default_meta
     ):
-        self._mirror_data.message_pipe.write_connection.send(
-            (message, receiver_id, priority, default_meta)
-        )
+        self._out_queue.put_nowait((message, receiver_id, priority, default_meta))
         return True, None
 
     def pre_hook_reserve_aid(self, suggested_aid=None):
@@ -302,13 +337,9 @@ class MirrorContainerProcessManager(BaseContainerProcessManager):
         return self._mirror_data.event_pipe.read_connection.recv()
 
     async def shutdown(self):
-        # cancel _fetch_from_ipc_task
-        if self._fetch_from_ipc_task is not None:
-            self._fetch_from_ipc_task.cancel()
-            try:
-                await self._fetch_from_ipc_task
-            except asyncio.CancelledError:
-                pass
+        await cancel_and_wait_for_task(self._fetch_from_ipc_task)
+        await cancel_and_wait_for_task(self._execute_dispatch_events_task)
+        await cancel_and_wait_for_task(self._send_to_message_pipe_task)
 
 
 class MainContainerProcessManager(BaseContainerProcessManager):
@@ -332,6 +363,7 @@ class MainContainerProcessManager(BaseContainerProcessManager):
         self._pid_to_aids = {}
         self._handle_process_events_tasks: List[asyncio.Task] = []
         self._handle_sp_messages_tasks: List[asyncio.Task] = []
+        self._main_queue = None
 
     @property
     def aids(self):
@@ -352,13 +384,14 @@ class MainContainerProcessManager(BaseContainerProcessManager):
                             self._pid_to_aids[event.pid] = set()
                         self._pid_to_aids[event.pid].add(aid)
                         tx.write_object(aid)
+                        await tx.drain()
         except EOFError:
             # other side disconnected -> task not necessry anymore
             pass
         except Exception:
             logger.exception("The Process Event Loop has failed!")
 
-    async def _handle_process_message(self, pipe):
+    async def _handle_process_message(self, pipe: AioDuplex):
         try:
             async with pipe.open_readonly() as rx:
                 while True:
@@ -368,12 +401,14 @@ class MainContainerProcessManager(BaseContainerProcessManager):
                         prio,
                         meta,
                     ) = await rx.read_object()
+
                     self._container._send_internal_message(
                         message=message,
                         receiver_id=receiver_id,
                         priority=prio,
                         default_meta=meta,
                     )
+
         except EOFError:
             # other side disconnected -> task not necessry anymore
             pass
@@ -416,6 +451,7 @@ class MainContainerProcessManager(BaseContainerProcessManager):
                     agent_creator,
                     mirror_container_creator,
                     to_pipe_message,
+                    self._main_queue,
                     to_pipe,
                     self._terminate_sub_processes,
                     process_initialized,
@@ -448,12 +484,12 @@ class MainContainerProcessManager(BaseContainerProcessManager):
         ipc_event = IPCEvent(IPCEventType.DISPATCH, (coro_func, args), pid)
         self._pid_to_pipe[pid].write_connection.send(ipc_event)
 
-    def handle_message_in_sp(self, message, receiver_id, priority, default_meta):
+    def handle_message_in_sp(self, message, receiver_id, priority, meta):
         sp_queue_of_agent = self._find_sp_queue(receiver_id)
         if sp_queue_of_agent is None:
             logger.warning("Received a message for an unknown receiver;%s", receiver_id)
         else:
-            sp_queue_of_agent.put_nowait((priority, message, default_meta))
+            sp_queue_of_agent.put_nowait((priority, message, meta))
 
     async def shutdown(self):
         if self._active:

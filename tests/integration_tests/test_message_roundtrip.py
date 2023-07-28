@@ -6,7 +6,7 @@ from msg_pb2 import MyMsg
 import mango.container.factory as container_factory
 from mango.agent.core import Agent
 from mango.container.core import Container
-from mango.messages.codecs import JSON, PROTOBUF
+from mango.messages.codecs import JSON, PROTOBUF, FastJSON
 
 M1 = "Hello"
 M2 = "Hello2"
@@ -30,6 +30,7 @@ def string_serializer():
 
 
 JSON_CODEC = JSON()
+FAST_JSON_CODEC = FastJSON()
 PROTO_CODEC = PROTOBUF()
 PROTO_CODEC.add_serializer(*string_serializer())
 
@@ -176,6 +177,16 @@ async def test_tcp_json():
 @pytest.mark.asyncio
 async def test_tcp_proto():
     await setup_and_run_test_case("tcp", PROTO_CODEC)
+
+
+@pytest.mark.asyncio
+async def test_tcp_fast_json():
+    await setup_and_run_test_case("tcp", FAST_JSON_CODEC)
+
+
+@pytest.mark.asyncio
+async def test_mqtt_fast_json():
+    await setup_and_run_test_case("mqtt", FAST_JSON_CODEC)
 
 
 @pytest.mark.asyncio

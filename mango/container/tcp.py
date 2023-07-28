@@ -64,15 +64,13 @@ class TCPConnectionPool:
         shutdown_connections = []
         for key, queue in self._available_connections.items():
             if queue.qsize() > 0:
-                item, item_time = queue.get_nowait()
-                queue.task_done()
+                item, item_time = queue._queue[0]
                 sec_elapsed = time.time() - item_time
                 if sec_elapsed > self._ttl_in_sec:
                     self._connection_counts[key] -= 1
                     connection = item
                     shutdown_connections.append(connection)
-                else:
-                    queue.put_nowait((item, item_time))
+                    queue.get_nowait()
         for connection in shutdown_connections:
             await connection.shutdown()
 
@@ -135,7 +133,7 @@ class TCPConnectionPool:
 
 
 def tcp_mirror_container_creator(
-    container_data, loop, message_pipe, event_pipe, terminate_event
+    container_data, loop, message_pipe, main_queue, event_pipe, terminate_event
 ):
     return TCPContainer(
         addr=container_data.addr,
@@ -146,6 +144,7 @@ def tcp_mirror_container_creator(
             message_pipe=message_pipe,
             event_pipe=event_pipe,
             terminate_event=terminate_event,
+            main_queue=main_queue,
         ),
         **container_data.kwargs,
     )
@@ -262,7 +261,6 @@ class TCPContainer(Container):
             logger.debug("Connection established to addr; %s", addr)
 
             protocol.write(self.codec.encode(message))
-            await protocol.flush()
 
             logger.debug("Message sent to addr; %s", addr)
 
