@@ -242,7 +242,10 @@ class RecurrentScheduledTask(ScheduledTask):
                 self._stopped = True
             else:
                 delay = (after - current_time).total_seconds()
-                await self.clock.sleep(delay)
+                sleep_future: asyncio.Future = self.clock.sleep(delay)
+                self.notify_sleeping()
+                await sleep_future
+                self.notify_running()
 
 
 class ConditionalTask(ScheduledTask):

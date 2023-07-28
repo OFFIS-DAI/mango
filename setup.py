@@ -23,10 +23,10 @@ VERSION = "1.1.0"
 # What packages are required for this module to be executed?
 REQUIRED = [
     "paho-mqtt==1.5.1",
-    "protobuf==3.19.1",
     "python-dateutil>=2.8.2",
     "dill>=0.3.6",
     "msgspec>=0.14.2",
+    "protobuf>=3.20.3",
 ]
 
 # What packages are optional?

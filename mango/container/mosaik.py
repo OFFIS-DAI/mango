@@ -8,6 +8,7 @@ from mango.container.core import Container
 
 from ..messages.codecs import Codec
 from ..util.clock import ExternalClock
+from ..util.termination_detection import tasks_complete_or_sleeping
 
 logger = logging.getLogger(__name__)
 
@@ -139,14 +140,12 @@ class MosaikContainer(Container):
         # messages
         while True:
             self._new_internal_message = False
-            for agent in self._agents.values():
-                await agent.inbox.join()  # make sure inbox of agent is empty and all messages are processed
-                # TODO In the following we should also be able to recognize manual sleeps (maybe)
-                await agent._scheduler.tasks_complete_or_sleeping()  # wait until agent is done with all tasks
+            await tasks_complete_or_sleeping(self)
+            # wait until all agents are done with their tasks
             if not self._new_internal_message:
                 # if there have
                 break
-        # now all agents should be done
+        # now all agents in this container should be done
         end_time = time.time()
 
         messages_this_step, self.message_buffer = self.message_buffer, []

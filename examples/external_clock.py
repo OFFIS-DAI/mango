@@ -9,11 +9,11 @@ class Caller(Agent):
         super().__init__(container)
         self.schedule_timestamp_task(
             coroutine=self.send_hello_world(receiver_addr, receiver_id),
-            timestamp=self.context.current_timestamp + 5,
+            timestamp=self.current_timestamp + 5,
         )
 
     async def send_hello_world(self, receiver_addr, receiver_id):
-        await self.context.send_acl_message(
+        await self.send_acl_message(
             receiver_addr=receiver_addr, receiver_id=receiver_id, content="Hello World"
         )
 

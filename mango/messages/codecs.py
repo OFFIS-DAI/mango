@@ -217,7 +217,7 @@ class PROTOBUF(Codec):
     def decode(self, data):
         proto_msg = GenericProtoMsg()
         try:
-            proto_msg.ParseFromString(data)
+            proto_msg.ParseFromString(bytes(data))
         except Exception as e:
             raise DecodeError(f"Could not parse data: {data}") from e
 

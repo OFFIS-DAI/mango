@@ -2,16 +2,13 @@ import asyncio
 import logging
 
 from mango import Agent
-
+from .termination_detection import tasks_complete_or_sleeping
 logger = logging.getLogger(__name__)
 
 
 class ClockAgent(Agent):
     async def wait_all_done(self):
-        await self._context._container.inbox.join()
-        for ag in self._context._container._agents.values():  # type: Agent
-            await ag.inbox.join()  # make sure inbox of agent is empty and all messages are processed
-            await ag._scheduler.tasks_complete_or_sleeping()  # wait until agent is done with all tasks
+        await tasks_complete_or_sleeping(self._context._container)
 
 
 class DistributedClockManager(ClockAgent):
