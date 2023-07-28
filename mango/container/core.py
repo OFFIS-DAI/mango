@@ -4,7 +4,7 @@ import logging
 import warnings
 import os
 from dataclasses import dataclass
-from multiprocessing import Process, Event, Queue as MultiprocessingQueue
+from multiprocessing import Process, Event
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional, Tuple, Union, List
 
@@ -466,8 +466,6 @@ class MainContainerProcessManager(BaseContainerProcessManager):
         self._handle_process_events_tasks.append(
             asyncio.create_task(self._handle_process_events(from_pipe))
         )
-        """
-        """
         self._handle_sp_messages_tasks.append(
             asyncio.create_task(self._handle_process_message(from_pipe_message))
         )

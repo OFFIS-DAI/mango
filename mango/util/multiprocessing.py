@@ -108,9 +108,6 @@ class AioPipeStream:
         self.close()
 
 
-import gzip
-
-
 class ObjectStreamReader:
     """Wraps a StreamReader to add the ability to read
     pickled objects from the stream

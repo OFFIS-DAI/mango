@@ -176,19 +176,6 @@ class JSON(Codec):
         return json.loads(data.decode(), object_hook=self.deserialize_obj)
 
 
-import pickle
-
-
-class Pickle(Codec):
-    """A :class:`Codec` that uses *JSON* to encode and decode messages."""
-
-    def encode(self, data):
-        return pickle.dumps(data)
-
-    def decode(self, data):
-        return pickle.loads(data)
-
-
 class FastJSON(Codec):
     def __init__(self):
         super().__init__()
