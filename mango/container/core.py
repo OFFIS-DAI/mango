@@ -329,12 +329,6 @@ class MirrorContainerProcessManager(BaseContainerProcessManager):
         self, message, receiver_id, priority, default_meta
     ):
         self._out_queue.put_nowait((message, receiver_id, priority, default_meta))
-        """
-        self._mirror_data.message_pipe.write_connection.send(
-            (message, receiver_id, priority, default_meta)
-        )
-        self._mirror_data.main_queue.put((message, receiver_id, priority, default_meta))
-        """
         return True, None
 
     def pre_hook_reserve_aid(self, suggested_aid=None):
@@ -370,12 +364,6 @@ class MainContainerProcessManager(BaseContainerProcessManager):
         self._handle_process_events_tasks: List[asyncio.Task] = []
         self._handle_sp_messages_tasks: List[asyncio.Task] = []
         self._main_queue = None
-        """
-        self._main_queue = MultiprocessingQueue()
-        self._handle_sp_messages_main_task = asyncio.create_task(
-            self._handle_process_message(None)
-        )
-        """
 
     @property
     def aids(self):
@@ -420,25 +408,6 @@ class MainContainerProcessManager(BaseContainerProcessManager):
                         priority=prio,
                         default_meta=meta,
                     )
-
-            """
-            while True:
-                while not self._main_queue.empty():
-                    (
-                        message,
-                        receiver_id,
-                        prio,
-                        meta,
-                    ) = self._main_queue.get()
-
-                    self._container._send_internal_message(
-                        message=message,
-                        receiver_id=receiver_id,
-                        priority=prio,
-                        default_meta=meta,
-                    )
-                await asyncio.sleep(0.0018)
-            """
 
         except EOFError:
             # other side disconnected -> task not necessry anymore
@@ -534,10 +503,6 @@ class MainContainerProcessManager(BaseContainerProcessManager):
 
             for task in self._handle_sp_messages_tasks:
                 await cancel_and_wait_for_task(task)
-
-            """
-            await cancel_and_wait_for_task(self._handle_sp_messages_main_task)
-            """
 
             # wait for and tidy up processes
             for process in self._agent_processes:

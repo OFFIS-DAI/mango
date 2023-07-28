@@ -169,6 +169,12 @@ we can achieve the same result (for json codecs) via the ``@json_serializable`` 
     1 2 3
 
 
+fast json
+##########
+Besides the normal full features json codec, which is able to serialize and deserialize messages under preservation of the type information, mango
+provides the `codecs.FastJson` codec. This codec usese `msgspec` and does not provide any type safety. Therefore are also no custom serializer.
+
+
 proto codec and ACLMessage
 ##########################
 
