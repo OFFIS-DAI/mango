@@ -64,3 +64,29 @@ This will register the agent at the provided container instance and will assign 
 The aid is granted if there is no other agent with this id, and if the aid doesn't interfere with the default aid pattern, otherwise 
 the generated aid will be used. To check if the aid is available beforehand, you can use ``container.is_aid_available``.
 It will also create the task to check for incoming messages.
+
+***************
+agent process
+***************
+To improve multicore utilization, mango provides a way to distribute agents to processes. For this, it is necessary to create and 
+register the agent in a slightly different way.
+
+.. code-block:: python3
+    process_handle = await main_container.as_agent_process(
+        agent_creator=lambda sub_container: TestAgent(
+            container, aid_main_agent, suggested_aid=f"process_agent1"
+        )
+    )
+
+The process_handle is awaitable and will finish exactly when the process is fully set up. Further, it contains the pid `process_handle.pid`.
+
+Note that after the creation, the agent lives in a mirror container in another process. Therefore, it is not possible to interact
+with the agent directly from the main process. If you want to interact with the agent after the creation, it is possible to
+dispatch a task in the agent process using `dispatch_to_agent_process`. 
+
+.. code-block:: python3
+    main_container.dispatch_to_agent_process(
+        pid,
+        your_function, # will be called with the mirror container + x as arguments
+        ... # varargs, additional arguments you want to pass to your_function
+    )

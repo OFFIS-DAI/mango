@@ -27,8 +27,9 @@ async def create(
     codec: Codec = None,
     clock: Clock = None,
     addr: Optional[Union[str, Tuple[str, int]]] = None,
-    copy_internal_messages=True,
+    copy_internal_messages: bool = False,
     mqtt_kwargs: Dict[str, Any] = None,
+    **kwargs: Dict[str, Any],
 ) -> Container:
     """
     This method is called to instantiate a container instance, either
@@ -69,15 +70,9 @@ async def create(
             loop=loop,
             clock=clock,
             copy_internal_messages=copy_internal_messages,
+            **kwargs,
         )
-
-        # create a TCP server bound to host and port that uses the
-        # specified protocol
-        container.server = await loop.create_server(
-            lambda: ContainerProtocol(container=container, loop=loop, codec=codec),
-            addr[0],
-            addr[1],
-        )
+        await container.setup()
         return container
 
     if connection_type == MOSAIK_CONNECTION:
@@ -140,18 +135,18 @@ async def create(
         # check broker_addr input and connect
         if isinstance(broker_addr, tuple):
             if not 0 < len(broker_addr) < 4:
-                raise ValueError(f"Invalid broker address")
+                raise ValueError(f"Invalid broker address argument count")
             if len(broker_addr) > 0 and not isinstance(broker_addr[0], str):
-                raise ValueError("Invalid broker address")
+                raise ValueError("Invalid broker address - host must be str")
             if len(broker_addr) > 1 and not isinstance(broker_addr[1], int):
-                raise ValueError("Invalid broker address")
+                raise ValueError("Invalid broker address - port must be int")
             if len(broker_addr) > 2 and not isinstance(broker_addr[2], int):
-                raise ValueError("Invalid broker address")
+                raise ValueError("Invalid broker address - keepalive must be int")
             mqtt_messenger.connect(*broker_addr, **mqtt_kwargs)
 
         elif isinstance(broker_addr, dict):
             if "hostname" not in broker_addr.keys():
-                raise ValueError("Invalid broker address")
+                raise ValueError("Invalid broker address - host not given")
             mqtt_messenger.connect(**broker_addr, **mqtt_kwargs)
 
         else:
@@ -234,4 +229,5 @@ async def create(
             mqtt_client=mqtt_messenger,
             codec=codec,
             copy_internal_messages=copy_internal_messages,
+            **kwargs,
         )

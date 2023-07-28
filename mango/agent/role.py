@@ -43,6 +43,9 @@ class DataContainer:
     def __getitem__(self, key):
         return self.__getattribute__(key)
 
+    def __contains__(self, key):
+        return hasattr(self, key)
+
 
 class RoleContext:
     pass
@@ -402,14 +405,25 @@ class RoleAgent(Agent):
     a RoleAgent as base for your agents. A role can be added with :func:`RoleAgent.add_role`.
     """
 
-    def __init__(self, container, suggested_aid: str = None):
+    def __init__(
+        self,
+        container,
+        suggested_aid: str = None,
+        suspendable_tasks=True,
+        observable_tasks=True,
+    ):
         """Create a role-agent
 
         :param container: container the agent lives in
         :param suggested_aid: (Optional) suggested aid, if the aid is already taken, a generated aid is used.
                               Using the generated aid-style ("agentX") is not allowed.
         """
-        super().__init__(container, suggested_aid=suggested_aid)
+        super().__init__(
+            container,
+            suggested_aid=suggested_aid,
+            suspendable_tasks=suspendable_tasks,
+            observable_tasks=observable_tasks,
+        )
 
         self._role_handler = RoleHandler(self._context, self._scheduler)
         self._role_context = RoleContext(

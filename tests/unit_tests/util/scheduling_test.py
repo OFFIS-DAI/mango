@@ -56,17 +56,21 @@ async def test_recurrent_conv():
         l.append(1)
 
     recurrency = rrule.rrule(
-        rrule.SECONDLY, interval=2, dtstart=datetime.datetime.now()
+        rrule.SECONDLY,
+        interval=2,
+        dtstart=datetime.datetime.now(),
+        count=2,
     )
 
     # WHEN
     t = scheduler.schedule_recurrent_task(increase_counter, recurrency=recurrency)
-    try:
-        await asyncio.wait_for(t, timeout=2.5)
-    except asyncio.exceptions.TimeoutError:
-        pass
+    await asyncio.sleep(0.1)
+    task = scheduler._scheduled_tasks[0][0]
 
     # THEN
+    assert task._is_sleeping.done()
+    await asyncio.sleep(2)
+    assert task._is_done.done()
     assert len(l) == 2
 
 
@@ -110,7 +114,6 @@ async def test_periodic_conv():
     assert len(l) == 2
 
 
-
 @pytest.mark.asyncio
 @pytest.mark.filterwarnings(
     "ignore::RuntimeWarning"
@@ -125,7 +128,8 @@ async def test_one_shot_timeouted_conv():
 
     # WHEN
     t = scheduler.schedule_timestamp_task(
-        increase_counter(), (datetime.datetime.now() + datetime.timedelta(seconds=0.3)).timestamp()
+        increase_counter(),
+        (datetime.datetime.now() + datetime.timedelta(seconds=0.3)).timestamp(),
     )
     with pytest.raises(asyncio.exceptions.TimeoutError):
         await asyncio.wait_for(t, timeout=0.2)
@@ -168,7 +172,6 @@ async def test_one_shot_timestamp_conv():
 
     # THEN
     assert len(l) == 1
-
 
 
 @pytest.mark.asyncio

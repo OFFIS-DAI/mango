@@ -8,6 +8,7 @@ from mango.container.core import Container
 
 from ..messages.codecs import Codec
 from ..util.clock import ExternalClock
+from ..util.termination_detection import tasks_complete_or_sleeping
 
 logger = logging.getLogger(__name__)
 
@@ -82,20 +83,11 @@ class MosaikContainer(Container):
         if receiver_addr == self.addr:
             if not receiver_id:
                 receiver_id = message.receiver_id
-            # internal message
-            receiver = self._agents.get(receiver_id, None)
-            if receiver is None:
-                logger.warning(
-                    f"Sending internal message not successful, receiver id unknown;{receiver_id}"
-                )
-                return False
-            self._new_internal_message = True
             default_meta = {"network_protocol": "mosaik"}
             success = self._send_internal_message(
-                message=message,
-                default_meta=default_meta,
-                target_inbox_overwrite=receiver.inbox,
+                message=message, receiver_id=receiver_id, default_meta=default_meta
             )
+            self._new_internal_message = True
         else:
             success = await self._send_external_message(receiver_addr, message)
 
@@ -122,7 +114,6 @@ class MosaikContainer(Container):
     async def step(
         self, simulation_time: float, incoming_messages: List[bytes]
     ) -> MosaikContainerOutput:
-
         if self.message_buffer:
             logger.warning(
                 "There are messages in teh message buffer to be sent, at the start when step was called."
@@ -149,14 +140,12 @@ class MosaikContainer(Container):
         # messages
         while True:
             self._new_internal_message = False
-            for agent in self._agents.values():
-                await agent.inbox.join()  # make sure inbox of agent is empty and all messages are processed
-                # TODO In the following we should also be able to recognize manual sleeps (maybe)
-                await agent._scheduler.tasks_complete_or_sleeping()  # wait until agent is done with all tasks
+            await tasks_complete_or_sleeping(self)
+            # wait until all agents are done with their tasks
             if not self._new_internal_message:
                 # if there have
                 break
-        # now all agents should be done
+        # now all agents in this container should be done
         end_time = time.time()
 
         messages_this_step, self.message_buffer = self.message_buffer, []
