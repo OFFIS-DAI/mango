@@ -34,7 +34,7 @@ async def test_recurrent():
     )
 
     # WHEN
-    t = scheduler.schedule_task(RecurrentScheduledTask(increase_counter, recurrency))
+    t = scheduler.schedule_task(RecurrentScheduledTask(increase_counter, recurrency, clock))
     try:
         new_time = start + datetime.timedelta(days=1)
         clock.set_time(new_time.timestamp())
@@ -72,6 +72,47 @@ async def test_recurrent_conv():
     await asyncio.sleep(2)
     assert task._is_done.done()
     assert len(l) == 2
+
+@pytest.mark.asyncio
+async def test_recurrent_wait():
+    # GIVEN
+    start = datetime.datetime(2023, 1, 1)
+    end = datetime.datetime(2023, 1, 4)
+    clock = ExternalClock(start.timestamp())
+    scheduler = Scheduler(clock=clock)
+    l = []
+
+    async def increase_counter():
+        l.append(clock._time)
+    tomorrow = start + datetime.timedelta(days=1)
+    aftertomorrow = start + datetime.timedelta(days=2)
+    recurrency = rrule.rrule(
+        rrule.DAILY, interval=1, dtstart=tomorrow, until=end
+    )
+
+    # WHEN
+    t = scheduler.schedule_task(RecurrentScheduledTask(increase_counter, recurrency, clock))
+    task = scheduler._scheduled_tasks[0][0]
+    try:
+        clock.set_time(start.timestamp())
+        await asyncio.sleep(0.01)
+        assert task._is_sleeping.done()
+        assert len(l) == 0
+        clock.set_time(tomorrow.timestamp())
+        await asyncio.sleep(0.01)
+        assert task._is_sleeping.done()
+        assert len(l) == 1
+        clock.set_time(aftertomorrow.timestamp())
+        await asyncio.sleep(0.01)
+        await asyncio.wait_for(t, timeout=0.5)
+        assert task._is_done.done()
+    except asyncio.exceptions.TimeoutError:
+        pass
+
+    # THEN
+    assert len(l) == 2
+    assert l[0] == tomorrow.timestamp()
+    assert l[1] == aftertomorrow.timestamp()
 
 
 @pytest.mark.asyncio
