@@ -5,12 +5,10 @@ from typing import Any, Dict, Optional, Tuple, Union
 import paho.mqtt.client as paho
 
 from mango.container.core import Container
-from mango.container.mosaik import MosaikContainer
+from mango.container.external_coupling import ExternalSchedulingContainer
 from mango.container.mqtt import MQTTContainer
-from mango.container.protocol import ContainerProtocol
 from mango.container.tcp import TCPContainer
-from mango.messages.codecs import JSON, PROTOBUF
-
+from mango.messages.codecs import JSON
 from ..messages.codecs import Codec
 from ..util.clock import AsyncioClock, Clock
 
@@ -18,18 +16,18 @@ logger = logging.getLogger(__name__)
 
 TCP_CONNECTION = "tcp"
 MQTT_CONNECTION = "mqtt"
-MOSAIK_CONNECTION = "mosaik"
+EXTERNAL_CONNECTION = "external_connection"
 
 
 async def create(
-    *,
-    connection_type: str = "tcp",
-    codec: Codec = None,
-    clock: Clock = None,
-    addr: Optional[Union[str, Tuple[str, int]]] = None,
-    copy_internal_messages: bool = False,
-    mqtt_kwargs: Dict[str, Any] = None,
-    **kwargs: Dict[str, Any],
+        *,
+        connection_type: str = "tcp",
+        codec: Codec = None,
+        clock: Clock = None,
+        addr: Optional[Union[str, Tuple[str, int]]] = None,
+        copy_internal_messages: bool = False,
+        mqtt_kwargs: Dict[str, Any] = None,
+        **kwargs: Dict[str, Any],
 ) -> Container:
     """
     This method is called to instantiate a container instance, either
@@ -49,7 +47,7 @@ async def create(
     :return: The instance of a MQTTContainer or a TCPContainer
     """
     connection_type = connection_type.lower()
-    if connection_type not in [TCP_CONNECTION, MQTT_CONNECTION, MOSAIK_CONNECTION]:
+    if connection_type not in [TCP_CONNECTION, MQTT_CONNECTION, EXTERNAL_CONNECTION]:
         raise ValueError(f"Unknown connection type {connection_type}")
 
     loop = asyncio.get_running_loop()
@@ -75,8 +73,8 @@ async def create(
         await container.setup()
         return container
 
-    if connection_type == MOSAIK_CONNECTION:
-        return MosaikContainer(addr=addr, loop=loop, codec=codec)
+    if connection_type == EXTERNAL_CONNECTION:
+        return ExternalSchedulingContainer(addr=addr, loop=loop, codec=codec)
 
     if connection_type == MQTT_CONNECTION:
         # get and check relevant kwargs from mqtt_kwargs
@@ -104,7 +102,7 @@ async def create(
 
         # check if addr is a valid topic without wildcards
         if addr is not None and (
-            not isinstance(addr, str) or "#" in addr or "+" in addr
+                not isinstance(addr, str) or "#" in addr or "+" in addr
         ):
             raise ValueError(
                 "addr is not set correctly. It is used as "
