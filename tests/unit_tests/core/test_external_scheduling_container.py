@@ -5,61 +5,61 @@ import pytest
 
 import mango.container.factory as container_factory
 from mango.agent.core import Agent
-from mango.container.factory import MOSAIK_CONNECTION
-from mango.container.mosaik import MosaikAgentMessage
+from mango.container.factory import EXTERNAL_CONNECTION
+from mango.container.external_coupling import ExternalAgentMessage
 from mango.messages.message import ACLMessage
 from mango.util.clock import ExternalClock
 
 
 @pytest.mark.asyncio
 async def test_init():
-    mosaik_container = await container_factory.create(
-        addr="mosaik_eid_1234", connection_type=MOSAIK_CONNECTION
+    external_scheduling_container = await container_factory.create(
+        addr="external_eid_1234", connection_type=EXTERNAL_CONNECTION
     )
-    assert mosaik_container.addr == "mosaik_eid_1234"
-    assert isinstance(mosaik_container.clock, ExternalClock)
-    await mosaik_container.shutdown()
+    assert external_scheduling_container.addr == "external_eid_1234"
+    assert isinstance(external_scheduling_container.clock, ExternalClock)
+    await external_scheduling_container.shutdown()
 
 
 @pytest.mark.asyncio
 async def test_send_msg():
-    mosaik_container = await container_factory.create(
-        addr="mosaik_eid_1234", connection_type=MOSAIK_CONNECTION
+    external_scheduling_container = await container_factory.create(
+        addr="external_eid_1234", connection_type=EXTERNAL_CONNECTION
     )
-    await mosaik_container.send_acl_message(
+    await external_scheduling_container.send_acl_message(
         content="test", receiver_addr="eid321", receiver_id="Agent0"
     )
-    assert len(mosaik_container.message_buffer) == 1
-    mosaik_agent_msg: MosaikAgentMessage = mosaik_container.message_buffer[0]
-    assert mosaik_agent_msg.receiver == "eid321"
-    decoded_msg = mosaik_container.codec.decode(mosaik_agent_msg.message)
+    assert len(external_scheduling_container.message_buffer) == 1
+    external_agent_msg: ExternalAgentMessage = external_scheduling_container.message_buffer[0]
+    assert external_agent_msg.receiver == "eid321"
+    decoded_msg = external_scheduling_container.codec.decode(external_agent_msg.message)
     assert decoded_msg.content == "test"
     assert decoded_msg.receiver_addr == "eid321"
     assert decoded_msg.receiver_id == "Agent0"
-    await mosaik_container.shutdown()
+    await external_scheduling_container.shutdown()
 
 
 @pytest.mark.asyncio
 async def test_step():
-    mosaik_container = await container_factory.create(
-        addr="mosaik_eid_1234", connection_type=MOSAIK_CONNECTION
+    external_scheduling_container = await container_factory.create(
+        addr="external_eid_1234", connection_type=EXTERNAL_CONNECTION
     )
-    await mosaik_container.send_acl_message(
+    await external_scheduling_container.send_acl_message(
         content="test", receiver_addr="eid321", receiver_id="Agent0"
     )
-    step_output = await mosaik_container.step(simulation_time=12, incoming_messages=[])
-    assert mosaik_container.message_buffer == []
-    assert mosaik_container.clock.time == 12
+    step_output = await external_scheduling_container.step(simulation_time=12, incoming_messages=[])
+    assert external_scheduling_container.message_buffer == []
+    assert external_scheduling_container.clock.time == 12
     assert 0 < step_output.duration < 0.01
     assert len(step_output.messages) == 1
-    mosaik_msg = step_output.messages[0]
-    assert 0 < mosaik_msg.time < 0.01
-    assert mosaik_msg.receiver == "eid321"
-    decoded_msg = mosaik_container.codec.decode(mosaik_msg.message)
+    external_msg = step_output.messages[0]
+    assert 0 < external_msg.time < 0.01
+    assert external_msg.receiver == "eid321"
+    decoded_msg = external_scheduling_container.codec.decode(external_msg.message)
     assert decoded_msg.content == "test"
     assert decoded_msg.receiver_addr == "eid321"
     assert decoded_msg.receiver_id == "Agent0"
-    await mosaik_container.shutdown()
+    await external_scheduling_container.shutdown()
 
 
 class ReplyAgent(Agent):
@@ -122,10 +122,10 @@ class WaitForMessageAgent(Agent):
 
 @pytest.mark.asyncio
 async def test_step_with_cond_task():
-    mosaik_container = await container_factory.create(
-        addr="mosaik_eid_1", connection_type=MOSAIK_CONNECTION
+    external_scheduling_container = await container_factory.create(
+        addr="external_eid_1", connection_type=EXTERNAL_CONNECTION
     )
-    agent_1 = WaitForMessageAgent(mosaik_container)
+    agent_1 = WaitForMessageAgent(external_scheduling_container)
     print("Agent init")
 
     current_time = 0
@@ -135,7 +135,7 @@ async def test_step_with_cond_task():
         # advance time without anything happening
         print("starting step")
         return_values = await asyncio.wait_for(
-            mosaik_container.step(simulation_time=current_time, incoming_messages=[]),
+            external_scheduling_container.step(simulation_time=current_time, incoming_messages=[]),
             timeout=1,
         )
 
@@ -146,15 +146,15 @@ async def test_step_with_cond_task():
         )
 
     # create and send message in next step
-    message = mosaik_container._create_acl(
-        content="", receiver_addr=mosaik_container.addr, receiver_id=agent_1.aid
+    message = external_scheduling_container._create_acl(
+        content="", receiver_addr=external_scheduling_container.addr, receiver_id=agent_1.aid
     )
-    encoded_msg = mosaik_container.codec.encode(message)
+    encoded_msg = external_scheduling_container.codec.encode(message)
     print("created message")
 
     # advance time only by 0.5 so that in the next cycle the conditional task will be done
     current_time += 0.5
-    return_values = await mosaik_container.step(
+    return_values = await external_scheduling_container.step(
         simulation_time=current_time, incoming_messages=[encoded_msg]
     )
     print("next step done")
@@ -165,14 +165,14 @@ async def test_step_with_cond_task():
         and len(return_values.messages) == 0
     )
     current_time += 0.5
-    return_values = await mosaik_container.step(
+    return_values = await external_scheduling_container.step(
         simulation_time=current_time, incoming_messages=[]
     )
 
     # now everything should be done
     assert return_values.next_activity is None and len(return_values.messages) == 0
 
-    await mosaik_container.shutdown()
+    await external_scheduling_container.shutdown()
 
 
 class SelfSendAgent(Agent):
@@ -201,36 +201,36 @@ class SelfSendAgent(Agent):
 
 @pytest.mark.asyncio
 async def test_send_internal_messages():
-    mosaik_container = await container_factory.create(
-        addr="mosaik_eid_1", connection_type=MOSAIK_CONNECTION
+    external_scheduling_container = await container_factory.create(
+        addr="external_eid_1", connection_type=EXTERNAL_CONNECTION
     )
-    agent_1 = SelfSendAgent(container=mosaik_container, final_number=3)
-    message = mosaik_container._create_acl(
-        content="", receiver_addr=mosaik_container.addr, receiver_id=agent_1.aid
+    agent_1 = SelfSendAgent(container=external_scheduling_container, final_number=3)
+    message = external_scheduling_container._create_acl(
+        content="", receiver_addr=external_scheduling_container.addr, receiver_id=agent_1.aid
     )
-    encoded_msg = mosaik_container.codec.encode(message)
-    return_values = await mosaik_container.step(
+    encoded_msg = external_scheduling_container.codec.encode(message)
+    return_values = await external_scheduling_container.step(
         simulation_time=1, incoming_messages=[encoded_msg]
     )
     assert len(return_values.messages) == 1
 
-    await mosaik_container.shutdown()
+    await external_scheduling_container.shutdown()
 
 
 @pytest.mark.asyncio
 async def test_step_with_replying_agent():
-    mosaik_container = await container_factory.create(
-        addr="mosaik_eid_1", connection_type=MOSAIK_CONNECTION
+    external_scheduling_container = await container_factory.create(
+        addr="external_eid_1", connection_type=EXTERNAL_CONNECTION
     )
-    reply_agent = ReplyAgent(container=mosaik_container)
+    reply_agent = ReplyAgent(container=external_scheduling_container)
     new_acl_msg = ACLMessage()
     new_acl_msg.content = "hello you"
-    new_acl_msg.receiver_addr = "mosaik_eid_1"
+    new_acl_msg.receiver_addr = "external_eid_1"
     new_acl_msg.receiver_id = reply_agent.aid
     new_acl_msg.sender_id = "Agent0"
-    new_acl_msg.sender_addr = "mosaik_eid_2"
-    encoded_msg = mosaik_container.codec.encode(new_acl_msg)
-    container_output = await mosaik_container.step(
+    new_acl_msg.sender_addr = "external_eid_2"
+    encoded_msg = external_scheduling_container.codec.encode(new_acl_msg)
+    container_output = await external_scheduling_container.step(
         simulation_time=10, incoming_messages=[encoded_msg]
     )
     assert (
@@ -239,17 +239,17 @@ async def test_step_with_replying_agent():
     assert (
         container_output.messages[0].time
         < container_output.messages[1].time
-        < mosaik_container.clock.time + 0.1
+        < external_scheduling_container.clock.time + 0.1
     )
     assert (
-        container_output.messages[2].time > mosaik_container.clock.time + 0.1
+        container_output.messages[2].time > external_scheduling_container.clock.time + 0.1
     )  # since we had a sleep of 0.1 seconds
-    assert container_output.next_activity == mosaik_container.clock.time + 10
-    container_output = await mosaik_container.step(
+    assert container_output.next_activity == external_scheduling_container.clock.time + 10
+    container_output = await external_scheduling_container.step(
         simulation_time=20, incoming_messages=[]
     )
     assert len(container_output.messages) == 1
-    assert container_output.next_activity == mosaik_container.clock.time + 10
+    assert container_output.next_activity == external_scheduling_container.clock.time + 10
     await reply_agent.stop_tasks()
 
-    await mosaik_container.shutdown()
+    await external_scheduling_container.shutdown()
