@@ -234,7 +234,6 @@ class RecurrentScheduledTask(ScheduledTask):
 
     async def run(self):
         while not self._stopped:
-            await self._coroutine_func()
             current_time = datetime.datetime.fromtimestamp(self.clock.time)
             after = self._recurrency_rule.after(current_time)
             # after can be None, if until or count was set on the rrule
@@ -246,6 +245,7 @@ class RecurrentScheduledTask(ScheduledTask):
                 self.notify_sleeping()
                 await sleep_future
                 self.notify_running()
+            await self._coroutine_func()
 
 
 class ConditionalTask(ScheduledTask):
