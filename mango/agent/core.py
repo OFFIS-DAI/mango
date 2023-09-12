@@ -224,41 +224,6 @@ class AgentDelegates:
             src=src,
         )
 
-    def schedule_datetime_process_task(
-        self, coroutine_creator, date_time: datetime, on_stop=None, src=None
-    ):
-        """Schedule a task at specified datetime in another process.
-
-        :param coroutine_creator: coroutine_creator creating couroutine to be scheduled
-        :type coroutine_creator: Coroutine-creator
-        :param date_time: datetime defining when the task should start
-        :type date_time: datetime
-        :param src: creator of the task
-        :type src: Object
-        """
-        return self._scheduler.schedule_datetime_process_task(
-            coroutine_creator=coroutine_creator,
-            date_time=date_time,
-            on_stop=on_stop,
-            src=src,
-        )
-
-    def schedule_datetime_task(
-        self, coroutine, date_time: datetime, on_stop=None, src=None
-    ):
-        """Schedule a task at specified datetime.
-
-        :param coroutine: coroutine to be scheduled
-        :type coroutine: Coroutine
-        :param date_time: datetime defining when the task should start
-        :type date_time: datetime
-        :param src: creator of the task
-        :type src: Object
-        """
-        return self._scheduler.schedule_datetime_task(
-            coroutine=coroutine, date_time=date_time, on_stop=on_stop, src=src
-        )
-
     def schedule_timestamp_task(
         self, coroutine, timestamp: float, on_stop=None, src=None
     ):
