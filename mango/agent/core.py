@@ -415,13 +415,23 @@ class AgentDelegates:
 class Agent(ABC, AgentDelegates):
     """Base class for all agents."""
 
-    def __init__(self, container: Container, suggested_aid: str = None):
+    def __init__(
+        self,
+        container: Container,
+        suggested_aid: str = None,
+        suspendable_tasks=True,
+        observable_tasks=True,
+    ):
         """Initialize an agent and register it with its container
         :param container: The container that the agent lives in. Must be a Container
         :param suggested_aid: (Optional) suggested aid, if the aid is already taken, a generated aid is used.
                               Using the generated aid-style ("agentX") is not allowed.
         """
-        scheduler = Scheduler(clock=container.clock)
+        scheduler = Scheduler(
+            clock=container.clock,
+            suspendable=suspendable_tasks,
+            observable=observable_tasks,
+        )
         context = AgentContext(container)
         self.aid = context.register_agent(self, suggested_aid)
         self.inbox = asyncio.Queue()

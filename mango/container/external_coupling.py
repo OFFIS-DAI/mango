@@ -14,20 +14,20 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class MosaikAgentMessage:
+class ExternalAgentMessage:
     message: bytes
     time: float
     receiver: str
 
 
 @dataclass
-class MosaikContainerOutput:
+class ExternalSchedulingContainerOutput:
     duration: float
-    messages: List[MosaikAgentMessage]
+    messages: List[ExternalAgentMessage]
     next_activity: Optional[float]
 
 
-class MosaikContainer(Container):
+class ExternalSchedulingContainer(Container):
     """ """
 
     clock: ExternalClock  # type hint
@@ -40,7 +40,7 @@ class MosaikContainer(Container):
         loop: asyncio.AbstractEventLoop,
     ):
         """
-        Initializes a MosaikContainer. Do not directly call this method but use
+        Initializes a ExternalSchedulingContainer. Do not directly call this method but use
         the factory method of **Container** instead
         :param addr: The container sid / eid respectively
         :param codec: The codec to use
@@ -83,7 +83,7 @@ class MosaikContainer(Container):
         if receiver_addr == self.addr:
             if not receiver_id:
                 receiver_id = message.receiver_id
-            default_meta = {"network_protocol": "mosaik"}
+            default_meta = {"network_protocol": "external_connection"}
             success = self._send_internal_message(
                 message=message, receiver_id=receiver_id, default_meta=default_meta
             )
@@ -103,7 +103,7 @@ class MosaikContainer(Container):
         encoded_msg = self.codec.encode(message)
         # store message in the buffer, which will be emptied in step
         self.message_buffer.append(
-            MosaikAgentMessage(
+            ExternalAgentMessage(
                 time=time.time() - self.current_start_time_of_step + self.clock.time,
                 receiver=addr,
                 message=encoded_msg,
@@ -113,7 +113,7 @@ class MosaikContainer(Container):
 
     async def step(
         self, simulation_time: float, incoming_messages: List[bytes]
-    ) -> MosaikContainerOutput:
+    ) -> ExternalSchedulingContainerOutput:
         if self.message_buffer:
             logger.warning(
                 "There are messages in teh message buffer to be sent, at the start when step was called."
@@ -128,7 +128,7 @@ class MosaikContainer(Container):
             message = self.codec.decode(encoded_msg)
 
             content, acl_meta = message.split_content_and_meta()
-            acl_meta["network_protocol"] = "mosaik"
+            acl_meta["network_protocol"] = "external_connection"
 
             await self.inbox.put((0, content, acl_meta))
 
@@ -150,7 +150,7 @@ class MosaikContainer(Container):
 
         messages_this_step, self.message_buffer = self.message_buffer, []
 
-        return MosaikContainerOutput(
+        return ExternalSchedulingContainerOutput(
             duration=end_time - self.current_start_time_of_step,
             messages=messages_this_step,
             next_activity=self.clock.get_next_activity(),

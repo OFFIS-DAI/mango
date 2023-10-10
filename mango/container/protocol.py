@@ -30,8 +30,6 @@ class ContainerProtocol(asyncio.Protocol):
         self._loop = loop
         self._buffer = bytearray()
 
-        self._out_msgs = asyncio.Queue()
-
     def connection_made(self, transport):
         """
 
@@ -84,8 +82,11 @@ class ContainerProtocol(asyncio.Protocol):
 
                 message = self.codec.decode(data)
 
-                content, acl_meta = message.split_content_and_meta()
-                acl_meta["network_protocol"] = "tcp"
+                if hasattr(message, "split_content_and_meta"):
+                    content, acl_meta = message.split_content_and_meta()
+                    acl_meta["network_protocol"] = "tcp"
+                else:
+                    content, acl_meta = message, message
 
                 # TODO priority is now always 0,
                 #  but should be encoded in the message
@@ -106,38 +107,16 @@ class ContainerProtocol(asyncio.Protocol):
         # get length of the payload and store the number of bytes as byte
         # object defined in Header
 
-        self._out_msgs = asyncio.Queue()
-
         header = HEADER.pack(len(msg_payload))
 
         message = header + msg_payload  # message is header and payload
 
-        self._out_msgs.put_nowait(message)
-
-    async def _process_out_msgs(self):
-        try:
-            while not self._out_msgs.empty():
-                content = await self._out_msgs.get()
-                self.transport.write(content)
-        except asyncio.CancelledError:
-            logging.warning("The TCP message processing was unexpectedly canceled!")
-
-    async def flush(self):
-        """Flush the outgoing-buffer"""
-        try:
-            await self._process_out_msgs()
-        except asyncio.CancelledError:
-            logging.warning("The TCP message processing was unexpectedly canceled!")
+        self.transport.write(message)
 
     async def shutdown(self):
         """
         Will close the transport and stop the writing task
         :return:
         """
-        try:
-            await self._process_out_msgs()
-        except asyncio.CancelledError:
-            logging.warning("The TCP message processing was unexpectedly canceled!")
-
         self.transport.close()  # this will cause the
         # self._task_process_out_msg to be cancelled
