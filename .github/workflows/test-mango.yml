@@ -1,0 +1,29 @@
+name: Test mango
+
+on: [push]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: python:3.8.10
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install dependencies
+      run: |
+        pip install virtualenv
+        virtualenv venv
+        source venv/bin/activate
+        pip3 install -r requirements.txt
+        pip3 install -e .
+        apt update
+        apt install --assume-yes mosquitto
+        service mosquitto start
+        pip3 install pytest
+        pip3 install coverage
+    - name: Test+Coverage
+      run: |
+        coverage run --source ./mango -m pytest
+        coverage report
