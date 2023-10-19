@@ -22,8 +22,8 @@ jobs:
         source venv/bin/activate
         pip3 install -r requirements.txt
         pip3 install -e .
-        apt update
-        apt install --assume-yes mosquitto
+        sudo apt update
+        sudo apt install --assume-yes mosquitto
         service mosquitto start
         pip3 install pytest
         pip3 install coverage
