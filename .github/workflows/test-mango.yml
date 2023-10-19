@@ -24,7 +24,7 @@ jobs:
         pip3 install -e .
         sudo apt update
         sudo apt install --assume-yes mosquitto
-        service mosquitto start
+        sudo service mosquitto start
         pip3 install pytest
         pip3 install coverage
     - name: Test+Coverage
