@@ -29,5 +29,6 @@ jobs:
         pip3 install coverage
     - name: Test+Coverage
       run: |
+        source venv/bin/activate
         coverage run --source ./mango -m pytest
         coverage report
