@@ -188,6 +188,7 @@ class TCPContainer(Container):
             ttl_in_sec=kwargs.get(TCP_CONNECTION_TTL, 30),
             max_connections_per_target=kwargs.get(TCP_MAX_CONNECTIONS_PER_TARGET, 10),
         )
+        self.msgs = 0
 
     async def setup(self):
         # create a TCP server bound to host and port that uses the
@@ -214,6 +215,7 @@ class TCPContainer(Container):
         :param receiver_id: The agent id of the receiver
         :param kwargs: Additional parameters to provide protocol specific settings
         """
+        self.msgs += 1
         if isinstance(receiver_addr, str) and ":" in receiver_addr:
             receiver_addr = receiver_addr.split(":")
         elif isinstance(receiver_addr, (tuple, list)) and len(receiver_addr) == 2:
@@ -245,6 +247,7 @@ class TCPContainer(Container):
         :param message: The message
         :return:
         """
+        self.msgs += 1
         if addr is None or not isinstance(addr, (tuple, list)) or len(addr) != 2:
             logger.warning(
                 "Sending external message not successful, invalid address; %s",
