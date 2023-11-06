@@ -26,6 +26,7 @@ class ACLMessage:
         sender_addr=None,
         receiver_id=None,
         receiver_addr=None,
+        reply_to=None,
         conversation_id=None,
         performative=None,
         content=None,
@@ -60,6 +61,7 @@ class ACLMessage:
         self.sender_addr = sender_addr
         self.receiver_id = receiver_id
         self.receiver_addr = receiver_addr
+        self.reply_to = reply_to
         self.content = content
         self.performative = performative
         self.conversation_id = conversation_id
@@ -81,6 +83,7 @@ class ACLMessage:
             "sender_addr": self.sender_addr,
             "receiver_id": self.receiver_id,
             "receiver_addr": self.receiver_addr,
+            "reply_to": self.reply_to,
             "performative": self.performative,
             "conversation_id": self.conversation_id,
             "content": self.content,
@@ -117,6 +120,7 @@ class ACLMessage:
         acl.sender_id = msg.sender_id if msg.sender_id else None
         acl.receiver_id = msg.receiver_id if msg.receiver_id else None
         acl.conversation_id = msg.conversation_id if msg.conversation_id else None
+        acl.reply_to = msg.reply_to if msg.reply_to else None
         acl.performative = Performatives(msg.performative) if msg.performative else None
         acl.protocol = msg.protocol if msg.protocol else None
         acl.language = msg.language if msg.language else None
