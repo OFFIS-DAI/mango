@@ -20,14 +20,14 @@ EXTERNAL_CONNECTION = "external_connection"
 
 
 async def create(
-        *,
-        connection_type: str = "tcp",
-        codec: Codec = None,
-        clock: Clock = None,
-        addr: Optional[Union[str, Tuple[str, int]]] = None,
-        copy_internal_messages: bool = False,
-        mqtt_kwargs: Dict[str, Any] = None,
-        **kwargs: Dict[str, Any],
+    *,
+    connection_type: str = "tcp",
+    codec: Codec = None,
+    clock: Clock = None,
+    addr: Optional[Union[str, Tuple[str, int]]] = None,
+    copy_internal_messages: bool = False,
+    mqtt_kwargs: Dict[str, Any] = None,
+    **kwargs: Dict[str, Any],
 ) -> Container:
     """
     This method is called to instantiate a container instance, either
@@ -74,7 +74,9 @@ async def create(
         return container
 
     if connection_type == EXTERNAL_CONNECTION:
-        return ExternalSchedulingContainer(addr=addr, loop=loop, codec=codec)
+        return ExternalSchedulingContainer(
+            addr=addr, loop=loop, codec=codec, clock=clock
+        )
 
     if connection_type == MQTT_CONNECTION:
         # get and check relevant kwargs from mqtt_kwargs
@@ -102,7 +104,7 @@ async def create(
 
         # check if addr is a valid topic without wildcards
         if addr is not None and (
-                not isinstance(addr, str) or "#" in addr or "+" in addr
+            not isinstance(addr, str) or "#" in addr or "+" in addr
         ):
             raise ValueError(
                 "addr is not set correctly. It is used as "
