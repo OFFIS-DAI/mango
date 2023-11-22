@@ -20,6 +20,12 @@ The core of this API is the scheduler, which is part of every agent. To schedule
      - Executes a coroutine periodically with a static delay between the cycles
    * - ConditionalScheduledTask
      - Executes the coroutine when a specified condition evaluates to True
+   * - AwaitingTask
+     - Execute a given coroutine after another given coroutine has been awaited
+   * - RecurrentScheduledTask
+     - Will get executed periodically with a specified delay
+
+
 
 Furthermore there are convenience methods to get rid of the class imports when using these types of tasks.
 
@@ -56,6 +62,28 @@ Dispatch Tasks to other Process
 As asyncio does not provide real parallelism to utilize multiple cores and agents may have tasks, which need a lot computational power, the need to dispatch certain tasks to other processes appear. Handling inter process communication manually is quite exhausting and having multiple process pools across different roles or agents leads to inefficient resource allocations. As a result mango offers a way to dispatch tasks, based on coroutine-functions, to other processes, managed by the framework. 
 
 Analogues to the normal API there are two different ways, first you create a ScheduledProcessTask and call ``schedule_process_task``, second you invoke the convnience methods with "process" in the name. These methods exists on any Agent, the RoleContext and the Scheduler.
+In mango the following process tasks are available:
+
+.. list-table:: Available ProcessTasks
+   :widths: 30 70
+   :header-rows: 1
+
+   * - Class
+     - Description
+   * - ScheduledProcessTask
+     - Marks a ScheduledTask as process compatible
+   * - TimestampScheduledProcessTask
+     - Timestamp based one-shot task
+   * - AwaitingProcessTask
+     - Await a coroutine, then execute another
+   * - InstantScheduledProcessTask
+     - One-shot task, which will get executed instantly
+   * - PeriodicScheduledProcessTask
+     - Executes a coroutine periodically with a static delay between the cycles
+   * - RecurrentScheduledProcessTask
+     - Will get executed periodically with a specified delay
+   * - ConditionalProcessTask
+     - Will get executed as soon as the given condition is fulfilled
 
 .. code-block:: python3
 

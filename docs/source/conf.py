@@ -22,7 +22,7 @@ sys.path.insert(0, os.path.abspath('../../mango'))
 # -- Project information -----------------------------------------------------
 
 project = 'mango'
-copyright = '2021, mango team'
+copyright = '2023, mango team'
 author = 'mango team'
 
 # The full version, including alpha/beta/rc tags
