@@ -215,7 +215,6 @@ class TCPContainer(Container):
         :param receiver_id: The agent id of the receiver
         :param kwargs: Additional parameters to provide protocol specific settings
         """
-        print('send msg', self.addr)
         self.msgs += 1
         if isinstance(receiver_addr, str) and ":" in receiver_addr:
             receiver_addr = receiver_addr.split(":")
@@ -248,7 +247,6 @@ class TCPContainer(Container):
         :param message: The message
         :return:
         """
-        print('send external msg', self.addr)
         self.msgs += 1
         if addr is None or not isinstance(addr, (tuple, list)) or len(addr) != 2:
             logger.warning(
