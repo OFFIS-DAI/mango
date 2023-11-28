@@ -247,7 +247,6 @@ class TCPContainer(Container):
         :param message: The message
         :return:
         """
-        self.msgs += 1
         if addr is None or not isinstance(addr, (tuple, list)) or len(addr) != 2:
             logger.warning(
                 "Sending external message not successful, invalid address; %s",
