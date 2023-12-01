@@ -8,7 +8,7 @@ mango container
 
 In mango, agents live in a ``container``. The container is responsible for everything network related of the agent.
 This includes in particular sending and receiving of messages, but also message distribution to the correct agent or
-(de-)serialization of messages.
+serialization and deserialization of messages.
 Container also help to to speed up message exchange between agents that run on the same physical hardware,
 as data that is exchanged between such agents will not have to be sent through the network.
 

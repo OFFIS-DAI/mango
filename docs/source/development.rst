@@ -7,7 +7,7 @@ As we mainly work in a critical domain, we set great value on code quality not o
 Quickstart
 ##########
 
-In mango it is not possible to directly push on the branches *development* or *master*. Both branches are protected and changes can only be merged using a gitlab merge-request. So when you work on a feature, the typical process would be to create a feature-branch. When you are finished you just have to create a merge-request, pass the CI/CD pipeline, make a maintainer review the changes, and you are ready to merge! 
+In mango it is not possible to directly push on the branches *development* or *master*. Both branches are protected and changes can only be merged using a github pull-request. So when you work on a feature, the typical process would be to create a feature-branch. When you are finished you just have to create a merge-request, pass the CI/CD pipeline, make a maintainer review the changes, and you are ready to merge! 
 
 CI/CD
 #####

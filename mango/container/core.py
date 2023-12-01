@@ -350,6 +350,7 @@ class MainContainerProcessManager(BaseContainerProcessManager):
     ) -> None:
         self._active = False
         self._container = container
+        self._mp_enabled = False
 
     def _init_mp(self):
         # For agent multiprocessing support
@@ -361,6 +362,7 @@ class MainContainerProcessManager(BaseContainerProcessManager):
         self._handle_process_events_tasks: List[asyncio.Task] = []
         self._handle_sp_messages_tasks: List[asyncio.Task] = []
         self._main_queue = None
+        self._mp_enabled = True
 
     @property
     def aids(self):
@@ -422,6 +424,8 @@ class MainContainerProcessManager(BaseContainerProcessManager):
         return None, target_inbox
 
     def _find_sp_queue(self, aid):
+        if not self._mp_enabled:
+            return None
         for pid, aids in self._pid_to_aids.items():
             if aid in aids:
                 return PipeToWriteQueue(self._pid_to_message_pipe[pid])
@@ -583,11 +587,17 @@ class Container(ABC):
         if aid is not None:
             return aid
 
-        if suggested_aid is None or not self.is_aid_available(suggested_aid):
-            aid = f"{AGENT_PATTERN_NAME_PRE}{self._aid_counter}"
-            self._aid_counter += 1
-        else:
-            aid = suggested_aid
+        if suggested_aid is not None:
+            if self.is_aid_available(suggested_aid):
+                return suggested_aid
+            else:
+                logger.warning(
+                    "The suggested aid could not be reserved, either it is not available or it is not allowed (pattern agentX);%s",
+                    suggested_aid,
+                )
+    
+        aid = f"{AGENT_PATTERN_NAME_PRE}{self._aid_counter}"
+        self._aid_counter += 1
         return aid
 
     def register_agent(self, agent, suggested_aid: str = None):

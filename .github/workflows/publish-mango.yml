@@ -1,0 +1,40 @@
+name: Upload mango
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.8'
+      - name: Install dependencies
+        run: |
+          pip install virtualenv
+          virtualenv venv
+          source venv/bin/activate
+          pip3 install -r requirements.txt
+          pip3 install -e .
+          sudo apt update
+          sudo apt install --assume-yes mosquitto
+          sudo service mosquitto start
+          pip3 install pytest
+          pip3 install coverage
+      - name: Test+Coverage
+        run: |
+          source venv/bin/activate
+          coverage run --source ./mango -m pytest
+          coverage report
+      - name: Build package
+        run: |
+          source venv/bin/activate
+          python setup.py sdist bdist_wheel
+      - name: Publish package
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
