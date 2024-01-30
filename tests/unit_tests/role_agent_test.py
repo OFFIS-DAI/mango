@@ -127,6 +127,15 @@ class DeactivateAllRoles(Role):
             self.context.deactivate(r)
 
 
+class TestRole(Role):
+    def __init__(self):
+        self.setup_called = False
+
+    def setup(self):
+        assert self.context is not None
+        self.setup_called = True
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "num_agents,num_containers", [(1, 1), (2, 1), (2, 2), (10, 2), (10, 10)]
@@ -213,3 +222,34 @@ async def test_send_ping_pong_deactivated_pong(num_agents, num_containers):
         await c.shutdown()
 
     assert len(asyncio.all_tasks()) == 1
+
+
+@pytest.mark.asyncio
+async def test_role_add_remove():
+    c = await container_factory.create(addr=("127.0.0.2", 5555))
+    agent = RoleAgent(c)
+    role = TestRole()
+    agent.add_role(role)
+
+    assert agent._role_handler.roles[0] == role
+
+    agent.remove_role(role)
+
+    assert len(agent._role_handler.roles) == 0
+    await c.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_role_add_remove_context():
+    c = await container_factory.create(addr=("127.0.0.2", 5555))
+    agent = RoleAgent(c)
+    role = TestRole()
+    agent._role_context.add_role(role)
+
+    assert role.setup_called
+    assert agent._role_handler.roles[0] == role
+
+    agent._role_context.remove_role(role)
+
+    assert len(agent._role_handler.roles) == 0
+    await c.shutdown()
