@@ -124,7 +124,7 @@ class RoleHandlingEvents(Role):
 def test_emit_event():
     # GIVEN
     role_handler = RoleHandler(None, None)
-    context = RoleContext(None, None, RoleHandler, None, None)
+    context = RoleContext(None, None, role_handler, None, None)
     ex_role = SubRole()
     ex_role2 = RoleHandlingEvents()
     context.add_role(ex_role)
@@ -132,14 +132,14 @@ def test_emit_event():
     event = Event("Here I am!")
 
     # WHEN
-    role_handler.emit_event(event=event)
+    context.emit_event(event=event)
 
     # THEN
     assert ex_role2.event == event
     assert ex_role2.source is None
 
     # WHEN
-    role_handler.emit_event(event=event, event_source=ex_role)
+    context.emit_event(event=event, event_source=ex_role)
 
     # THEN
     assert ex_role2.event == event

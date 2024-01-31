@@ -291,7 +291,7 @@ class RoleHandler:
         else:
             self._send_msg_subs[role] = [method]
 
-    def emit_event(self, event: Any, event_source: Any):
+    def emit_event(self, event: Any, event_source: Any = None):
         subs = self._role_event_type_to_handler[type(event)]
         for _, method in subs:
             method(event, event_source)
@@ -438,7 +438,7 @@ class RoleContext(AgentDelegates):
         :param event_type: the event type you want to handle
         :type event_type: Any
         """
-        self._role_handler.subscribe_event(role, event_type, event_type)
+        self._role_handler.subscribe_event(role, event_type, handler_method)
 
     @property
     def addr(self):
