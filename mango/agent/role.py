@@ -166,6 +166,15 @@ class RoleHandler:
         self._roles.append(role)
         self._role_to_active[role] = True
 
+    def remove_role(self, role: Role) -> None:
+        """Remove a given role
+
+        Args:
+            role ([type]): the role
+        """
+        self._roles.remove(role)
+        del self._role_to_active[role]
+
     @property
     def roles(self) -> List[Role]:
         """Returns all roles
@@ -352,7 +361,20 @@ class RoleContext(AgentDelegates):
 
         :param role: the Role
         """
+        role.bind(self)
         self._role_handler.add_role(role)
+
+        # Setup role
+        role.setup()
+
+    def remove_role(self, role: Role):
+        """Remove a role and call on_stop for clean up
+
+        :param role: the role to remove
+        :type role: Role
+        """
+        self._role_handler.remove_role(role)
+        asyncio.create_task(role.on_stop())
 
     def handle_message(self, content, meta: Dict[str, Any]):
         """Handle an incoming message, delegating it to all applicable subscribers
@@ -468,11 +490,7 @@ class RoleAgent(Agent):
 
         :param role: the role to add
         """
-        role.bind(self._role_context)
         self._role_context.add_role(role)
-
-        # Setup role
-        role.setup()
 
     def remove_role(self, role: Role):
         """Remove a role permanently from the agent.
@@ -481,7 +499,6 @@ class RoleAgent(Agent):
         :type role: Role
         """
         self._role_context.remove_role(role)
-        asyncio.create_task(role.on_stop())
 
     @property
     def roles(self) -> List[Role]:
