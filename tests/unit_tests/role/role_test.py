@@ -1,5 +1,6 @@
-from mango.agent.role import Role, RoleHandler, DataContainer
+from mango.agent.role import Role, RoleHandler, DataContainer, RoleContext
 from mango.util.scheduling import Scheduler
+from dataclasses import dataclass
 
 
 class RoleModel:
@@ -100,3 +101,46 @@ def test_data_container():
     assert "abc" in data_container
     assert "cba" in data_container
     assert not "bca" in data_container
+
+
+@dataclass
+class Event:
+    name: str
+
+
+class RoleHandlingEvents(Role):
+    def __init__(self):
+        self.source = None
+        self.event = None
+
+    def handle_event(self, event, source):
+        self.event = event
+        self.source = source
+
+    def setup(self) -> None:
+        self.context.subscribe_event(self, Event, self.handle_event)
+
+
+def test_emit_event():
+    # GIVEN
+    role_handler = RoleHandler(None, None)
+    context = RoleContext(None, None, RoleHandler, None, None)
+    ex_role = SubRole()
+    ex_role2 = RoleHandlingEvents()
+    context.add_role(ex_role)
+    context.add_role(ex_role2)
+    event = Event("Here I am!")
+
+    # WHEN
+    role_handler.emit_event(event=event)
+
+    # THEN
+    assert ex_role2.event == event
+    assert ex_role2.source is None
+
+    # WHEN
+    role_handler.emit_event(event=event, event_source=ex_role)
+
+    # THEN
+    assert ex_role2.event == event
+    assert ex_role2.source == ex_role
