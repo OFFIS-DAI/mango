@@ -1,6 +1,7 @@
 """
 Module for commonly used time based scheduled task executed inside one agent.
 """
+
 import asyncio
 import concurrent.futures
 import datetime
@@ -91,6 +92,13 @@ class Suspendable:
 # asyncio tasks
 
 
+def _close_coro(coro):
+    try:
+        coro.close()
+    except:
+        pass
+
+
 class ScheduledTask:
     """
     Base class for scheduled tasks in mango. Within this class it is possible to
@@ -131,6 +139,11 @@ class ScheduledTask:
             self._on_stop_hook_in(fut)
         if self._is_observable:
             self._is_done.set_result(True)
+        self.close()
+
+    def close(self):
+        """Perform closing actions"""
+        pass
 
 
 class TimestampScheduledTask(ScheduledTask):
@@ -155,6 +168,9 @@ class TimestampScheduledTask(ScheduledTask):
         await self._wait(self._timestamp)
         return await self._coro
 
+    def close(self):
+        _close_coro(self._coro)
+
 
 class AwaitingTask(ScheduledTask):
     """
@@ -175,6 +191,10 @@ class AwaitingTask(ScheduledTask):
         self.notify_running()
         return await self._coroutine
 
+    def close(self):
+        _close_coro(self._awaited_coroutine)
+        _close_coro(self._coroutine)
+
 
 class InstantScheduledTask(TimestampScheduledTask):
     """
@@ -187,6 +207,9 @@ class InstantScheduledTask(TimestampScheduledTask):
         super().__init__(
             coroutine, clock.time, clock=clock, on_stop=on_stop, observable=observable
         )
+
+    def close(self):
+        _close_coro(self._coro)
 
 
 class PeriodicScheduledTask(ScheduledTask):
@@ -273,6 +296,9 @@ class ConditionalTask(ScheduledTask):
             await sleep_future
             self.notify_running()
         return await self._coro
+
+    def close(self):
+        _close_coro(self._coro)
 
 
 # process tasks
@@ -838,4 +864,6 @@ class Scheduler:
         for _, _, event, _ in self._scheduled_process_tasks:
             if event is not None:
                 event.set()
+        for task, _, _, _ in self._scheduled_tasks:
+            task.close()
         self._process_pool_exec.shutdown()
