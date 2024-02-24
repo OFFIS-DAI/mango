@@ -467,9 +467,12 @@ class Agent(ABC, AgentDelegates):
             await self._check_inbox_task
         except asyncio.CancelledError:
             pass
-
         try:
             await self._scheduler.stop()
+        except asyncio.CancelledError:
+            pass
+        try:
+            self._scheduler.shutdown()
         except asyncio.CancelledError:
             pass
         finally:
