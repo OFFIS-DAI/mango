@@ -368,7 +368,7 @@ async def test_task_as_process_suspend():
     except asyncio.exceptions.TimeoutError as err:
         pass
 
-    scheduler.resume(marker)
+    scheduler.shutdown(wait=False)
 
 
 @pytest.mark.asyncio

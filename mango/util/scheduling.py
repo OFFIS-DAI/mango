@@ -869,7 +869,7 @@ class Scheduler:
                     # we need to recognize how many sleeping tasks we have in order to find out if all tasks are done
                     sleeping_tasks.append(scheduled_task)
 
-    def shutdown(self):
+    def shutdown(self, wait=True):
         """
         Shutdown internal process executor pool.
         """
@@ -879,6 +879,6 @@ class Scheduler:
                 event[1].set()
         for task, _, _, _ in self._scheduled_tasks:
             task.close()
-        self._process_pool_exec.shutdown(wait=True, cancel_futures=True)
+        self._process_pool_exec.shutdown(wait=wait, cancel_futures=True)
         if self._manager is not None:
             self._manager.shutdown()
