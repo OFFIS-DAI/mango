@@ -879,6 +879,3 @@ class Scheduler:
                 event[1].set()
         for task, _, _, _ in self._scheduled_tasks:
             task.close()
-        if self._manager is not None:
-            self._manager.shutdown()
-        self._process_pool_exec.shutdown(wait=wait, cancel_futures=True)
