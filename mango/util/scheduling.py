@@ -434,9 +434,8 @@ class Scheduler:
         ] = []
         self.clock = clock if clock is not None else AsyncioClock()
         self._scheduled_process_tasks = []
-        self._process_pool_exec = concurrent.futures.ProcessPoolExecutor(
-            max_workers=num_process_parallel, initializer=_create_asyncio_context
-        )
+        self._num_process_parallel = num_process_parallel
+        self._process_pool_exec = None
         self._suspendable = suspendable
         self._observable = observable
 
@@ -633,6 +632,11 @@ class Scheduler:
         :type src: Object
         """
 
+        if self._process_pool_exec is None:
+            self._process_pool_exec = concurrent.futures.ProcessPoolExecutor(
+                max_workers=self._num_process_parallel,
+                initializer=_create_asyncio_context,
+            )
         loop = asyncio.get_running_loop()
         manager = Manager()
         event = manager.Event()
@@ -866,4 +870,5 @@ class Scheduler:
                 event.set()
         for task, _, _, _ in self._scheduled_tasks:
             task.close()
-        self._process_pool_exec.shutdown()
+        if self._process_pool_exec is not None:
+            self._process_pool_exec.shutdown()
