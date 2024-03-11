@@ -179,7 +179,7 @@ async def test_one_shot_timeouted_conv():
     with pytest.raises(asyncio.exceptions.TimeoutError):
         await asyncio.wait_for(t, timeout=0.2)
 
-    scheduler.shutdown()
+    await scheduler.shutdown()
 
     # THEN
     assert len(l) == 0
@@ -370,7 +370,7 @@ async def test_task_as_process_suspend():
 
     scheduler.resume(marker)
 
-    scheduler.shutdown()
+    await scheduler.shutdown()
 
 
 @pytest.mark.asyncio
