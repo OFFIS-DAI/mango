@@ -461,10 +461,9 @@ class Scheduler:
         self._scheduled_process_tasks: List[
             Tuple[ScheduledProcessTask, Future, ScheduledProcessControl, Any]
         ] = []
-        self._process_pool_exec = concurrent.futures.ProcessPoolExecutor(
-            max_workers=num_process_parallel, initializer=_create_asyncio_context
-        )
         self._manager = None
+        self._num_process_parallel = num_process_parallel
+        self._process_pool_exec = None
         self._suspendable = suspendable
         self._observable = observable
 
@@ -667,6 +666,11 @@ class Scheduler:
         :type src: Object
         """
 
+        if self._process_pool_exec is None:
+            self._process_pool_exec = concurrent.futures.ProcessPoolExecutor(
+                max_workers=self._num_process_parallel,
+                initializer=_create_asyncio_context,
+            )
         loop = asyncio.get_running_loop()
         if self._manager is None:
             self._manager = Manager()
