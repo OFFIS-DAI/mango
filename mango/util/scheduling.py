@@ -810,6 +810,8 @@ class Scheduler:
         for i in range(len(self._scheduled_process_tasks)):
             _, task, event, _ = self._scheduled_process_tasks[i]
             if task == fut:
+                event[0].set()
+                event[1].set()
                 del self._scheduled_process_tasks[i]
                 break
 
@@ -869,7 +871,7 @@ class Scheduler:
                     # we need to recognize how many sleeping tasks we have in order to find out if all tasks are done
                     sleeping_tasks.append(scheduled_task)
 
-    def shutdown(self):
+    async def shutdown(self):
         """
         Shutdown internal process executor pool.
         """
@@ -879,5 +881,6 @@ class Scheduler:
                 event[1].set()
         for task, _, _, _ in self._scheduled_tasks:
             task.close()
+        await self.stop()
         if self._process_pool_exec is not None:
             self._process_pool_exec.shutdown()
