@@ -787,7 +787,7 @@ class Scheduler:
             if src == given_src and coro is not None:
                 coro.suspend()
         for _, _, event, src in self._scheduled_process_tasks:
-            if src == given_src and event[0] is not None:
+            if src == given_src:
                 event[0].clear()
 
     def resume(self, given_src):
@@ -803,7 +803,7 @@ class Scheduler:
             if src == given_src and coro is not None:
                 coro.resume()
         for _, _, event, src in self._scheduled_process_tasks:
-            if src == given_src and event[0] is not None:
+            if src == given_src:
                 event[0].set()
 
     def _remove_process_task(self, fut=asyncio.Future):
@@ -877,8 +877,7 @@ class Scheduler:
         """
         # resume all process so they can get shutdown
         for _, _, event, _ in self._scheduled_process_tasks:
-            if event[1] is not None:
-                event[1].set()
+            event[1].set()
         for task, _, _, _ in self._scheduled_tasks:
             task.close()
         await self.stop()
