@@ -1,16 +1,38 @@
 """
 Module for commonly used time based scheduled task executed inside one agent.
 """
+
 import asyncio
 import concurrent.futures
 import datetime
 from abc import abstractmethod
-from multiprocessing import Manager
+from multiprocessing import Manager, Event
 from typing import Any, List, Tuple
+from dataclasses import dataclass
+from multiprocessing.synchronize import Event as MultiprocessingEvent
 
 from dateutil.rrule import rrule
 
 from mango.util.clock import AsyncioClock, Clock, ExternalClock
+from asyncio import Future
+
+
+@dataclass
+class ScheduledProcessControl:
+    run_task_event: MultiprocessingEvent
+    kill_process_event: MultiprocessingEvent
+
+    def kill_process(self):
+        self.kill_process_event.set()
+
+    def init_process(self):
+        self.kill_process_event.clear()
+
+    def resume_task(self):
+        self.run_task_event.set()
+
+    def suspend_task(self):
+        self.run_task_event.clear()
 
 
 class Suspendable:
@@ -18,9 +40,10 @@ class Suspendable:
     Wraps a coroutine, intercepting __await__ to add the functionality of suspending.
     """
 
-    def __init__(self, coro, ext_contr_event=None):
+    def __init__(self, coro, ext_contr_event=None, kill_event=None):
         self._coro = coro
 
+        self._kill_event = kill_event
         if ext_contr_event is not None:
             self._can_run = ext_contr_event
         else:
@@ -42,6 +65,9 @@ class Suspendable:
                         self._can_run.wait()
             except BaseException as err:
                 send, message = iter_throw, err
+
+            if self._kill_event is not None and self._kill_event.is_set():
+                return None
 
             try:
                 # throw error or resume coroutine
@@ -91,6 +117,13 @@ class Suspendable:
 # asyncio tasks
 
 
+def _close_coro(coro):
+    try:
+        coro.close()
+    except:
+        pass
+
+
 class ScheduledTask:
     """
     Base class for scheduled tasks in mango. Within this class it is possible to
@@ -131,6 +164,11 @@ class ScheduledTask:
             self._on_stop_hook_in(fut)
         if self._is_observable:
             self._is_done.set_result(True)
+        self.close()
+
+    def close(self):
+        """Perform closing actions"""
+        pass
 
 
 class TimestampScheduledTask(ScheduledTask):
@@ -155,6 +193,9 @@ class TimestampScheduledTask(ScheduledTask):
         await self._wait(self._timestamp)
         return await self._coro
 
+    def close(self):
+        _close_coro(self._coro)
+
 
 class AwaitingTask(ScheduledTask):
     """
@@ -175,6 +216,10 @@ class AwaitingTask(ScheduledTask):
         self.notify_running()
         return await self._coroutine
 
+    def close(self):
+        _close_coro(self._awaited_coroutine)
+        _close_coro(self._coroutine)
+
 
 class InstantScheduledTask(TimestampScheduledTask):
     """
@@ -187,6 +232,9 @@ class InstantScheduledTask(TimestampScheduledTask):
         super().__init__(
             coroutine, clock.time, clock=clock, on_stop=on_stop, observable=observable
         )
+
+    def close(self):
+        _close_coro(self._coro)
 
 
 class PeriodicScheduledTask(ScheduledTask):
@@ -273,6 +321,9 @@ class ConditionalTask(ScheduledTask):
             await sleep_future
             self.notify_running()
         return await self._coro
+
+    def close(self):
+        _close_coro(self._coro)
 
 
 # process tasks
@@ -407,17 +458,25 @@ class Scheduler:
             Tuple[ScheduledTask, asyncio.Future, Suspendable, Any]
         ] = []
         self.clock = clock if clock is not None else AsyncioClock()
-        self._scheduled_process_tasks = []
-        self._process_pool_exec = concurrent.futures.ProcessPoolExecutor(
-            max_workers=num_process_parallel, initializer=_create_asyncio_context
-        )
+        self._scheduled_process_tasks: List[
+            Tuple[ScheduledProcessTask, Future, ScheduledProcessControl, Any]
+        ] = []
+        self._manager = None
+        self._num_process_parallel = num_process_parallel
+        self._process_pool_exec = None
         self._suspendable = suspendable
         self._observable = observable
 
     @staticmethod
-    def _run_task_in_p_context(task, suspend_event):
+    def _run_task_in_p_context(
+        task, scheduled_process_control: ScheduledProcessControl
+    ):
         try:
-            coro = Suspendable(task.run(), ext_contr_event=suspend_event)
+            coro = Suspendable(
+                task.run(),
+                ext_contr_event=scheduled_process_control.run_task_event,
+                kill_event=scheduled_process_control.kill_process_event,
+            )
 
             return asyncio.get_event_loop().run_until_complete(coro)
         finally:
@@ -607,18 +666,35 @@ class Scheduler:
         :type src: Object
         """
 
+        if self._process_pool_exec is None:
+            self._process_pool_exec = concurrent.futures.ProcessPoolExecutor(
+                max_workers=self._num_process_parallel,
+                initializer=_create_asyncio_context,
+            )
         loop = asyncio.get_running_loop()
-        manager = Manager()
-        event = manager.Event()
-        event.set()
+        if self._manager is None:
+            self._manager = Manager()
+
+        scheduled_process_control = ScheduledProcessControl(
+            run_task_event=self._manager.Event(),
+            kill_process_event=self._manager.Event(),
+        )
+        scheduled_process_control.init_process()
+        scheduled_process_control.resume_task()
+
         l_task = asyncio.ensure_future(
             loop.run_in_executor(
-                self._process_pool_exec, Scheduler._run_task_in_p_context, task, event
+                self._process_pool_exec,
+                Scheduler._run_task_in_p_context,
+                task,
+                scheduled_process_control,
             )
         )
         l_task.add_done_callback(self._remove_process_task)
         l_task.add_done_callback(task.on_stop)
-        self._scheduled_process_tasks.append((task, l_task, event, src))
+        self._scheduled_process_tasks.append(
+            (task, l_task, scheduled_process_control, src)
+        )
         return l_task
 
     def schedule_timestamp_process_task(
@@ -746,9 +822,9 @@ class Scheduler:
         for _, _, coro, src in self._scheduled_tasks:
             if src == given_src and coro is not None:
                 coro.suspend()
-        for _, _, event, src in self._scheduled_process_tasks:
-            if src == given_src and event is not None:
-                event.clear()
+        for _, _, scheduled_process_control, src in self._scheduled_process_tasks:
+            if src == given_src:
+                scheduled_process_control.suspend_task()
 
     def resume(self, given_src):
         """Resume a set of tasks triggered by the given src object.
@@ -762,16 +838,17 @@ class Scheduler:
         for _, _, coro, src in self._scheduled_tasks:
             if src == given_src and coro is not None:
                 coro.resume()
-        for _, _, event, src in self._scheduled_process_tasks:
-            if src == given_src and event is not None:
-                event.set()
+        for _, _, scheduled_process_control, src in self._scheduled_process_tasks:
+            if src == given_src:
+                scheduled_process_control.resume_task()
 
     def _remove_process_task(self, fut=asyncio.Future):
         for i in range(len(self._scheduled_process_tasks)):
-            _, task, event, _ = self._scheduled_process_tasks[i]
+            _, task, scheduled_process_control, _ = self._scheduled_process_tasks[i]
             if task == fut:
+                scheduled_process_control.resume_task()
+                scheduled_process_control.kill_process()
                 del self._scheduled_process_tasks[i]
-                event.set()
                 break
 
     # methods for removing tasks, stopping or shutting down
@@ -830,12 +907,15 @@ class Scheduler:
                     # we need to recognize how many sleeping tasks we have in order to find out if all tasks are done
                     sleeping_tasks.append(scheduled_task)
 
-    def shutdown(self):
+    async def shutdown(self):
         """
         Shutdown internal process executor pool.
         """
         # resume all process so they can get shutdown
-        for _, _, event, _ in self._scheduled_process_tasks:
-            if event is not None:
-                event.set()
-        self._process_pool_exec.shutdown()
+        for _, _, scheduled_process_control, _ in self._scheduled_process_tasks:
+            scheduled_process_control.kill_process()
+        for task, _, _, _ in self._scheduled_tasks:
+            task.close()
+        await self.stop()
+        if self._process_pool_exec is not None:
+            self._process_pool_exec.shutdown()

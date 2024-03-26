@@ -34,7 +34,9 @@ async def test_recurrent():
     )
 
     # WHEN
-    t = scheduler.schedule_task(RecurrentScheduledTask(increase_counter, recurrency, clock))
+    t = scheduler.schedule_task(
+        RecurrentScheduledTask(increase_counter, recurrency, clock)
+    )
     try:
         new_time = start + datetime.timedelta(days=1)
         clock.set_time(new_time.timestamp())
@@ -73,6 +75,7 @@ async def test_recurrent_conv():
     assert task._is_done.done()
     assert len(l) == 2
 
+
 @pytest.mark.asyncio
 async def test_recurrent_wait():
     # GIVEN
@@ -84,14 +87,15 @@ async def test_recurrent_wait():
 
     async def increase_counter():
         l.append(clock._time)
+
     tomorrow = start + datetime.timedelta(days=1)
     aftertomorrow = start + datetime.timedelta(days=2)
-    recurrency = rrule.rrule(
-        rrule.DAILY, interval=1, dtstart=tomorrow, until=end
-    )
+    recurrency = rrule.rrule(rrule.DAILY, interval=1, dtstart=tomorrow, until=end)
 
     # WHEN
-    t = scheduler.schedule_task(RecurrentScheduledTask(increase_counter, recurrency, clock))
+    t = scheduler.schedule_task(
+        RecurrentScheduledTask(increase_counter, recurrency, clock)
+    )
     task = scheduler._scheduled_tasks[0][0]
     try:
         clock.set_time(start.timestamp())
@@ -174,6 +178,8 @@ async def test_one_shot_timeouted_conv():
     )
     with pytest.raises(asyncio.exceptions.TimeoutError):
         await asyncio.wait_for(t, timeout=0.2)
+
+    await scheduler.shutdown()
 
     # THEN
     assert len(l) == 0
@@ -364,7 +370,7 @@ async def test_task_as_process_suspend():
 
     scheduler.resume(marker)
 
-    scheduler.shutdown()
+    await scheduler.shutdown()
 
 
 @pytest.mark.asyncio

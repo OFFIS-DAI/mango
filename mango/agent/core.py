@@ -4,6 +4,7 @@ This module implements the base class for agents (:class:`Agent`).
 Every agent must live in a container. Containers are responsible for making
  connections to other agents.
 """
+
 import asyncio
 import logging
 from abc import ABC
@@ -464,8 +465,14 @@ class Agent(ABC, AgentDelegates):
             self._check_inbox_task.remove_done_callback(self.raise_exceptions)
             self._check_inbox_task.cancel()
             await self._check_inbox_task
-
+        except asyncio.CancelledError:
+            pass
+        try:
             await self._scheduler.stop()
+        except asyncio.CancelledError:
+            pass
+        try:
+            await self._scheduler.shutdown()
         except asyncio.CancelledError:
             pass
         finally:
