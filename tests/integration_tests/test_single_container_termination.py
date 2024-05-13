@@ -14,7 +14,7 @@ class Caller(Agent):
         super().__init__(container)
         self.schedule_timestamp_task(
             coroutine=self.send_hello_world(receiver_addr, receiver_id),
-            timestamp=self._context.current_timestamp + 5,
+            timestamp=self.current_timestamp + 5,
         )
         self.i = 0
 
@@ -28,7 +28,7 @@ class Caller(Agent):
         self.i += 1
         if self.i < 100:
             self.schedule_instant_acl_message(
-                receiver_addr=self._context.addr, receiver_id="agent0", content=self.i
+                receiver_addr=self.addr, receiver_id="agent0", content=self.i
             )
 
 
@@ -39,7 +39,7 @@ class Receiver(Agent):
     def handle_message(self, content, meta):
         print(f"{self.aid} Received a message with the following content {content}.")
         self.schedule_instant_acl_message(
-            receiver_addr=self._context.addr, receiver_id="agent1", content=content
+            receiver_addr=self.addr, receiver_id="agent1", content=content
         )
 
 
