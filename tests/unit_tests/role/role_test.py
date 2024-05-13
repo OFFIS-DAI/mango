@@ -144,3 +144,16 @@ def test_emit_event():
     # THEN
     assert ex_role2.event == event
     assert ex_role2.source == ex_role
+
+def test_data_container():
+    # GIVEN
+    data_container = DataContainer()
+    data_container["abc"] = "123"
+    data_container.update({
+        "cba": 123
+    })
+
+    # WHEN THEN
+    assert data_container.cba == 123
+    assert data_container.get("abc") == "123"
+    assert data_container.get("bca") is None
