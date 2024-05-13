@@ -4,7 +4,7 @@ import time
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from mango.container.core import Container
+from mango.container.core import Container, ContainerMirrorData
 
 from ..messages.codecs import Codec
 from ..util.clock import ExternalClock
@@ -25,6 +25,24 @@ class ExternalSchedulingContainerOutput:
     duration: float
     messages: List[ExternalAgentMessage]
     next_activity: Optional[float]
+
+
+def ext_mirror_container_creator(
+    container_data, loop, message_pipe, main_queue, event_pipe, terminate_event
+):
+    return ExternalSchedulingContainer(
+        addr=container_data.addr,
+        codec=container_data.codec,
+        clock=container_data.clock,
+        loop=loop,
+        mirror_data=ContainerMirrorData(
+            message_pipe=message_pipe,
+            event_pipe=event_pipe,
+            terminate_event=terminate_event,
+            main_queue=main_queue,
+        ),
+        **container_data.kwargs,
+    )
 
 
 class ExternalSchedulingContainer(Container):
@@ -156,6 +174,16 @@ class ExternalSchedulingContainer(Container):
             duration=end_time - self.current_start_time_of_step,
             messages=messages_this_step,
             next_activity=self.clock.get_next_activity(),
+        )
+
+    def as_agent_process(
+        self,
+        agent_creator,
+        mirror_container_creator=ext_mirror_container_creator,
+    ):
+        return super().as_agent_process(
+            agent_creator=agent_creator,
+            mirror_container_creator=mirror_container_creator,
         )
 
     async def shutdown(self):
