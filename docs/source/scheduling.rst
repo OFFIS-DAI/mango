@@ -18,6 +18,8 @@ The core of this API is the scheduler, which is part of every agent. To schedule
      - Executes the coroutine at a specified datetime
    * - PeriodicScheduledTask
      - Executes a coroutine periodically with a static delay between the cycles
+   * - RecurrentScheduledTask
+     - Executes a coroutine according to a dynamic repetition scheme provided by a `rrule`
    * - ConditionalScheduledTask
      - Executes the coroutine when a specified condition evaluates to True
    * - AwaitingTask
@@ -92,13 +94,13 @@ In mango the following process tasks are available:
 
         class ScheduleAgent(Agent):
             def __init__(self, container, other_addr, other_id):
-                self.schedule_instant_process_task(coroutine_creator=lambda: self.context.send_acl_message(
+                self.schedule_instant_process_task(coroutine_creator=lambda: self.send_acl_message(
                     receiver_addr=other_addr,
                     receiver_id=other_id,
                     content="Hello world!")
                 )
                 # equivalent to
-                self.schedule_process_task(InstantScheduledProcessTask(coroutine_creator=lambda: self.context.send_acl_message(
+                self.schedule_process_task(InstantScheduledProcessTask(coroutine_creator=lambda: self.send_acl_message(
                     receiver_addr=other_addr,
                     receiver_id=other_id,
                     content="Hello world!"))
@@ -135,7 +137,7 @@ control how fast or slow time passes within your agent system:
                                          timestamp=self.current_timestamp + 5)
 
         async def send_hello_world(self, receiver_addr, receiver_id):
-            await self.context.send_acl_message(receiver_addr=receiver_addr,
+            await self.send_acl_message(receiver_addr=receiver_addr,
                                                receiver_id=receiver_id,
                                                content='Hello World')
 

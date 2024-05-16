@@ -30,7 +30,7 @@ class PingPongAgent(Agent):
                 content="pong",
                 receiver_addr=(receiver_host, receiver_port),
                 receiver_id=receiver_id,
-                acl_metadata={"sender_addr": self._context.addr, "sender_id": self.aid},
+                acl_metadata={"sender_addr": self.addr, "sender_id": self.aid},
             )
             self.sending_tasks.append(t)
 
@@ -55,7 +55,7 @@ class PingPongAgent(Agent):
             content="ping",
             receiver_addr=other_addr,
             receiver_id=other_id,
-            acl_metadata={"sender_addr": self._context.addr, "sender_id": self.aid},
+            acl_metadata={"sender_addr": self.addr, "sender_id": self.aid},
         )
         assert success
 

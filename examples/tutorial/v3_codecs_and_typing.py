@@ -69,7 +69,7 @@ class PVAgent(Agent):
         msg = FeedInReplyMsg(reported_feed_in)
 
         self.schedule_instant_task(
-            self._context.send_acl_message(
+            self.send_acl_message(
                 content=msg,
                 receiver_addr=sender_addr,
                 receiver_id=sender_id,
@@ -82,7 +82,7 @@ class PVAgent(Agent):
         msg = MaxFeedInAck()
 
         self.schedule_instant_task(
-            self._context.send_acl_message(
+            self.send_acl_message(
                 content=msg,
                 receiver_addr=sender_addr,
                 receiver_id=sender_id,
@@ -132,11 +132,11 @@ class ControllerAgent(Agent):
         # ask pv agent feed-ins
         for addr, aid in self.known_agents:
             msg = AskFeedInMsg()
-            acl_meta = {"sender_addr": self._context.addr, "sender_id": self.aid}
+            acl_meta = {"sender_addr": self.addr, "sender_id": self.aid}
 
             # alternatively we could call send_acl_message here directly and await it
             self.schedule_instant_task(
-                self._context.send_acl_message(
+                self.send_acl_message(
                     content=msg,
                     receiver_addr=addr,
                     receiver_id=aid,
@@ -153,11 +153,11 @@ class ControllerAgent(Agent):
 
         for addr, aid in self.known_agents:
             msg = SetMaxFeedInMsg(min_feed_in)
-            acl_meta = {"sender_addr": self._context.addr, "sender_id": self.aid}
+            acl_meta = {"sender_addr": self.addr, "sender_id": self.aid}
 
             # alternatively we could call send_acl_message here directly and await it
             self.schedule_instant_task(
-                self._context.send_acl_message(
+                self.send_acl_message(
                     content=msg,
                     receiver_addr=addr,
                     receiver_id=aid,

@@ -240,12 +240,12 @@ Second, we set ``acl_meta`` to contain the typing information of our message.
             reported_feed_in = PV_FEED_IN[self.aid]  # PV_FEED_IN must be defined at the top
             content = reported_feed_in
 
-            acl_meta = {"sender_addr": self.context.addr, "sender_id": self.aid,
+            acl_meta = {"sender_addr": self.addr, "sender_id": self.aid,
                         "performative": Performatives.inform}
 
             # Note, could be shortened using self.schedule_instant_acl_message
             self.schedule_instant_task(
-                self.context.send_acl_message(
+                self.send_acl_message(
                     content=content,
                     receiver_addr=sender_addr,
                     receiver_id=sender_id,
@@ -257,7 +257,7 @@ Second, we set ``acl_meta`` to contain the typing information of our message.
             self.max_feed_in = float(max_feed_in)
             print(f"{self.aid}: Limiting my feed_in to {max_feed_in}")
             self.schedule_instant_task(
-                self.context.send_acl_message(
+                self.send_acl_message(
                     content=None,
                     receiver_addr=sender_addr,
                     receiver_id=sender_id,
@@ -292,11 +292,11 @@ perform its active actions. We do this by implementing a ``run`` function with t
             # ask pv agent feed-ins
             for addr, aid in self.known_agents:
                 content = None
-                acl_meta = {"sender_addr": self.context.addr, "sender_id": self.aid,
+                acl_meta = {"sender_addr": self.addr, "sender_id": self.aid,
                             "performative": Performatives.request}
                 # alternatively we could call send_acl_message here directly and await it
                 self.schedule_instant_task(
-                    self.context.send_acl_message(
+                    self.send_acl_message(
                         content=content,
                         receiver_addr=addr,
                         receiver_id=aid,
@@ -313,12 +313,12 @@ perform its active actions. We do this by implementing a ``run`` function with t
 
             for addr, aid in self.known_agents:
                 content = min_feed_in
-                acl_meta = {"sender_addr": self.context.addr, "sender_id": self.aid,
+                acl_meta = {"sender_addr": self.addr, "sender_id": self.aid,
                             "performative": Performatives.propose}
 
                 # alternatively we could call send_acl_message here directly and await it
                 self.schedule_instant_task(
-                    self.context.send_acl_message(
+                    self.send_acl_message(
                         content=content,
                         receiver_addr=addr,
                         receiver_id=aid,

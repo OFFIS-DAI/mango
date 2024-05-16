@@ -191,7 +191,7 @@ class SelfSendAgent(Agent):
         # send message to yourself if necessary
         if self.no_received_msg < self.final_no:
             self.schedule_instant_acl_message(
-                receiver_addr=self._context.addr, receiver_id=self.aid, content=content
+                receiver_addr=self.addr, receiver_id=self.aid, content=content
             )
         else:
             self.schedule_instant_acl_message(

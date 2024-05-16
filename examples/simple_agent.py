@@ -33,7 +33,7 @@ class SimpleAgent(Agent):
                 message_content = other_proto_msg.GenericMsg()
                 message_content.text = "Hi there"
             acl_meta = {
-                "reply_by": "greeting",
+                "reply_with": "greeting",
                 "conversation_id": f"{self.aid}_1",
                 "performative": Performatives.inform.value,
                 "sender_id": self.aid,
@@ -59,10 +59,10 @@ class SimpleAgent(Agent):
 
     async def react_to_greeting(self, msg_in, meta_in):
         conversation_id = meta_in["conversation_id"]
-        reply_by = meta_in["reply_by"]
+        reply_with = meta_in["reply_with"]
         sender_id = meta_in["sender_id"]
         sender_addr = meta_in["sender_addr"]
-        if not reply_by:
+        if not reply_with:
             # No reply necessary - remove conversation id
             if conversation_id in self.conversations:
                 self.conversations.remove(conversation_id)
@@ -70,18 +70,18 @@ class SimpleAgent(Agent):
             # prepare a reply
             if conversation_id not in self.conversations:
                 self.conversations.append(conversation_id)
-            if reply_by == "greeting":
+            if reply_with == "greeting":
                 # greet back
                 message_out_content = "Hi there too"
                 reply_key = "greeting2"
-            elif reply_by == "greeting2":
+            elif reply_with == "greeting2":
                 # back greeting received, send good bye
                 message_out_content = "Good Bye"
                 # end conversation
                 reply_key = None
                 self.conversations.remove(conversation_id)
             else:
-                assert False, f"got strange reply_by: {reply_by}"
+                assert False, f"got strange reply_with: {reply_with}"
             if self.codec == "json":
                 message = ACLMessage_json(
                     sender_id=self.aid,
@@ -89,8 +89,8 @@ class SimpleAgent(Agent):
                     receiver_id=sender_id,
                     receiver_addr=sender_addr,
                     content=message_out_content,
-                    in_reply_to=reply_by,
-                    reply_by=reply_key,
+                    in_reply_to=reply_with,
+                    reply_with=reply_key,
                     conversation_id=conversation_id,
                     performative=Performatives.inform,
                 )
@@ -99,9 +99,9 @@ class SimpleAgent(Agent):
                 message.sender_id = self.aid
                 message.sender_addr = self.addr_str
                 message.receiver_id = sender_id
-                message.in_reply_to = reply_by
+                message.in_reply_to = reply_with
                 if reply_key:
-                    message.reply_by = reply_key
+                    message.reply_with = reply_key
                 message.conversation_id = conversation_id
                 message.performative = Performatives.inform.value
                 sub_msg = other_proto_msg.GenericMsg()
