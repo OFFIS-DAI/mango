@@ -10,7 +10,7 @@ from mango.container.mqtt import MQTTContainer
 from mango.container.tcp import TCPContainer
 from mango.messages.codecs import JSON
 from ..messages.codecs import Codec
-from ..util.clock import AsyncioClock, Clock
+from ..util.clock import AsyncioClock, Clock, ExternalClock
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +58,10 @@ async def create(
         codec = JSON()
 
     if clock is None:
-        clock = AsyncioClock()
+        if connection_type == EXTERNAL_CONNECTION:
+            clock = ExternalClock()
+        else:
+            clock = AsyncioClock()
 
     if connection_type == TCP_CONNECTION:
         # initialize TCPContainer
