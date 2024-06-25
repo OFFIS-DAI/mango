@@ -131,6 +131,53 @@ async def test_agent_processes_ping_pong_p_to_p():
 
     await c.shutdown()
 
+@pytest.mark.asyncio
+async def test_async_agent_processes_ping_pong_p_to_p():
+    # GIVEN
+    addr = ("127.0.0.2", 5826)
+    aid_main_agent = "main_agent"
+    c = await create_container(addr=addr, copy_internal_messages=False)
+    main_agent = P2PMainAgent(c, suggested_aid=aid_main_agent)
+
+    async def agent_creator(container):
+        p2pta = P2PTestAgent(
+            container, aid_main_agent, suggested_aid=f"process_agent1"
+        )
+        await p2pta.send_message(
+            content="pong",
+            receiver_addr=addr,
+            receiver_id=aid_main_agent,
+            acl_metadata={
+                "sender_addr": p2pta.addr,
+                "sender_id": p2pta.aid,
+            }
+        )
+
+    await c.as_agent_process(
+        agent_creator=agent_creator
+    )
+    
+
+    # WHEN
+    def agent_init(c):
+        agent = MyAgent(c, suggested_aid=f"process_agent2")
+        agent.schedule_instant_acl_message(
+            "Message To Process Agent",
+            receiver_addr=addr,
+            receiver_id=f"process_agent1",
+            acl_metadata={"sender_id": agent.aid},
+        )
+        return agent
+
+    await c.as_agent_process(agent_creator=agent_init)
+
+    while main_agent.test_counter != 2:
+        await asyncio.sleep(0.1)
+
+    assert main_agent.test_counter == 2
+
+    await c.shutdown()
+
 
 if __name__ == "__main__":
     asyncio.run(test_agent_processes_ping_pong(5, 5))
