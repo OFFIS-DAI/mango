@@ -71,6 +71,10 @@ class DistributedClockManager(ClockAgent):
         else:
             logger.warning("no new events, time stands still")
             next_event = self._scheduler.clock.time
+
+        if next_event < self._scheduler.clock.time:
+            logger.warning("%s: got old event, time stands still", self.aid)
+            next_event = self._scheduler.clock.time
         logger.debug("next event at %s", next_event)
         self.schedule_instant_task(coroutine=self.broadcast(next_event))
         return next_event
