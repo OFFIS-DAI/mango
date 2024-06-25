@@ -116,7 +116,10 @@ def create_agent_process_environment(
             event_pipe,
             terminate_event,
         )
-        agent_creator(container)
+        if asyncio.iscoroutinefunction(agent_creator):
+            await agent_creator(container)
+        else:
+            agent_creator(container)
         process_initialized_event.set()
 
         while not terminate_event.is_set():
