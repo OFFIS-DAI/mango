@@ -12,7 +12,7 @@ class ClockAgent(Agent):
 
 
 class DistributedClockManager(ClockAgent):
-    def __init__(self, container, receiver_clock_addresses: list):
+    def __init__(self, container, receiver_clock_addresses: list[tuple]):
         super().__init__(container, "clock")
         self.receiver_clock_addresses = receiver_clock_addresses
         self.schedules = []
@@ -35,12 +35,12 @@ class DistributedClockManager(ClockAgent):
             logger.warning("got another message from agent %s", sender_addr)
 
     async def broadcast(self, message, add_futures=True):
-        for receiver_addr in self.receiver_clock_addresses:
+        for receiver_addr, receiver_aid in self.receiver_clock_addresses:
             logger.debug("clockmanager send: %s - %s", message, receiver_addr)
             send_worked = await self.send_acl_message(
                 message,
                 receiver_addr,
-                "clock_agent",
+                receiver_aid,
                 acl_metadata={"sender_id": self.aid},
             )
             if send_worked and add_futures:
@@ -77,8 +77,8 @@ class DistributedClockManager(ClockAgent):
 
 
 class DistributedClockAgent(ClockAgent):
-    def __init__(self, container):
-        super().__init__(container, "clock_agent")
+    def __init__(self, container, suggested_aid="clock_agent"):
+        super().__init__(container, suggested_aid=suggested_aid)
         self.stopped = asyncio.Future()
 
     def handle_message(self, content: float, meta):
