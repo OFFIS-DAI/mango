@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from functools import partial
 from typing import Any, Dict, Optional, Set, Tuple, Union
 
 import paho.mqtt.client as paho
@@ -10,6 +11,33 @@ from ..messages.codecs import ACLMessage, Codec
 from ..util.clock import Clock
 
 logger = logging.getLogger(__name__)
+
+
+def mqtt_mirror_container_creator(
+    client_id,
+    mqtt_client,
+    container_data,
+    loop,
+    message_pipe,
+    main_queue,
+    event_pipe,
+    terminate_event,
+):
+    return MQTTContainer(
+        client_id=client_id,
+        addr=container_data.addr,
+        codec=container_data.codec,
+        clock=container_data.clock,
+        loop=loop,
+        mqtt_client=mqtt_client,
+        mirror_data=ContainerMirrorData(
+            message_pipe=message_pipe,
+            event_pipe=event_pipe,
+            terminate_event=terminate_event,
+            main_queue=main_queue,
+        ),
+        **container_data.kwargs,
+    )
 
 
 class MQTTContainer(Container):
@@ -147,7 +175,8 @@ class MQTTContainer(Container):
                 receiver = self._agents[receiver_id]
                 await receiver.inbox.put((priority, content, meta))
             else:
-                logger.warning("Receiver ID is unknown;%s", receiver_id)
+                # receiver might exist in mirrored container
+                logger.debug("Receiver ID is unknown;%s", receiver_id)
         else:
             # no inbox topic. Check who has subscribed the topic.
             receivers = set()
@@ -267,8 +296,14 @@ class MQTTContainer(Container):
     def as_agent_process(
         self,
         agent_creator,
-        mirror_container_creator,
+        mirror_container_creator=None,
     ):
+        if not mirror_container_creator:
+            mirror_container_creator = partial(
+                mqtt_mirror_container_creator,
+                self.client_id,
+                self.mqtt_client,
+            )
         return super().as_agent_process(
             agent_creator=agent_creator,
             mirror_container_creator=mirror_container_creator,
