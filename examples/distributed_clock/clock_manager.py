@@ -116,7 +116,7 @@ async def main(start):
     market.add_role(OneSidedMarketRole(demand=1000, receiver_ids=receiver_ids))
 
     clock_agent = DistributedClockManager(
-        c, receiver_clock_addresses=[other_container_addr]
+        c, receiver_clock_addresses=[(other_container_addr, "clock_agent")]
     )
 
     if isinstance(clock, ExternalClock):

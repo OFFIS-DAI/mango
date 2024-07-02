@@ -47,7 +47,7 @@ async def setup_and_run_test_case(connection_type, codec):
 
     clock_agent = DistributedClockAgent(container_ag)
     clock_manager = DistributedClockManager(
-        container_man, receiver_clock_addresses=[repl_addr]
+        container_man, receiver_clock_addresses=[(repl_addr, "clock_agent")]
     )
 
     # increasing the time
