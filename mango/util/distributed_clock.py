@@ -26,7 +26,7 @@ class DistributedClockManager(ClockAgent):
 
         logger.debug("clockmanager: %s from %s", content, sender_addr)
         if content:
-            assert isinstance(content, float), f"{content} was {type(content)}"
+            assert isinstance(content, (int, float)), f"{content} was {type(content)}"
             self.schedules.append(content)
 
         if not self.futures[sender_addr].done():
