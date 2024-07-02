@@ -12,7 +12,7 @@ class ClockAgent(Agent):
 
 
 class DistributedClockManager(ClockAgent):
-    def __init__(self, container, receiver_clock_addresses: list[tuple]):
+    def __init__(self, container, receiver_clock_addresses: list):
         super().__init__(container, "clock")
         self.receiver_clock_addresses = receiver_clock_addresses
         self.schedules = []
