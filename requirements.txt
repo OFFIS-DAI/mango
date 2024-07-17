@@ -15,7 +15,6 @@ paho-mqtt==1.5.1
 pika==1.1.0
 pluggy>=0.13.1
 protobuf==5.27.2
-py==1.9.0
 pyparsing==2.4.7
 pytest==8.2.2
 pytest-asyncio==0.14.0
