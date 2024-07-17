@@ -26,7 +26,7 @@ REQUIRED = [
     "python-dateutil>=2.8.2",
     "dill>=0.3.8",
     "msgspec>=0.18.6",
-    "protobuf>=3.20.3",
+    "protobuf>=5.27.2",
 ]
 
 # What packages are optional?
