@@ -19,7 +19,7 @@ py==1.9.0
 pyparsing==2.4.7
 pytest==6.2.5
 pytest-asyncio==0.14.0
-pyzmq==19.0.2
+pyzmq==26.0.3
 six==1.15.0
 toml==0.10.1
 virtualenv==20.0.31
