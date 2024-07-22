@@ -1,7 +1,7 @@
 import asyncio
 
 import pytest
-from msg_pb2 import MyMsg
+from ..unit_tests.messages.msg_pb2 import MyMsg
 
 import mango.container.factory as container_factory
 from mango.agent.core import Agent

@@ -17,16 +17,16 @@ DESCRIPTION = "Modular Python Agent Framework"
 URL = "https://github.com/OFFIS-DAI/mango"
 EMAIL = "mango@offis.de"
 AUTHOR = "mango Team"
-REQUIRES_PYTHON = ">=3.7.0"
+REQUIRES_PYTHON = ">=3.8.0"
 VERSION = "1.1.4"
 
 # What packages are required for this module to be executed?
 REQUIRED = [
     "paho-mqtt==1.5.1",
-    "python-dateutil>=2.8.2",
-    "dill>=0.3.6",
-    "msgspec>=0.14.2",
-    "protobuf>=3.20.3",
+    "python-dateutil>=2.9.0",
+    "dill>=0.3.8",
+    "msgspec>=0.18.6",
+    "protobuf>=5.27.2",
 ]
 
 # What packages are optional?

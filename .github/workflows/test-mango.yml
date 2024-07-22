@@ -11,7 +11,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.8", "3.10"]
+        python-version: ["3.8", "3.9", "3.10", "3.11"]
     steps:
     - uses: actions/checkout@v4
     - name: Set up Python
@@ -35,5 +35,5 @@ jobs:
     - name: Test+Coverage
       run: |
         source venv/bin/activate
-        coverage run --source ./mango -m pytest
+        coverage run -m pytest
         coverage report
