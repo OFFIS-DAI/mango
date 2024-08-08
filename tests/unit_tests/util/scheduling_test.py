@@ -4,12 +4,10 @@ import time
 
 import pytest
 from dateutil import rrule
-
 from mango.util.clock import ExternalClock
 from mango.util.scheduling import (
     ConditionalProcessTask,
     InstantScheduledProcessTask,
-    InstantScheduledTask,
     PeriodicScheduledTask,
     RecurrentScheduledTask,
     Scheduler,

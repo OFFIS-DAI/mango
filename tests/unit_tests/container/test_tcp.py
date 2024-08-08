@@ -1,8 +1,9 @@
-import pytest
 import asyncio
-from mango.container.tcp import TCPConnectionPool
-from mango.container.protocol import ContainerProtocol
+
+import pytest
 from mango import create_container
+from mango.container.protocol import ContainerProtocol
+from mango.container.tcp import TCPConnectionPool
 
 @pytest.mark.asyncio
 async def test_connection_open_close():

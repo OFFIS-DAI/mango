@@ -1,7 +1,7 @@
 """
 Utility classes for handling multiprocessing in mango, especially focusing on IPC in an asyncio context.
 
-The package contains two different variants of async pipes for IPC: duplex, and non-duplex pipes. For creating 
+The package contains two different variants of async pipes for IPC: duplex, and non-duplex pipes. For creating
 these pipes, use aiopipe() or aioduplex(). The idea of the code is based on the pypi package 'aiopipe'.
 
 These pipes provide async compatible APIs, here a general example:
@@ -17,16 +17,17 @@ async with main.open() as (rx, tx):
 Further there are internal connection objects, which can be used if a synchronous access outside of the
 asyncio loop is necessary: 'main.write_connection, main.read_connection'. Note, that you can't use
 'write_connection' if the pipe has been opened with 'open()', as this will lock the write access to the pipe.
-For that case you could use 'open_readonly()', 
+For that case you could use 'open_readonly()',
 """
-import os
+
 import asyncio
 import io
+import os
 import struct
-from typing import Tuple, Any, ContextManager, AsyncContextManager
-from contextlib import contextmanager, asynccontextmanager
+from contextlib import asynccontextmanager, contextmanager
+from typing import Any, AsyncContextManager, ContextManager, Tuple
 
-import dill, multiprocessing
+import dill
 
 """
 dill.Pickler.dumps, dill.Pickler.loads = dill.dumps, dill.loads
@@ -34,8 +35,8 @@ multiprocessing.reduction.ForkingPickler = dill.Pickler
 multiprocessing.reduction.dump = dill.dump
 """
 
-from multiprocessing.reduction import ForkingPickler
 from multiprocessing.connection import Connection
+from multiprocessing.reduction import ForkingPickler
 
 
 def aiopipe() -> Tuple["AioPipeReader", "AioPipeWriter"]:

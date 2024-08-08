@@ -1,8 +1,7 @@
 import asyncio
 
-import pytest
-
 import mango.container.factory as container_factory
+import pytest
 from mango.agent.core import Agent
 
 

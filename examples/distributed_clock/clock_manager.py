@@ -4,12 +4,11 @@ from datetime import datetime
 from typing import TypedDict
 
 import pandas as pd
-from tqdm import tqdm
-
 from mango import Role, RoleAgent, create_container
 from mango.messages.message import Performatives
 from mango.util.clock import ExternalClock
 from mango.util.distributed_clock import DistributedClockManager
+from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
 

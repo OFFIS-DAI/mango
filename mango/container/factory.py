@@ -9,6 +9,7 @@ from mango.container.external_coupling import ExternalSchedulingContainer
 from mango.container.mqtt import MQTTContainer
 from mango.container.tcp import TCPContainer
 from mango.messages.codecs import JSON
+
 from ..messages.codecs import Codec
 from ..util.clock import AsyncioClock, Clock, ExternalClock
 
@@ -138,7 +139,7 @@ async def create(
         # check broker_addr input and connect
         if isinstance(broker_addr, tuple):
             if not 0 < len(broker_addr) < 4:
-                raise ValueError(f"Invalid broker address argument count")
+                raise ValueError("Invalid broker address argument count")
             if len(broker_addr) > 0 and not isinstance(broker_addr[0], str):
                 raise ValueError("Invalid broker address - host must be str")
             if len(broker_addr) > 1 and not isinstance(broker_addr[1], int):

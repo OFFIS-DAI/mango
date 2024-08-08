@@ -1,6 +1,7 @@
 import asyncio
+
 import pytest
-from mango import create_container, Agent
+from mango import Agent, create_container
 
 
 class MyAgent(Agent):
@@ -106,18 +107,18 @@ async def test_agent_processes_ping_pong_p_to_p():
     c = await create_container(addr=addr, copy_internal_messages=False)
     await c.as_agent_process(
         agent_creator=lambda container: P2PTestAgent(
-            container, aid_main_agent, suggested_aid=f"process_agent1"
+            container, aid_main_agent, suggested_aid="process_agent1"
         )
     )
     main_agent = P2PMainAgent(c, suggested_aid=aid_main_agent)
 
     # WHEN
     def agent_init(c):
-        agent = MyAgent(c, suggested_aid=f"process_agent2")
+        agent = MyAgent(c, suggested_aid="process_agent2")
         agent.schedule_instant_acl_message(
             "Message To Process Agent",
             receiver_addr=addr,
-            receiver_id=f"process_agent1",
+            receiver_id="process_agent1",
             acl_metadata={"sender_id": agent.aid},
         )
         return agent
@@ -131,6 +132,7 @@ async def test_agent_processes_ping_pong_p_to_p():
 
     await c.shutdown()
 
+
 @pytest.mark.asyncio
 async def test_async_agent_processes_ping_pong_p_to_p():
     # GIVEN
@@ -140,9 +142,7 @@ async def test_async_agent_processes_ping_pong_p_to_p():
     main_agent = P2PMainAgent(c, suggested_aid=aid_main_agent)
 
     async def agent_creator(container):
-        p2pta = P2PTestAgent(
-            container, aid_main_agent, suggested_aid=f"process_agent1"
-        )
+        p2pta = P2PTestAgent(container, aid_main_agent, suggested_aid="process_agent1")
         await p2pta.send_message(
             content="pong",
             receiver_addr=addr,
@@ -150,21 +150,18 @@ async def test_async_agent_processes_ping_pong_p_to_p():
             acl_metadata={
                 "sender_addr": p2pta.addr,
                 "sender_id": p2pta.aid,
-            }
+            },
         )
 
-    await c.as_agent_process(
-        agent_creator=agent_creator
-    )
-    
+    await c.as_agent_process(agent_creator=agent_creator)
 
     # WHEN
     def agent_init(c):
-        agent = MyAgent(c, suggested_aid=f"process_agent2")
+        agent = MyAgent(c, suggested_aid="process_agent2")
         agent.schedule_instant_acl_message(
             "Message To Process Agent",
             receiver_addr=addr,
-            receiver_id=f"process_agent1",
+            receiver_id="process_agent1",
             acl_metadata={"sender_id": agent.aid},
         )
         return agent

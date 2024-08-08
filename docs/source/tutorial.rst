@@ -8,10 +8,10 @@ Introduction
 
 This tutorial gives an overview of the basic functions of mango agents and containers. It consists of four
 parts building a scenario of two PV plants, operated by their respective agents being directed by a remote
-controller. 
+controller.
 
-Each part comes with a standalone executable file. Subsequent parts either extend the functionality or simplify 
-some concept in the previous part. 
+Each part comes with a standalone executable file. Subsequent parts either extend the functionality or simplify
+some concept in the previous part.
 
 As a whole, this tutorial covers:
     - container and agent creation
@@ -92,10 +92,10 @@ Now we can create our agents. Agents always live inside a container and this con
     pv_agent_0 = PVAgent(pv_container)
     pv_agent_1 = PVAgent(pv_container)
 
-For now, our agents are purely passive entities. To make them do something, we need to send them a message. Messages are 
+For now, our agents are purely passive entities. To make them do something, we need to send them a message. Messages are
 passed by the container via the ``send_message`` function always at least expects some content and a target address.
 To send a message directly to an agent, we also need to provide its agent id which is set by the container when the agent
-is created. 
+is created.
 
 .. code-block:: python
 
@@ -120,7 +120,7 @@ This concludes the first part of our tutorial. If you run this code, you should 
     | Hello I am a PV agent! My id is agent0.
     | Hello I am a PV agent! My id is agent1.
     | Received message with content: Hello, this is a simple message. and meta {'network_protocol': 'tcp', 'priority': 0}.
-   
+
 
 .. raw:: html
 
@@ -170,7 +170,7 @@ The replies to feed_in requests and later the acknowledgements that a new maximu
 We use the ``performative`` field of the ACL message to do this. We set the ``performative`` field to ``inform``
 for feed_in replies and to ``accept_proposal`` for feed_in change acknowledgements. All messages between containers
 are expected to be ACL Messages (or implement the split_content_and_meta function). Since we do not want to create
-the full ACL object ourselves every time, within this example we always use the convenience method 
+the full ACL object ourselves every time, within this example we always use the convenience method
 ``container.send_acl_message``, which also supports setting the acl metadata.
 
 .. code-block:: python
@@ -270,7 +270,7 @@ perform its active actions. We do this by implementing a ``run`` function with t
 - send a feed_in request to each known pv agent
 - wait for all pv agents to answer
 - find the minimum reported feed_in
-- send a maximum feed_in setpoint of this minimum to each pv agent 
+- send a maximum feed_in setpoint of this minimum to each pv agent
 - again, wait for all pv agents to reply
 - terminate
 
@@ -406,7 +406,7 @@ This example covers:
    <summary><a>step by step</a></summary>
 
 We want to use the types of custom message objects as the new mechanism for message typing. We define these
-as simple data classes. For simple classes like this, we can use the ``json_serializable`` decorator to 
+as simple data classes. For simple classes like this, we can use the ``json_serializable`` decorator to
 provide us with the serialization functionality.
 
 .. code-block:: python
@@ -454,7 +454,7 @@ Next, we need to create a codec, make our message objects known to it, and pass 
     )
 
 Any time the content of a message matches one of these types now the corresponding serialize and deserialize
-functions are called. Of course, you can also create your own serialization and deserialization functions with 
+functions are called. Of course, you can also create your own serialization and deserialization functions with
 more sophisticated behaviours and pass them to the codec. For more details refer to the ``codecs`` section of
 the documentation.
 
@@ -507,7 +507,7 @@ you should receive the same output as in part 2:
 Corresponding file: `v4_scheduling_and_roles.py`
 
 In example 3, you restructured your code to use codecs for easier handling of typed message objects.
-Now it is time to expand the functionality of our controller. In addition to setting the maximum feed_in 
+Now it is time to expand the functionality of our controller. In addition to setting the maximum feed_in
 of the pv agents, the controller should now also periodically check if the pv agents are still reachable.
 
 To achieve this, the controller should send a regular "ping" message to each pv agent that is in turn answered
@@ -527,7 +527,7 @@ Thus, things like message handlers that require container knowledge are introduc
 
 This example covers:
     - role API basics
-    - scheduling and periodic tasks 
+    - scheduling and periodic tasks
 
 .. raw:: html
 

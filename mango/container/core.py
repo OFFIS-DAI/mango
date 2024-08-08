@@ -1,19 +1,16 @@
 import asyncio
 import copy
 import logging
-import warnings
 import os
-from dataclasses import dataclass
-from multiprocessing import Process, Event
+import warnings
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, Tuple, Union, List
+from dataclasses import dataclass
+from multiprocessing import Event, Process
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from ..messages.codecs import ACLMessage, Codec
 from ..util.clock import Clock
-from ..util.multiprocessing import aioduplex, AioDuplex, PipeToWriteQueue
-
-
-import dill  # do not remove! Necessary for the auto loaded pickle reg extensions
+from ..util.multiprocessing import AioDuplex, PipeToWriteQueue, aioduplex
 
 logger = logging.getLogger(__name__)
 
@@ -601,7 +598,7 @@ class Container(ABC):
                     "The suggested aid could not be reserved, either it is not available or it is not allowed (pattern agentX);%s",
                     suggested_aid,
                 )
-    
+
         aid = f"{AGENT_PATTERN_NAME_PRE}{self._aid_counter}"
         self._aid_counter += 1
         return aid

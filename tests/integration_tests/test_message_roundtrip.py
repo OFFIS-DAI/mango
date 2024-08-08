@@ -1,12 +1,11 @@
 import asyncio
 
-import pytest
-from ..unit_tests.messages.msg_pb2 import MyMsg
-
 import mango.container.factory as container_factory
+import pytest
 from mango.agent.core import Agent
-from mango.container.core import Container
 from mango.messages.codecs import JSON, PROTOBUF, FastJSON
+
+from ..unit_tests.messages.msg_pb2 import MyMsg
 
 M1 = "Hello"
 M2 = "Hello2"
@@ -127,7 +126,6 @@ class InitiatorAgent(Agent):
         )
 
         # shut down
-        pass
 
 
 # ReplierAgent:
@@ -166,7 +164,6 @@ class ReplierAgent(Agent):
         await self.got_second
 
         # shut down
-        pass
 
 
 @pytest.mark.asyncio

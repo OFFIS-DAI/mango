@@ -2,7 +2,6 @@ import asyncio
 import time
 
 import pytest
-
 from mango.util.clock import AsyncioClock, ExternalClock
 from mango.util.scheduling import Scheduler
 

@@ -2,7 +2,6 @@ import asyncio
 from datetime import datetime
 
 from dateutil import rrule
-
 from mango import Agent, create_container
 from mango.util.clock import ExternalClock
 

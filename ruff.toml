@@ -22,5 +22,4 @@ ignore = ["E501", "G004"]
     "ARG",  # allow unused arguments for pytest fixtures
     "E741", # allow reused variables
     "F841", # allow unused local variables
-
 ]
