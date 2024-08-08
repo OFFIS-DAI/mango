@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from multiprocessing import Event, Process
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+import dill  # noqa F401 # do not remove! Necessary for the auto loaded pickle reg extensions
+
 from ..messages.codecs import ACLMessage, Codec
 from ..util.clock import Clock
 from ..util.multiprocessing import AioDuplex, PipeToWriteQueue, aioduplex

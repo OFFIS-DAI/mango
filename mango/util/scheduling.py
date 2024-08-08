@@ -120,7 +120,7 @@ class Suspendable:
 def _close_coro(coro):
     try:
         coro.close()
-    except:
+    except Exception:
         pass
 
 

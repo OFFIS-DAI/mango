@@ -85,8 +85,10 @@ async def test_schedule_timestamp_task():
 
     for simulation_time, real_time in results_dict_external.items():
         if int(simulation_time) < simulation_time:
-            simulation_time = int(simulation_time) + 1
-        assert round(simulation_time / 10, 1) == round(real_time, 1)
+            sim_time = int(simulation_time) + 1
+        else:
+            sim_time = simulation_time
+        assert round(sim_time / 10, 1) == round(real_time, 1)
 
     for simulation_time, real_time in results_dict_asyncio.items():
         assert round(simulation_time, 1) == round(real_time, 1)

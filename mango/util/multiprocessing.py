@@ -25,18 +25,11 @@ import io
 import os
 import struct
 from contextlib import asynccontextmanager, contextmanager
+from multiprocessing.connection import Connection
+from multiprocessing.reduction import ForkingPickler
 from typing import Any, AsyncContextManager, ContextManager, Tuple
 
 import dill
-
-"""
-dill.Pickler.dumps, dill.Pickler.loads = dill.dumps, dill.loads
-multiprocessing.reduction.ForkingPickler = dill.Pickler
-multiprocessing.reduction.dump = dill.dump
-"""
-
-from multiprocessing.connection import Connection
-from multiprocessing.reduction import ForkingPickler
 
 
 def aiopipe() -> Tuple["AioPipeReader", "AioPipeWriter"]:

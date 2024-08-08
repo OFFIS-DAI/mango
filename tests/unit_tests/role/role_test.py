@@ -147,7 +147,7 @@ def test_emit_event():
     assert ex_role2.source == ex_role
 
 
-def test_data_container():
+def test_data_container_get():
     # GIVEN
     data_container = DataContainer()
     data_container["abc"] = "123"
