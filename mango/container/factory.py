@@ -186,7 +186,7 @@ async def create(
         if addr is not None:
             # connection has been set up, subscribe to inbox topic now
             logger.info(
-                f"[{client_id}]: Going to subscribe to {addr} " f"as inbox topic.."
+                "[%s]: Going to subscribe to %s as inbox topic..", client_id, addr
             )
 
             # create Future that is triggered on successful subscription

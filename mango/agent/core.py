@@ -428,7 +428,9 @@ class Agent(ABC, AgentDelegates):
         """
         if fut.exception() is not None:
             logger.error(
-                f"Agent {self.aid}: Caught the following exception in _check_inbox: {fut.exception()}"
+                "Agent %s: Caught the following exception in _check_inbox: ",
+                self.aid,
+                fut.exception(),
             )
             raise fut.exception()
 

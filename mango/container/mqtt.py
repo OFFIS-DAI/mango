@@ -164,9 +164,7 @@ class MQTTContainer(Container):
         :param meta: Dict with additional information (e.g. topic)
         """
         topic = meta["topic"]
-        logger.debug(
-            f"Received message with content and meta;{str(content)};{str(meta)}"
-        )
+        logger.debug("Received message with content and meta;%s;%s", content, meta)
         if topic == self.inbox_topic:
             # General inbox topic, so no receiver is specified by the topic
             # try to find the receiver from meta
@@ -185,7 +183,7 @@ class MQTTContainer(Container):
                     receivers.update(rec)
             if not receivers:
                 logger.warning(
-                    f"Received a message at a topic which no agent subscribed;{topic}"
+                    "Received a message at a topic which no agent subscribed;%s", topic
                 )
             else:
                 for receiver_id in receivers:

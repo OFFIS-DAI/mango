@@ -121,7 +121,7 @@ async def main(start):
     if isinstance(clock, ExternalClock):
         for i in tqdm(range(30)):
             next_event = await clock_agent.distribute_time()
-            logger.info(f"current step: {clock.time}")
+            logger.info("current step: %s", clock.time)
             clock.set_time(next_event)
     await c.shutdown()
 

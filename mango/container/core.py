@@ -305,7 +305,8 @@ class MirrorContainerProcessManager(BaseContainerProcessManager):
                     receiver = self._container._agents.get(meta["receiver_id"], None)
                     if receiver is None:
                         logger.error(
-                            f"A message was routed to the wrong process, as the {meta} doesn't contain a known receiver-id"
+                            "A message was routed to the wrong process, as the %s doesn't contain a known receiver-id",
+                            meta,
                         )
                     target_inbox = receiver.inbox
                     target_inbox.put_nowait((priority, message, meta))

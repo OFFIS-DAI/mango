@@ -7,7 +7,7 @@ src = ["crawler"]
 # Unlike Flake8, Ruff doesn't enable pycodestyle warnings (`W`) or
 # McCabe complexity (`C901`) by default.
 select = ["E", "F", "G", "I", "UP", "AIR", "PIE", "PLR1714", "PLW2901", "TRY201"]
-ignore = ["E501", "G004"]
+ignore = ["E501"]
 
 [lint.per-file-ignores]
 "__init__.py" = [
