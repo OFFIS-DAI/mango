@@ -22,7 +22,7 @@ async def test_recurrent():
     # GIVEN
     start = datetime.datetime(2023, 1, 1)
     end = datetime.datetime(2023, 1, 3)
-    clock = ExternalClock(start.timestamp())
+    clock = ExternalClock()
     scheduler = Scheduler(clock=clock)
     l = []
 
@@ -30,22 +30,32 @@ async def test_recurrent():
         l.append(1)
 
     recurrency = rrule.rrule(
-        rrule.DAILY, interval=2, dtstart=datetime.datetime.now(), until=end
+        rrule.DAILY, interval=1, dtstart=start, until=end
     )
-
     # WHEN
-    t = scheduler.schedule_task(
+    scheduler.schedule_task(
         RecurrentScheduledTask(increase_counter, recurrency, clock)
     )
-    try:
-        new_time = start + datetime.timedelta(days=1)
-        clock.set_time(new_time.timestamp())
-        await asyncio.wait_for(t, timeout=2.5)
-    except asyncio.exceptions.TimeoutError:
-        pass
+    clock.set_time(start.timestamp())
+    await asyncio.sleep(0)
+    # THEN
+    # job was just scheduled
+    assert len(l) == 0
 
+    # WHEN
+    new_time = start + datetime.timedelta(days=1)
+    clock.set_time(new_time.timestamp())
+    # sleep to let job be executed
+    await asyncio.sleep(0)
     # THEN
     assert len(l) == 1
+
+    # WHEN
+    new_time = start + datetime.timedelta(days=2)
+    clock.set_time(new_time.timestamp())
+    await asyncio.sleep(0)
+    # THEN
+    assert len(l) == 2
 
 
 @pytest.mark.asyncio
@@ -57,21 +67,26 @@ async def test_recurrent_conv():
     async def increase_counter():
         l.append(1)
 
+    now = datetime.datetime.now()
     recurrency = rrule.rrule(
         rrule.SECONDLY,
-        interval=2,
-        dtstart=datetime.datetime.now(),
-        count=2,
+        interval=1,
+        dtstart=now,
+        count=3,
     )
 
     # WHEN
     t = scheduler.schedule_recurrent_task(increase_counter, recurrency=recurrency)
-    await asyncio.sleep(0.1)
+    await asyncio.sleep(0)
     task = scheduler._scheduled_tasks[0][0]
 
     # THEN
     assert task._is_sleeping.done()
-    await asyncio.sleep(2)
+
+    assert len(l) == 0
+    await asyncio.sleep(1)
+    assert len(l) == 1
+    await asyncio.sleep(1)
     assert task._is_done.done()
     assert len(l) == 2
 
@@ -80,7 +95,7 @@ async def test_recurrent_conv():
 async def test_recurrent_wait():
     # GIVEN
     start = datetime.datetime(2023, 1, 1)
-    end = datetime.datetime(2023, 1, 4)
+    end = datetime.datetime(2023, 1, 3)
     clock = ExternalClock(start.timestamp())
     scheduler = Scheduler(clock=clock)
     l = []
@@ -97,21 +112,17 @@ async def test_recurrent_wait():
         RecurrentScheduledTask(increase_counter, recurrency, clock)
     )
     task = scheduler._scheduled_tasks[0][0]
-    try:
-        clock.set_time(start.timestamp())
-        await asyncio.sleep(0.01)
-        assert task._is_sleeping.done()
-        assert len(l) == 0
-        clock.set_time(tomorrow.timestamp())
-        await asyncio.sleep(0.01)
-        assert task._is_sleeping.done()
-        assert len(l) == 1
-        clock.set_time(aftertomorrow.timestamp())
-        await asyncio.sleep(0.01)
-        await asyncio.wait_for(t, timeout=0.5)
-        assert task._is_done.done()
-    except asyncio.exceptions.TimeoutError:
-        pass
+    clock.set_time(start.timestamp())
+    await asyncio.sleep(0)
+    assert task._is_sleeping.done()
+    assert len(l) == 0
+    clock.set_time(tomorrow.timestamp())
+    await asyncio.sleep(0)
+    assert task._is_sleeping.done()
+    assert len(l) == 1
+    clock.set_time(aftertomorrow.timestamp())
+    await asyncio.sleep(0.1)
+    assert task._is_done.done()
 
     # THEN
     assert len(l) == 2
@@ -130,10 +141,9 @@ async def test_periodic():
 
     # WHEN
     t = scheduler.schedule_task(PeriodicScheduledTask(increase_counter, 0.2))
-    try:
+    
+    with pytest.raises(asyncio.exceptions.TimeoutError):
         await asyncio.wait_for(t, timeout=0.3)
-    except asyncio.exceptions.TimeoutError:
-        pass
 
     # THEN
     assert len(l) == 2
@@ -150,10 +160,8 @@ async def test_periodic_conv():
 
     # WHEN
     t = scheduler.schedule_periodic_task(increase_counter, 0.2)
-    try:
+    with pytest.raises(asyncio.exceptions.TimeoutError):
         await asyncio.wait_for(t, timeout=0.3)
-    except asyncio.exceptions.TimeoutError:
-        pass
 
     # THEN
     assert len(l) == 2
@@ -231,15 +239,16 @@ async def test_suspend_then_resume():
         l.append(1)
 
     # WHEN
-    t = scheduler.schedule_task(PeriodicScheduledTask(increase_counter, 0.2))
+    t = scheduler.schedule_task(PeriodicScheduledTask(increase_counter, 0.1))
     scheduler.suspend(None)
     assert len(l) == 0
-    await asyncio.sleep(0.5)
+    await asyncio.sleep(0.25)
     scheduler.resume(None)
-    await asyncio.sleep(0.5)
+    await asyncio.sleep(0.25)
 
     # THEN
     assert len(l) == 3
+    t.cancel()
 
 
 async def do_exp_stuff():
@@ -287,9 +296,9 @@ async def test_task_as_process():
 
 async def do_exp_stuff_mult_steps():
     result = 45
-    await asyncio.sleep(1)
+    await asyncio.sleep(0.1)
     result += 1
-    await asyncio.sleep(1)
+    await asyncio.sleep(0.1)
     return result
 
 
@@ -342,11 +351,11 @@ async def test_task_as_process_suspend_and_resume():
     )
     scheduler.suspend(marker)
 
-    time.sleep(3)
+    time.sleep(0.3)
 
     scheduler.resume(marker)
 
-    assert await asyncio.wait_for(task, timeout=3) == 46
+    assert await asyncio.wait_for(task, timeout=0.3) == 46
 
 
 @pytest.mark.asyncio
@@ -362,11 +371,8 @@ async def test_task_as_process_suspend():
     scheduler.suspend(marker)
 
     # THEN
-    try:
-        await asyncio.wait_for(task, timeout=3)
-        pytest.fail()
-    except asyncio.exceptions.TimeoutError as err:
-        pass
+    with pytest.raises(asyncio.exceptions.TimeoutError):
+        await asyncio.wait_for(task, timeout=0.3)
 
     scheduler.resume(marker)
 
@@ -396,11 +402,8 @@ async def test_future_wait_task():
         coroutine=increase_counter(), awaited_coroutine=fut
     )
 
-    try:
-        asyncio.create_task(do_something())
-        await asyncio.wait_for(t, timeout=1)
-    except asyncio.exceptions.TimeoutError:
-        pass
+    asyncio.create_task(do_something())
+    await asyncio.wait_for(t, timeout=1)
 
     # THEN
     assert len(l) == 1
@@ -430,7 +433,7 @@ async def test_tasks_complete():
 
 
 @pytest.mark.asyncio
-async def test_tasks_complete_spwaning_no_rec():
+async def test_tasks_complete_spawning_no_rec():
     # GIVEN
     scheduler = Scheduler()
     l = []
@@ -452,9 +455,14 @@ async def test_tasks_complete_spwaning_no_rec():
     # THEN
     assert len(l) == 2
 
+    # THEN another task is scheduled
+    await scheduler.tasks_complete()
+
+    assert len(l) == 3
+
 
 @pytest.mark.asyncio
-async def test_tasks_complete_spwaning_rec():
+async def test_tasks_complete_spawning_rec():
     # GIVEN
     scheduler = Scheduler()
     l = []

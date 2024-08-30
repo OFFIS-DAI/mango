@@ -127,7 +127,7 @@ class DeactivateAllRoles(Role):
             self.context.deactivate(r)
 
 
-class TestRole(Role):
+class SampleRole(Role):
     def __init__(self):
         self.setup_called = False
 
@@ -228,7 +228,7 @@ async def test_send_ping_pong_deactivated_pong(num_agents, num_containers):
 async def test_role_add_remove():
     c = await container_factory.create(addr=("127.0.0.2", 5555))
     agent = RoleAgent(c)
-    role = TestRole()
+    role = SampleRole()
     agent.add_role(role)
 
     assert agent._role_handler.roles[0] == role
@@ -243,7 +243,7 @@ async def test_role_add_remove():
 async def test_role_add_remove_context():
     c = await container_factory.create(addr=("127.0.0.2", 5555))
     agent = RoleAgent(c)
-    role = TestRole()
+    role = SampleRole()
     agent._role_context.add_role(role)
 
     assert role.setup_called
