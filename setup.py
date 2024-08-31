@@ -22,7 +22,7 @@ VERSION = "1.1.4"
 
 # What packages are required for this module to be executed?
 REQUIRED = [
-    "paho-mqtt==1.5.1",
+    "paho-mqtt>=2.1.0",
     "python-dateutil>=2.9.0",
     "dill>=0.3.8",
     "msgspec>=0.18.6",
