@@ -55,8 +55,15 @@ class DistributedClockManager(ClockAgent):
         await self.broadcast("stop", add_futures=False)
         await super().shutdown()
 
-    async def distribute_time(self):
-        # wait until all jobs in other containers are finished
+    async def send_current_time(self, time=None):
+        time = time or self._scheduler.clock.time 
+        await self.broadcast(time, add_futures=False)
+
+    async def get_next_event(self):
+        '''Get the next event from the scheduler by requesting all known clock agents'''
+        self.schedules = []
+        await self.broadcast("next_event")
+        await asyncio.sleep(0)
         for container_id, fut in self.futures.items():
             logger.debug("waiting for %s", container_id)
             # waits forever if manager was started first
@@ -80,9 +87,14 @@ class DistributedClockManager(ClockAgent):
             logger.warning("%s: got old event, time stands still", self.aid)
             next_event = self._scheduler.clock.time
         logger.debug("next event at %s", next_event)
-        self.schedule_instant_task(coroutine=self.broadcast(next_event))
-        self.schedules = []
         return next_event
+
+
+    async def distribute_time(self, time=None):
+        await self.send_current_time(time)
+        if not time:
+            time = await self.get_next_event()
+        return time
 
 
 class DistributedClockAgent(ClockAgent):
@@ -97,17 +109,8 @@ class DistributedClockAgent(ClockAgent):
         if content == "stop":
             if not self.stopped.done():
                 self.stopped.set_result(True)
-        else:
-            assert isinstance(content, (int, float)), f"{content} was {type(content)}"
-            self._scheduler.clock.set_time(content)
-
+        elif content == "next_event":
             async def wait_done():
-                # handling the distributed clock message is finished before incoming messages
-                # as we do not wait, but directly send back that we finished.
-                # Instead we should leave time so that we start handling incoming messages before.
-                # This should be fixed properly by distributed termination detection
-                # Or through the usage of message priority.
-                await asyncio.sleep(0.05)
                 await self.wait_all_done()
 
             t = asyncio.create_task(wait_done())
@@ -126,3 +129,6 @@ class DistributedClockAgent(ClockAgent):
                 )
 
             t.add_done_callback(respond)
+        else:
+            assert isinstance(content, (int, float)), f"{content} was {type(content)}"
+            self._scheduler.clock.set_time(content)
