@@ -5,7 +5,7 @@ from typing import Any, Dict, Optional, Set, Tuple, Union
 
 import paho.mqtt.client as paho
 
-from mango.container.core import Container
+from mango.container.core import Container, ContainerMirrorData
 
 from ..messages.codecs import ACLMessage, Codec
 from ..util.clock import Clock

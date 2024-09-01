@@ -117,7 +117,9 @@ async def create(
             )
 
         # create paho.Client object for mqtt communication
-        mqtt_messenger: paho.Client = paho.Client(paho.CallbackAPIVersion.VERSION2, client_id=client_id, **init_kwargs)
+        mqtt_messenger: paho.Client = paho.Client(
+            paho.CallbackAPIVersion.VERSION2, client_id=client_id, **init_kwargs
+        )
 
         # set TLS options if provided
         # expected as a dict:
