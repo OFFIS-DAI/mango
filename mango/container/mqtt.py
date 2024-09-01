@@ -103,15 +103,15 @@ class MQTTContainer(Container):
 
         self.mqtt_client.on_connect = on_con
 
-        def on_discon(client, userdata, rc):
-            if rc != 0:
+        def on_discon(client, userdata, disconnect_flags, reason_code, properties):
+            if reason_code != 0:
                 logger.warning("Unexpected disconnect from broker. Trying to reconnect")
             else:
                 logger.debug("Successfully disconnected from broker.")
 
         self.mqtt_client.on_disconnect = on_discon
 
-        def on_sub(client, userdata, mid, granted_qos):
+        def on_sub(client, userdata, mid, reason_code_list, properties):
             self.loop.call_soon_threadsafe(self.pending_sub_request.set_result, 0)
 
         self.mqtt_client.on_subscribe = on_sub
