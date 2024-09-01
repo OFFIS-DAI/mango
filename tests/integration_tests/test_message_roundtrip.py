@@ -185,15 +185,18 @@ async def test_tcp_fast_json():
 
 
 @pytest.mark.asyncio
+@pytest.mark.mqtt
 async def test_mqtt_fast_json():
     await setup_and_run_test_case("mqtt", FAST_JSON_CODEC)
 
 
 @pytest.mark.asyncio
+@pytest.mark.mqtt
 async def test_mqtt_json():
     await setup_and_run_test_case("mqtt", JSON_CODEC)
 
 
 @pytest.mark.asyncio
+@pytest.mark.mqtt
 async def test_mqtt_proto():
     await setup_and_run_test_case("mqtt", PROTO_CODEC)

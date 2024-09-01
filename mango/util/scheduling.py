@@ -293,7 +293,7 @@ class RecurrentScheduledTask(ScheduledTask):
                 self.notify_sleeping()
                 await sleep_future
                 self.notify_running()
-            await self._coroutine_func()
+                await self._coroutine_func()
 
 
 class ConditionalTask(ScheduledTask):

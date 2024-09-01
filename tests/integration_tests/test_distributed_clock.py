@@ -79,5 +79,6 @@ async def test_tcp_json():
 
 
 @pytest.mark.asyncio
+@pytest.mark.mqtt
 async def test_mqtt_json():
     await setup_and_run_test_case("mqtt", JSON_CODEC)
