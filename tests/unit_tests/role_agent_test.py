@@ -174,8 +174,7 @@ async def test_send_ping_pong(num_agents, num_containers):
     # gracefully shutdown
     for a in agents:
         await a.shutdown()
-    for c in containers:
-        await c.shutdown()
+    await asyncio.gather(*[c.shutdown() for c in containers])
 
     assert len(asyncio.all_tasks()) == 1
 
@@ -218,8 +217,7 @@ async def test_send_ping_pong_deactivated_pong(num_agents, num_containers):
     # gracefully shutdown
     for a in agents:
         await a.shutdown()
-    for c in containers:
-        await c.shutdown()
+    await asyncio.gather(*[c.shutdown() for c in containers])
 
     assert len(asyncio.all_tasks()) == 1
 

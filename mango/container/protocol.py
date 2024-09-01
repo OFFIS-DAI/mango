@@ -25,7 +25,7 @@ class ContainerProtocol(asyncio.Protocol):
         super().__init__()
 
         self.codec = codec
-        self.transport = None
+        self.transport = None  # type: _SelectorTransport
         self.container = container
         self._loop = loop
         self._buffer = bytearray()
@@ -44,7 +44,15 @@ class ContainerProtocol(asyncio.Protocol):
         :param exc:
         :return:
         """
+        self.transport.close()
         super().connection_lost(exc)
+
+    def eof_received(self):
+        """
+
+        :return:
+        """
+        return super().eof_received()
 
     def data_received(self, data):
         """
