@@ -1,6 +1,6 @@
-==========
+====================
 Scheduling and Clock
-==========
+====================
 
 When implementing agents including proactive behavior there are some typical types of tasks you might want to create. For example it might be desired to let the agent check every minute whether some resources are available, or often you just want to execute a task at a specified time. To help achieving this kind of goals mango exposes the scheduling API.
 

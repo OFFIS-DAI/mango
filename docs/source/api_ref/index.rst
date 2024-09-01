@@ -5,10 +5,22 @@ API reference
 The API reference provides detailed descriptions of mango's classes and
 functions.
 
+Subpackages
+-----------
+
 .. toctree::
-   :glob:
    :maxdepth: 2
 
-   mango.core/index
-   mango.messages/index
-   mango.modules/index
+   mango.agent
+   mango.container
+   mango.messages
+   mango.modules
+   mango.util
+
+Module contents
+---------------
+
+.. automodule:: mango
+   :members:
+   :undoc-members:
+   :show-inheritance:
