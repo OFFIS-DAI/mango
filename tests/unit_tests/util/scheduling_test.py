@@ -1,5 +1,6 @@
 import asyncio
 import datetime
+import multiprocessing
 import time
 
 import pytest
@@ -15,6 +16,8 @@ from mango.util.scheduling import (
     Scheduler,
     TimestampScheduledTask,
 )
+
+multiprocessing.set_start_method('spawn', force=True)
 
 
 @pytest.mark.asyncio
