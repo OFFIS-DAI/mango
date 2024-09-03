@@ -23,6 +23,7 @@ async def tasks_complete_or_sleeping(container: Container, except_sources=["no_w
     sleeping_tasks = []
     task_list = []
     await container.inbox.join()
+    # python does not have do while pattern
     for agent in container._agents.values():
         await agent.inbox.join()
         task_list.extend(agent._scheduler._scheduled_tasks)
@@ -30,6 +31,8 @@ async def tasks_complete_or_sleeping(container: Container, except_sources=["no_w
 
     task_list = list(filter(lambda x: x[3] not in except_sources, task_list))
     while len(task_list) > len(sleeping_tasks):
+        # sleep needed so that asyncio tasks of this time step are correctly awaken.
+        # await asyncio.sleep(0)
         await container.inbox.join()
         for scheduled_task, task, _, _ in task_list:
             await asyncio.wait(

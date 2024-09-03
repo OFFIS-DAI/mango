@@ -31,7 +31,7 @@ class BiddingRole(Role):
         self.context.subscribe_message(
             self, self.handle_message, lambda content, meta: True
         )
-        self.context.schedule_periodic_task(coroutine_func=self.say_hello, delay=300)
+        self.context.schedule_periodic_task(coroutine_func=self.say_hello, delay=1200)
 
     async def say_hello(self):
         await self.context.send_acl_message(
@@ -46,11 +46,12 @@ class BiddingRole(Role):
 
     def handle_message(self, content, meta):
         self.context.schedule_instant_task(coroutine=self.set_bids())
-        print(self.context.current_timestamp)
+        logger.debug("current_time %s", self.context.current_timestamp)
 
     async def set_bids(self):
         # await asyncio.sleep(1)
         price = self.price + 0.01 * self.price * np.random.random()
+        logger.debug("did set bids at %s", self.context._scheduler.clock.time)
 
         acl_metadata = {
             "performative": Performatives.inform,
