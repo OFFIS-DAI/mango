@@ -19,6 +19,7 @@ class DistributedClockManager(ClockAgent):
         self.receiver_clock_addresses = receiver_clock_addresses
         self.schedules = []
         self.futures = {}
+        self.schedule_instant_task(self.wait_all_online())
 
     def handle_message(self, content: float, meta):
         if isinstance(meta["sender_addr"], list):
@@ -38,37 +39,84 @@ class DistributedClockManager(ClockAgent):
             logger.debug("got another message from agent %s - %s", sender_addr, content)
 
     async def broadcast(self, message, add_futures=True):
+        """
+        Broadcast the given message to all receiver clock addresses.
+        If add_futures is set, a future is added which is finished when an answer by the receiving clock agent was received.
+
+        Args:
+            message (object): the given message
+            add_futures (bool, optional): Adds futures which can be awaited until a response to a message is given. Defaults to True.
+        """
         for receiver_addr, receiver_aid in self.receiver_clock_addresses:
             logger.debug("clockmanager send: %s - %s", message, receiver_addr)
-            send_worked = await self.send_acl_message(
+            # in MQTT we can not be sure if the message was delivered
+            # checking the return code here would only help for TCP
+            await self.send_acl_message(
                 message,
                 receiver_addr,
                 receiver_aid,
                 acl_metadata={"sender_id": self.aid},
             )
-            if send_worked and add_futures:
+            if add_futures:
                 self.futures[receiver_addr] = asyncio.Future()
 
     async def shutdown(self):
-        for fut in self.futures.values():
-            await fut
+        await self.wait_for_futures()
         await self.broadcast("stop", add_futures=False)
         await super().shutdown()
 
     async def send_current_time(self, time=None):
+        """
+        Broadcasts the current time to all receiver clock addresses.
+        Does not add futures to wait for responses, as no response is expected here.
+
+        Args:
+            time (number, optional): The current time which is set. Defaults to None.
+        """
         time = time or self._scheduler.clock.time 
         await self.broadcast(time, add_futures=False)
+
+    async def wait_for_futures(self):
+        """
+        Waits for all futures in self.futures
+
+        Gives debug log output to see which agent is waited for.
+        """
+        for container_id, fut in list(self.futures.items()):
+            logger.debug("waiting for %s", container_id)
+            # waits forever if manager was started first
+            # as answer is never received
+            await fut
+    
+    async def wait_all_online(self):
+        """
+        sends a broadcast to ask for the next event to all expected addresses.
+        Waits one second and repeats this behavior until a response by all addresses is receivd.
+        This effectively waits until all agents are up and running and the manager can start the simulation.
+
+        This is needed, as there is no way in paho mqtt to check whether a message was retrieved,
+        except for by sending ping pong messages.
+        """
+        all_online = False
+
+        while not all_online:
+            await self.broadcast("next_event")
+            await asyncio.sleep(0)
+            try:
+                await asyncio.wait_for(self.wait_for_futures(), 1)
+            except TimeoutError:
+                logger.info("waiting for all to come online")
+            else:
+                all_online = True
+
 
     async def get_next_event(self):
         '''Get the next event from the scheduler by requesting all known clock agents'''
         self.schedules = []
         await self.broadcast("next_event")
         await asyncio.sleep(0)
-        for container_id, fut in self.futures.items():
-            logger.debug("waiting for %s", container_id)
-            # waits forever if manager was started first
-            # as answer is never received
-            await fut
+        await self.wait_for_futures()
+        
         # wait for our container too
         await self.wait_all_done()
         next_activity = self._scheduler.clock.get_next_activity()
@@ -89,8 +137,20 @@ class DistributedClockManager(ClockAgent):
         logger.debug("next event at %s", next_event)
         return next_event
 
-
     async def distribute_time(self, time=None):
+        """
+        Waits until the current container is done.
+        Brodcasts the new time to all the other clock agents.
+        Thn awaits until the work in the other agents is done and their next event is received.
+    
+
+        Args:
+            time (number, optional): The new time which is set. Defaults to None.
+
+        Returns:
+            number or None: The time at which the next event happens
+        """
+        await self.wait_all_done()
         await self.send_current_time(time)
         if not time:
             time = await self.get_next_event()
