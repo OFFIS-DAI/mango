@@ -5,7 +5,6 @@ from mango import Agent, create_container
 from mango.util.clock import ExternalClock
 from mango.util.termination_detection import tasks_complete_or_sleeping
 from mango.util.distributed_clock import DistributedClockAgent, DistributedClockManager
-from multiprocessing import Process
 
 
 class Caller(Agent):
@@ -112,7 +111,7 @@ async def distribute_time_test_case(connection_type, codec=None):
     )
     receiver = Receiver(container_ag, init_addr, "agent0")
     caller = Caller(container_man, repl_addr, receiver.aid)
-    
+
 
     assert receiver._scheduler.clock.time == 0
     # first synchronize the clock to the receiver
@@ -190,6 +189,7 @@ async def send_current_time_test_case(connection_type, codec=None):
     )
     receiver = Receiver(container_ag, init_addr, "agent0")
     caller = Caller(container_man, repl_addr, receiver.aid)
+    await tasks_complete_or_sleeping(container_man)
 
     assert receiver._scheduler.clock.time == 0
     # first synchronize the clock to the receiver
