@@ -132,7 +132,7 @@ async def main(start):
     if isinstance(clock, ExternalClock):
         for i in tqdm(range(30)):
             next_event = await clock_agent.distribute_time()
-            logger.info(f"current step: {clock.time}")
+            logger.info("current step: %s", clock.time)
             await tasks_complete_or_sleeping(c)
             # comment next line to see that the first message is not received in correct timings
             # also comment sleep(0) in termination_detection to see other timing problems

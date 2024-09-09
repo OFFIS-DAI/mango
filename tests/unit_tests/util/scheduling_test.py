@@ -4,12 +4,10 @@ import time
 
 import pytest
 from dateutil import rrule
-
 from mango.util.clock import ExternalClock
 from mango.util.scheduling import (
     ConditionalProcessTask,
     InstantScheduledProcessTask,
-    InstantScheduledTask,
     PeriodicScheduledTask,
     RecurrentScheduledTask,
     Scheduler,
@@ -29,13 +27,9 @@ async def test_recurrent():
     async def increase_counter():
         l.append(1)
 
-    recurrency = rrule.rrule(
-        rrule.DAILY, interval=1, dtstart=start, until=end
-    )
+    recurrency = rrule.rrule(rrule.DAILY, interval=1, dtstart=start, until=end)
     # WHEN
-    scheduler.schedule_task(
-        RecurrentScheduledTask(increase_counter, recurrency, clock)
-    )
+    scheduler.schedule_task(RecurrentScheduledTask(increase_counter, recurrency, clock))
     clock.set_time(start.timestamp())
     await asyncio.sleep(0)
     # THEN
@@ -141,7 +135,7 @@ async def test_periodic():
 
     # WHEN
     t = scheduler.schedule_task(PeriodicScheduledTask(increase_counter, 0.2))
-    
+
     with pytest.raises(asyncio.exceptions.TimeoutError):
         await asyncio.wait_for(t, timeout=0.3)
 

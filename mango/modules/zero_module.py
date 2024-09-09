@@ -72,7 +72,7 @@ class ZeroModule(ABC):
             try:
                 [topic, msg] = self.sub_socket.recv_multipart(flags=zmq.NOBLOCK)
                 got_message = True
-            except:
+            except Exception:
                 # didnt get a message
                 got_message = False
 

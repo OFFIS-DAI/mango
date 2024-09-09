@@ -31,9 +31,10 @@ Furthermore there are two lifecycle methods to know about:
                      for initialization and scheduling of tasks
 * :func:`Role.on_stop` is called when the container the agent lives in, is shut down
 """
+
 import asyncio
 from abc import ABC
-from typing import Any, Dict, List, Optional, Tuple, Union, Callable
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from mango.agent.core import Agent, AgentContext, AgentDelegates
 from mango.util.scheduling import Scheduler
@@ -246,7 +247,7 @@ class RoleHandler:
                         content=content,
                         receiver_addr=receiver_addr,
                         receiver_id=receiver_id,
-                        **kwargs
+                        **kwargs,
                     )
 
     async def send_message(
@@ -255,14 +256,14 @@ class RoleHandler:
         receiver_addr: Union[str, Tuple[str, int]],
         *,
         receiver_id: Optional[str] = None,
-        **kwargs
+        **kwargs,
     ):
         self._notify_send_message_subs(content, receiver_addr, receiver_id, **kwargs)
         return await self._agent_context.send_message(
             content=content,
             receiver_addr=receiver_addr,
             receiver_id=receiver_id,
-            **kwargs
+            **kwargs,
         )
 
     async def send_acl_message(
@@ -272,7 +273,7 @@ class RoleHandler:
         *,
         receiver_id: Optional[str] = None,
         acl_metadata: Optional[Dict[str, Any]] = None,
-        **kwargs
+        **kwargs,
     ):
         self._notify_send_message_subs(content, receiver_addr, receiver_id, **kwargs)
         return await self._agent_context.send_acl_message(
@@ -280,7 +281,7 @@ class RoleHandler:
             receiver_addr=receiver_addr,
             receiver_id=receiver_id,
             acl_metadata=acl_metadata,
-            **kwargs
+            **kwargs,
         )
 
     def subscribe_message(self, role, method, message_condition, priority=0):
@@ -310,7 +311,7 @@ class RoleHandler:
             method(event, event_source)
 
     def subscribe_event(self, role: Role, event_type: type, method: Callable):
-        if not event_type in self._role_event_type_to_handler:
+        if event_type not in self._role_event_type_to_handler:
             self._role_event_type_to_handler[event_type] = []
 
         self._role_event_type_to_handler[event_type] += [(role, method)]
@@ -406,13 +407,13 @@ class RoleContext(AgentDelegates):
         receiver_addr: Union[str, Tuple[str, int]],
         *,
         receiver_id: Optional[str] = None,
-        **kwargs
+        **kwargs,
     ):
         return await self._role_handler.send_message(
             content=content,
             receiver_addr=receiver_addr,
             receiver_id=receiver_id,
-            **kwargs
+            **kwargs,
         )
 
     async def send_acl_message(
@@ -422,14 +423,14 @@ class RoleContext(AgentDelegates):
         *,
         receiver_id: Optional[str] = None,
         acl_metadata: Optional[Dict[str, Any]] = None,
-        **kwargs
+        **kwargs,
     ):
         return await self._role_handler.send_acl_message(
             content=content,
             receiver_addr=receiver_addr,
             receiver_id=receiver_id,
             acl_metadata=acl_metadata,
-            **kwargs
+            **kwargs,
         )
 
     def emit_event(self, event: Any, event_source: Any = None):

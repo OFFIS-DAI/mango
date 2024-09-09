@@ -61,7 +61,7 @@ When using the scheduling another feature becomes available: suspendable tasks. 
 Dispatch Tasks to other Process
 *******************************
 
-As asyncio does not provide real parallelism to utilize multiple cores and agents may have tasks, which need a lot computational power, the need to dispatch certain tasks to other processes appear. Handling inter process communication manually is quite exhausting and having multiple process pools across different roles or agents leads to inefficient resource allocations. As a result mango offers a way to dispatch tasks, based on coroutine-functions, to other processes, managed by the framework. 
+As asyncio does not provide real parallelism to utilize multiple cores and agents may have tasks, which need a lot computational power, the need to dispatch certain tasks to other processes appear. Handling inter process communication manually is quite exhausting and having multiple process pools across different roles or agents leads to inefficient resource allocations. As a result mango offers a way to dispatch tasks, based on coroutine-functions, to other processes, managed by the framework.
 
 Analogues to the normal API there are two different ways, first you create a ScheduledProcessTask and call ``schedule_process_task``, second you invoke the convnience methods with "process" in the name. These methods exists on any Agent, the RoleContext and the Scheduler.
 In mango the following process tasks are available:
@@ -190,4 +190,3 @@ If you comment in the ExternalClock and change your main() as follows, the progr
             clock.set_time(clock.time + 5)
         await receiver.wait_for_reply
         await c.shutdown()
-

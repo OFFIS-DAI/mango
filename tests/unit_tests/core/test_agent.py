@@ -2,13 +2,11 @@ import asyncio
 from typing import Any, Dict
 
 import pytest
-
 from mango import create_container
 from mango.agent.core import Agent
 
 
 class MyAgent(Agent):
-
     test_counter: int = 0
 
     def handle_message(self, content, meta: Dict[str, Any]):

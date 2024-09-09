@@ -1,11 +1,12 @@
 """This module implements the ACLMessage class.
- The class is used to implement messages that are based on the FIPA ACL
- standard.
- http://www.fipa.org/specs/fipa00061/SC00061G.html#_Toc26669715
+The class is used to implement messages that are based on the FIPA ACL
+standard.
+http://www.fipa.org/specs/fipa00061/SC00061G.html#_Toc26669715
 
- It also includes the enum classes for the message Performative and Type
+It also includes the enum classes for the message Performative and Type
 
 """
+
 import pickle
 from enum import Enum
 from typing import Any, Dict

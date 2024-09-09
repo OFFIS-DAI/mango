@@ -9,6 +9,7 @@ from mango.container.external_coupling import ExternalSchedulingContainer
 from mango.container.mqtt import MQTTContainer
 from mango.container.tcp import TCPContainer
 from mango.messages.codecs import JSON
+
 from ..messages.codecs import Codec
 from ..util.clock import AsyncioClock, Clock, ExternalClock
 
@@ -116,7 +117,9 @@ async def create(
             )
 
         # create paho.Client object for mqtt communication
-        mqtt_messenger: paho.Client = paho.Client(paho.CallbackAPIVersion.VERSION2, client_id=client_id, **init_kwargs)
+        mqtt_messenger: paho.Client = paho.Client(
+            paho.CallbackAPIVersion.VERSION2, client_id=client_id, **init_kwargs
+        )
 
         # set TLS options if provided
         # expected as a dict:
@@ -138,7 +141,7 @@ async def create(
         # check broker_addr input and connect
         if isinstance(broker_addr, tuple):
             if not 0 < len(broker_addr) < 4:
-                raise ValueError(f"Invalid broker address argument count")
+                raise ValueError("Invalid broker address argument count")
             if len(broker_addr) > 0 and not isinstance(broker_addr[0], str):
                 raise ValueError("Invalid broker address - host must be str")
             if len(broker_addr) > 1 and not isinstance(broker_addr[1], int):
@@ -185,7 +188,7 @@ async def create(
         if addr is not None:
             # connection has been set up, subscribe to inbox topic now
             logger.info(
-                f"[{client_id}]: Going to subscribe to {addr} " f"as inbox topic.."
+                "[%s]: Going to subscribe to %s as inbox topic..", client_id, addr
             )
 
             # create Future that is triggered on successful subscription

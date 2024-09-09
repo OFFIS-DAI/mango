@@ -6,15 +6,15 @@ import asyncio
 import concurrent.futures
 import datetime
 from abc import abstractmethod
-from multiprocessing import Manager, Event
-from typing import Any, List, Tuple
+from asyncio import Future
 from dataclasses import dataclass
+from multiprocessing import Manager
 from multiprocessing.synchronize import Event as MultiprocessingEvent
+from typing import Any, List, Tuple
 
 from dateutil.rrule import rrule
 
 from mango.util.clock import AsyncioClock, Clock, ExternalClock
-from asyncio import Future
 
 
 @dataclass
@@ -120,7 +120,7 @@ class Suspendable:
 def _close_coro(coro):
     try:
         coro.close()
-    except:
+    except Exception:
         pass
 
 
@@ -168,7 +168,6 @@ class ScheduledTask:
 
     def close(self):
         """Perform closing actions"""
-        pass
 
 
 class TimestampScheduledTask(ScheduledTask):

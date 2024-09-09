@@ -5,12 +5,12 @@ Codecs
 Most of the codec related code is taken and adapted from aiomas:
 https://gitlab.com/sscherfke/aiomas/
 
-Codecs enable the container to encode and decode known data types to send them as messages. 
+Codecs enable the container to encode and decode known data types to send them as messages.
 Mango already contains two codecs: A json serializer that can (recursively) handle any json serializable object and a protobuf codec
-that will wrap an object into a generic protobuf message. Other codecs can be implemented by inheriting 
-from the ``Codec`` base class and implementing its ``encode`` and ``decode`` methods. 
-Codecs will only handle types explicitely known to them. 
-New known types can be added to a codec with the ``add_serializer`` method. 
+that will wrap an object into a generic protobuf message. Other codecs can be implemented by inheriting
+from the ``Codec`` base class and implementing its ``encode`` and ``decode`` methods.
+Codecs will only handle types explicitely known to them.
+New known types can be added to a codec with the ``add_serializer`` method.
 This method expects a type together with a serialization method and a deserialization method that translate the object into a format
 the codec can handle (for example a json-serializable string for the json codec).
 
@@ -137,7 +137,7 @@ All that is left to do now is to pass our codec to the container. This is done d
 **@json_serializable decorator**
 
 In the above example we explicitely defined methods to (de)serialize our class. For simple classes, especially data classes,
-we can achieve the same result (for json codecs) via the ``@json_serializable`` decorator. This creates the ``__asdict__``, 
+we can achieve the same result (for json codecs) via the ``@json_serializable`` decorator. This creates the ``__asdict__``,
 ``__fromdict__`` and ``__serializer__`` functions in the class:
 
 .. code-block:: python3
@@ -178,10 +178,10 @@ provides the `codecs.FastJson` codec. This codec usese `msgspec` and does not pr
 proto codec and ACLMessage
 ##########################
 
-Serialization methods for the proto codec are expected to encode the object into a protobuf message object with the ``SerializeToString`` 
+Serialization methods for the proto codec are expected to encode the object into a protobuf message object with the ``SerializeToString``
 method.
-The codec then wraps the message into a generic message wrapper, containing the serialized 
-protobuf message object and a type id. 
+The codec then wraps the message into a generic message wrapper, containing the serialized
+protobuf message object and a type id.
 This is necessary because in general the original type of a protobuf message can not be infered
 from its serialized form.
 
@@ -280,6 +280,3 @@ process by making the proto type known to the codec using the ``register_proto_t
 
     b'\x08\x01\x12\x0c\x12\nsome_bytes'
     content: "some_bytes"
-
-
-    

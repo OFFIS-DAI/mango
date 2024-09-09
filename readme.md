@@ -3,13 +3,13 @@
 [PyPi](https://pypi.org/project/mango-agents/) | [Read the Docs](https://mango-agents.readthedocs.io)
 | [Github](https://github.com/OFFIS-DAI/mango) | [mail](mailto:mango@offis.de)
 
-**Note:** _This project is still in an early development stage. 
+**Note:** _This project is still in an early development stage.
 We appreciate constructive feedback and suggestions for improvement._
 
 mango (**m**odul**a**r pytho**n** a**g**ent framew**o**rk) is a python library for multi-agent systems (MAS).
 It is written on top of asyncio and is released under the MIT license.
 
-mango allows the user to create simple agents with little effort and in the same time offers options 
+mango allows the user to create simple agents with little effort and in the same time offers options
 to structure agents with complex behaviour.
 
 The main features of mango are:
@@ -75,7 +75,7 @@ The container is responsible for message exchange between agents.
 ```
 
 This is how a container is created. Since the method `create_container()` is a
-[coroutine](https://docs.python.org/3.9/library/asyncio-task.html) we need to await its result. 
+[coroutine](https://docs.python.org/3.9/library/asyncio-task.html) we need to await its result.
 
 #### Running your first agent within a container
 
@@ -181,7 +181,7 @@ def test_second_example():
     asyncio.run(run_container_and_two_agents(
         first_addr=('localhost', 5555), second_addr=('localhost', 5556))
     )
-    
+
 ```
 
 You should now see the following output:
@@ -198,8 +198,7 @@ You have now successfully created two agents and connected them.
 
 ## License
 
-Distributed under the MIT license. 
+Distributed under the MIT license.
 
 [comment]: <> (##TODO  Release History * 0.0.1 First TCPContainer with json)
 [comment]: <> (* 0.0.2 * Added MQTTContainer and protobuf support  )
-

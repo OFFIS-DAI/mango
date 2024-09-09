@@ -4,7 +4,7 @@ from mango import Agent, create_container
 from mango.messages.message import Performatives
 
 """
-In the previous example, you have learned how to create mango agents and containers and 
+In the previous example, you have learned how to create mango agents and containers and
 how to send basic messages between them.
 In this example, you expand upon this. We introduce a controller agent that asks the current feed_in of our PV agents
 and subsequently limits the output of both to their minimum.
