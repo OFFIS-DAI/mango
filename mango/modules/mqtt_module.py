@@ -96,7 +96,9 @@ class MQTTModule:
         :return: None
         """
 
-    def on_disconnect(self, client, userdata, disconnect_flags, reason_code, properties):
+    def on_disconnect(
+        self, client, userdata, disconnect_flags, reason_code, properties
+    ):
         # pylint: disable=unused-argument
         """
         Callback method on broker disconnect on paho mqtt framework

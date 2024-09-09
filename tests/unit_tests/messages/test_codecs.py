@@ -2,6 +2,7 @@ import pickle
 from dataclasses import dataclass
 
 import pytest
+
 from mango.messages.codecs import (
     JSON,
     PROTOBUF,

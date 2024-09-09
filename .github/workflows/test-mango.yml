@@ -1,6 +1,6 @@
 name: Test mango
 
-on: 
+on:
   push:
     branches:
       - main
@@ -37,8 +37,13 @@ jobs:
         sudo apt update
         sudo apt install --assume-yes mosquitto
         sudo service mosquitto start
-        pip3 install pytest
-        pip3 install coverage
+        pip3 install pytest coverage ruff
+    - name: Lint with ruff
+      run: |
+        # stop the build if there are Python syntax errors or undefined names
+        source venv/bin/activate
+        ruff check .
+        ruff format --check .
     - name: Test+Coverage
       run: |
         source venv/bin/activate

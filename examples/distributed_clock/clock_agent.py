@@ -3,6 +3,7 @@ import logging
 from typing import TypedDict
 
 import numpy as np
+
 from mango import Role, RoleAgent, create_container
 from mango.messages.message import Performatives
 from mango.util.clock import ExternalClock
