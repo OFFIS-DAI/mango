@@ -1,5 +1,5 @@
 Migration
-========
+=========
 
 Some mango versions will break the API; in this case, we may provide instructions on the migration on this page.
 

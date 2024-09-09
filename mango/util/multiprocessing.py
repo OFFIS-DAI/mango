@@ -6,13 +6,15 @@ these pipes, use aiopipe() or aioduplex(). The idea of the code is based on the 
 
 These pipes provide async compatible APIs, here a general example:
 
-main, sub = aioduplex()
-with sub.detach() as sub:
-    # start your process with sub as inherited pipe
-async with main.open() as (rx, tx):
-    item = await rx.read_object()
-    tx.write_object()
-    ...
+.. code-block:: python
+
+    main, sub = aioduplex()
+    with sub.detach() as sub:
+        # start your process with sub as inherited pipe
+    async with main.open() as (rx, tx):
+        item = await rx.read_object()
+        tx.write_object()
+        ...
 
 Further there are internal connection objects, which can be used if a synchronous access outside of the
 asyncio loop is necessary: 'main.write_connection, main.read_connection'. Note, that you can't use

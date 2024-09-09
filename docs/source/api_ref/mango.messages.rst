@@ -1,9 +1,6 @@
 mango.messages package
 ======================
 
-Submodules
-----------
-
 mango.messages.acl\_message\_pb2 module
 ---------------------------------------
 
@@ -32,14 +29,6 @@ mango.messages.other\_proto\_msgs\_pb2 module
 ---------------------------------------------
 
 .. automodule:: mango.messages.other_proto_msgs_pb2
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-Module contents
----------------
-
-.. automodule:: mango.messages
    :members:
    :undoc-members:
    :show-inheritance:

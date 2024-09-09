@@ -1,9 +1,6 @@
 mango.modules package
 =====================
 
-Submodules
-----------
-
 mango.modules.base\_module module
 ---------------------------------
 
@@ -32,14 +29,6 @@ mango.modules.zero\_module module
 ---------------------------------
 
 .. automodule:: mango.modules.zero_module
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-Module contents
----------------
-
-.. automodule:: mango.modules
    :members:
    :undoc-members:
    :show-inheritance:

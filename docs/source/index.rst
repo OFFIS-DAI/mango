@@ -30,7 +30,6 @@ Features
    agents-container
    message exchange
    scheduling
-   ACL messages
    codecs
    role-api
    development

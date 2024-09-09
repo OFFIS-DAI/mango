@@ -76,10 +76,12 @@ class MQTTModule:
         Function to call our generic callback function that has only two
         parameters from the framework specific callback with four parameters by
         binding it as a partial function.
+
         :param func: The wanted callback function
         :param client: the messaging client (unused)
         :param userdata: the userdata object (unused)
         :param message: the message payload
+
         :return: None
         """
         func(topic=message.topic, payload=message.payload)
@@ -88,11 +90,13 @@ class MQTTModule:
         # pylint: disable=unused-argument
         """
         Callback method on broker connection on paho mqtt framework
+
         :param client: the connecting client
         :param userdata: userdata object
         :param flags: returned flags
         :param reason_code: reason code
         :param properties: properties
+
         :return: None
         """
 
@@ -102,10 +106,12 @@ class MQTTModule:
         # pylint: disable=unused-argument
         """
         Callback method on broker disconnect on paho mqtt framework
+
         :param client: the connecting client
         :param userdata: userdata object
         :param reason_code: reason code
         :param properties: properties
+
         :return: None
         """
 
@@ -113,10 +119,12 @@ class MQTTModule:
         # pylint: disable=unused-argument
         """
         Client log method
+
         :param client: the mqtt client
         :param userdata: userdata object
         :param level: log level
         :param buf: data buffer
+
         :return: None
         """
 
@@ -124,8 +132,10 @@ class MQTTModule:
         """
         Each module has to implement this to handle all messages it receives
          in subscribed topics
+
         :param client:
         :param userdata:
         :param message:
+
         :return:
         """

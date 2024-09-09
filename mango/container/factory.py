@@ -34,17 +34,19 @@ async def create(
     This method is called to instantiate a container instance, either
     a TCPContainer or a MQTTContainer, depending on the parameter
     connection_type.
+
     :param connection_type: Defines the connection type. So far only 'tcp'
-    or 'mqtt' are allowed
+        or 'mqtt' are allowed
     :param codec: Defines the codec to use. Defaults to JSON
     :param clock: The clock that the scheduler of the agent should be based on. Defaults to the AsyncioClock
     :param addr: the address to use. If connection_type == 'tcp': it has
-    to be a tuple of (host, port). If connection_type == 'mqtt' this can
-    optionally define an inbox_topic that is used similarly than
-    a tcp address.
+        to be a tuple of (host, port). If connection_type == 'mqtt' this can
+        optionally define an inbox_topic that is used similarly than
+        a tcp address.
     :param mqtt_kwargs: Dictionary of keyword arguments for connection to a mqtt broker. At least
-    the keys 'broker_addr' and 'client_id' have to be provided.
-    Ignored if connection_type != 'mqtt'
+        the keys 'broker_addr' and 'client_id' have to be provided.
+        Ignored if connection_type != 'mqtt'
+
     :return: The instance of a MQTTContainer or a TCPContainer
     """
     connection_type = connection_type.lower()
