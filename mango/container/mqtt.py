@@ -95,8 +95,8 @@ class MQTTContainer(Container):
         Sets the callbacks for the mqtt paho client
         """
 
-        def on_con(client, userdata, flags, rc):
-            if rc != 0:
+        def on_con(client, userdata, flags, reason_code, properties):
+            if reason_code != 0:
                 logger.info("Connection attempt to broker failed")
             else:
                 logger.debug("Successfully reconnected to broker.")
