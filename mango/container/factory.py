@@ -221,7 +221,7 @@ async def create(
                     f"Subscription request to {addr} at {broker_addr} "
                     f"did not succeed after {counter * 0.1} seconds."
                 )
-            logger.info("successfully susbsribed to topic")
+            logger.info("successfully subscribed to topic")
 
         # connection and subscription is successful, remove callbacks
         mqtt_messenger.on_subscribe = None
