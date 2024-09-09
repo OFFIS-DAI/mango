@@ -80,7 +80,6 @@ class RabbitModule(ABC):
         # run loop
         while self.thread_active:
             if self.thread_running:
-
                 # set up saved callback
                 for cb in self.known_registers:
                     queues = []

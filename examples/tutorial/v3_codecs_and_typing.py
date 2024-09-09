@@ -1,12 +1,12 @@
 import asyncio
 from dataclasses import dataclass
 
-import mango.messages.codecs as codecs
 from mango import Agent, create_container
+from mango.messages import codecs
 
 """
 In example 2 we created some basic agent functionality and established inter-container communication.
-To distinguish message types we used a corresponding field in our content dictionary. This approach is 
+To distinguish message types we used a corresponding field in our content dictionary. This approach is
 tedious and prone to error. A better way is to use dedicated message objects and using their types to distinguish
 messages. Arbitrary objects can be encoded for messaging between agents by mangos codecs.
 

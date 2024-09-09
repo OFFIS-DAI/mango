@@ -1,10 +1,11 @@
-import nox
 import os
+
+import nox
+
 
 @nox.session(python=["3.8"])
 def flake8(session):
-    session.install("flake8", "flake8-bugbear", "flake8-import-order",
-                    "flake8-bandit")
+    session.install("flake8", "flake8-bugbear", "flake8-import-order", "flake8-bandit")
     session.run("flake8", "mango")
 
 

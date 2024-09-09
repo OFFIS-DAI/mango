@@ -1,7 +1,7 @@
 """
 TODO
 """
-import logging
+
 from functools import partial
 
 import paho.mqtt.client as paho

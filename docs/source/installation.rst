@@ -48,5 +48,3 @@ __ https://mosquitto.org/
     The protobuf codec is an optional feature that you need to explicity install if you need it.
 
     **TODO: make protobuf optional**
-
-

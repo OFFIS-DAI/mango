@@ -1,6 +1,7 @@
-from mango.agent.role import Role, RoleHandler, DataContainer, RoleContext
-from mango.util.scheduling import Scheduler
 from dataclasses import dataclass
+
+from mango.agent.role import DataContainer, Role, RoleContext, RoleHandler
+from mango.util.scheduling import Scheduler
 
 
 class RoleModel:
@@ -100,7 +101,7 @@ def test_data_container():
     # WHEN THEN
     assert "abc" in data_container
     assert "cba" in data_container
-    assert not "bca" in data_container
+    assert "bca" not in data_container
 
 
 @dataclass
@@ -145,13 +146,12 @@ def test_emit_event():
     assert ex_role2.event == event
     assert ex_role2.source == ex_role
 
-def test_data_container():
+
+def test_data_container_get():
     # GIVEN
     data_container = DataContainer()
     data_container["abc"] = "123"
-    data_container.update({
-        "cba": 123
-    })
+    data_container.update({"cba": 123})
 
     # WHEN THEN
     assert data_container.cba == 123

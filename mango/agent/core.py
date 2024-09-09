@@ -8,7 +8,6 @@ Every agent must live in a container. Containers are responsible for making
 import asyncio
 import logging
 from abc import ABC
-from datetime import datetime
 from typing import Any, Dict, Optional, Tuple, Union
 
 from ..container.core import Container
@@ -429,7 +428,9 @@ class Agent(ABC, AgentDelegates):
         """
         if fut.exception() is not None:
             logger.error(
-                f"Agent {self.aid}: Caught the following exception in _check_inbox: {fut.exception()}"
+                "Agent %s: Caught the following exception in _check_inbox: ",
+                self.aid,
+                fut.exception(),
             )
             raise fut.exception()
 

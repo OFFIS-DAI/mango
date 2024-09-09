@@ -1,9 +1,8 @@
 import asyncio
 from typing import Any, Dict
 
-import pytest
-
 import mango.container.factory as container_factory
+import pytest
 from mango.agent.core import Agent
 
 
@@ -128,7 +127,7 @@ async def test_send_ping_pong(num_agents, num_containers):
             if a._check_inbox_task.exception() is not None:
                 raise a._check_inbox_task.exception()
             else:
-                assert False, f"check_inbox terminated unexpectedly."
+                assert False, "check_inbox terminated unexpectedly."
     for a in agents:
         # await a.wait_for_sending_messages()
         await a.wait_for_pong_replies()

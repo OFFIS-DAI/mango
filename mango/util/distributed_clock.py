@@ -2,7 +2,7 @@ import asyncio
 import logging
 
 from mango import Agent
-from mango.container.mqtt import MQTTContainer
+
 from .termination_detection import tasks_complete_or_sleeping
 
 logger = logging.getLogger(__name__)

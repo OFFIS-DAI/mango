@@ -3,9 +3,8 @@ import datetime
 from abc import abstractmethod
 from typing import Any, Dict
 
-import pytest
-
 import mango.container.factory as container_factory
+import pytest
 from mango.agent.role import Role, RoleAgent, RoleContext
 from mango.util.scheduling import TimestampScheduledTask
 
@@ -166,7 +165,7 @@ async def test_send_ping_pong(num_agents, num_containers):
             if a._check_inbox_task.exception() is not None:
                 raise a._check_inbox_task.exception()
             else:
-                assert False, f"check_inbox terminated unexpectedly."
+                assert False, "check_inbox terminated unexpectedly."
 
     for a in agents:
         await a.tasks_complete()
@@ -209,7 +208,7 @@ async def test_send_ping_pong_deactivated_pong(num_agents, num_containers):
             if a._check_inbox_task.exception() is not None:
                 raise a._check_inbox_task.exception()
             else:
-                assert False, f"check_inbox terminated unexpectedly."
+                assert False, "check_inbox terminated unexpectedly."
 
     for a in agents:
         await a.tasks_complete()

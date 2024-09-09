@@ -1,5 +1,5 @@
 """This module contains the base class for basic modules that can be used
- inside agents to encapsulate complex functionality """
+inside agents to encapsulate complex functionality"""
 
 import traceback
 

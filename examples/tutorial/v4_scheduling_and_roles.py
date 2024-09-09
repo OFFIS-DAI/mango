@@ -1,14 +1,13 @@
 import asyncio
 from dataclasses import dataclass
 
-import mango.messages.codecs as codecs
-
 # note that our imports changed because we now use the specialized RoleAgent superclass
 from mango import Role, RoleAgent, create_container
+from mango.messages import codecs
 
 """
 In example 3, you restructured your code to use codecs for easier handling of typed message objects.
-Now we want to expand the functionality of our controller. In addition to setting the maximum feed_in 
+Now we want to expand the functionality of our controller. In addition to setting the maximum feed_in
 of the pv agents, the controller should now also periodically check if the pv agents are still reachable.
 
 To achieve this, the controller should seend a regular "ping" message to each pv agent that is in turn answered
@@ -19,7 +18,7 @@ A role is a python object that can be assigned to a RoleAgent. The two main func
     __init__ - where you do the initial object setup
     setup - which is called when the role is assigned to an agent
 
-This distinction is relevant because only within `setup` the 
+This distinction is relevant because only within `setup` the
 RoleContext (i.e. access to the parent agent and container) exist.
 Thus, things like message handlers that require container knowledge are introduced there.
 
