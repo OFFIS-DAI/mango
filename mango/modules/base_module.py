@@ -11,8 +11,8 @@ from .zero_module import ZeroModule
 class BaseModule:
     """An agent can have multiple specialized modules which inherit
     from BaseModule. The all need to specify which messaging framework should
-     be used for the internal message exchange between the modules.
-     TODO write more
+    be used for the internal message exchange between the modules.
+    TODO write more
     """
 
     frameworks = {"mqtt": MQTTModule, "rabbit": RabbitModule, "zero": ZeroModule}
@@ -22,6 +22,7 @@ class BaseModule:
     ):
         """
         Initialization of the module
+
         :param name: name of the module (str)
         :param subscr_topics: List of string and integer tuples for subscribed
          topics:[ (topic, qos)] e.g.[("my/topic", 0), ("another/topic", 2)]

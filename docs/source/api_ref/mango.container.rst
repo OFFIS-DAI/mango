@@ -1,9 +1,6 @@
 mango.container package
 =======================
 
-Submodules
-----------
-
 mango.container.core module
 ---------------------------
 
@@ -48,14 +45,6 @@ mango.container.tcp module
 --------------------------
 
 .. automodule:: mango.container.tcp
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-Module contents
----------------
-
-.. automodule:: mango.container
    :members:
    :undoc-members:
    :show-inheritance:

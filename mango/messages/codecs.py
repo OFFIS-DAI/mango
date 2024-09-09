@@ -3,7 +3,7 @@ This package imports the codecs that can be used for de- and encoding incoming
 and outgoing messages:
 
 - :class:`JSON` uses `JSON <http://www.json.org/>`_
-- :class:`protobuf' uses protobuf
+- :class:`protobuf` uses protobuf
 
 All codecs should implement the base class :class:`Codec`.
 

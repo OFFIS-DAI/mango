@@ -1,9 +1,6 @@
 mango.util package
 ==================
 
-Submodules
-----------
-
 mango.util.clock module
 -----------------------
 
@@ -40,14 +37,6 @@ mango.util.termination\_detection module
 ----------------------------------------
 
 .. automodule:: mango.util.termination_detection
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-Module contents
----------------
-
-.. automodule:: mango.util
    :members:
    :undoc-members:
    :show-inheritance:

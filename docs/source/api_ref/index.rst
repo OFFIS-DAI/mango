@@ -16,11 +16,3 @@ Subpackages
    mango.messages
    mango.modules
    mango.util
-
-Module contents
----------------
-
-.. automodule:: mango
-   :members:
-   :undoc-members:
-   :show-inheritance:

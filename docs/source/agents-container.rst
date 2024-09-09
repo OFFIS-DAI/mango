@@ -1,6 +1,6 @@
-========
+====================
 Agents and container
-========
+====================
 
 ***************
 mango container
@@ -72,6 +72,7 @@ To improve multicore utilization, mango provides a way to distribute agents to p
 register the agent in a slightly different way.
 
 .. code-block:: python3
+
     process_handle = await main_container.as_agent_process(
         agent_creator=lambda sub_container: TestAgent(
             container, aid_main_agent, suggested_aid=f"process_agent1"
@@ -85,6 +86,7 @@ with the agent directly from the main process. If you want to interact with the 
 dispatch a task in the agent process using `dispatch_to_agent_process`.
 
 .. code-block:: python3
+
     main_container.dispatch_to_agent_process(
         pid,
         your_function, # will be called with the mirror container + x as arguments

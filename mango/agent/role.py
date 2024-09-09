@@ -7,10 +7,9 @@ monitoring grid voltage another one.
 A role is part of a :class:`RoleAgent` which inherits from :class:`Agent`.
 
 There are essentially two APIs for acting resp reacting:
-* [Reacting] :func:`RoleContext.subscribe_message`, which allows you to subscribe to
-             certain message types and lets you handle the message
-* [Acting] :func:`RoleContext.schedule_task`, this allows you to schedule a task with
-            delay/repeating/...
+
+* [Reacting] :func:`RoleContext.subscribe_message`, which allows you to subscribe to certain message types and lets you handle the message
+* [Acting] :func:`RoleContext.schedule_task`, this allows you to schedule a task with delay/repeating/...
 
 To interact with the environment an instance of the role context is provided. This context
 provides methods to share data with other roles and to communicate with other agents.
@@ -27,6 +26,7 @@ To set this up, a model has to be created via
 If you prefer a lightweight variant you can use :func:`RoleContext.data` to assign/access shared data.
 
 Furthermore there are two lifecycle methods to know about:
+
 * :func:`Role.setup` is called when the Role is added to the agent, so its the perfect place
                      for initialization and scheduling of tasks
 * :func:`Role.on_stop` is called when the container the agent lives in, is shut down
@@ -71,6 +71,7 @@ class Role(ABC):
 
     Every role
     must be added to a :class:`RoleAgent` and is defined by some lifecycle methods:
+
     * :func:`Role.setup` is called when the Role is added to the agent, so its the perfect place for
                          initialization and scheduling of tasks
     * :func:`Role.on_stop` is called when the container the agent lives in, is shut down
@@ -228,9 +229,12 @@ class RoleHandler:
 
     def handle_message(self, content, meta: Dict[str, Any]):
         """Handle an incoming message, delegating it to all applicable subscribers
-        for role, message_condition, method, _ in self._message_subs:
-            if self._is_role_active(role) and message_condition(content, meta):
-                method(content, meta)
+
+        .. code-block:: python
+
+            for role, message_condition, method, _ in self._message_subs:
+                if self._is_role_active(role) and message_condition(content, meta):
+                    method(content, meta)
 
         :param content: content
         :param meta: meta
@@ -392,9 +396,12 @@ class RoleContext(AgentDelegates):
 
     def handle_message(self, content, meta: Dict[str, Any]):
         """Handle an incoming message, delegating it to all applicable subscribers
-        for role, message_condition, method, _ in self._message_subs:
-            if self._is_role_active(role) and message_condition(content, meta):
-                method(content, meta)
+
+        .. code-block:: python
+
+            for role, message_condition, method, _ in self._message_subs:
+                if self._is_role_active(role) and message_condition(content, meta):
+                    method(content, meta)
 
         :param content: content
         :param meta: meta

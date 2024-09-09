@@ -84,9 +84,10 @@ def create_agent_process_environment(
     """Create the agent process environment for using agent subprocesses
     in a mango container. This routine will create a new event loop and run
     the so-called agent-loop, which will
+
     1. initialize the mirror-container and the agents
     2. will wait and return to the event loop until there is a terminate signal
-      * while this step, the container and its agents are responsive
+        * while this step, the container and its agents are responsive
     3. shutdown the mirror container
 
     :param container_data: data for the mirror container creation
@@ -166,7 +167,7 @@ class BaseContainerProcessManager:
         :param receiver_id: aid of the receiver
         :type receiver_id: str
         :param priority: prio
-        :type priority: int_
+        :type priority: int
         :param meta: meta
         :type meta: dict
         :raises NotImplementedError: generally not implemented in mirror container manager
@@ -182,12 +183,12 @@ class BaseContainerProcessManager:
         original container for all agents which live in its process.
 
         :param agent_creator: function with one argument 'container', which creates all agents, which
-        shall live in the process
+            shall live in the process
         :type agent_creator: Function(Container)
         :param container: the main container
         :type container: Container
         :param mirror_container_creator: function, which creates a mirror container, given container
-        data and IPC connection data
+            data and IPC connection data
         :type mirror_container_creator: Function(ContainerData, AsyncioLoop, AioDuplex, AioDuplex, Event)
         :raises NotImplementedError: generally raised if the manager is a mirror manager
         """
@@ -209,8 +210,8 @@ class BaseContainerProcessManager:
         :param default_meta: meta
         :type default_meta: dict
         :return: Tuple, first the status (True, False = successful, unsuccessful and prevent
-        the original send_internal_message, None = Continue original call), second the Queue-like
-        inbox, in which the message should be redirected in
+            the original send_internal_message, None = Continue original call), second the Queue-like
+            inbox, in which the message should be redirected in
         :rtype: Tuple[Boolean, Queue-like]
         """
         return None, None
@@ -227,7 +228,7 @@ class BaseContainerProcessManager:
         return None
 
     def dispatch_to_agent_process(self, pid: int, coro_func, *args):
-        """Dispatches a coroutine function to another process. The coroutine_func
+        """Dispatches a coroutine function to another process. The `coroutine_func`
         and its arguments are serialized and sent to the agent process, in which it
         is executed with the Container as first argument (followed by the defined arguments).
 
@@ -609,9 +610,11 @@ class Container(ABC):
     def register_agent(self, agent, suggested_aid: str = None):
         """
         Register *agent* and return the agent id
+
         :param agent: The agent instance
         :param suggested_aid: (Optional) suggested aid, if the aid is already taken, a generated aid is used.
-                              Using the generated aid-style ("agentX") is not allowed.
+            Using the generated aid-style ("agentX") is not allowed.
+
         :return The agent ID
         """
         if not self._no_agents_running or self._no_agents_running.done():
@@ -624,9 +627,9 @@ class Container(ABC):
     def deregister_agent(self, aid):
         """
         Deregister an agent
+
         :param aid:
         :return:
-
         """
         del self._agents[aid]
         if len(self._agents) == 0:
@@ -667,7 +670,7 @@ class Container(ABC):
 
         :param content: The content of the message
         :param receiver_addr: In case of TCP this is a tuple of host, port
-        In case of MQTT this is the topic to publish to.
+            In case of MQTT this is the topic to publish to.
         :param receiver_id: The agent id of the receiver
         :param acl_metadata: metadata for the acl_header.
         :param is_anonymous_acl: If set to True, the sender information won't be written in the ACL header
@@ -831,7 +834,7 @@ class Container(ABC):
 
     def as_agent_process(self, agent_creator, mirror_container_creator):
         """Spawn a new process with a container, mirroring the current container, and
-        1 to n agents, created by 'agent_creator'. Can be used to introduce real
+        1 to n agents, created by `agent_creator`. Can be used to introduce real
         parallelization using the agents as unit to divide.
 
         Internally this will create a process with its own asyncio loop and an own
@@ -840,13 +843,13 @@ class Container(ABC):
         it would in the parent process and in the main container (this).
 
         :param agent_creator: function, which creates 1...n agents, has exactly one argument
-        the mirror container
+            the mirror container
         :type agent_creator: Function(Container)
         :param mirror_container_creator: function, which creates the mirror container, generally
-        this parameter is set by the subclasses of container
+            this parameter is set by the subclasses of container
         :type mirror_container_creator: Function(ContainerData, AsyncioLoop, AioDuplex, AioDuplex, Event)
         :return: a handle for the created process. It contains the pid as property 'pid' and can be awaited
-        to make sure the initialization of the agents in the subprocess is actually done.
+            to make sure the initialization of the agents in the subprocess is actually done.
         :rtype: AgentProcessHandle
         """
         return self._container_process_manager.create_agent_process(
@@ -859,12 +862,12 @@ class Container(ABC):
         """Dispatch a coroutine function and its necessary arguments to the process 'pid'.
         This allows the user to execute arbitrary code in the agent subprocesses.
 
-        The coro_func accepts coro_func(Container, *args).
+        The ``coro_func`` accepts ``coro_func(Container, *args)``.
 
         :param pid: the pid in which the coro func should get dispatched
         :type pid: int
-        :param coro_func: async function(Container, *args)
-        :type coro_func: async function(Container, *args)
+        :param coro_func: async function(Container, ...)
+        :type coro_func: async function(Container, ...)
         """
         self._container_process_manager.dispatch_to_agent_process(pid, coro_func, *args)
 
