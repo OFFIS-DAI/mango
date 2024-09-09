@@ -4,6 +4,7 @@ import pytest
 from mango import Agent, create_container
 from mango.util.clock import ExternalClock
 from mango.util.termination_detection import tasks_complete_or_sleeping
+from mango.util.distributed_clock import DistributedClockAgent, DistributedClockManager
 from multiprocessing import Process
 
 
