@@ -84,24 +84,26 @@ class MQTTModule:
         """
         func(topic=message.topic, payload=message.payload)
 
-    def conn(self, client, userdata, flags, return_code):
+    def conn(self, client, userdata, flags, reason_code, properties):
         # pylint: disable=unused-argument
         """
         Callback method on broker connection on paho mqtt framework
         :param client: the connecting client
         :param userdata: userdata object
         :param flags: returned flags
-        :param return_code: return code
+        :param reason_code: reason code
+        :param properties: properties
         :return: None
         """
 
-    def on_disconnect(self, client, userdata, return_code):
+    def on_disconnect(self, client, userdata, disconnect_flags, reason_code, properties):
         # pylint: disable=unused-argument
         """
         Callback method on broker disconnect on paho mqtt framework
         :param client: the connecting client
         :param userdata: userdata object
-        :param return_code: return code
+        :param reason_code: reason code
+        :param properties: properties
         :return: None
         """
 
