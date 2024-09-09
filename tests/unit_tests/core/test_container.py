@@ -1,5 +1,6 @@
-import mango.container.factory as container_factory
 import pytest
+
+import mango.container.factory as container_factory
 from mango.agent.core import Agent
 
 

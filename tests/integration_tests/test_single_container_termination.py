@@ -1,14 +1,23 @@
 import asyncio
 
 import pytest
+
 from mango import Agent, create_container
 from mango.util.clock import ExternalClock
-from mango.util.termination_detection import tasks_complete_or_sleeping
 from mango.util.distributed_clock import DistributedClockAgent, DistributedClockManager
+from mango.util.termination_detection import tasks_complete_or_sleeping
 
 
 class Caller(Agent):
-    def __init__(self, container, receiver_addr, receiver_id, send_response_messages=False, max_count=100, schedule_timestamp=False):
+    def __init__(
+        self,
+        container,
+        receiver_addr,
+        receiver_id,
+        send_response_messages=False,
+        max_count=100,
+        schedule_timestamp=False,
+    ):
         super().__init__(container)
         self.schedule_timestamp_task(
             coroutine=self.send_hello_world(receiver_addr, receiver_id),
@@ -27,15 +36,18 @@ class Caller(Agent):
 
     async def send_ordered(self, meta):
         await self.send_acl_message(
-            receiver_addr=meta["sender_addr"], receiver_id=meta["sender_id"], content=self.i
+            receiver_addr=meta["sender_addr"],
+            receiver_id=meta["sender_id"],
+            content=self.i,
         )
-
 
     def handle_message(self, content, meta):
         self.i += 1
         if self.i < self.max_count and self.send_response_messages:
             if self.schedule_timestamp:
-                self.schedule_timestamp_task(self.send_ordered(meta), self.current_timestamp+5)
+                self.schedule_timestamp_task(
+                    self.send_ordered(meta), self.current_timestamp + 5
+                )
             else:
                 self.schedule_instant_task(self.send_ordered(meta))
         elif not self.done.done():
@@ -122,9 +134,15 @@ async def distribute_ping_pong_test(connection_type, codec=None, max_count=100):
         container_man, receiver_clock_addresses=[(repl_addr, "clock_agent")]
     )
     receiver = Receiver(container_ag, init_addr, "agent0")
-    caller = Caller(container_man, repl_addr, receiver.aid, send_response_messages=True, max_count=max_count)
+    caller = Caller(
+        container_man,
+        repl_addr,
+        receiver.aid,
+        send_response_messages=True,
+        max_count=max_count,
+    )
 
-    clock_man.set_time(clock_man.time+5)
+    clock_man.set_time(clock_man.time + 5)
 
     # we do not have distributed termination detection yet in core
     assert caller.i < caller.max_count
@@ -138,7 +156,10 @@ async def distribute_ping_pong_test(connection_type, codec=None, max_count=100):
         container_ag.shutdown(),
     )
 
-async def distribute_ping_pong_test_timestamp(connection_type, codec=None, max_count=10):
+
+async def distribute_ping_pong_test_timestamp(
+    connection_type, codec=None, max_count=10
+):
     init_addr = ("localhost", 1555) if connection_type == "tcp" else "c1"
     repl_addr = ("localhost", 1556) if connection_type == "tcp" else "c2"
 
@@ -177,12 +198,20 @@ async def distribute_ping_pong_test_timestamp(connection_type, codec=None, max_c
         container_man, receiver_clock_addresses=[(repl_addr, "clock_agent")]
     )
     receiver = Receiver(container_ag, init_addr, "agent0")
-    caller = Caller(container_man, repl_addr, receiver.aid, send_response_messages=True, max_count=max_count, schedule_timestamp=True)
+    caller = Caller(
+        container_man,
+        repl_addr,
+        receiver.aid,
+        send_response_messages=True,
+        max_count=max_count,
+        schedule_timestamp=True,
+    )
 
     # we do not have distributed termination detection yet in core
     assert caller.i < caller.max_count
 
     import time
+
     tt = 0
     if isinstance(clock_man, ExternalClock):
         for i in range(caller.max_count):
@@ -190,7 +219,7 @@ async def distribute_ping_pong_test_timestamp(connection_type, codec=None, max_c
             t = time.time()
             await clock_manager.send_current_time()
             next_event = await clock_manager.get_next_event()
-            tt += time.time()-t
+            tt += time.time() - t
 
             clock_man.set_time(next_event)
 
@@ -209,19 +238,20 @@ async def distribute_ping_pong_test_timestamp(connection_type, codec=None, max_c
 async def test_distribute_ping_pong_tcp():
     await distribute_ping_pong_test("tcp")
 
+
 @pytest.mark.asyncio
 async def test_distribute_ping_pong_mqtt():
     await distribute_ping_pong_test("mqtt")
+
 
 @pytest.mark.asyncio
 async def test_distribute_ping_pong_ts_tcp():
     await distribute_ping_pong_test_timestamp("tcp")
 
+
 @pytest.mark.asyncio
 async def test_distribute_ping_pong_ts_mqtt():
     await distribute_ping_pong_test_timestamp("mqtt")
-
-
 
 
 async def distribute_time_test_case(connection_type, codec=None):
@@ -265,7 +295,6 @@ async def distribute_time_test_case(connection_type, codec=None):
     receiver = Receiver(container_ag, init_addr, "agent0")
     caller = Caller(container_man, repl_addr, receiver.aid)
 
-
     assert receiver._scheduler.clock.time == 0
     # first synchronize the clock to the receiver
     next_event = await clock_manager.distribute_time(clock_man.time)
@@ -301,6 +330,7 @@ async def distribute_time_test_case(connection_type, codec=None):
         container_man.shutdown(),
         container_ag.shutdown(),
     )
+
 
 async def send_current_time_test_case(connection_type, codec=None):
     init_addr = ("localhost", 1555) if connection_type == "tcp" else "c1"
@@ -393,6 +423,7 @@ async def test_distribute_time_mqtt():
 @pytest.mark.asyncio
 async def test_send_current_time_tcp():
     await send_current_time_test_case("tcp")
+
 
 @pytest.mark.asyncio
 async def test_send_current_time_mqtt():

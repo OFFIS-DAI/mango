@@ -4,7 +4,6 @@ from datetime import datetime
 from typing import TypedDict
 
 import pandas as pd
-from serializer import mango_codec_factory
 from tqdm import tqdm
 
 from mango import Role, RoleAgent, create_container
@@ -65,7 +64,7 @@ class OneSidedMarketRole(Role):
             self.demands.append(self.demand)
         else:
             logger.info("First opening does not have anything to clear")
-            price=0
+            price = 0
         acl_metadata = {
             "performative": Performatives.inform,
             "sender_id": self.context.aid,

@@ -1,11 +1,11 @@
 import asyncio
 
 import pytest
+
 from mango import create_container
 from mango.messages.codecs import JSON
 from mango.util.clock import ExternalClock
 from mango.util.distributed_clock import DistributedClockAgent, DistributedClockManager
-from mango.util.termination_detection import tasks_complete_or_sleeping
 
 JSON_CODEC = JSON()
 

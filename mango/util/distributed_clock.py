@@ -73,7 +73,7 @@ class DistributedClockManager(ClockAgent):
         Args:
             time (number, optional): The current time which is set. Defaults to None.
         """
-        time = time or self._scheduler.clock.time 
+        time = time or self._scheduler.clock.time
         await self.broadcast(time, add_futures=False)
 
     async def wait_for_futures(self):
@@ -87,7 +87,7 @@ class DistributedClockManager(ClockAgent):
             # waits forever if manager was started first
             # as answer is never received
             await fut
-    
+
     async def wait_all_online(self):
         """
         sends a broadcast to ask for the next event to all expected addresses.
@@ -109,14 +109,13 @@ class DistributedClockManager(ClockAgent):
             else:
                 all_online = True
 
-
     async def get_next_event(self):
-        '''Get the next event from the scheduler by requesting all known clock agents'''
+        """Get the next event from the scheduler by requesting all known clock agents"""
         self.schedules = []
         await self.broadcast("next_event")
         await asyncio.sleep(0)
         await self.wait_for_futures()
-        
+
         # wait for our container too
         await self.wait_all_done()
         next_activity = self._scheduler.clock.get_next_activity()
@@ -142,11 +141,10 @@ class DistributedClockManager(ClockAgent):
         Waits until the current container is done.
         Brodcasts the new time to all the other clock agents.
         Thn awaits until the work in the other agents is done and their next event is received.
-    
+
 
         Args:
             time (number, optional): The new time which is set. Defaults to None.
-
         Returns:
             number or None: The time at which the next event happens
         """
@@ -170,6 +168,7 @@ class DistributedClockAgent(ClockAgent):
             if not self.stopped.done():
                 self.stopped.set_result(True)
         elif content == "next_event":
+
             async def wait_done():
                 await self.wait_all_done()
 

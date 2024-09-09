@@ -3,8 +3,9 @@ import datetime
 from abc import abstractmethod
 from typing import Any, Dict
 
-import mango.container.factory as container_factory
 import pytest
+
+import mango.container.factory as container_factory
 from mango.agent.role import Role, RoleAgent, RoleContext
 from mango.util.scheduling import TimestampScheduledTask
 
