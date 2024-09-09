@@ -1,6 +1,13 @@
 name: Test mango
 
-on: [push]
+on: 
+  push:
+    branches:
+      - main
+      - development
+  pull_request:
+    types: [opened, synchronize, reopened]
+
 
 permissions:
   contents: read
