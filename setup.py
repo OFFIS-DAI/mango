@@ -16,7 +16,7 @@ URL = "https://github.com/OFFIS-DAI/mango"
 EMAIL = "mango@offis.de"
 AUTHOR = "mango Team"
 REQUIRES_PYTHON = ">=3.8.0"
-VERSION = "1.1.4"
+VERSION = "1.2.0"
 
 # What packages are required for this module to be executed?
 REQUIRED = [
