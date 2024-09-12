@@ -30,7 +30,7 @@ class PingPongAgent(Agent):
                 content="pong",
                 receiver_addr=(receiver_host, receiver_port),
                 receiver_id=receiver_id,
-                acl_metadata={"sender_addr": self._context.addr, "sender_id": self.aid},
+                acl_metadata={"sender_addr": self.addr, "sender_id": self.aid},
             )
             self.sending_tasks.append(t)
 
@@ -55,7 +55,7 @@ class PingPongAgent(Agent):
             content="ping",
             receiver_addr=other_addr,
             receiver_id=other_id,
-            acl_metadata={"sender_addr": self._context.addr, "sender_id": self.aid},
+            acl_metadata={"sender_addr": self.addr, "sender_id": self.aid},
         )
         assert success
 
@@ -128,7 +128,7 @@ async def test_send_ping_pong(num_agents, num_containers):
             if a._check_inbox_task.exception() is not None:
                 raise a._check_inbox_task.exception()
             else:
-                assert False, f"check_inbox terminated unexpectedly."
+                assert False, "check_inbox terminated unexpectedly."
     for a in agents:
         # await a.wait_for_sending_messages()
         await a.wait_for_pong_replies()
@@ -136,7 +136,6 @@ async def test_send_ping_pong(num_agents, num_containers):
     # gracefully shutdown
     for a in agents:
         await a.shutdown()
-    for c in containers:
-        await c.shutdown()
+    await asyncio.gather(*[c.shutdown() for c in containers])
 
     assert len(asyncio.all_tasks()) == 1

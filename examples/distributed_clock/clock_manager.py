@@ -10,6 +10,7 @@ from mango import Role, RoleAgent, create_container
 from mango.messages.message import Performatives
 from mango.util.clock import ExternalClock
 from mango.util.distributed_clock import DistributedClockManager
+from mango.util.termination_detection import tasks_complete_or_sleeping
 
 logger = logging.getLogger(__name__)
 
@@ -38,25 +39,32 @@ class OneSidedMarketRole(Role):
             self, self.handle_other, lambda content, meta: not isinstance(content, dict)
         )
         self.context.schedule_periodic_task(coroutine_func=self.clear_market, delay=900)
+        self.starttime = self.context.current_timestamp
 
     async def clear_market(self):
         time = datetime.fromtimestamp(self.context.current_timestamp)
-        i = time.hour + time.minute / 60
-        df = pd.DataFrame.from_dict(self.bids)
-        self.bids = []
-        price = 0
-        if not df.empty:
-            # simple merit order calculation
-            df = df.sort_values("price")
-            df["cumsum"] = df["volume"].cumsum()
-            filtered = df[df["cumsum"] >= self.demand]
-            if filtered.empty:
-                # demand could not be matched
-                price = 100
+        if self.context.current_timestamp > self.starttime:
+            i = time.hour + time.minute / 60
+            df = pd.DataFrame.from_dict(self.bids)
+            self.bids = []
+            price = 0
+            if df.empty:
+                logger.info("Did not receive any bids!")
             else:
-                price = filtered["price"].values[0]
-        self.results.append(price)
-        self.demands.append(self.demand)
+                # simple merit order calculation
+                df = df.sort_values("price")
+                df["cumsum"] = df["volume"].cumsum()
+                filtered = df[df["cumsum"] >= self.demand]
+                if filtered.empty:
+                    # demand could not be matched
+                    price = 100
+                else:
+                    price = filtered["price"].values[0]
+            self.results.append(price)
+            self.demands.append(self.demand)
+        else:
+            logger.info("First opening does not have anything to clear")
+            price = 0
         acl_metadata = {
             "performative": Performatives.inform,
             "sender_id": self.context.aid,
@@ -111,18 +119,23 @@ async def main(start):
     }
 
     c = await create_container(**container_kwargs)
+    clock_agent = DistributedClockManager(
+        c, receiver_clock_addresses=[(other_container_addr, "clock_agent")]
+    )
+    # distribute time here, so that containers already have correct start time
+    next_event = await clock_agent.distribute_time()
     market = RoleAgent(c, suggested_aid="market")
     receiver_ids = [(other_container_addr, "a0"), (other_container_addr, "a1")]
     market.add_role(OneSidedMarketRole(demand=1000, receiver_ids=receiver_ids))
 
-    clock_agent = DistributedClockManager(
-        c, receiver_clock_addresses=[other_container_addr]
-    )
-
     if isinstance(clock, ExternalClock):
         for i in tqdm(range(30)):
             next_event = await clock_agent.distribute_time()
-            logger.info(f"current step: {clock.time}")
+            logger.info("current step: %s", clock.time)
+            await tasks_complete_or_sleeping(c)
+            # comment next line to see that the first message is not received in correct timings
+            # also comment sleep(0) in termination_detection to see other timing problems
+            next_event = await clock_agent.distribute_time()
             clock.set_time(next_event)
     await c.shutdown()
 

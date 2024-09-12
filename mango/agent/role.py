@@ -7,10 +7,9 @@ monitoring grid voltage another one.
 A role is part of a :class:`RoleAgent` which inherits from :class:`Agent`.
 
 There are essentially two APIs for acting resp reacting:
-* [Reacting] :func:`RoleContext.subscribe_message`, which allows you to subscribe to
-             certain message types and lets you handle the message
-* [Acting] :func:`RoleContext.schedule_task`, this allows you to schedule a task with
-            delay/repeating/...
+
+* [Reacting] :func:`RoleContext.subscribe_message`, which allows you to subscribe to certain message types and lets you handle the message
+* [Acting] :func:`RoleContext.schedule_task`, this allows you to schedule a task with delay/repeating/...
 
 To interact with the environment an instance of the role context is provided. This context
 provides methods to share data with other roles and to communicate with other agents.
@@ -27,13 +26,15 @@ To set this up, a model has to be created via
 If you prefer a lightweight variant you can use :func:`RoleContext.data` to assign/access shared data.
 
 Furthermore there are two lifecycle methods to know about:
+
 * :func:`Role.setup` is called when the Role is added to the agent, so its the perfect place
                      for initialization and scheduling of tasks
 * :func:`Role.on_stop` is called when the container the agent lives in, is shut down
 """
+
 import asyncio
 from abc import ABC
-from typing import Any, Dict, List, Optional, Tuple, Union, Callable
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from mango.agent.core import Agent, AgentContext, AgentDelegates
 from mango.util.scheduling import Scheduler
@@ -43,8 +44,21 @@ class DataContainer:
     def __getitem__(self, key):
         return self.__getattribute__(key)
 
+    def __setitem__(self, key, newvalue):
+        self.__setattr__(key, newvalue)
+
     def __contains__(self, key):
         return hasattr(self, key)
+
+    def get(self, key):
+        if key in self:
+            return self[key]
+        else:
+            return None
+
+    def update(self, data: dict):
+        for k, v in data.items():
+            self.__setattr__(k, v)
 
 
 class RoleContext:
@@ -57,6 +71,7 @@ class Role(ABC):
 
     Every role
     must be added to a :class:`RoleAgent` and is defined by some lifecycle methods:
+
     * :func:`Role.setup` is called when the Role is added to the agent, so its the perfect place for
                          initialization and scheduling of tasks
     * :func:`Role.on_stop` is called when the container the agent lives in, is shut down
@@ -214,9 +229,12 @@ class RoleHandler:
 
     def handle_message(self, content, meta: Dict[str, Any]):
         """Handle an incoming message, delegating it to all applicable subscribers
-        for role, message_condition, method, _ in self._message_subs:
-            if self._is_role_active(role) and message_condition(content, meta):
-                method(content, meta)
+
+        .. code-block:: python
+
+            for role, message_condition, method, _ in self._message_subs:
+                if self._is_role_active(role) and message_condition(content, meta):
+                    method(content, meta)
 
         :param content: content
         :param meta: meta
@@ -233,7 +251,7 @@ class RoleHandler:
                         content=content,
                         receiver_addr=receiver_addr,
                         receiver_id=receiver_id,
-                        **kwargs
+                        **kwargs,
                     )
 
     async def send_message(
@@ -242,14 +260,14 @@ class RoleHandler:
         receiver_addr: Union[str, Tuple[str, int]],
         *,
         receiver_id: Optional[str] = None,
-        **kwargs
+        **kwargs,
     ):
         self._notify_send_message_subs(content, receiver_addr, receiver_id, **kwargs)
         return await self._agent_context.send_message(
             content=content,
             receiver_addr=receiver_addr,
             receiver_id=receiver_id,
-            **kwargs
+            **kwargs,
         )
 
     async def send_acl_message(
@@ -259,7 +277,7 @@ class RoleHandler:
         *,
         receiver_id: Optional[str] = None,
         acl_metadata: Optional[Dict[str, Any]] = None,
-        **kwargs
+        **kwargs,
     ):
         self._notify_send_message_subs(content, receiver_addr, receiver_id, **kwargs)
         return await self._agent_context.send_acl_message(
@@ -267,7 +285,7 @@ class RoleHandler:
             receiver_addr=receiver_addr,
             receiver_id=receiver_id,
             acl_metadata=acl_metadata,
-            **kwargs
+            **kwargs,
         )
 
     def subscribe_message(self, role, method, message_condition, priority=0):
@@ -297,7 +315,7 @@ class RoleHandler:
             method(event, event_source)
 
     def subscribe_event(self, role: Role, event_type: type, method: Callable):
-        if not event_type in self._role_event_type_to_handler:
+        if event_type not in self._role_event_type_to_handler:
             self._role_event_type_to_handler[event_type] = []
 
         self._role_event_type_to_handler[event_type] += [(role, method)]
@@ -378,9 +396,12 @@ class RoleContext(AgentDelegates):
 
     def handle_message(self, content, meta: Dict[str, Any]):
         """Handle an incoming message, delegating it to all applicable subscribers
-        for role, message_condition, method, _ in self._message_subs:
-            if self._is_role_active(role) and message_condition(content, meta):
-                method(content, meta)
+
+        .. code-block:: python
+
+            for role, message_condition, method, _ in self._message_subs:
+                if self._is_role_active(role) and message_condition(content, meta):
+                    method(content, meta)
 
         :param content: content
         :param meta: meta
@@ -393,13 +414,13 @@ class RoleContext(AgentDelegates):
         receiver_addr: Union[str, Tuple[str, int]],
         *,
         receiver_id: Optional[str] = None,
-        **kwargs
+        **kwargs,
     ):
         return await self._role_handler.send_message(
             content=content,
             receiver_addr=receiver_addr,
             receiver_id=receiver_id,
-            **kwargs
+            **kwargs,
         )
 
     async def send_acl_message(
@@ -409,14 +430,14 @@ class RoleContext(AgentDelegates):
         *,
         receiver_id: Optional[str] = None,
         acl_metadata: Optional[Dict[str, Any]] = None,
-        **kwargs
+        **kwargs,
     ):
         return await self._role_handler.send_acl_message(
             content=content,
             receiver_addr=receiver_addr,
             receiver_id=receiver_id,
             acl_metadata=acl_metadata,
-            **kwargs
+            **kwargs,
         )
 
     def emit_event(self, event: Any, event_source: Any = None):

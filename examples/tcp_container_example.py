@@ -1,6 +1,5 @@
 import asyncio
 
-import mango.messages.other_proto_msgs_pb2 as other_proto_msg
 from examples.simple_agent import SimpleAgent
 from mango import create_container
 
@@ -8,7 +7,9 @@ from mango import create_container
 async def one_container_two_agents():
     # ip and port of container
     addr1 = ("127.0.0.1", 5555)
-    codec = "json"
+    from mango.messages.codecs import JSON
+
+    codec = JSON()
     container1 = await create_container(connection_type="tcp", codec=codec, addr=addr1)
     agent_a = SimpleAgent(container1, codec=codec)
 
@@ -32,9 +33,6 @@ async def one_container_two_agents():
 def two_container_two_agents():
     addr1 = (("127.0.0.1", 5555),)
     addr2 = (("127.0.0.1", 5555),)
-    codec = ("protobuf",)
-    proto_msgs_module = other_proto_msg
-    pass
 
 
 if __name__ == "__main__":

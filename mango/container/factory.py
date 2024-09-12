@@ -9,8 +9,9 @@ from mango.container.external_coupling import ExternalSchedulingContainer
 from mango.container.mqtt import MQTTContainer
 from mango.container.tcp import TCPContainer
 from mango.messages.codecs import JSON
+
 from ..messages.codecs import Codec
-from ..util.clock import AsyncioClock, Clock
+from ..util.clock import AsyncioClock, Clock, ExternalClock
 
 logger = logging.getLogger(__name__)
 
@@ -20,30 +21,32 @@ EXTERNAL_CONNECTION = "external_connection"
 
 
 async def create(
-        *,
-        connection_type: str = "tcp",
-        codec: Codec = None,
-        clock: Clock = None,
-        addr: Optional[Union[str, Tuple[str, int]]] = None,
-        copy_internal_messages: bool = False,
-        mqtt_kwargs: Dict[str, Any] = None,
-        **kwargs: Dict[str, Any],
+    *,
+    connection_type: str = "tcp",
+    codec: Codec = None,
+    clock: Clock = None,
+    addr: Optional[Union[str, Tuple[str, int]]] = None,
+    copy_internal_messages: bool = False,
+    mqtt_kwargs: Dict[str, Any] = None,
+    **kwargs: Dict[str, Any],
 ) -> Container:
     """
     This method is called to instantiate a container instance, either
     a TCPContainer or a MQTTContainer, depending on the parameter
     connection_type.
+
     :param connection_type: Defines the connection type. So far only 'tcp'
-    or 'mqtt' are allowed
+        or 'mqtt' are allowed
     :param codec: Defines the codec to use. Defaults to JSON
     :param clock: The clock that the scheduler of the agent should be based on. Defaults to the AsyncioClock
     :param addr: the address to use. If connection_type == 'tcp': it has
-    to be a tuple of (host, port). If connection_type == 'mqtt' this can
-    optionally define an inbox_topic that is used similarly than
-    a tcp address.
+        to be a tuple of (host, port). If connection_type == 'mqtt' this can
+        optionally define an inbox_topic that is used similarly than
+        a tcp address.
     :param mqtt_kwargs: Dictionary of keyword arguments for connection to a mqtt broker. At least
-    the keys 'broker_addr' and 'client_id' have to be provided.
-    Ignored if connection_type != 'mqtt'
+        the keys 'broker_addr' and 'client_id' have to be provided.
+        Ignored if connection_type != 'mqtt'
+
     :return: The instance of a MQTTContainer or a TCPContainer
     """
     connection_type = connection_type.lower()
@@ -58,7 +61,10 @@ async def create(
         codec = JSON()
 
     if clock is None:
-        clock = AsyncioClock()
+        if connection_type == EXTERNAL_CONNECTION:
+            clock = ExternalClock()
+        else:
+            clock = AsyncioClock()
 
     if connection_type == TCP_CONNECTION:
         # initialize TCPContainer
@@ -74,7 +80,9 @@ async def create(
         return container
 
     if connection_type == EXTERNAL_CONNECTION:
-        return ExternalSchedulingContainer(addr=addr, loop=loop, codec=codec)
+        return ExternalSchedulingContainer(
+            addr=addr, loop=loop, codec=codec, clock=clock
+        )
 
     if connection_type == MQTT_CONNECTION:
         # get and check relevant kwargs from mqtt_kwargs
@@ -102,7 +110,7 @@ async def create(
 
         # check if addr is a valid topic without wildcards
         if addr is not None and (
-                not isinstance(addr, str) or "#" in addr or "+" in addr
+            not isinstance(addr, str) or "#" in addr or "+" in addr
         ):
             raise ValueError(
                 "addr is not set correctly. It is used as "
@@ -111,7 +119,9 @@ async def create(
             )
 
         # create paho.Client object for mqtt communication
-        mqtt_messenger: paho.Client = paho.Client(client_id=client_id, **init_kwargs)
+        mqtt_messenger: paho.Client = paho.Client(
+            paho.CallbackAPIVersion.VERSION2, client_id=client_id, **init_kwargs
+        )
 
         # set TLS options if provided
         # expected as a dict:
@@ -124,16 +134,16 @@ async def create(
         connected = asyncio.Future()
 
         # callbacks to check for successful connection
-        def on_con(client, userdata, flags, returncode):
+        def on_con(client, userdata, flags, reason_code, properties):
             logger.info("Connection Callback with the following flags: %s", flags)
-            loop.call_soon_threadsafe(connected.set_result, returncode)
+            loop.call_soon_threadsafe(connected.set_result, reason_code)
 
         mqtt_messenger.on_connect = on_con
 
         # check broker_addr input and connect
         if isinstance(broker_addr, tuple):
             if not 0 < len(broker_addr) < 4:
-                raise ValueError(f"Invalid broker address argument count")
+                raise ValueError("Invalid broker address argument count")
             if len(broker_addr) > 0 and not isinstance(broker_addr[0], str):
                 raise ValueError("Invalid broker address - host must be str")
             if len(broker_addr) > 1 and not isinstance(broker_addr[1], int):
@@ -180,14 +190,14 @@ async def create(
         if addr is not None:
             # connection has been set up, subscribe to inbox topic now
             logger.info(
-                f"[{client_id}]: Going to subscribe to {addr} " f"as inbox topic.."
+                "[%s]: Going to subscribe to %s as inbox topic..", client_id, addr
             )
 
             # create Future that is triggered on successful subscription
             subscribed = asyncio.Future()
 
             # set up subscription callback
-            def on_sub(*args):
+            def on_sub(client, userdata, mid, reason_code_list, properties):
                 loop.call_soon_threadsafe(subscribed.set_result, True)
 
             mqtt_messenger.on_subscribe = on_sub
@@ -213,7 +223,7 @@ async def create(
                     f"Subscription request to {addr} at {broker_addr} "
                     f"did not succeed after {counter * 0.1} seconds."
                 )
-            logger.info("successfully susbsribed to topic")
+            logger.info("successfully subscribed to topic")
 
         # connection and subscription is successful, remove callbacks
         mqtt_messenger.on_subscribe = None

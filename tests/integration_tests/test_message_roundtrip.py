@@ -1,12 +1,12 @@
 import asyncio
 
 import pytest
-from msg_pb2 import MyMsg
 
 import mango.container.factory as container_factory
 from mango.agent.core import Agent
-from mango.container.core import Container
 from mango.messages.codecs import JSON, PROTOBUF, FastJSON
+
+from ..unit_tests.messages.msg_pb2 import MyMsg
 
 M1 = "Hello"
 M2 = "Hello2"
@@ -127,7 +127,6 @@ class InitiatorAgent(Agent):
         )
 
         # shut down
-        pass
 
 
 # ReplierAgent:
@@ -166,7 +165,6 @@ class ReplierAgent(Agent):
         await self.got_second
 
         # shut down
-        pass
 
 
 @pytest.mark.asyncio
@@ -185,15 +183,18 @@ async def test_tcp_fast_json():
 
 
 @pytest.mark.asyncio
+@pytest.mark.mqtt
 async def test_mqtt_fast_json():
     await setup_and_run_test_case("mqtt", FAST_JSON_CODEC)
 
 
 @pytest.mark.asyncio
+@pytest.mark.mqtt
 async def test_mqtt_json():
     await setup_and_run_test_case("mqtt", JSON_CODEC)
 
 
 @pytest.mark.asyncio
+@pytest.mark.mqtt
 async def test_mqtt_proto():
     await setup_and_run_test_case("mqtt", PROTO_CODEC)

@@ -2,7 +2,9 @@ import asyncio
 import logging
 
 from mango import Agent
+
 from .termination_detection import tasks_complete_or_sleeping
+
 logger = logging.getLogger(__name__)
 
 
@@ -17,6 +19,7 @@ class DistributedClockManager(ClockAgent):
         self.receiver_clock_addresses = receiver_clock_addresses
         self.schedules = []
         self.futures = {}
+        self.schedule_instant_task(self.wait_all_online())
 
     def handle_message(self, content: float, meta):
         if isinstance(meta["sender_addr"], list):
@@ -26,59 +29,135 @@ class DistributedClockManager(ClockAgent):
 
         logger.debug("clockmanager: %s from %s", content, sender_addr)
         if content:
-            assert isinstance(content, float), f"{content} was {type(content)}"
+            assert isinstance(content, (int, float)), f"{content} was {type(content)}"
             self.schedules.append(content)
 
         if not self.futures[sender_addr].done():
             self.futures[sender_addr].set_result(True)
         else:
-            logger.warning("got another message from agent %s", sender_addr)
+            # with as_agent_process - messages can come from ourselves
+            logger.debug("got another message from agent %s - %s", sender_addr, content)
 
     async def broadcast(self, message, add_futures=True):
-        for receiver_addr in self.receiver_clock_addresses:
+        """
+        Broadcast the given message to all receiver clock addresses.
+        If add_futures is set, a future is added which is finished when an answer by the receiving clock agent was received.
+
+        Args:
+            message (object): the given message
+            add_futures (bool, optional): Adds futures which can be awaited until a response to a message is given. Defaults to True.
+        """
+        for receiver_addr, receiver_aid in self.receiver_clock_addresses:
             logger.debug("clockmanager send: %s - %s", message, receiver_addr)
-            send_worked = await self.send_acl_message(
+            # in MQTT we can not be sure if the message was delivered
+            # checking the return code here would only help for TCP
+            await self.send_acl_message(
                 message,
                 receiver_addr,
-                "clock_agent",
+                receiver_aid,
                 acl_metadata={"sender_id": self.aid},
             )
-            if send_worked and add_futures:
+            if add_futures:
                 self.futures[receiver_addr] = asyncio.Future()
 
     async def shutdown(self):
-        for fut in self.futures.values():
-            await fut
+        await self.wait_for_futures()
         await self.broadcast("stop", add_futures=False)
         await super().shutdown()
 
-    async def distribute_time(self):
-        self.schedules = []
-        await asyncio.sleep(0.01)
-        # wait until all jobs in other containers are finished
-        for container_id, fut in self.futures.items():
+    async def send_current_time(self, time=None):
+        """
+        Broadcasts the current time to all receiver clock addresses.
+        Does not add futures to wait for responses, as no response is expected here.
+
+        Args:
+            time (number, optional): The current time which is set. Defaults to None.
+        """
+        time = time or self._scheduler.clock.time
+        await self.broadcast(time, add_futures=False)
+
+    async def wait_for_futures(self):
+        """
+        Waits for all futures in self.futures
+
+        Gives debug log output to see which agent is waited for.
+        """
+        for container_id, fut in list(self.futures.items()):
             logger.debug("waiting for %s", container_id)
             # waits forever if manager was started first
             # as answer is never received
             await fut
+
+    async def wait_all_online(self):
+        """
+        sends a broadcast to ask for the next event to all expected addresses.
+        Waits one second and repeats this behavior until a response by all addresses is receivd.
+        This effectively waits until all agents are up and running and the manager can start the simulation.
+
+        This is needed, as there is no way in paho mqtt to check whether a message was retrieved,
+        except for by sending ping pong messages.
+        """
+        all_online = False
+
+        while not all_online:
+            await self.broadcast("next_event")
+            await asyncio.sleep(0)
+            try:
+                await asyncio.wait_for(self.wait_for_futures(), 1)
+            except TimeoutError:
+                logger.info("waiting for all to come online")
+            else:
+                all_online = True
+
+    async def get_next_event(self):
+        """Get the next event from the scheduler by requesting all known clock agents"""
+        self.schedules = []
+        await self.broadcast("next_event")
+        await asyncio.sleep(0)
+        await self.wait_for_futures()
+
         # wait for our container too
         await self.wait_all_done()
-        if self._scheduler.clock.get_next_activity() is not None:
-            self.schedules.append(self._scheduler.clock.get_next_activity())
+        next_activity = self._scheduler.clock.get_next_activity()
+
+        if next_activity is not None:
+            # logger.error(f"{next_activity}")
+            self.schedules.append(next_activity)
 
         if self.schedules:
             next_event = min(self.schedules)
         else:
-            logger.warning("no new events, time stands still")
+            logger.warning("%s: no new events, time stands still", self.aid)
+            next_event = self._scheduler.clock.time
+
+        if next_event < self._scheduler.clock.time:
+            logger.warning("%s: got old event, time stands still", self.aid)
             next_event = self._scheduler.clock.time
         logger.debug("next event at %s", next_event)
-        self.schedule_instant_task(coroutine=self.broadcast(next_event))
         return next_event
+
+    async def distribute_time(self, time=None):
+        """
+        Waits until the current container is done.
+        Brodcasts the new time to all the other clock agents.
+        Thn awaits until the work in the other agents is done and their next event is received.
+
+
+        Args:
+            time (number, optional): The new time which is set. Defaults to None.
+        Returns:
+            number or None: The time at which the next event happens
+        """
+        await self.wait_all_done()
+        await self.send_current_time(time)
+        if not time:
+            time = await self.get_next_event()
+        return time
 
 
 class DistributedClockAgent(ClockAgent):
-    def __init__(self, container):
-        super().__init__(container, "clock_agent")
+    def __init__(self, container, suggested_aid="clock_agent"):
+        super().__init__(container, suggested_aid=suggested_aid)
         self.stopped = asyncio.Future()
 
     def handle_message(self, content: float, meta):
@@ -88,11 +167,12 @@ class DistributedClockAgent(ClockAgent):
         if content == "stop":
             if not self.stopped.done():
                 self.stopped.set_result(True)
-        else:
-            assert isinstance(content, (int, float)), f"{content} was {type(content)}"
-            self._scheduler.clock.set_time(content)
+        elif content == "next_event":
 
-            t = asyncio.create_task(self.wait_all_done())
+            async def wait_done():
+                await self.wait_all_done()
+
+            t = asyncio.create_task(wait_done())
 
             def respond(fut: asyncio.Future = None):
                 if self.stopped.done():
@@ -108,3 +188,6 @@ class DistributedClockAgent(ClockAgent):
                 )
 
             t.add_done_callback(respond)
+        else:
+            assert isinstance(content, (int, float)), f"{content} was {type(content)}"
+            self._scheduler.clock.set_time(content)

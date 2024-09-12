@@ -1,8 +1,16 @@
-import pytest
 import asyncio
-from mango.container.tcp import TCPConnectionPool
-from mango.container.protocol import ContainerProtocol
+
+import pytest
+
 from mango import create_container
+from mango.container.protocol import ContainerProtocol
+from mango.container.tcp import TCPConnectionPool
+
+
+@pytest.mark.asyncio
+async def test_connection_open_close():
+    c = await create_container(addr=("127.0.0.2", 5555), copy_internal_messages=False)
+    await c.shutdown()
 
 
 @pytest.mark.asyncio
@@ -24,6 +32,7 @@ async def test_connection_pool_obtain_release():
 
     assert connection_pool._available_connections[addr].qsize() == 1
     assert connection_pool._connection_counts[addr] == 1
+    await connection_pool.shutdown()
 
     await c.shutdown()
     await c2.shutdown()
@@ -61,6 +70,7 @@ async def test_connection_pool_double_obtain_release():
 
     assert connection_pool._available_connections[addr].qsize() == 2
     assert connection_pool._connection_counts[addr] == 2
+    await connection_pool.shutdown()
 
     await c.shutdown()
     await c2.shutdown()
@@ -101,6 +111,7 @@ async def test_ttl():
 
     assert connection_pool._available_connections[addr2].qsize() == 1
     assert connection_pool._connection_counts[addr2] == 1
+    await connection_pool.shutdown()
 
     await c.shutdown()
     await c2.shutdown()
@@ -132,6 +143,7 @@ async def test_max_connections():
 
     assert connection_pool._available_connections[addr].qsize() == 1
     assert connection_pool._connection_counts[addr] == 1
+    await connection_pool.shutdown()
 
     await c.shutdown()
     await c2.shutdown()

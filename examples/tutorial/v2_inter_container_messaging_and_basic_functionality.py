@@ -4,7 +4,7 @@ from mango import Agent, create_container
 from mango.messages.message import Performatives
 
 """
-In the previous example, you have learned how to create mango agents and containers and 
+In the previous example, you have learned how to create mango agents and containers and
 how to send basic messages between them.
 In this example, you expand upon this. We introduce a controller agent that asks the current feed_in of our PV agents
 and subsequently limits the output of both to their minimum.
@@ -50,7 +50,7 @@ class PVAgent(Agent):
         content = reported_feed_in
 
         acl_meta = {
-            "sender_addr": self._context.addr,
+            "sender_addr": self.addr,
             "sender_id": self.aid,
             "performative": Performatives.inform,
         }
@@ -68,7 +68,7 @@ class PVAgent(Agent):
         self.max_feed_in = float(max_feed_in)
         print(f"{self.aid}: Limiting my feed_in to {max_feed_in}")
         self.schedule_instant_task(
-            self._context.send_acl_message(
+            self.send_acl_message(
                 content=None,
                 receiver_addr=sender_addr,
                 receiver_id=sender_id,
@@ -125,13 +125,13 @@ class ControllerAgent(Agent):
         for addr, aid in self.known_agents:
             content = None
             acl_meta = {
-                "sender_addr": self._context.addr,
+                "sender_addr": self.addr,
                 "sender_id": self.aid,
                 "performative": Performatives.request,
             }
             # alternatively we could call send_acl_message here directly and await it
             self.schedule_instant_task(
-                self._context.send_acl_message(
+                self.send_acl_message(
                     content=content,
                     receiver_addr=addr,
                     receiver_id=aid,
@@ -149,14 +149,14 @@ class ControllerAgent(Agent):
         for addr, aid in self.known_agents:
             content = min_feed_in
             acl_meta = {
-                "sender_addr": self._context.addr,
+                "sender_addr": self.addr,
                 "sender_id": self.aid,
                 "performative": Performatives.propose,
             }
 
             # alternatively we could call send_acl_message here directly and await it
             self.schedule_instant_task(
-                self._context.send_acl_message(
+                self.send_acl_message(
                     content=content,
                     receiver_addr=addr,
                     receiver_id=aid,

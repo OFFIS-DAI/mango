@@ -1,10 +1,10 @@
-========
+================
 Message exchange
-========
+================
 
-***************
+******************
 Receiving messages
-***************
+******************
 Custom agents that inherit from the ``Agent`` class are able to receive messages from
 other agents via the method ``handle_message``.
 Hence this method has to be overwritten. The structure of this method looks like this:
@@ -43,9 +43,9 @@ A simple agent, that just prints the content and meta information of incoming me
                 f'meta {meta}')
 
 
-***************
+****************
 Sending messages
-***************
+****************
 
 Agents are able to send messages to other agents via the container method send_message:
 

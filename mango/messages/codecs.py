@@ -3,7 +3,7 @@ This package imports the codecs that can be used for de- and encoding incoming
 and outgoing messages:
 
 - :class:`JSON` uses `JSON <http://www.json.org/>`_
-- :class:`protobuf' uses protobuf
+- :class:`protobuf` uses protobuf
 
 All codecs should implement the base class :class:`Codec`.
 
@@ -13,6 +13,7 @@ https://gitlab.com/sscherfke/aiomas/
 
 import inspect
 import json
+
 import msgspec
 
 from mango.messages.message import ACLMessage, Performatives, enum_serializer
@@ -54,7 +55,7 @@ def json_serializable(cls=None, repr=True):
             return cls(**attrs)
 
         def __repr__(self):
-            args = ("{}={!r}".format(a, getattr(self, a)) for a in attrs)
+            args = (f"{a}={getattr(self, a)!r}" for a in attrs)
             return "{}({})".format(self.__class__.__name__, ", ".join(args))
 
         @classmethod
@@ -123,9 +124,7 @@ class Codec:
         an instance of the original object.
         """
         if otype in self._serializers:
-            raise ValueError(
-                'There is already a serializer for type "{}"'.format(otype)
-            )
+            raise ValueError(f'There is already a serializer for type "{otype}"')
         typeid = len(self._serializers)
         self._serializers[otype] = (typeid, serialize)
         self._deserializers[typeid] = deserialize
@@ -141,14 +140,14 @@ class Codec:
             typeid, serialize = self._serializers[otype]
         except KeyError:
             raise SerializationError(
-                'No serializer found for type "{}"'.format(orig_type)
+                f'No serializer found for type "{orig_type}"'
             ) from None
 
         try:
             return {"__type__": (typeid, serialize(obj))}
         except Exception as e:
             raise SerializationError(
-                'Could not serialize object "{!r}": {}'.format(obj, e)
+                f'Could not serialize object "{obj!r}": {e}'
             ) from e
 
     def deserialize_obj(self, obj_repr):

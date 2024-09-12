@@ -2,12 +2,12 @@
 Development Guidelines
 ======================
 
-As we mainly work in a critical domain, we set great value on code quality not only to ensure correctness, but also to improve readability and maintainability. To reach this goal we have to set some standards regarding the development process and the test quality. 
+As we mainly work in a critical domain, we set great value on code quality not only to ensure correctness, but also to improve readability and maintainability. To reach this goal we have to set some standards regarding the development process and the test quality.
 
 Quickstart
 ##########
 
-In mango it is not possible to directly push on the branches *development* or *master*. Both branches are protected and changes can only be merged using a github pull-request. So when you work on a feature, the typical process would be to create a feature-branch. When you are finished you just have to create a merge-request, pass the CI/CD pipeline, make a maintainer review the changes, and you are ready to merge! 
+In mango it is not possible to directly push on the branches *development* or *master*. Both branches are protected and changes can only be merged using a github pull-request. So when you work on a feature, the typical process would be to create a feature-branch. When you are finished you just have to create a merge-request, pass the CI/CD pipeline, make a maintainer review the changes, and you are ready to merge!
 
 CI/CD
 #####
@@ -32,7 +32,7 @@ A unit test is a test for the smallest possible testable part of the code. This 
 Integration Tests
 *****************
 
-An integration test is everything what aims to test more than one unit. 
+An integration test is everything what aims to test more than one unit.
 
 Coverage
 *****************
@@ -42,15 +42,19 @@ We aim to reach a code coverage of > 90%. Currently, we measure the **statement*
 Reviews
 *****************
 
-Tests are great but do not lead to better readability and maintainability. One part that will is the review process. In mango we came to the understanding that we want to review **every** change, which should be merged into the development branch. There are no exceptions to this. The idea is not only to check the code for errors, bad smells and security flaws, its part of generating a common understanding of good coding. 
+Tests are great but do not lead to better readability and maintainability. One part that will is the review process. In mango we came to the understanding that we want to review **every** change, which should be merged into the development branch. There are no exceptions to this. The idea is not only to check the code for errors, bad smells and security flaws, its part of generating a common understanding of good coding.
 
 Linting
 *****************
 
-Another approach to improve the code quality is static code analysis, or better known as linting. Linting is an easy to set up possibility to make sure that a certain code standard is fulfilled. There are many useful rules, which can be checked automatically, so we have another line of defense and spare some time when reviewing. 
-
+Another approach to improve the code quality is static code analysis, or better known as linting. Linting is an easy to set up possibility to make sure that a certain code standard is fulfilled. There are many useful rules, which can be checked automatically, so we have another line of defense and spare some time when reviewing.
 
 Formatting
 *****************
 
 The project is formatted using black + isort with default settings.
+
+```bash
+isort mango examples tests
+black mango examples tests
+```

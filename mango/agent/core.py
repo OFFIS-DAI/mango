@@ -8,7 +8,6 @@ Every agent must live in a container. Containers are responsible for making
 import asyncio
 import logging
 from abc import ABC
-from datetime import datetime
 from typing import Any, Dict, Optional, Tuple, Union
 
 from ..container.core import Container
@@ -269,6 +268,8 @@ class AgentDelegates:
         :type coroutine_creator:  Coroutine Function
         :param delay: delay in between the cycles
         :type delay: float
+        :param on_stop: coroutine to run on stop
+        :type on_stop: Object
         :param src: creator of the task
         :type src: Object
         """
@@ -283,6 +284,8 @@ class AgentDelegates:
         :type coroutine_func:  Coroutine Function
         :param delay: delay in between the cycles
         :type delay: float
+        :param on_stop: coroutine to run on stop
+        :type on_stop: Object
         :param src: creator of the task
         :type src: Object
         """
@@ -299,6 +302,8 @@ class AgentDelegates:
         :type coroutine_creator:  Coroutine Function
         :param recurrency: recurrency rule to calculate next event
         :type recurrency: dateutil.rrule.rrule
+        :param on_stop: coroutine to run on stop
+        :type on_stop: Object
         :param src: creator of the task
         :type src: Object
         """
@@ -318,6 +323,8 @@ class AgentDelegates:
         :type coroutine_creator:  Coroutine Function
         :param recurrency: recurrency rule to calculate next event
         :type recurrency: dateutil.rrule.rrule
+        :param on_stop: coroutine to run on stop
+        :type on_stop: Object
         :param src: creator of the task
         :type src: Object
         """
@@ -333,6 +340,8 @@ class AgentDelegates:
 
         :param coroutine_creator: coroutine_creator creating coroutine to be scheduled
         :type coroutine_creator:
+        :param on_stop: coroutine to run on stop
+        :type on_stop: Object
         :param src: creator of the task
         :type src: Object
         """
@@ -345,6 +354,8 @@ class AgentDelegates:
 
         :param coroutine: coroutine to be scheduled
         :type coroutine:
+        :param on_stop: coroutine to run on stop
+        :type on_stop: Object
         :param src: creator of the task
         :type src: Object
         """
@@ -417,7 +428,9 @@ class Agent(ABC, AgentDelegates):
         """
         if fut.exception() is not None:
             logger.error(
-                f"Agent {self.aid}: Caught the following exception in _check_inbox: {fut.exception()}"
+                "Agent %s: Caught the following exception in _check_inbox: ",
+                self.aid,
+                fut.exception(),
             )
             raise fut.exception()
 

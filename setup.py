@@ -1,15 +1,13 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 # from https://github.com/navdeep-G/setup.py
 # Note: To use the 'upload' functionality of this file, you must:
 #   $ pipenv install twine --dev
 
-import io
 import os
 import sys
 from shutil import rmtree
 
-from setuptools import find_packages, setup, Command
+from setuptools import Command, find_packages, setup
 
 # Package meta-data.
 NAME = "mango-agents"
@@ -17,16 +15,16 @@ DESCRIPTION = "Modular Python Agent Framework"
 URL = "https://github.com/OFFIS-DAI/mango"
 EMAIL = "mango@offis.de"
 AUTHOR = "mango Team"
-REQUIRES_PYTHON = ">=3.7.0"
-VERSION = "1.1.4"
+REQUIRES_PYTHON = ">=3.8.0"
+VERSION = "1.2.0"
 
 # What packages are required for this module to be executed?
 REQUIRED = [
-    "paho-mqtt==1.5.1",
-    "python-dateutil>=2.8.2",
-    "dill>=0.3.6",
-    "msgspec>=0.14.2",
-    "protobuf>=3.20.3",
+    "paho-mqtt>=2.1.0",
+    "python-dateutil>=2.9.0",
+    "dill>=0.3.8",
+    "msgspec>=0.18.6",
+    "protobuf>=5.27.2",
 ]
 
 # What packages are optional?
@@ -44,7 +42,7 @@ here = os.path.abspath(os.path.dirname(__file__))
 # Import the README and use it as the long-description.
 # Note: this will only work if 'README.md' is present in your MANIFEST.in file!
 try:
-    with io.open(os.path.join(here, "readme.md"), encoding="utf-8") as f:
+    with open(os.path.join(here, "readme.md"), encoding="utf-8") as f:
         long_description = "\n" + f.read()
 except FileNotFoundError:
     long_description = DESCRIPTION
@@ -68,7 +66,7 @@ class UploadCommand(Command):
     @staticmethod
     def status(s):
         """Prints things in bold."""
-        print("\033[1m{0}\033[0m".format(s))
+        print(f"\033[1m{s}\033[0m")
 
     def initialize_options(self):
         pass
@@ -84,13 +82,13 @@ class UploadCommand(Command):
             pass
 
         self.status("Building Source and Wheel (universal) distribution…")
-        os.system("{0} setup.py sdist bdist_wheel --universal".format(sys.executable))
+        os.system(f"{sys.executable} setup.py sdist bdist_wheel --universal")
 
         self.status("Uploading the package to PyPI via Twine…")
         os.system("twine upload dist/*")
 
         self.status("Pushing git tags…")
-        os.system("git tag v{0}".format(about["__version__"]))
+        os.system("git tag v{}".format(about["__version__"]))
         os.system("git push --tags")
 
         sys.exit()

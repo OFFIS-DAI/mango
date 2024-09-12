@@ -2,7 +2,6 @@ import pickle
 from dataclasses import dataclass
 
 import pytest
-from msg_pb2 import MyMsg
 
 from mango.messages.codecs import (
     JSON,
@@ -12,6 +11,8 @@ from mango.messages.codecs import (
     json_serializable,
 )
 from mango.messages.message import ACLMessage, Performatives
+
+from .msg_pb2 import MyMsg
 
 testcodecs = [JSON, PROTOBUF]
 

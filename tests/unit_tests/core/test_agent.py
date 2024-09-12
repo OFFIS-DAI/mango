@@ -8,7 +8,6 @@ from mango.agent.core import Agent
 
 
 class MyAgent(Agent):
-
     test_counter: int = 0
 
     def handle_message(self, content, meta: Dict[str, Any]):
@@ -44,9 +43,7 @@ async def test_send_message():
     agent = MyAgent(c)
     agent2 = MyAgent(c)
 
-    await agent.send_message(
-        "", receiver_addr=agent._context.addr, receiver_id=agent2.aid
-    )
+    await agent.send_message("", receiver_addr=agent.addr, receiver_id=agent2.aid)
     msg = await agent2.inbox.get()
     _, content, meta = msg
     agent2.handle_message(content=content, meta=meta)
@@ -63,9 +60,7 @@ async def test_send_acl_message():
     agent = MyAgent(c)
     agent2 = MyAgent(c)
 
-    await agent.send_acl_message(
-        "", receiver_addr=agent._context.addr, receiver_id=agent2.aid
-    )
+    await agent.send_acl_message("", receiver_addr=agent.addr, receiver_id=agent2.aid)
     msg = await agent2.inbox.get()
     _, content, meta = msg
     agent2.handle_message(content=content, meta=meta)
@@ -82,9 +77,7 @@ async def test_schedule_message():
     agent = MyAgent(c)
     agent2 = MyAgent(c)
 
-    agent.schedule_instant_message(
-        "", receiver_addr=agent._context.addr, receiver_id=agent2.aid
-    )
+    agent.schedule_instant_message("", receiver_addr=agent.addr, receiver_id=agent2.aid)
     msg = await agent2.inbox.get()
     _, content, meta = msg
     agent2.handle_message(content=content, meta=meta)
@@ -102,7 +95,7 @@ async def test_schedule_acl_message():
     agent2 = MyAgent(c)
 
     agent.schedule_instant_acl_message(
-        "", receiver_addr=agent._context.addr, receiver_id=agent2.aid
+        "", receiver_addr=agent.addr, receiver_id=agent2.aid
     )
     msg = await agent2.inbox.get()
     _, content, meta = msg

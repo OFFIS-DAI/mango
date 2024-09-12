@@ -1,6 +1,6 @@
-==========
+====================
 Scheduling and Clock
-==========
+====================
 
 When implementing agents including proactive behavior there are some typical types of tasks you might want to create. For example it might be desired to let the agent check every minute whether some resources are available, or often you just want to execute a task at a specified time. To help achieving this kind of goals mango exposes the scheduling API.
 
@@ -18,6 +18,8 @@ The core of this API is the scheduler, which is part of every agent. To schedule
      - Executes the coroutine at a specified datetime
    * - PeriodicScheduledTask
      - Executes a coroutine periodically with a static delay between the cycles
+   * - RecurrentScheduledTask
+     - Executes a coroutine according to a dynamic repetition scheme provided by a `rrule`
    * - ConditionalScheduledTask
      - Executes the coroutine when a specified condition evaluates to True
    * - AwaitingTask
@@ -59,7 +61,7 @@ When using the scheduling another feature becomes available: suspendable tasks. 
 Dispatch Tasks to other Process
 *******************************
 
-As asyncio does not provide real parallelism to utilize multiple cores and agents may have tasks, which need a lot computational power, the need to dispatch certain tasks to other processes appear. Handling inter process communication manually is quite exhausting and having multiple process pools across different roles or agents leads to inefficient resource allocations. As a result mango offers a way to dispatch tasks, based on coroutine-functions, to other processes, managed by the framework. 
+As asyncio does not provide real parallelism to utilize multiple cores and agents may have tasks, which need a lot computational power, the need to dispatch certain tasks to other processes appear. Handling inter process communication manually is quite exhausting and having multiple process pools across different roles or agents leads to inefficient resource allocations. As a result mango offers a way to dispatch tasks, based on coroutine-functions, to other processes, managed by the framework.
 
 Analogues to the normal API there are two different ways, first you create a ScheduledProcessTask and call ``schedule_process_task``, second you invoke the convnience methods with "process" in the name. These methods exists on any Agent, the RoleContext and the Scheduler.
 In mango the following process tasks are available:
@@ -92,13 +94,13 @@ In mango the following process tasks are available:
 
         class ScheduleAgent(Agent):
             def __init__(self, container, other_addr, other_id):
-                self.schedule_instant_process_task(coroutine_creator=lambda: self.context.send_acl_message(
+                self.schedule_instant_process_task(coroutine_creator=lambda: self.send_acl_message(
                     receiver_addr=other_addr,
                     receiver_id=other_id,
                     content="Hello world!")
                 )
                 # equivalent to
-                self.schedule_process_task(InstantScheduledProcessTask(coroutine_creator=lambda: self.context.send_acl_message(
+                self.schedule_process_task(InstantScheduledProcessTask(coroutine_creator=lambda: self.send_acl_message(
                     receiver_addr=other_addr,
                     receiver_id=other_id,
                     content="Hello world!"))
@@ -135,7 +137,7 @@ control how fast or slow time passes within your agent system:
                                          timestamp=self.current_timestamp + 5)
 
         async def send_hello_world(self, receiver_addr, receiver_id):
-            await self.context.send_acl_message(receiver_addr=receiver_addr,
+            await self.send_acl_message(receiver_addr=receiver_addr,
                                                receiver_id=receiver_id,
                                                content='Hello World')
 
@@ -188,4 +190,3 @@ If you comment in the ExternalClock and change your main() as follows, the progr
             clock.set_time(clock.time + 5)
         await receiver.wait_for_reply
         await c.shutdown()
-
