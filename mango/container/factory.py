@@ -81,7 +81,8 @@ async def create(
 
     if connection_type == EXTERNAL_CONNECTION:
         return ExternalSchedulingContainer(
-            addr=addr, loop=loop, codec=codec, clock=clock
+            addr=addr, loop=loop, codec=codec, attack_scenario=kwargs['attack_scenario'],
+            manipulation_id=kwargs['manipulation_id'], clock=clock
         )
 
     if connection_type == MQTT_CONNECTION:
