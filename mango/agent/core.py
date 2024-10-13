@@ -4,14 +4,14 @@ This module implements the base class for agents (:class:`Agent`).
 Every agent must live in a container. Containers are responsible for making
  connections to other agents.
 """
-from dataclasses import dataclass
 import asyncio
 import logging
 from abc import ABC
+from dataclasses import dataclass
 from typing import Any
 
-from ..util.scheduling import ScheduledProcessTask, ScheduledTask, Scheduler
 from ..util.clock import Clock
+from ..util.scheduling import ScheduledProcessTask, ScheduledTask, Scheduler
 
 logger = logging.getLogger(__name__)
 
@@ -70,12 +70,10 @@ class AgentDelegates:
     def on_start(self):
         """Called when container started in which the agent is contained
         """
-        pass
 
     def on_ready(self):
         """Called when all container has been started using activate(...).
         """
-        pass
 
     @property
     def current_timestamp(self) -> float:
@@ -381,7 +379,6 @@ class Agent(ABC, AgentDelegates):
         """
         Hook-in to define behavior of the agent directly after it got registered by a container
         """
-        pass
 
     def _do_register(self, container, aid):
         self._check_inbox_task = asyncio.create_task(self._check_inbox())

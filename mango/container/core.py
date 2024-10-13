@@ -4,10 +4,14 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Any, TypeVar
 
+from ..agent.core import Agent, AgentAddress
 from ..messages.codecs import Codec
 from ..util.clock import Clock
-from .mp import MirrorContainerProcessManager, MainContainerProcessManager, cancel_and_wait_for_task
-from ..agent.core import Agent, AgentAddress
+from .mp import (
+    MainContainerProcessManager,
+    MirrorContainerProcessManager,
+    cancel_and_wait_for_task,
+)
 
 logger = logging.getLogger(__name__)
 

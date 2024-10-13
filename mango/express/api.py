@@ -2,10 +2,10 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Any
 
-from ..agent.role import Role, RoleAgent
 from ..agent.core import Agent
-from ..container.core import Container, AgentAddress
-from ..container.factory import create_tcp, create_mqtt
+from ..agent.role import Role, RoleAgent
+from ..container.core import AgentAddress, Container
+from ..container.factory import create_mqtt, create_tcp
 from ..messages.codecs import Codec
 
 logger = logging.getLogger(__name__)
@@ -198,7 +198,7 @@ def agent_composed_of(*roles: Role, register_in: None | Container) -> ComposedAg
 
 class PrintingAgent(Agent):
     def handle_message(self, content, meta: dict[str, Any]):
-        logging.info(f"Received: {content} with {meta}")
+        logging.info("Received: %s with %s", content, meta)
 
 def sender_addr(meta: dict) -> AgentAddress:
     """Extract the sender_addr from the meta dict.

@@ -8,11 +8,11 @@ import logging
 import time
 from typing import Any
 
-from mango.container.core import Container, AgentAddress
+from mango.container.core import AgentAddress, Container
 from mango.container.mp import ContainerMirrorData
 
-from ..messages.message import MangoMessage
 from ..messages.codecs import Codec
+from ..messages.message import MangoMessage
 from ..util.clock import Clock
 from .protocol import ContainerProtocol
 

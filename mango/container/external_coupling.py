@@ -3,9 +3,9 @@ import logging
 import time
 from dataclasses import dataclass
 
+from mango.agent.core import AgentAddress
 from mango.container.core import Container
 from mango.container.mp import ContainerMirrorData
-from mango.agent.core import AgentAddress
 
 from ..messages.codecs import Codec
 from ..messages.message import MangoMessage

@@ -16,11 +16,15 @@ import json
 
 import msgspec
 
-from mango.messages.message import ACLMessage, Performatives, enum_serializer, MangoMessage
+from mango.messages.message import (
+    ACLMessage,
+    MangoMessage,
+    Performatives,
+    enum_serializer,
+)
 
 from ..messages.acl_message_pb2 import ACLMessage as ACLProto
 from ..messages.other_proto_msgs_pb2 import GenericMsg as GenericProtoMsg
-from ..messages.mango_message_pb2 import MangoMessage as MMProto
 
 
 def json_serializable(cls=None, repr=True):

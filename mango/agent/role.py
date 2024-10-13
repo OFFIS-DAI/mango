@@ -36,8 +36,7 @@ import asyncio
 from abc import ABC
 from typing import Any, Callable
 
-from mango.agent.core import Agent, AgentContext, AgentDelegates, AgentAddress
-from mango.util.scheduling import Scheduler
+from mango.agent.core import Agent, AgentAddress, AgentDelegates
 
 
 class DataContainer:
@@ -504,12 +503,10 @@ class Role(ABC):
     def on_start(self) -> None:
         """Called when container started in which the agent is contained
         """
-        pass
 
     def on_ready(self):
         """Called after the start of all container using activate
         """
-        pass
 
     def handle_message(self, content: Any, meta: dict):
         pass

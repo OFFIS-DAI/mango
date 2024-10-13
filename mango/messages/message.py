@@ -6,15 +6,16 @@ http://www.fipa.org/specs/fipa00061/SC00061G.html#_Toc26669715
 It also includes the enum classes for the message Performative and Type
 
 """
-from dataclasses import dataclass
-from abc import ABC, abstractmethod
 import pickle
+import warnings
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from enum import Enum
 from typing import Any
-import warnings
 
 from ..messages.acl_message_pb2 import ACLMessage as ACLProto
 from ..messages.mango_message_pb2 import MangoMessage as MangoMsg
+
 
 class Message(ABC):
     @abstractmethod

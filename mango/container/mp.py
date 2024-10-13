@@ -1,7 +1,7 @@
 
 import asyncio
-import os
 import logging
+import os
 from dataclasses import dataclass
 from multiprocessing import Event, Process
 from multiprocessing.synchronize import Event as MultiprocessingEvent

@@ -5,10 +5,10 @@ from typing import Any
 
 import paho.mqtt.client as paho
 
+from mango.container.core import AgentAddress, Container
 from mango.container.mp import ContainerMirrorData
-from mango.container.core import Container, AgentAddress
 
-from ..messages.codecs import ACLMessage, Codec
+from ..messages.codecs import Codec
 from ..messages.message import MangoMessage
 from ..util.clock import Clock
 
