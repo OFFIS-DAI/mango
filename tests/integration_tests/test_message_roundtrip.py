@@ -2,9 +2,10 @@ import asyncio
 
 import pytest
 
-import mango.container.factory as container_factory
+from mango import create_mqtt_container, create_tcp_container, activate, addr
 from mango.agent.core import Agent
 from mango.messages.codecs import JSON, PROTOBUF, FastJSON
+from . import create_test_container
 
 from ..unit_tests.messages.msg_pb2 import MyMsg
 
@@ -40,31 +41,7 @@ async def setup_and_run_test_case(connection_type, codec):
     init_addr = ("localhost", 1555) if connection_type == "tcp" else None
     repl_addr = ("localhost", 1556) if connection_type == "tcp" else None
 
-    broker = ("localhost", 1883, 60)
-    mqtt_kwargs_1 = {
-        "client_id": "container_1",
-        "broker_addr": broker,
-        "transport": "tcp",
-    }
-
-    mqtt_kwargs_2 = {
-        "client_id": "container_2",
-        "broker_addr": broker,
-        "transport": "tcp",
-    }
-
-    container_1 = await container_factory.create(
-        connection_type=connection_type,
-        codec=codec,
-        addr=init_addr,
-        mqtt_kwargs=mqtt_kwargs_1,
-    )
-    container_2 = await container_factory.create(
-        connection_type=connection_type,
-        codec=codec,
-        addr=repl_addr,
-        mqtt_kwargs=mqtt_kwargs_2,
-    )
+    container_1, container_2 = create_test_container(connection_type, init_addr, repl_addr, codec)
 
     if connection_type == "mqtt":
         init_target = repl_target = comm_topic
@@ -72,18 +49,13 @@ async def setup_and_run_test_case(connection_type, codec):
         init_target = repl_addr
         repl_target = init_addr
 
-    init_agent = InitiatorAgent(container_1, init_target)
-    repl_agent = ReplierAgent(container_2, repl_target)
+    init_agent = container_1.include(InitiatorAgent(container_1))
+    repl_agent = container_2.include(ReplierAgent(container_2))
+    repl_agent.target = addr(repl_target, init_agent.aid)
+    init_agent.target = addr(init_target, repl_agent.aid)
 
-    repl_agent.other_aid = init_agent.aid
-    init_agent.other_aid = repl_agent.aid
-
-    await asyncio.gather(repl_agent.start(), init_agent.start())
-    await asyncio.gather(
-        container_1.shutdown(),
-        container_2.shutdown(),
-    )
-
+    async with activate(container_1, container_2) as cl:
+        await asyncio.gather(repl_agent.start(), init_agent.start())
 
 # InitiatorAgent:
 # - send "Hello"
@@ -91,13 +63,11 @@ async def setup_and_run_test_case(connection_type, codec):
 # - answers to reply
 # - shuts down
 class InitiatorAgent(Agent):
-    def __init__(self, container, target):
-        super().__init__(container)
-        self.target = target
-        self.other_aid = None
-        self.container = container
-
+    def __init__(self, container):
+        super().__init__()
+        self.target = None
         self.got_reply = asyncio.Future()
+        self.container = container
 
     def handle_message(self, content, meta):
         if content == M2:
@@ -105,28 +75,24 @@ class InitiatorAgent(Agent):
 
     async def start(self):
         if getattr(self.container, "subscribe_for_agent", None):
-            await self.container.subscribe_for_agent(aid=self.aid, topic=self.target)
+            await self.container.subscribe_for_agent(aid=self.aid, topic=self.target.addr)
 
         await asyncio.sleep(0.1)
 
         # send initial message
-        await self.send_acl_message(
+        await self.send_message(
             M1,
-            self.target,
-            receiver_id=self.other_aid,
+            self.target
         )
 
         # await reply
         await self.got_reply
 
         # answer to reply
-        await self.send_acl_message(
+        await self.send_message(
             M3,
-            self.target,
-            receiver_id=self.other_aid,
+            self.target
         )
-
-        # shut down
 
 
 # ReplierAgent:
@@ -135,9 +101,9 @@ class InitiatorAgent(Agent):
 # - awaits reply
 # - shuts down
 class ReplierAgent(Agent):
-    def __init__(self, container, target):
-        super().__init__(container)
-        self.target = target
+    def __init__(self, container):
+        super().__init__()
+        self.target = None
         self.other_aid = None
 
         self.got_first = asyncio.Future()
@@ -153,18 +119,16 @@ class ReplierAgent(Agent):
 
     async def start(self):
         if getattr(self.container, "subscribe_for_agent", None):
-            await self.container.subscribe_for_agent(aid=self.aid, topic=self.target)
+            await self.container.subscribe_for_agent(aid=self.aid, topic=self.target.addr)
 
         # await "Hello"
         await self.got_first
 
         # send reply
-        await self.send_acl_message(M2, self.target, receiver_id=self.other_aid)
+        await self.send_message(M2, self.target, receiver_id=self.other_aid)
 
         # await reply
         await self.got_second
-
-        # shut down
 
 
 @pytest.mark.asyncio

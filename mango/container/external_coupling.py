@@ -2,11 +2,13 @@ import asyncio
 import logging
 import time
 from dataclasses import dataclass
-from typing import List, Optional, Tuple, Union
 
-from mango.container.core import Container, ContainerMirrorData
+from mango.container.core import Container
+from mango.container.mp import ContainerMirrorData
+from mango.agent.core import AgentAddress
 
 from ..messages.codecs import Codec
+from ..messages.message import MangoMessage
 from ..util.clock import ExternalClock
 from ..util.termination_detection import tasks_complete_or_sleeping
 
@@ -23,8 +25,8 @@ class ExternalAgentMessage:
 @dataclass
 class ExternalSchedulingContainerOutput:
     duration: float
-    messages: List[ExternalAgentMessage]
-    next_activity: Optional[float]
+    messages: list[ExternalAgentMessage]
+    next_activity: None | float
 
 
 def ext_mirror_container_creator(
@@ -85,30 +87,37 @@ class ExternalSchedulingContainer(Container):
     async def send_message(
         self,
         content,
-        receiver_addr: Union[str, Tuple[str, int]],
-        *,
-        receiver_id: Optional[str] = None,
+        receiver_addr: AgentAddress,
+        sender_id: None | str = None,
         **kwargs,
     ) -> bool:
         """
         The Container sends a message to an agent according the container protocol.
 
         :param content: The content of the message
-        :param receiver_addr: Address if the receiving container
-        :param receiver_id: The agent id of the receiver
+        :param receiver_addr: Address of the receiving container
         :param kwargs: Additional parameters to provide protocol specific settings
         """
         message = content
 
-        if receiver_addr == self.addr:
-            if not receiver_id:
-                receiver_id = message.receiver_id
-            default_meta = {"network_protocol": "external_connection"}
+        meta = {}
+        for key, value in kwargs.items():
+            meta[key] = value 
+        meta["sender_id"] = sender_id
+        meta["sender_addr"] = self.addr
+        meta["receiver_id"] = receiver_addr.aid
+        meta["receiver_addr"] = receiver_addr.addr
+
+        if receiver_addr.addr == self.addr:
+            receiver_id = receiver_addr.aid
+            meta.update({"network_protocol": "external_connection"})
             success = self._send_internal_message(
-                message=message, receiver_id=receiver_id, default_meta=default_meta
+                message=message, receiver_id=receiver_id, default_meta=meta
             )
             self._new_internal_message = True
         else:
+            if not hasattr(content, "split_content_and_meta"):
+                message = MangoMessage(content, meta)
             success = await self._send_external_message(receiver_addr, message)
 
         return success
@@ -125,14 +134,14 @@ class ExternalSchedulingContainer(Container):
         self.message_buffer.append(
             ExternalAgentMessage(
                 time=time.time() - self.current_start_time_of_step + self.clock.time,
-                receiver=addr,
+                receiver=addr.addr,
                 message=encoded_msg,
             )
         )
         return True
 
     async def step(
-        self, simulation_time: float, incoming_messages: List[bytes]
+        self, simulation_time: float, incoming_messages: list[bytes]
     ) -> ExternalSchedulingContainerOutput:
         if self.message_buffer:
             logger.warning(
@@ -147,10 +156,10 @@ class ExternalSchedulingContainer(Container):
         for encoded_msg in incoming_messages:
             message = self.codec.decode(encoded_msg)
 
-            content, acl_meta = message.split_content_and_meta()
-            acl_meta["network_protocol"] = "external_connection"
+            content, meta = message.split_content_and_meta()
+            meta["network_protocol"] = "external_connection"
 
-            await self.inbox.put((0, content, acl_meta))
+            await self.inbox.put((0, content, meta))
 
         # now wait for the msg_queue to be empty
         await self.inbox.join()
@@ -185,9 +194,3 @@ class ExternalSchedulingContainer(Container):
             agent_creator=agent_creator,
             mirror_container_creator=mirror_container_creator,
         )
-
-    async def shutdown(self):
-        """
-        calls shutdown() from super class Container
-        """
-        await super().shutdown()

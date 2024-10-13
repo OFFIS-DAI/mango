@@ -1,18 +1,20 @@
 import pytest
 
-import mango.container.factory as container_factory
 from mango.agent.core import Agent
-
+from mango import create_tcp_container, create_acl
 
 class LooksLikeAgent:
     async def shutdown(self):
+        pass
+
+    def _do_register(self, container, aid):
         pass
 
 
 @pytest.mark.asyncio
 async def test_register_aid_pattern_match():
     # GIVEN
-    c = await container_factory.create(addr=("127.0.0.2", 5555))
+    c = create_tcp_container(addr=("127.0.0.2", 5555))
     agent = LooksLikeAgent()
     suggested_aid = "agent12"
 
@@ -27,7 +29,7 @@ async def test_register_aid_pattern_match():
 @pytest.mark.asyncio
 async def test_register_aid_success():
     # GIVEN
-    c = await container_factory.create(addr=("127.0.0.2", 5555))
+    c = create_tcp_container(addr=("127.0.0.2", 5555))
     agent = LooksLikeAgent()
     suggested_aid = "cagent12"
 
@@ -42,7 +44,7 @@ async def test_register_aid_success():
 @pytest.mark.asyncio
 async def test_register_no_suggested():
     # GIVEN
-    c = await container_factory.create(addr=("127.0.0.2", 5555))
+    c = create_tcp_container(addr=("127.0.0.2", 5555))
     agent = LooksLikeAgent()
 
     # WHEN
@@ -56,7 +58,7 @@ async def test_register_no_suggested():
 @pytest.mark.asyncio
 async def test_register_pattern_half_match():
     # GIVEN
-    c = await container_factory.create(addr=("127.0.0.2", 5555))
+    c = create_tcp_container(addr=("127.0.0.2", 5555))
     agent = LooksLikeAgent()
     suggested_aid = "agentABC"
 
@@ -71,7 +73,7 @@ async def test_register_pattern_half_match():
 @pytest.mark.asyncio
 async def test_register_existing():
     # GIVEN
-    c = await container_factory.create(addr=("127.0.0.2", 5555))
+    c = create_tcp_container(addr=("127.0.0.2", 5555))
     agent = LooksLikeAgent()
     suggested_aid = "agentABC"
 
@@ -88,7 +90,7 @@ async def test_register_existing():
 @pytest.mark.asyncio
 async def test_is_aid_available():
     # GIVEN
-    c = await container_factory.create(addr=("127.0.0.2", 5555))
+    c = create_tcp_container(addr=("127.0.0.2", 5555))
     aid_to_check = "agentABC"
 
     # WHEN
@@ -102,7 +104,7 @@ async def test_is_aid_available():
 @pytest.mark.asyncio
 async def test_is_aid_available_but_match():
     # GIVEN
-    c = await container_factory.create(addr=("127.0.0.2", 5555))
+    c = create_tcp_container(addr=("127.0.0.2", 5555))
     aid_to_check = "agent5"
 
     # WHEN
@@ -116,7 +118,7 @@ async def test_is_aid_available_but_match():
 @pytest.mark.asyncio
 async def test_is_aid_not_available():
     # GIVEN
-    c = await container_factory.create(addr=("127.0.0.2", 5555))
+    c = create_tcp_container(addr=("127.0.0.2", 5555))
     c.register_agent(LooksLikeAgent(), "abc")
     aid_to_check = "abc"
 
@@ -131,7 +133,7 @@ async def test_is_aid_not_available():
 @pytest.mark.asyncio
 async def test_is_aid_not_available_and_match():
     # GIVEN
-    c = await container_factory.create(addr=("127.0.0.2", 5555))
+    c = create_tcp_container(addr=("127.0.0.2", 5555))
     c.register_agent(LooksLikeAgent())
     aid_to_check = "agent0"
 
@@ -145,10 +147,11 @@ async def test_is_aid_not_available_and_match():
 
 @pytest.mark.asyncio
 async def test_create_acl_no_modify():
-    c = await container_factory.create(addr=("127.0.0.2", 5555))
+    c = create_tcp_container(addr=("127.0.0.2", 5555))
     common_acl_q = {}
-    actual_acl_message = c._create_acl(
-        "", receiver_addr="", receiver_id="", acl_metadata=common_acl_q
+    actual_acl_message = create_acl(
+        "", receiver_addr="", receiver_id="", acl_metadata=common_acl_q,
+        sender_addr=c.addr
     )
 
     assert "reeiver_addr" not in common_acl_q
@@ -160,9 +163,10 @@ async def test_create_acl_no_modify():
 
 @pytest.mark.asyncio
 async def test_create_acl_anon():
-    c = await container_factory.create(addr=("127.0.0.2", 5555))
-    actual_acl_message = c._create_acl(
-        "", receiver_addr="", receiver_id="", is_anonymous_acl=True
+    c = create_tcp_container(addr=("127.0.0.2", 5555))
+    actual_acl_message = create_acl(
+        "", receiver_addr="", receiver_id="", is_anonymous_acl=True,
+                sender_addr=c.addr
     )
 
     assert actual_acl_message.sender_addr is None
@@ -171,9 +175,9 @@ async def test_create_acl_anon():
 
 @pytest.mark.asyncio
 async def test_create_acl_not_anon():
-    c = await container_factory.create(addr=("127.0.0.2", 5555))
-    actual_acl_message = c._create_acl(
-        "", receiver_addr="", receiver_id="", is_anonymous_acl=False
+    c = create_tcp_container(addr=("127.0.0.2", 5555))
+    actual_acl_message = create_acl(
+        "", receiver_addr="", receiver_id="", is_anonymous_acl=False, sender_addr=c.addr
     )
 
     assert actual_acl_message.sender_addr is not None
@@ -191,14 +195,14 @@ class Data:
 
 @pytest.mark.asyncio
 async def test_send_message_no_copy():
-    c = await container_factory.create(
+    c = create_tcp_container(
         addr=("127.0.0.2", 5555), copy_internal_messages=False
     )
-    agent1 = ExampleAgent(c)
+    agent1 = c.include(ExampleAgent())
     message_to_send = Data()
 
-    await c.send_acl_message(
-        message_to_send, receiver_addr=c.addr, receiver_id=agent1.aid
+    await c.send_message(
+        message_to_send, receiver_addr=agent1.addr
     )
     await c.shutdown()
 
@@ -207,14 +211,14 @@ async def test_send_message_no_copy():
 
 @pytest.mark.asyncio
 async def test_send_message_copy():
-    c = await container_factory.create(
+    c = create_tcp_container(
         addr=("127.0.0.2", 5555), copy_internal_messages=True
     )
-    agent1 = ExampleAgent(c)
+    agent1 = c.include(ExampleAgent())
     message_to_send = Data()
 
-    await c.send_acl_message(
-        message_to_send, receiver_addr=c.addr, receiver_id=agent1.aid
+    await c.send_message(
+        message_to_send, receiver_addr=agent1.addr
     )
     await c.shutdown()
 
@@ -223,13 +227,14 @@ async def test_send_message_copy():
 
 @pytest.mark.asyncio
 async def test_create_acl_diff_receiver():
-    c = await container_factory.create(addr=("127.0.0.2", 5555))
+    c = create_tcp_container(addr=("127.0.0.2", 5555))
     with pytest.warns(UserWarning) as record:
-        actual_acl_message = c._create_acl(
+        actual_acl_message = create_acl(
             "",
             receiver_addr="A",
             receiver_id="A",
             acl_metadata={"receiver_id": "B", "receiver_addr": "B"},
+            sender_addr=c.addr,
             is_anonymous_acl=False,
         )
 
@@ -241,8 +246,8 @@ async def test_create_acl_diff_receiver():
 
 @pytest.mark.asyncio
 async def test_containers_dont_share_default_codec():
-    c1 = await container_factory.create(addr=("127.0.0.2", 5555))
-    c2 = await container_factory.create(addr=("127.0.0.2", 5556))
+    c1 = create_tcp_container(addr=("127.0.0.2", 5555))
+    c2 = create_tcp_container(addr=("127.0.0.2", 5556))
 
     assert c1.codec is not c2.codec
 

@@ -1,13 +1,15 @@
 import asyncio
 import logging
 from functools import partial
-from typing import Any, Dict, Optional, Set, Tuple, Union
+from typing import Any
 
 import paho.mqtt.client as paho
 
-from mango.container.core import Container, ContainerMirrorData
+from mango.container.mp import ContainerMirrorData
+from mango.container.core import Container, AgentAddress
 
 from ..messages.codecs import ACLMessage, Codec
+from ..messages.message import MangoMessage
 from ..util.clock import Clock
 
 logger = logging.getLogger(__name__)
@@ -15,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 def mqtt_mirror_container_creator(
     client_id,
-    mqtt_client,
+    inbox_topic,
     container_data,
     loop,
     message_pipe,
@@ -25,11 +27,11 @@ def mqtt_mirror_container_creator(
 ):
     return MQTTContainer(
         client_id=client_id,
-        addr=container_data.addr,
+        inbox_topic=inbox_topic,
+        broker_addr=container_data.addr,
         codec=container_data.codec,
         clock=container_data.clock,
         loop=loop,
-        mqtt_client=mqtt_client,
         mirror_data=ContainerMirrorData(
             message_pipe=message_pipe,
             event_pipe=event_pipe,
@@ -52,11 +54,11 @@ class MQTTContainer(Container):
         self,
         *,
         client_id: str,
-        addr: Optional[str],
+        broker_addr: tuple | dict | str,
         loop: asyncio.AbstractEventLoop,
         clock: Clock,
-        mqtt_client: paho.Client,
         codec: Codec,
+        inbox_topic: None | str = None,
         **kwargs,
     ):
         """
@@ -72,23 +74,163 @@ class MQTTContainer(Container):
          allowed
         """
         super().__init__(
-            codec=codec, addr=addr, loop=loop, clock=clock, name=client_id, **kwargs
+            codec=codec, addr=broker_addr, loop=loop, clock=clock, name=client_id, **kwargs
         )
 
         self.client_id: str = client_id
-        # the configured and connected paho client
-        self.mqtt_client: paho.Client = mqtt_client
-        self.inbox_topic: Optional[str] = addr
+        # the client will be created on start.
+        self.mqtt_client: paho.Client = None
+        self.inbox_topic: None | str = inbox_topic
         # dict mapping additionally subscribed topics to a set of aids
-        self.additional_subscriptions: Dict[str, Set[str]] = {}
+        self.additional_subscriptions: dict[str, set[str]] = {}
         # Future for pending sub requests
-        self.pending_sub_request: Optional[asyncio.Future] = None
+        self.pending_sub_request: None | asyncio.Future = None
 
+    async def start(self):
+        if not self.client_id:
+            raise ValueError("client_id is required!")
+        if not self.addr:
+            raise ValueError("broker_addr is required!")
+
+        # get parameters for Client.init()
+        init_kwargs = {}
+        possible_init_kwargs = (
+            "clean_session",
+            "userdata",
+            "protocol",
+            "transport",
+        )
+        for possible_kwarg in possible_init_kwargs:
+            if possible_kwarg in self._kwargs.keys():
+                init_kwargs[possible_kwarg] = self._kwargs.pop(possible_kwarg)
+
+        # check if addr is a valid topic without wildcards
+        if self.inbox_topic is not None and (
+            not isinstance(self.inbox_topic, str) or "#" in self.inbox_topic or "+" in self.inbox_topic
+        ):
+            raise ValueError(
+                "inbox topic is not set correctly. It must be a string without any wildcards ('#' or '+')!"
+            )
+
+        # create paho.Client object for mqtt communication
+        mqtt_messenger: paho.Client = paho.Client(
+            paho.CallbackAPIVersion.VERSION2, client_id=self.client_id, **init_kwargs
+        )
+
+        # set TLS options if provided
+        # expected as a dict:
+        # {ca_certs, certfile, keyfile, cert_eqs, tls_version, ciphers}
+        tls_kwargs = self._kwargs.pop("tls_kwargs", None)
+        if tls_kwargs:
+            mqtt_messenger.tls_set(**tls_kwargs)
+
+        # Future that is triggered, on successful connection
+        connected = asyncio.Future()
+
+        # callbacks to check for successful connection
+        def on_con(client, userdata, flags, reason_code, properties):
+            logger.info("Connection Callback with the following flags: %s", flags)
+            self.loop.call_soon_threadsafe(connected.set_result, reason_code)
+
+        mqtt_messenger.on_connect = on_con
+
+        # check broker_addr input and connect
+        if isinstance(self.addr, tuple):
+            if not 0 < len(self.addr) < 4:
+                raise ValueError("Invalid broker address argument count")
+            if len(self.addr) > 0 and not isinstance(self.addr[0], str):
+                raise ValueError("Invalid broker address - host must be str")
+            if len(self.addr) > 1 and not isinstance(self.addr[1], int):
+                raise ValueError("Invalid broker address - port must be int")
+            if len(self.addr) > 2 and not isinstance(self.addr[2], int):
+                raise ValueError("Invalid broker address - keepalive must be int")
+            mqtt_messenger.connect(*self.addr, **self._kwargs)
+
+        elif isinstance(self.addr, dict):
+            if "hostname" not in self.addr.keys():
+                raise ValueError("Invalid broker address - host not given")
+            mqtt_messenger.connect(**self.addr, **self._kwargs)
+
+        else:
+            if not isinstance(self.addr, str):
+                raise ValueError("Invalid broker address")
+            mqtt_messenger.connect(self.addr, **self._kwargs)
+
+        logger.info("[%s]: Going to connect to broker at %s..", self.client_id, self.addr)
+
+        counter = 0
+        # process MQTT messages for maximum of 10 seconds to
+        # receive connection callback
+        while not connected.done() and counter < 100:
+            mqtt_messenger.loop()
+            # wait for the thread to trigger the future
+            await asyncio.sleep(0.1)
+            counter += 1
+
+        if not connected.done():
+            # timeout
+            raise ConnectionError(
+                f"Connection to {self.addr} could not be "
+                f"established after {counter * 0.1} seconds"
+            )
+        if connected.result() != 0:
+            raise ConnectionError(
+                f"Connection to {self.addr} could not be "
+                f"set up. Callback returner error code "
+                f"{connected.result()}"
+            )
+
+        logger.info("sucessfully connected to mqtt broker")
+        if self.inbox_topic is not None:
+            # connection has been set up, subscribe to inbox topic now
+            logger.info(
+                "[%s]: Going to subscribe to %s as inbox topic..", self.client_id, self.inbox_topic
+            )
+
+            # create Future that is triggered on successful subscription
+            subscribed = asyncio.Future()
+
+            # set up subscription callback
+            def on_sub(client, userdata, mid, reason_code_list, properties):
+                self.loop.call_soon_threadsafe(subscribed.set_result, True)
+
+            mqtt_messenger.on_subscribe = on_sub
+
+            # subscribe topic
+            result, _ = mqtt_messenger.subscribe(self.inbox_topic, 2)
+            if result != paho.MQTT_ERR_SUCCESS:
+                # subscription to inbox topic was not successful
+                mqtt_messenger.disconnect()
+                raise ConnectionError(
+                    f"Subscription request to {self.inbox_topic} at {self.addr} "
+                    f"returned error code: {result}"
+                )
+
+            counter = 0
+            while not subscribed.done() and counter < 100:
+                # wait for subscription
+                mqtt_messenger.loop(timeout=0.1)
+                await asyncio.sleep(0.1)
+                counter += 1
+            if not subscribed.done():
+                raise ConnectionError(
+                    f"Subscription request to {self.inbox_topic} at {self.addr} "
+                    f"did not succeed after {counter * 0.1} seconds."
+                )
+            logger.info("successfully subscribed to topic")
+
+        # connection and subscription is successful, remove callbacks
+        mqtt_messenger.on_subscribe = None
+        mqtt_messenger.on_connect = None
+        
+        self.mqtt_client = mqtt_messenger
         # set the callbacks
         self._set_mqtt_callbacks()
-
         # start the mqtt client
         self.mqtt_client.loop_start()
+        
+        await super().start()
+
 
     def _set_mqtt_callbacks(self):
         """
@@ -149,14 +291,14 @@ class MQTTContainer(Container):
         content = None
 
         decoded = self.codec.decode(payload)
-        if isinstance(decoded, ACLMessage):
+        if hasattr(decoded, "split_content_and_meta"):
             content, meta = decoded.split_content_and_meta()
         else:
             content = decoded
 
         return content, meta
 
-    async def _handle_message(self, *, priority: int, content, meta: Dict[str, Any]):
+    async def _handle_message(self, *, priority: int, content, meta: dict[str, Any]):
         """
         This is called as a separate task for every message that is read
         :param priority: priority of the message
@@ -192,18 +334,17 @@ class MQTTContainer(Container):
 
     async def send_message(
         self,
-        content,
-        receiver_addr: Union[str, Tuple[str, int]],
-        *,
-        receiver_id: Optional[str] = None,
-        **kwargs,
+        content: Any,
+        receiver_addr: AgentAddress,
+        sender_id: None | str = None,
+        **kwargs
     ):
         """
         The container sends the message of one of its own agents to a specific topic.
 
         :param content: The content of the message
         :param receiver_addr: The topic to publish to.
-        :param receiver_id: The agent id of the receiver
+        :param sender_id: The sender aid
         :param kwargs: Additional parameters to provide protocol specific settings
             Possible fields:
             qos: The quality of service to use for publishing
@@ -211,29 +352,36 @@ class MQTTContainer(Container):
             Ignored if connection_type != 'mqtt'
 
         """
-        # the message is already complete
-        message = content
-
         # internal message first (if retain Flag is set, it has to be sent to
         # the broker
+        meta = {}
+        for key, value in kwargs.items():
+            meta[key] = value 
+        meta["sender_id"] = sender_id
+        meta["sender_addr"] = self.inbox_topic
+        meta["receiver_id"] = receiver_addr.aid
+
         actual_mqtt_kwargs = {} if kwargs is None else kwargs
         if (
-            self.addr
-            and receiver_addr == self.addr
+            self.inbox_topic
+            and receiver_addr == self.inbox_topic
             and not actual_mqtt_kwargs.get("retain", False)
         ):
-            meta = {
-                "topic": self.addr,
+            meta.update({
+                "topic": self.inbox_topic,
                 "qos": actual_mqtt_kwargs.get("qos", 0),
                 "retain": False,
                 "network_protocol": "mqtt",
-            }
+            })
             return self._send_internal_message(
-                message, receiver_id, default_meta=meta, inbox=self.inbox
+                content, receiver_addr.aid, default_meta=meta, inbox=self.inbox
             )
 
         else:
-            self._send_external_message(topic=receiver_addr, message=message)
+            message = content
+            if not hasattr(content, "split_content_and_meta"):
+                message = MangoMessage(content, meta)
+            self._send_external_message(topic=receiver_addr.addr, message=message)
             return True
 
     def _send_external_message(self, *, topic: str, message):
@@ -300,7 +448,7 @@ class MQTTContainer(Container):
             mirror_container_creator = partial(
                 mqtt_mirror_container_creator,
                 self.client_id,
-                self.mqtt_client,
+                self.inbox_topic,
             )
         return super().as_agent_process(
             agent_creator=agent_creator,

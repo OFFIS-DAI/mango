@@ -1,33 +1,33 @@
 import asyncio
-from typing import Any, Dict
+from typing import Any
 
 import pytest
 
-from mango import create_container
+from mango import create_tcp_container, create_acl, activate
 from mango.agent.core import Agent
 
 
 class MyAgent(Agent):
     test_counter: int = 0
 
-    def handle_message(self, content, meta: Dict[str, Any]):
+    def handle_message(self, content, meta: dict[str, Any]):
         self.test_counter += 1
 
 
 @pytest.mark.asyncio
 async def test_periodic_facade():
     # GIVEN
-    c = await create_container(addr=("127.0.0.2", 5555))
-    agent = MyAgent(c)
+    c = create_tcp_container(addr=("127.0.0.2", 5555))
+    agent = c.include(MyAgent())
     l = []
 
     async def increase_counter():
         l.append(1)
 
     # WHEN
-    t = agent.schedule_periodic_task(increase_counter, 2)
+    t = agent.schedule_periodic_task(increase_counter, 0.2)
     try:
-        await asyncio.wait_for(t, timeout=3)
+        await asyncio.wait_for(t, timeout=0.3)
     except asyncio.exceptions.TimeoutError:
         pass
 
@@ -39,68 +39,62 @@ async def test_periodic_facade():
 @pytest.mark.asyncio
 async def test_send_message():
     # GIVEN
-    c = await create_container(addr=("127.0.0.2", 5555))
-    agent = MyAgent(c)
-    agent2 = MyAgent(c)
+    c = create_tcp_container(addr=("127.0.0.2", 5555))
+    agent = c.include(MyAgent())
+    agent2 = c.include(MyAgent())
 
-    await agent.send_message("", receiver_addr=agent.addr, receiver_id=agent2.aid)
-    msg = await agent2.inbox.get()
-    _, content, meta = msg
-    agent2.handle_message(content=content, meta=meta)
+    async with activate(c) as c:
+        await agent.send_message("", receiver_addr=agent2.addr)
+        msg = await agent2.inbox.get()
+        _, content, meta = msg
+        agent2.handle_message(content=content, meta=meta)
 
     # THEN
     assert agent2.test_counter == 1
-    await c.shutdown()
 
 
 @pytest.mark.asyncio
 async def test_send_acl_message():
     # GIVEN
-    c = await create_container(addr=("127.0.0.2", 5555))
-    agent = MyAgent(c)
-    agent2 = MyAgent(c)
+    c = create_tcp_container(addr=("127.0.0.2", 5555))
+    agent = c.include(MyAgent())
+    agent2 = c.include(MyAgent())
 
-    await agent.send_acl_message("", receiver_addr=agent.addr, receiver_id=agent2.aid)
-    msg = await agent2.inbox.get()
-    _, content, meta = msg
-    agent2.handle_message(content=content, meta=meta)
+    async with activate(c) as c:
+        await agent.send_message(create_acl("", receiver_addr=agent2.addr, sender_addr=c.addr), receiver_addr=agent2.addr)
+        msg = await agent2.inbox.get()
+        _, content, meta = msg
+        agent2.handle_message(content=content, meta=meta)
 
     # THEN
     assert agent2.test_counter == 1
-    await c.shutdown()
 
 
 @pytest.mark.asyncio
 async def test_schedule_message():
     # GIVEN
-    c = await create_container(addr=("127.0.0.2", 5555))
-    agent = MyAgent(c)
-    agent2 = MyAgent(c)
+    c = create_tcp_container(addr=("127.0.0.2", 5555))
+    agent = c.include(MyAgent())
+    agent2 = c.include(MyAgent())
 
-    agent.schedule_instant_message("", receiver_addr=agent.addr, receiver_id=agent2.aid)
-    msg = await agent2.inbox.get()
-    _, content, meta = msg
-    agent2.handle_message(content=content, meta=meta)
-
+    async with activate(c) as c:
+        await agent.schedule_instant_message("", receiver_addr=agent2.addr)
+        
     # THEN
     assert agent2.test_counter == 1
-    await c.shutdown()
 
 
 @pytest.mark.asyncio
 async def test_schedule_acl_message():
     # GIVEN
-    c = await create_container(addr=("127.0.0.2", 5555))
-    agent = MyAgent(c)
-    agent2 = MyAgent(c)
+    c = create_tcp_container(addr=("127.0.0.2", 5555))
+    agent = c.include(MyAgent())
+    agent2 = c.include(MyAgent())
 
-    agent.schedule_instant_acl_message(
-        "", receiver_addr=agent.addr, receiver_id=agent2.aid
-    )
-    msg = await agent2.inbox.get()
-    _, content, meta = msg
-    agent2.handle_message(content=content, meta=meta)
+    async with activate(c) as c:
+        await agent.schedule_instant_message(
+            create_acl("", receiver_addr=agent2.addr, sender_addr=c.addr), receiver_addr=agent2.addr
+        )
 
     # THEN
     assert agent2.test_counter == 1
-    await c.shutdown()

@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 
-from mango import Agent, create_container
+from mango import Agent, create_tcp_container, sender_addr, AgentAddress, activate, addr
 
 
 class MyAgent(Agent):
@@ -14,17 +14,10 @@ class MyAgent(Agent):
 
         # get addr and id from sender
         if self.test_counter == 1:
-            receiver_host, receiver_port = meta["sender_addr"]
-            receiver_id = meta["sender_id"]
             # send back pong, providing your own details
-            self.current_task = self.schedule_instant_acl_message(
+            self.current_task = self.schedule_instant_message(
                 content="pong",
-                receiver_addr=(receiver_host, receiver_port),
-                receiver_id=receiver_id,
-                acl_metadata={
-                    "sender_addr": self.addr,
-                    "sender_id": self.aid,
-                },
+                receiver_addr=sender_addr(meta)
             )
 
 
@@ -37,21 +30,17 @@ class P2PMainAgent(Agent):
 
 
 class P2PTestAgent(Agent):
-    def __init__(self, container, response_aid, suggested_aid: str = None):
-        super().__init__(container, suggested_aid)
-        self._response_aid = response_aid
+    receiver_id: str
+
+    def __init__(self, receiver_id):
+        super().__init__()
+        self.receiver_id = receiver_id
 
     def handle_message(self, content, meta):
-        receiver_host, receiver_port = meta["sender_addr"]
         # send back pong, providing your own details
-        self.current_task = self.schedule_instant_acl_message(
+        self.current_task = self.schedule_instant_message(
             content="pong",
-            receiver_addr=(receiver_host, receiver_port),
-            receiver_id=self._response_aid,
-            acl_metadata={
-                "sender_addr": self.addr,
-                "sender_id": self.aid,
-            },
+            receiver_addr=addr(meta["sender_addr"], self.receiver_id)
         )
 
 
@@ -74,107 +63,89 @@ class P2PTestAgent(Agent):
 )
 async def test_agent_processes_ping_pong(num_sp_agents, num_sp):
     # GIVEN
-    c = await create_container(addr=("127.0.0.2", 15589), copy_internal_messages=False)
+    c = create_tcp_container(addr=("127.0.0.2", 15589), copy_internal_messages=False)
     for i in range(num_sp):
         await c.as_agent_process(
             agent_creator=lambda container: [
-                MyAgent(container, suggested_aid=f"process_agent{i},{j}")
+                container.include(MyAgent(), suggested_aid=f"process_agent{i},{j}")
                 for j in range(num_sp_agents)
             ]
         )
-    agent = MyAgent(c)
+    agent = c.include(MyAgent())
 
     # WHEN
-    for i in range(num_sp):
-        for j in range(num_sp_agents):
-            await agent.send_acl_message(
-                "Message To Process Agent",
-                receiver_addr=c.addr,
-                receiver_id=f"process_agent{i},{j}",
-                acl_metadata={"sender_id": agent.aid},
-            )
-    while agent.test_counter != num_sp_agents * num_sp:
-        await asyncio.sleep(0.1)
+    async with activate(c) as c:
+        for i in range(num_sp):
+            for j in range(num_sp_agents):
+                await agent.send_message(
+                    "Message To Process Agent",
+                    receiver_addr=addr(c.addr, f"process_agent{i},{j}")
+                )
+        while agent.test_counter != num_sp_agents * num_sp:
+            await asyncio.sleep(0.1)
 
     assert agent.test_counter == num_sp_agents * num_sp
-    await c.shutdown()
-
 
 @pytest.mark.asyncio
 async def test_agent_processes_ping_pong_p_to_p():
     # GIVEN
-    addr = ("127.0.0.2", 5826)
+    addr = ("127.0.0.2", 5829)
     aid_main_agent = "main_agent"
-    c = await create_container(addr=addr, copy_internal_messages=False)
+    c = create_tcp_container(addr=addr, copy_internal_messages=False)
     await c.as_agent_process(
-        agent_creator=lambda container: P2PTestAgent(
-            container, aid_main_agent, suggested_aid="process_agent1"
-        )
+        agent_creator=lambda container: container.include(P2PTestAgent(aid_main_agent), 
+                                                          suggested_aid="process_agent1")
     )
-    main_agent = P2PMainAgent(c, suggested_aid=aid_main_agent)
+    main_agent = c.include(P2PMainAgent(), suggested_aid=aid_main_agent)
 
     # WHEN
     def agent_init(c):
-        agent = MyAgent(c, suggested_aid="process_agent2")
-        agent.schedule_instant_acl_message(
+        agent = c.include(MyAgent(), suggested_aid="process_agent2")
+        agent.schedule_instant_message(
             "Message To Process Agent",
-            receiver_addr=addr,
-            receiver_id="process_agent1",
-            acl_metadata={"sender_id": agent.aid},
+            receiver_addr=AgentAddress(addr, "process_agent1")
         )
         return agent
 
-    await c.as_agent_process(agent_creator=agent_init)
+    async with activate(c) as c:
+        await c.as_agent_process(agent_creator=agent_init)
 
-    while main_agent.test_counter != 1:
-        await asyncio.sleep(0.1)
+        while main_agent.test_counter != 1:
+            await asyncio.sleep(0.1)
 
     assert main_agent.test_counter == 1
-
-    await c.shutdown()
 
 
 @pytest.mark.asyncio
 async def test_async_agent_processes_ping_pong_p_to_p():
     # GIVEN
-    addr = ("127.0.0.2", 5826)
+    addr = ("127.0.0.2", 5811)
     aid_main_agent = "main_agent"
-    c = await create_container(addr=addr, copy_internal_messages=False)
-    main_agent = P2PMainAgent(c, suggested_aid=aid_main_agent)
+    c = create_tcp_container(addr=addr, copy_internal_messages=False)
+    main_agent = c.include(P2PMainAgent(), suggested_aid=aid_main_agent)
 
     async def agent_creator(container):
-        p2pta = P2PTestAgent(container, aid_main_agent, suggested_aid="process_agent1")
+        p2pta = container.include(P2PTestAgent(aid_main_agent), suggested_aid="process_agent1")
         await p2pta.send_message(
             content="pong",
-            receiver_addr=addr,
-            receiver_id=aid_main_agent,
-            acl_metadata={
-                "sender_addr": p2pta.addr,
-                "sender_id": p2pta.aid,
-            },
+            receiver_addr=main_agent.addr
         )
 
-    await c.as_agent_process(agent_creator=agent_creator)
+    async with activate(c) as c:
+        await c.as_agent_process(agent_creator=agent_creator)
 
-    # WHEN
-    def agent_init(c):
-        agent = MyAgent(c, suggested_aid="process_agent2")
-        agent.schedule_instant_acl_message(
-            "Message To Process Agent",
-            receiver_addr=addr,
-            receiver_id="process_agent1",
-            acl_metadata={"sender_id": agent.aid},
-        )
-        return agent
+        # WHEN
+        def agent_init(c):
+            agent = c.include(MyAgent(), suggested_aid="process_agent2")
+            agent.schedule_instant_message("Message To Process Agent", AgentAddress(addr, "process_agent1"))
+            return agent
 
-    await c.as_agent_process(agent_creator=agent_init)
+        await c.as_agent_process(agent_creator=agent_init)
 
-    while main_agent.test_counter != 2:
-        await asyncio.sleep(0.1)
+        while main_agent.test_counter != 2:
+            await asyncio.sleep(0.1)
 
     assert main_agent.test_counter == 2
-
-    await c.shutdown()
 
 
 if __name__ == "__main__":

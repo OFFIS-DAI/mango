@@ -6,10 +6,12 @@ TCPContainer and MQTTContainer
 import asyncio
 import logging
 import time
-from typing import Optional, Tuple, Union
+from typing import Any
 
-from mango.container.core import Container, ContainerMirrorData
+from mango.container.core import Container, AgentAddress
+from mango.container.mp import ContainerMirrorData
 
+from ..messages.message import MangoMessage
 from ..messages.codecs import Codec
 from ..util.clock import Clock
 from .protocol import ContainerProtocol
@@ -160,7 +162,7 @@ class TCPContainer(Container):
     def __init__(
         self,
         *,
-        addr: Tuple[str, int],
+        addr: tuple[str, int],
         codec: Codec,
         loop: asyncio.AbstractEventLoop,
         clock: Clock,
@@ -168,7 +170,7 @@ class TCPContainer(Container):
     ):
         """
         Initializes a TCP container. Do not directly call this method but use
-        the factory method of **Container** instead
+        the factory method create_container instead.
         :param addr: The container address
         :param codec: The codec to use
         :param loop: Current event loop
@@ -182,7 +184,7 @@ class TCPContainer(Container):
             **kwargs,
         )
 
-        self.server = None  # will be set within setup
+        self.server = None  # will be set within start
         self.running = True
         self._tcp_connection_pool = TCPConnectionPool(
             loop,
@@ -190,7 +192,7 @@ class TCPContainer(Container):
             max_connections_per_target=kwargs.get(TCP_MAX_CONNECTIONS_PER_TARGET, 10),
         )
 
-    async def setup(self):
+    async def start(self):
         # create a TCP server bound to host and port that uses the
         # specified protocol
         self.server = await self.loop.create_server(
@@ -198,14 +200,14 @@ class TCPContainer(Container):
             self.addr[0],
             self.addr[1],
         )
+        await super().start()
 
     async def send_message(
         self,
-        content,
-        receiver_addr: Union[str, Tuple[str, int]],
-        *,
-        receiver_id: Optional[str] = None,
-        **kwargs,
+        content: Any,
+        receiver_addr: AgentAddress,
+        sender_id: None | str = None,
+        **kwargs
     ) -> bool:
         """
         The Container sends a message to an agent using TCP.
@@ -215,31 +217,38 @@ class TCPContainer(Container):
         :param receiver_id: The agent id of the receiver
         :param kwargs: Additional parameters to provide protocol specific settings
         """
-        if isinstance(receiver_addr, str) and ":" in receiver_addr:
-            receiver_addr = receiver_addr.split(":")
-        elif isinstance(receiver_addr, (tuple, list)) and len(receiver_addr) == 2:
-            receiver_addr = tuple(receiver_addr)
+        protocol_addr = receiver_addr.addr
+        if isinstance(protocol_addr, str) and ":" in protocol_addr:
+            protocol_addr = protocol_addr.split(":")
+        elif isinstance(protocol_addr, (tuple, list)) and len(protocol_addr) == 2:
+            protocol_addr = tuple(protocol_addr)
         else:
-            logger.warning("Address for sending message is not valid;%s", receiver_addr)
+            logger.warning("Address for sending message is not valid;%s", protocol_addr)
             return False
 
-        message = content
-
-        if receiver_addr == self.addr:
-            if not receiver_id:
-                receiver_id = message.receiver_id
-
+        meta = {}
+        for key, value in kwargs.items():
+            meta[key] = value 
+        meta["sender_id"] = sender_id
+        meta["sender_addr"] = self.addr
+        meta["receiver_id"] = receiver_addr.aid
+        
+        if protocol_addr == self.addr:
             # internal message
-            meta = {"network_protocol": "tcp"}
+            meta["network_protocol"] = "tcp"
             success = self._send_internal_message(
-                message, receiver_id, default_meta=meta
+                content, receiver_addr.aid, default_meta=meta
             )
         else:
-            success = await self._send_external_message(receiver_addr, message)
+            message = content
+            # if the user does not provide a splittable content, we create the default one
+            if not hasattr(content, "split_content_and_meta"):
+                message = MangoMessage(content, meta)
+            success = await self._send_external_message(receiver_addr.addr, message, meta)
 
         return success
 
-    async def _send_external_message(self, addr, message) -> bool:
+    async def _send_external_message(self, addr, message, meta) -> bool:
         """
         Sends *message* to another container at *addr*
         :param addr: Tuple of (host, port)

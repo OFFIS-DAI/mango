@@ -116,7 +116,7 @@ All that is left to do now is to pass our codec to the container. This is done d
 
         # agents can now directly pass content of type MyClass to each other
         my_object = MyClass("abc", 123)
-        await sending_container.send_acl_message(
+        await sending_container.send_message(
             content=my_object, receiver_addr=("localhost", 5555), receiver_id="agent0"
         )
 

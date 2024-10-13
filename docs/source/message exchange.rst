@@ -63,15 +63,7 @@ has to be provided.
 This will appear as the `content` argument at the receivers handle_message() method.
 
 
-If you want to send an ACL-message use the method ``container.send_acl_message``, which will wrap the content in a ACLMessage using ``create_acl`` internally.
-
-.. code-block:: python3
-
-    async def send_acl_message(self, content,
-                            receiver_addr: Union[str, Tuple[str, int]], *,
-                            receiver_id: Optional[str] = None,
-                            acl_metadata: Optional[Dict[str, Any]] = None,
-                            **kwargs) -> bool:
+If you want to send an ACL-message use the method ``create_acl`` to create the ACL content and send it with the regular ``send_message``-method internally.
 
 The argument ``acl_metadata`` enables to set all meta information of an acl message.
 It expects a dictionary with the field name as string as a key and the field value as key.

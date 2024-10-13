@@ -38,16 +38,9 @@ Furthermore there are convenience methods to get rid of the class imports when u
 
         class ScheduleAgent(Agent):
             def __init__(self, container, other_addr, other_id):
-                self.schedule_instant_acl_message(
-                    receiver_addr=other_addr,
-                    receiver_id=other_id,
-                    content="Hello world!")
-                )
-                # equivalent to
-                self.schedule_instant_acl_message(
-                    receiver_addr=other_addr,
-                    receiver_id=other_id,
-                    content="Hello world!"))
+                self.schedule_instant_message(
+                    "Hello world!"
+                    other_addr
                 )
 
             def handle_message(self, content, meta: Dict[str, Any]):
@@ -94,13 +87,13 @@ In mango the following process tasks are available:
 
         class ScheduleAgent(Agent):
             def __init__(self, container, other_addr, other_id):
-                self.schedule_instant_process_task(coroutine_creator=lambda: self.send_acl_message(
+                self.schedule_instant_process_task(coroutine_creator=lambda: self.send_message(
                     receiver_addr=other_addr,
                     receiver_id=other_id,
                     content="Hello world!")
                 )
                 # equivalent to
-                self.schedule_process_task(InstantScheduledProcessTask(coroutine_creator=lambda: self.send_acl_message(
+                self.schedule_process_task(InstantScheduledProcessTask(coroutine_creator=lambda: self.send_message(
                     receiver_addr=other_addr,
                     receiver_id=other_id,
                     content="Hello world!"))
@@ -137,7 +130,7 @@ control how fast or slow time passes within your agent system:
                                          timestamp=self.current_timestamp + 5)
 
         async def send_hello_world(self, receiver_addr, receiver_id):
-            await self.send_acl_message(receiver_addr=receiver_addr,
+            await self.send_message(receiver_addr=receiver_addr,
                                                receiver_id=receiver_id,
                                                content='Hello World')
 
@@ -175,7 +168,7 @@ If you change the clock to an ``ExternalClock`` by uncommenting the ExternalCloc
 the program won't terminate as the time of the clock is not proceeded by an external process.
 If you comment in the ExternalClock and change your main() as follows, the program will terminate after one second:
 
-.. code-block:: python3
+.. code-block:: python
 
     async def main():
         # clock = AsyncioClock()
@@ -190,3 +183,51 @@ If you comment in the ExternalClock and change your main() as follows, the progr
             clock.set_time(clock.time + 5)
         await receiver.wait_for_reply
         await c.shutdown()
+
+
+*******************************
+Using a distributed clock
+*******************************
+To distribute simulations, mango provides a distributed clock, which is implemented with by two Agents: 
+1. DistributedClockAgent: this agent needs to be present in every participating container
+2. DistributedClockManager: this agent shall exist exactly once
+
+The clock is distributed by an DistributedClockManager Agent on the managing container, which listens to the current time.
+
+1. In the other container DistributedClockAgent's are running, which listen to messages from the ClockManager.
+2. The ClockAgent sets the received time on the clock of its container with `set_time` and responds with its `get_next_activity()` after making sure that all tasks which are due at the current timestamp are finished.
+3. The ClockManager only acts after all connected Containers have finished and have sent their next timestamp as response.
+4. The response is then added as a Future on the manager, which makes sure, that the managers `get_next_activity()` shows the next action needed to run on all containers.
+
+Caution: it is needed, that all agents are connected before starting the manager
+
+In the following a simple example is shown.
+
+.. testcode::
+
+  import asyncio
+  from mango import DistributedClockAgent, DistributedClockManager, create_tcp_container, activate, ExternalClock
+
+  async def main():
+    container_man = create_tcp_container(("localhost", 1555), clock=ExternalClock())
+    container_ag = create_tcp_container(("localhost", 1556), clock=ExternalClock())
+
+    clock_agent = container_ag.include(DistributedClockAgent())
+    clock_manager = container_man.include(DistributedClockManager(
+      receiver_clock_addresses=[clock_agent.addr]
+    ))
+
+    async with activate(container_man, container_ag) as cl:
+        # increasing the time
+        container_man.clock.set_time(100)
+        # first distribute the time - then wait for the agent to finish
+        next_event = await clock_manager.distribute_time()
+        # here no second distribute to wait for retrieval is needed
+        # the clock_manager distributed the time to the other container
+        assert container_ag.clock.time == 100
+        print("Time has been distributed!")
+      
+  asyncio.run(main())
+.. testoutput::
+
+    Time has been distributed!

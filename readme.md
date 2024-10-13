@@ -117,29 +117,27 @@ the agent does yet not receive any messages.
 Let's implement another agent that is able to send a hello world message
 to another agent:
 
-```python3
+```python
 
-    from mango import Agent
-    from mango.util.scheduling import InstantScheduledTask
+from mango import Agent
 
-        class HelloWorldAgent(Agent):
-            def __init__(self, container, other_addr, other_id):
-                super().__init__(container)
-                self.schedule_instant_acl_message(
-                    receiver_addr=other_addr,
-                    receiver_id=other_id,
-                    content="Hello world!")
-                )
+    class HelloWorldAgent(Agent):
+        def __init__(self, container, other_addr, other_id):
+            super().__init__(container)
+            self.schedule_instant_message(
+                receiver_addr=other_addr,
+                receiver_id=other_id,
+                content="Hello world!"
+            )
 
-            def handle_message(self, content, meta):
-                print(f"Received a message with the following content: {content}")
+        def handle_message(self, content, meta):
+            print(f"Received a message with the following content: {content}")
 ```
 #### Connecting two agents
 We can now connect an instance of a HelloWorldAgent with an instance of a RepeatingAgent and run them.
 ```python
 import asyncio
-from mango import Agent, create_container
-from mango.util.scheduling import InstantScheduledTask
+from mango import Agent, create_tcp_container, activate
 
 
 class RepeatingAgent(Agent):
@@ -153,28 +151,22 @@ class RepeatingAgent(Agent):
         print(f"Received a message with the following content: {content}")
 
 class HelloWorldAgent(Agent):
-    def __init__(self, container, other_addr, other_id):
-        super().__init__(container)
-        self.schedule_instant_acl_message(
-            receiver_addr=other_addr,
-            receiver_id=other_id,
-            content="Hello world!")
-        )
+    async def greet(self, other_addr):
+        await self.send_message("Hello world!", other_addr)
 
     def handle_message(self, content, meta):
         print(f"Received a message with the following content: {content}")
 
 
 async def run_container_and_two_agents(first_addr, second_addr):
-    first_container = await create_container(addr=first_addr)
-    second_container = await create_container(addr=second_addr)
-    first_agent = RepeatingAgent(first_container)
-    second_agent = HelloWorldAgent(second_container, first_container.addr, first_agent.aid)
-    await asyncio.sleep(1)
-    await first_agent.shutdown()
-    await second_agent.shutdown()
-    await first_container.shutdown()
-    await second_container.shutdown()
+    first_container = create_tcp_container(addr=first_addr)
+    second_container = create_tcp_container(addr=second_addr)
+    
+    first_agent = first_container.include(RepeatingAgent())
+    second_agent = second_container.include(HelloWorldAgent())
+
+    async with activate(first_container, second_container) as cl:
+        await second_agent.greet(first_agent.addr)
 
 
 def test_second_example():
