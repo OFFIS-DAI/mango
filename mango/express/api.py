@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from abc import ABC, abstractmethod
 from typing import Any
@@ -16,8 +17,7 @@ class ContainerActivationManager:
         self._containers = containers
 
     async def __aenter__(self):
-        for container in self._containers:
-            await container.start()
+        await asyncio.gather(*[c.start() for c in self._containers])
         for container in self._containers:
             container.on_ready()
         if len(self._containers) == 1:
@@ -25,8 +25,7 @@ class ContainerActivationManager:
         return self._containers
 
     async def __aexit__(self, exc_type, exc, tb):
-        for container in self._containers:
-            await container.shutdown()
+        await asyncio.gather(*[c.shutdown() for c in self._containers])
 
 
 class RunWithContainer(ABC):
