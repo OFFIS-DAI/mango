@@ -19,6 +19,7 @@ AGENT_PATTERN_NAME_PRE = "agent"
 
 A = TypeVar("A")
 
+
 class Container(ABC):
     """Superclass for a mango container"""
 
@@ -128,7 +129,7 @@ class Container(ABC):
         return aid
 
     def include(self, agent: A, suggested_aid: str = None) -> A:
-        """Include the agent in the container. Return the agent for 
+        """Include the agent in the container. Return the agent for
         convenience.
 
         Args:
@@ -158,14 +159,14 @@ class Container(ABC):
         content: Any,
         receiver_addr: AgentAddress,
         sender_id: None | str = None,
-        **kwargs
+        **kwargs,
     ) -> bool:
         """
         The Container sends a message to an agent according the container protocol.
 
         :param content: The content of the message
         :param receiver_addr: The address the message is sent to, should be constructed using
-                              agent_address(protocol_addr, aid) or address(agent) on sending messages, 
+                              agent_address(protocol_addr, aid) or address(agent) on sending messages,
                               and sender_address(meta) on replying to messages.
         :param kwargs: Can contain additional meta information
         """

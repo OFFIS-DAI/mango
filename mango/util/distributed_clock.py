@@ -16,11 +16,11 @@ class ClockAgent(Agent):
 class DistributedClockManager(ClockAgent):
     def __init__(self, receiver_clock_addresses: list):
         super().__init__()
-        
+
         self.receiver_clock_addresses = receiver_clock_addresses
         self.schedules = []
         self.futures = {}
-    
+
     def on_ready(self):
         self.schedule_instant_task(self.wait_all_online())
 
@@ -50,10 +50,7 @@ class DistributedClockManager(ClockAgent):
             logger.debug("clockmanager send: %s - %s", message, receiver_addr)
             # in MQTT we can not be sure if the message was delivered
             # checking the return code here would only help for TCP
-            await self.send_message(
-                message,
-                receiver_addr
-            )
+            await self.send_message(message, receiver_addr)
             if add_futures:
                 self.futures[receiver_addr] = asyncio.Future()
 
@@ -175,11 +172,8 @@ class DistributedClockAgent(ClockAgent):
                     return
 
                 next_time = self.scheduler.clock.get_next_activity()
-                
-                self.schedule_instant_message(
-                    next_time,
-                    sender_addr(meta)
-                )
+
+                self.schedule_instant_message(next_time, sender_addr(meta))
 
             t.add_done_callback(respond)
         else:

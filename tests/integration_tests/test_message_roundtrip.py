@@ -2,12 +2,12 @@ import asyncio
 
 import pytest
 
-from mango import create_mqtt_container, create_tcp_container, activate, addr
+from mango import activate, addr
 from mango.agent.core import Agent
 from mango.messages.codecs import JSON, PROTOBUF, FastJSON
-from . import create_test_container
 
 from ..unit_tests.messages.msg_pb2 import MyMsg
+from . import create_test_container
 
 M1 = "Hello"
 M2 = "Hello2"
@@ -41,7 +41,9 @@ async def setup_and_run_test_case(connection_type, codec):
     init_addr = ("localhost", 1555) if connection_type == "tcp" else None
     repl_addr = ("localhost", 1556) if connection_type == "tcp" else None
 
-    container_1, container_2 = create_test_container(connection_type, init_addr, repl_addr, codec)
+    container_1, container_2 = create_test_container(
+        connection_type, init_addr, repl_addr, codec
+    )
 
     if connection_type == "mqtt":
         init_target = repl_target = comm_topic
@@ -56,6 +58,7 @@ async def setup_and_run_test_case(connection_type, codec):
 
     async with activate(container_1, container_2) as cl:
         await asyncio.gather(repl_agent.start(), init_agent.start())
+
 
 # InitiatorAgent:
 # - send "Hello"
@@ -75,24 +78,20 @@ class InitiatorAgent(Agent):
 
     async def start(self):
         if getattr(self.container, "subscribe_for_agent", None):
-            await self.container.subscribe_for_agent(aid=self.aid, topic=self.target.addr)
+            await self.container.subscribe_for_agent(
+                aid=self.aid, topic=self.target.addr
+            )
 
         await asyncio.sleep(0.1)
 
         # send initial message
-        await self.send_message(
-            M1,
-            self.target
-        )
+        await self.send_message(M1, self.target)
 
         # await reply
         await self.got_reply
 
         # answer to reply
-        await self.send_message(
-            M3,
-            self.target
-        )
+        await self.send_message(M3, self.target)
 
 
 # ReplierAgent:
@@ -119,7 +118,9 @@ class ReplierAgent(Agent):
 
     async def start(self):
         if getattr(self.container, "subscribe_for_agent", None):
-            await self.container.subscribe_for_agent(aid=self.aid, topic=self.target.addr)
+            await self.container.subscribe_for_agent(
+                aid=self.aid, topic=self.target.addr
+            )
 
         # await "Hello"
         await self.got_first

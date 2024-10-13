@@ -2,11 +2,13 @@ import asyncio
 
 import pytest
 
-from mango import Agent, create_ec_container, sender_addr, activate, addr
+from mango import Agent, activate, addr, create_ec_container, sender_addr
 from mango.util.clock import ExternalClock
 from mango.util.distributed_clock import DistributedClockAgent, DistributedClockManager
 from mango.util.termination_detection import tasks_complete_or_sleeping
+
 from . import create_test_container
+
 
 class Caller(Agent):
     def __init__(
@@ -31,9 +33,7 @@ class Caller(Agent):
         )
 
     async def send_hello_world(self, receiver_addr):
-        await self.send_message(
-            receiver_addr=receiver_addr, content="Hello World"
-        )
+        await self.send_message(receiver_addr=receiver_addr, content="Hello World")
 
     async def send_ordered(self, meta):
         await self.send_message(
@@ -70,7 +70,7 @@ async def test_termination_single_container():
     receiver = c.include(Receiver())
     caller = c.include(Caller(receiver.addr, send_response_messages=True))
 
-    async with activate(c) as c: 
+    async with activate(c) as c:
         await asyncio.sleep(0.1)
         clock.set_time(clock.time + 5)
         # wait until each agent is done with all tasks at some point
@@ -88,23 +88,29 @@ async def test_termination_single_container():
 
     assert caller.i == caller.max_count
 
+
 async def distribute_ping_pong_test(connection_type, codec=None, max_count=100):
     init_addr = ("localhost", 1555) if connection_type == "tcp" else "c1"
     repl_addr = ("localhost", 1556) if connection_type == "tcp" else "c2"
 
-    container_man, container_ag = create_test_container(connection_type, init_addr, repl_addr, codec)
+    container_man, container_ag = create_test_container(
+        connection_type, init_addr, repl_addr, codec
+    )
 
     clock_agent = container_ag.include(DistributedClockAgent())
-    clock_manager = container_man.include(DistributedClockManager(
-        receiver_clock_addresses=[addr(repl_addr, clock_agent.aid)]
-    ))
+    clock_manager = container_man.include(
+        DistributedClockManager(
+            receiver_clock_addresses=[addr(repl_addr, clock_agent.aid)]
+        )
+    )
     receiver = container_ag.include(Receiver())
-    caller = container_man.include(Caller(
-        addr(repl_addr, receiver.aid),
-        send_response_messages=True,
-        max_count=max_count,
-    ))
-
+    caller = container_man.include(
+        Caller(
+            addr(repl_addr, receiver.aid),
+            send_response_messages=True,
+            max_count=max_count,
+        )
+    )
 
     async with activate(container_man, container_ag) as c:
         container_man.clock.set_time(container_man.clock.time + 5)
@@ -112,7 +118,7 @@ async def distribute_ping_pong_test(connection_type, codec=None, max_count=100):
         # we do not have distributed termination detection yet in core
         assert caller.i < caller.max_count
         await caller.done
-        
+
     assert caller.i == caller.max_count
 
 
@@ -122,19 +128,25 @@ async def distribute_ping_pong_test_timestamp(
     init_addr = ("localhost", 1555) if connection_type == "tcp" else "c1"
     repl_addr = ("localhost", 1556) if connection_type == "tcp" else "c2"
 
-    container_man, container_ag = create_test_container(connection_type, init_addr, repl_addr, codec)
+    container_man, container_ag = create_test_container(
+        connection_type, init_addr, repl_addr, codec
+    )
 
     clock_agent = container_ag.include(DistributedClockAgent())
-    clock_manager = container_man.include(DistributedClockManager(
-        receiver_clock_addresses=[addr(repl_addr, clock_agent.aid)]
-    ))
+    clock_manager = container_man.include(
+        DistributedClockManager(
+            receiver_clock_addresses=[addr(repl_addr, clock_agent.aid)]
+        )
+    )
     receiver = container_ag.include(Receiver())
-    caller = container_man.include(Caller(
-        addr(repl_addr, receiver.aid),
-        send_response_messages=True,
-        max_count=max_count,
-        schedule_timestamp=True,
-    ))
+    caller = container_man.include(
+        Caller(
+            addr(repl_addr, receiver.aid),
+            send_response_messages=True,
+            max_count=max_count,
+            schedule_timestamp=True,
+        )
+    )
 
     # we do not have distributed termination detection yet in core
     async with activate(container_man, container_ag) as cl:
@@ -182,12 +194,16 @@ async def distribute_time_test_case(connection_type, codec=None):
     init_addr = ("localhost", 1555) if connection_type == "tcp" else "c1"
     repl_addr = ("localhost", 1556) if connection_type == "tcp" else "c2"
 
-    container_man, container_ag = create_test_container(connection_type, init_addr, repl_addr, codec)
+    container_man, container_ag = create_test_container(
+        connection_type, init_addr, repl_addr, codec
+    )
 
     clock_agent = container_ag.include(DistributedClockAgent())
-    clock_manager = container_man.include(DistributedClockManager(
-        receiver_clock_addresses=[addr(repl_addr, clock_agent.aid)]
-    ))
+    clock_manager = container_man.include(
+        DistributedClockManager(
+            receiver_clock_addresses=[addr(repl_addr, clock_agent.aid)]
+        )
+    )
     receiver = container_ag.include(Receiver())
     caller = container_ag.include(Caller(addr(repl_addr, receiver.aid)))
 
@@ -227,12 +243,16 @@ async def send_current_time_test_case(connection_type, codec=None):
     init_addr = ("localhost", 1555) if connection_type == "tcp" else "c1"
     repl_addr = ("localhost", 1556) if connection_type == "tcp" else "c2"
 
-    container_man, container_ag = create_test_container(connection_type, init_addr, repl_addr, codec)
+    container_man, container_ag = create_test_container(
+        connection_type, init_addr, repl_addr, codec
+    )
 
     clock_agent = container_ag.include(DistributedClockAgent())
-    clock_manager = container_man.include(DistributedClockManager(
-        receiver_clock_addresses=[addr(repl_addr, clock_agent.aid)]
-    ))
+    clock_manager = container_man.include(
+        DistributedClockManager(
+            receiver_clock_addresses=[addr(repl_addr, clock_agent.aid)]
+        )
+    )
     receiver = container_ag.include(Receiver())
     caller = container_ag.include(Caller(addr(repl_addr, receiver.aid)))
 

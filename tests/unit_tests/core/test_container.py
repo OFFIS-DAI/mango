@@ -1,7 +1,8 @@
 import pytest
 
+from mango import create_acl, create_tcp_container
 from mango.agent.core import Agent
-from mango import create_tcp_container, create_acl
+
 
 class LooksLikeAgent:
     async def shutdown(self):
@@ -150,8 +151,11 @@ async def test_create_acl_no_modify():
     c = create_tcp_container(addr=("127.0.0.2", 5555))
     common_acl_q = {}
     actual_acl_message = create_acl(
-        "", receiver_addr="", receiver_id="", acl_metadata=common_acl_q,
-        sender_addr=c.addr
+        "",
+        receiver_addr="",
+        receiver_id="",
+        acl_metadata=common_acl_q,
+        sender_addr=c.addr,
     )
 
     assert "reeiver_addr" not in common_acl_q
@@ -165,8 +169,7 @@ async def test_create_acl_no_modify():
 async def test_create_acl_anon():
     c = create_tcp_container(addr=("127.0.0.2", 5555))
     actual_acl_message = create_acl(
-        "", receiver_addr="", receiver_id="", is_anonymous_acl=True,
-                sender_addr=c.addr
+        "", receiver_addr="", receiver_id="", is_anonymous_acl=True, sender_addr=c.addr
     )
 
     assert actual_acl_message.sender_addr is None
@@ -195,15 +198,11 @@ class Data:
 
 @pytest.mark.asyncio
 async def test_send_message_no_copy():
-    c = create_tcp_container(
-        addr=("127.0.0.2", 5555), copy_internal_messages=False
-    )
+    c = create_tcp_container(addr=("127.0.0.2", 5555), copy_internal_messages=False)
     agent1 = c.include(ExampleAgent())
     message_to_send = Data()
 
-    await c.send_message(
-        message_to_send, receiver_addr=agent1.addr
-    )
+    await c.send_message(message_to_send, receiver_addr=agent1.addr)
     await c.shutdown()
 
     assert agent1.content is message_to_send
@@ -211,15 +210,11 @@ async def test_send_message_no_copy():
 
 @pytest.mark.asyncio
 async def test_send_message_copy():
-    c = create_tcp_container(
-        addr=("127.0.0.2", 5555), copy_internal_messages=True
-    )
+    c = create_tcp_container(addr=("127.0.0.2", 5555), copy_internal_messages=True)
     agent1 = c.include(ExampleAgent())
     message_to_send = Data()
 
-    await c.send_message(
-        message_to_send, receiver_addr=agent1.addr
-    )
+    await c.send_message(message_to_send, receiver_addr=agent1.addr)
     await c.shutdown()
 
     assert agent1.content is not message_to_send

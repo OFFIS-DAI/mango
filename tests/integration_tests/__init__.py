@@ -1,6 +1,7 @@
 from mango import create_tcp_container, create_mqtt_container
 from mango.util.clock import ExternalClock
 
+
 def create_test_container(type, init_addr, repl_addr, codec):
     broker = ("localhost", 1883, 60)
 
@@ -15,10 +16,10 @@ def create_test_container(type, init_addr, repl_addr, codec):
         container_man = create_mqtt_container(
             broker_addr=broker,
             client_id="container_1",
-            clock=clock_man, 
+            clock=clock_man,
             codec=codec,
             inbox_topic=init_addr,
-            transport="tcp"
+            transport="tcp",
         )
     clock_ag = ExternalClock()
     if type == "tcp":
@@ -31,9 +32,9 @@ def create_test_container(type, init_addr, repl_addr, codec):
         container_ag = create_mqtt_container(
             broker_addr=broker,
             client_id="container_2",
-            clock=clock_ag, 
+            clock=clock_ag,
             codec=codec,
             inbox_topic=repl_addr,
-            transport="tcp"
+            transport="tcp",
         )
     return container_man, container_ag

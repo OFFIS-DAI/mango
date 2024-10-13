@@ -232,14 +232,15 @@ class RoleHandler:
             self._role_event_type_to_handler[event_type] = []
 
         self._role_event_type_to_handler[event_type] += [(role, method)]
-    
+
     def on_start(self):
         for role in self.roles:
             role.on_start()
-    
+
     def on_ready(self):
         for role in self.roles:
             role.on_ready()
+
 
 class RoleContext(AgentDelegates):
     """Implementation of the RoleContext."""
@@ -340,7 +341,6 @@ class RoleContext(AgentDelegates):
             **kwargs,
         )
 
-
     def emit_event(self, event: Any, event_source: Any = None):
         """Emit an custom event to other roles.
 
@@ -375,7 +375,7 @@ class RoleContext(AgentDelegates):
 
     def activate(self, role) -> None:
         self._role_handler.activate(role)
-    
+
     def on_start(self):
         self._role_handler.on_start()
 
@@ -388,9 +388,7 @@ class RoleAgent(Agent):
     a RoleAgent as base for your agents. A role can be added with :func:`RoleAgent.add_role`.
     """
 
-    def __init__(
-        self
-    ):
+    def __init__(self):
         """Create a role-agent
 
         :param container: container the agent lives in
@@ -399,10 +397,8 @@ class RoleAgent(Agent):
         """
         super().__init__()
         self._role_handler = RoleHandler(None, None)
-        self._role_context = RoleContext(
-            self._role_handler, self.aid, self.inbox
-        )
-    
+        self._role_context = RoleContext(self._role_handler, self.aid, self.inbox)
+
     def on_start(self):
         self._role_context.on_start()
 
@@ -445,7 +441,6 @@ class RoleAgent(Agent):
     async def shutdown(self):
         await self._role_handler.on_stop()
         await super().shutdown()
-
 
 
 class Role(ABC):
@@ -501,12 +496,10 @@ class Role(ABC):
         """Lifecycle hook in, which will be called when the container is shut down or if the role got removed."""
 
     def on_start(self) -> None:
-        """Called when container started in which the agent is contained
-        """
+        """Called when container started in which the agent is contained"""
 
     def on_ready(self):
-        """Called after the start of all container using activate
-        """
+        """Called after the start of all container using activate"""
 
     def handle_message(self, content: Any, meta: dict):
         pass

@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 
-from mango import Agent, create_tcp_container, sender_addr, AgentAddress, activate, addr
+from mango import Agent, AgentAddress, activate, addr, create_tcp_container, sender_addr
 
 
 class MyAgent(Agent):
@@ -16,8 +16,7 @@ class MyAgent(Agent):
         if self.test_counter == 1:
             # send back pong, providing your own details
             self.current_task = self.schedule_instant_message(
-                content="pong",
-                receiver_addr=sender_addr(meta)
+                content="pong", receiver_addr=sender_addr(meta)
             )
 
 
@@ -39,8 +38,7 @@ class P2PTestAgent(Agent):
     def handle_message(self, content, meta):
         # send back pong, providing your own details
         self.current_task = self.schedule_instant_message(
-            content="pong",
-            receiver_addr=addr(meta["sender_addr"], self.receiver_id)
+            content="pong", receiver_addr=addr(meta["sender_addr"], self.receiver_id)
         )
 
 
@@ -79,12 +77,13 @@ async def test_agent_processes_ping_pong(num_sp_agents, num_sp):
             for j in range(num_sp_agents):
                 await agent.send_message(
                     "Message To Process Agent",
-                    receiver_addr=addr(c.addr, f"process_agent{i},{j}")
+                    receiver_addr=addr(c.addr, f"process_agent{i},{j}"),
                 )
         while agent.test_counter != num_sp_agents * num_sp:
             await asyncio.sleep(0.1)
 
     assert agent.test_counter == num_sp_agents * num_sp
+
 
 @pytest.mark.asyncio
 async def test_agent_processes_ping_pong_p_to_p():
@@ -93,8 +92,9 @@ async def test_agent_processes_ping_pong_p_to_p():
     aid_main_agent = "main_agent"
     c = create_tcp_container(addr=addr, copy_internal_messages=False)
     await c.as_agent_process(
-        agent_creator=lambda container: container.include(P2PTestAgent(aid_main_agent), 
-                                                          suggested_aid="process_agent1")
+        agent_creator=lambda container: container.include(
+            P2PTestAgent(aid_main_agent), suggested_aid="process_agent1"
+        )
     )
     main_agent = c.include(P2PMainAgent(), suggested_aid=aid_main_agent)
 
@@ -103,7 +103,7 @@ async def test_agent_processes_ping_pong_p_to_p():
         agent = c.include(MyAgent(), suggested_aid="process_agent2")
         agent.schedule_instant_message(
             "Message To Process Agent",
-            receiver_addr=AgentAddress(addr, "process_agent1")
+            receiver_addr=AgentAddress(addr, "process_agent1"),
         )
         return agent
 
@@ -125,11 +125,10 @@ async def test_async_agent_processes_ping_pong_p_to_p():
     main_agent = c.include(P2PMainAgent(), suggested_aid=aid_main_agent)
 
     async def agent_creator(container):
-        p2pta = container.include(P2PTestAgent(aid_main_agent), suggested_aid="process_agent1")
-        await p2pta.send_message(
-            content="pong",
-            receiver_addr=main_agent.addr
+        p2pta = container.include(
+            P2PTestAgent(aid_main_agent), suggested_aid="process_agent1"
         )
+        await p2pta.send_message(content="pong", receiver_addr=main_agent.addr)
 
     async with activate(c) as c:
         await c.as_agent_process(agent_creator=agent_creator)
@@ -137,7 +136,9 @@ async def test_async_agent_processes_ping_pong_p_to_p():
         # WHEN
         def agent_init(c):
             agent = c.include(MyAgent(), suggested_aid="process_agent2")
-            agent.schedule_instant_message("Message To Process Agent", AgentAddress(addr, "process_agent1"))
+            agent.schedule_instant_message(
+                "Message To Process Agent", AgentAddress(addr, "process_agent1")
+            )
             return agent
 
         await c.as_agent_process(agent_creator=agent_init)

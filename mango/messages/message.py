@@ -6,6 +6,7 @@ http://www.fipa.org/specs/fipa00061/SC00061G.html#_Toc26669715
 It also includes the enum classes for the message Performative and Type
 
 """
+
 import pickle
 import warnings
 from abc import ABC, abstractmethod
@@ -21,14 +22,15 @@ class Message(ABC):
     @abstractmethod
     def split_content_and_meta(self):
         pass
-    
+
     def __asdict__(self):
         return vars(self)
+
 
 @dataclass
 class MangoMessage(Message):
     content: Any = None
-    meta: dict[str,Any] = None
+    meta: dict[str, Any] = None
 
     def split_content_and_meta(self):
         return self.content, self.meta
@@ -57,16 +59,17 @@ class MangoMessage(Message):
 
         mango_message = cls()
 
-        mango_message.content = pickle.loads(bytes(msg.content)) if msg.content else None
+        mango_message.content = (
+            pickle.loads(bytes(msg.content)) if msg.content else None
+        )
         mango_message.meta = pickle.loads(bytes(msg.meta)) if msg.meta else None
 
         return mango_message
-    
+
     @classmethod
     def __protoserializer__(cls):
         return cls, cls.__toproto__, cls.__fromproto__
 
-    
 
 class ACLMessage(Message):
     """
@@ -238,6 +241,7 @@ class Performatives(Enum):
     inform_if = 20
     proxy = 21
     propagate = 22
+
 
 def create_acl(
     content,

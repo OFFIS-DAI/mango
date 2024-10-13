@@ -102,7 +102,7 @@ class ExternalSchedulingContainer(Container):
 
         meta = {}
         for key, value in kwargs.items():
-            meta[key] = value 
+            meta[key] = value
         meta["sender_id"] = sender_id
         meta["sender_addr"] = self.addr
         meta["receiver_id"] = receiver_addr.aid

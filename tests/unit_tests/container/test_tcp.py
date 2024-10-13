@@ -47,7 +47,7 @@ async def test_connection_pool_double_obtain_release():
     c2 = create_tcp_container(addr=("127.0.0.2", 5556), copy_internal_messages=False)
     await c.start()
     await c2.start()
-    
+
     addr = "127.0.0.2", 5556
     connection_pool = TCPConnectionPool(asyncio.get_event_loop())
     raw_prot = ContainerProtocol(

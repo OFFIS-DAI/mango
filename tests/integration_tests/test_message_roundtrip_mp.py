@@ -2,8 +2,8 @@ import asyncio
 
 import pytest
 
+from mango import AgentAddress, activate, create_tcp_container, sender_addr
 from mango.agent.core import Agent
-from mango import AgentAddress, sender_addr, create_tcp_container, activate
 
 
 class PingPongAgent(Agent):
@@ -46,12 +46,12 @@ async def test_mp_simple_ping_pong_multi_container_tcp():
     async with activate(container_1, container_2) as cl:
         await agent.send_message(
             "Message To Process Agent1",
-            receiver_addr=AgentAddress(container_1.addr,aid1)
+            receiver_addr=AgentAddress(container_1.addr, aid1),
         )
 
         await agent.send_message(
             "Message To Process Agent2",
-            receiver_addr=AgentAddress(container_2.addr,aid2)
+            receiver_addr=AgentAddress(container_2.addr, aid2),
         )
 
         while agent.test_counter != 2:

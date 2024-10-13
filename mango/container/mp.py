@@ -1,4 +1,3 @@
-
 import asyncio
 import logging
 import os
@@ -15,6 +14,7 @@ from ..util.multiprocessing import AioDuplex, PipeToWriteQueue, aioduplex
 logger = logging.getLogger(__name__)
 
 WAIT_STEP = 0.01
+
 
 class IPCEventType(enumerate):
     """Available IPC event types for event process container communication"""

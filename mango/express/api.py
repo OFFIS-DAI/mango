@@ -10,8 +10,8 @@ from ..messages.codecs import Codec
 
 logger = logging.getLogger(__name__)
 
-class ContainerActivationManager:
 
+class ContainerActivationManager:
     def __init__(self, containers: list[Container]) -> None:
         self._containers = containers
 
@@ -27,6 +27,7 @@ class ContainerActivationManager:
     async def __aexit__(self, exc_type, exc, tb):
         for container in self._containers:
             await container.shutdown()
+
 
 class RunWithContainer(ABC):
     def __init__(self, num: int, *agents: tuple[Agent, dict]) -> None:
@@ -46,12 +47,14 @@ class RunWithContainer(ABC):
         if self._num > len(self._agents):
             actual_number_container = len(self._agents)
         container_list = self.create_container_list(actual_number_container)
-        for (i, agent_tuple) in enumerate(self._agents):
+        for i, agent_tuple in enumerate(self._agents):
             container_id = i % actual_number_container
             container = container_list[container_id]
             actual_agent = agent_tuple[0]
             agent_params = agent_tuple[1]
-            container.register_agent(actual_agent, suggested_aid=agent_params.get("aid", None))
+            container.register_agent(
+                actual_agent, suggested_aid=agent_params.get("aid", None)
+            )
         self.__activation_cm = activate(container_list)
         await self.__activation_cm.__aenter__()
         await self.after_start(container_list, self._agents)
@@ -60,43 +63,60 @@ class RunWithContainer(ABC):
     async def __aexit__(self, exc_type, exc, tb):
         await self.__activation_cm.__aexit__(exc_type, exc, tb)
 
-class RunWithTCPManager(RunWithContainer):
 
-    def __init__(self, 
-                 num: int, 
-                 *agents: Agent | tuple[Agent, dict],
-                 addr: tuple[str, int] = ("127.0.0.1", 5555), 
-                 codec: None | Codec = None) -> None:
-        agents = [agent if isinstance(agent, tuple) else (agent, dict()) for agent in agents[0]]
+class RunWithTCPManager(RunWithContainer):
+    def __init__(
+        self,
+        num: int,
+        *agents: Agent | tuple[Agent, dict],
+        addr: tuple[str, int] = ("127.0.0.1", 5555),
+        codec: None | Codec = None,
+    ) -> None:
+        agents = [
+            agent if isinstance(agent, tuple) else (agent, dict())
+            for agent in agents[0]
+        ]
         super().__init__(num, *agents)
 
         self._addr = addr
         self._codec = codec
 
     def create_container_list(self, num):
-        return [create_tcp((self._addr[0], self._addr[1]+i), codec=self._codec) for i in range(num)]
+        return [
+            create_tcp((self._addr[0], self._addr[1] + i), codec=self._codec)
+            for i in range(num)
+        ]
+
 
 class RunWithMQTTManager(RunWithContainer):
-
-    def __init__(self, 
-                 num: int, 
-                 *agents: Agent | tuple[Agent, dict],
-                 broker_addr: tuple[str, int] = ("127.0.0.1", 5555),
-                 codec: None | Codec = None) -> None:
-        agents = [agent if isinstance(agent, tuple) else (agent, dict()) for agent in agents[0]]
+    def __init__(
+        self,
+        num: int,
+        *agents: Agent | tuple[Agent, dict],
+        broker_addr: tuple[str, int] = ("127.0.0.1", 5555),
+        codec: None | Codec = None,
+    ) -> None:
+        agents = [
+            agent if isinstance(agent, tuple) else (agent, dict())
+            for agent in agents[0]
+        ]
         super().__init__(num, *agents)
 
         self._broker_addr = broker_addr
         self._codec = codec
 
     def create_container_list(self, num):
-        return [create_mqtt((self._broker_addr[0], self._broker_addr[1]+i), 
-                            client_id=f"client{i}", 
-                            codec=self._codec) 
-                    for i in range(num)]
+        return [
+            create_mqtt(
+                (self._broker_addr[0], self._broker_addr[1] + i),
+                client_id=f"client{i}",
+                codec=self._codec,
+            )
+            for i in range(num)
+        ]
 
     async def after_start(self, container_list, agents):
-        for (i, agent_tuple) in enumerate(agents):
+        for i, agent_tuple in enumerate(agents):
             container_id = i % len(container_list)
             container = container_list[container_id]
             actual_agent = agent_tuple[0]
@@ -110,14 +130,14 @@ def activate(*containers: Container) -> ContainerActivationManager:
     """Create and return an async activation context manager. This can be used with the
     `async with` syntax to run code while the container(s) are active. The containers
     are started first, after your code under `async with` will run, and at the end
-    the container will shut down (even when an error occurs). 
+    the container will shut down (even when an error occurs).
 
     Example:
     ```python
     # Single container
     async with activate(container) as container:
         # do your stuff
-        
+
     # Multiple container
     async with activate(container_list) as container_list:
         # do your stuff
@@ -133,10 +153,13 @@ def activate(*containers: Container) -> ContainerActivationManager:
         containers = containers[0]
     return ContainerActivationManager(list(containers))
 
-def run_with_tcp(num: int, 
-                 *agents: Agent | tuple[Agent, dict], 
-                 addr: tuple[str, int] = ("127.0.0.1", 5555), 
-                 codec: None | Codec = None) -> RunWithTCPManager:
+
+def run_with_tcp(
+    num: int,
+    *agents: Agent | tuple[Agent, dict],
+    addr: tuple[str, int] = ("127.0.0.1", 5555),
+    codec: None | Codec = None,
+) -> RunWithTCPManager:
     """Create and return an async context manager, which can be used to run the given
     agents in `num` automatically created tcp container. The agents are distributed
     evenly.
@@ -156,10 +179,13 @@ def run_with_tcp(num: int,
     """
     return RunWithTCPManager(num, agents, addr=addr, codec=codec)
 
-def run_with_mqtt(num: int, 
-                  *agents: tuple[Agent, dict], 
-                  broker_addr: tuple[str, int] = ("127.0.0.1", 1883),
-                  codec: None | Codec = None) -> RunWithMQTTManager:
+
+def run_with_mqtt(
+    num: int,
+    *agents: tuple[Agent, dict],
+    broker_addr: tuple[str, int] = ("127.0.0.1", 1883),
+    codec: None | Codec = None,
+) -> RunWithMQTTManager:
     """Create and return an async context manager, which can be used to run the given
     agents in `num` automatically created mqtt container. The agents are distributed according
     to the topic
@@ -177,8 +203,10 @@ def run_with_mqtt(num: int,
     """
     return RunWithMQTTManager(num, agents, broker_addr=broker_addr, codec=codec)
 
+
 class ComposedAgent(RoleAgent):
     pass
+
 
 def agent_composed_of(*roles: Role, register_in: None | Container) -> ComposedAgent:
     """Create an agent composed of the given `roles`. If a container is provided,
@@ -186,7 +214,7 @@ def agent_composed_of(*roles: Role, register_in: None | Container) -> ComposedAg
 
     Args:
         *roles Role: The roles which are added to the agent
-        register_in (None | Container): container in which the created agent is registered, 
+        register_in (None | Container): container in which the created agent is registered,
                                         if provided
     """
     agent = ComposedAgent()
@@ -196,9 +224,11 @@ def agent_composed_of(*roles: Role, register_in: None | Container) -> ComposedAg
         register_in.register_agent(agent)
     return agent
 
+
 class PrintingAgent(Agent):
     def handle_message(self, content, meta: dict[str, Any]):
         logging.info("Received: %s with %s", content, meta)
+
 
 def sender_addr(meta: dict) -> AgentAddress:
     """Extract the sender_addr from the meta dict.
@@ -210,7 +240,13 @@ def sender_addr(meta: dict) -> AgentAddress:
         AgentAddress: Extracted agent address to be used for replying to messages
     """
     # convert decoded addr list to tuple for hashability
-    return AgentAddress(tuple(meta["sender_addr"]) if isinstance(meta["sender_addr"], list) else meta["sender_addr"], meta["sender_id"])
+    return AgentAddress(
+        tuple(meta["sender_addr"])
+        if isinstance(meta["sender_addr"], list)
+        else meta["sender_addr"],
+        meta["sender_id"],
+    )
+
 
 def addr(protocol_part: Any, aid: str) -> AgentAddress:
     """Create an Address from the topic.

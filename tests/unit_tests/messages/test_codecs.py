@@ -10,7 +10,7 @@ from mango.messages.codecs import (
     SerializationError,
     json_serializable,
 )
-from mango.messages.message import ACLMessage, Performatives, MangoMessage
+from mango.messages.message import ACLMessage, MangoMessage, Performatives
 
 from .msg_pb2 import MyMsg
 

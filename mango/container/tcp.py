@@ -207,7 +207,7 @@ class TCPContainer(Container):
         content: Any,
         receiver_addr: AgentAddress,
         sender_id: None | str = None,
-        **kwargs
+        **kwargs,
     ) -> bool:
         """
         The Container sends a message to an agent using TCP.
@@ -228,11 +228,11 @@ class TCPContainer(Container):
 
         meta = {}
         for key, value in kwargs.items():
-            meta[key] = value 
+            meta[key] = value
         meta["sender_id"] = sender_id
         meta["sender_addr"] = self.addr
         meta["receiver_id"] = receiver_addr.aid
-        
+
         if protocol_addr == self.addr:
             # internal message
             meta["network_protocol"] = "tcp"
@@ -244,7 +244,9 @@ class TCPContainer(Container):
             # if the user does not provide a splittable content, we create the default one
             if not hasattr(content, "split_content_and_meta"):
                 message = MangoMessage(content, meta)
-            success = await self._send_external_message(receiver_addr.addr, message, meta)
+            success = await self._send_external_message(
+                receiver_addr.addr, message, meta
+            )
 
         return success
 

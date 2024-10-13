@@ -3,19 +3,16 @@ from typing import Any, Dict
 
 import pytest
 
+from mango import AgentAddress, create_acl, create_ec_container, sender_addr
 from mango.agent.core import Agent
 from mango.container.external_coupling import ExternalAgentMessage
-from mango.container.factory import EXTERNAL_CONNECTION
 from mango.messages.message import ACLMessage
 from mango.util.clock import ExternalClock
-from mango import AgentAddress, create_ec_container, AgentAddress, sender_addr, create_acl
 
 
 @pytest.mark.asyncio
 async def test_init():
-    external_scheduling_container = create_ec_container(
-        addr="external_eid_1234"
-    )
+    external_scheduling_container = create_ec_container(addr="external_eid_1234")
     assert external_scheduling_container.addr == "external_eid_1234"
     assert isinstance(external_scheduling_container.clock, ExternalClock)
     await external_scheduling_container.shutdown()
@@ -74,7 +71,7 @@ class ReplyAgent(Agent):
     async def send_ping(self):
         await self.send_message(
             content=f"ping{self.current_ping}",
-            receiver_addr=AgentAddress("ping_receiver_addr","ping_receiver_id")
+            receiver_addr=AgentAddress("ping_receiver_addr", "ping_receiver_id"),
         )
         self.current_ping += 1
 
@@ -83,13 +80,11 @@ class ReplyAgent(Agent):
 
     async def sleep_and_answer(self, content, meta):
         await self.send_message(
-            content=f"I received {content}",
-            receiver_addr=sender_addr(meta)
+            content=f"I received {content}", receiver_addr=sender_addr(meta)
         )
         await asyncio.sleep(0.1)
         await self.send_message(
-            content=f"Thanks for sending {content}",
-            receiver_addr=sender_addr(meta)
+            content=f"Thanks for sending {content}", receiver_addr=sender_addr(meta)
         )
 
     async def stop_tasks(self):
@@ -123,9 +118,7 @@ class WaitForMessageAgent(Agent):
 
 @pytest.mark.asyncio
 async def test_step_with_cond_task():
-    external_scheduling_container = create_ec_container(
-        addr="external_eid_1"
-    )
+    external_scheduling_container = create_ec_container(addr="external_eid_1")
     agent_1 = external_scheduling_container.include(WaitForMessageAgent())
     print("Agent init")
 
@@ -153,7 +146,7 @@ async def test_step_with_cond_task():
         content="",
         receiver_addr=external_scheduling_container.addr,
         receiver_id=agent_1.aid,
-        sender_addr=external_scheduling_container.addr
+        sender_addr=external_scheduling_container.addr,
     )
     encoded_msg = external_scheduling_container.codec.encode(message)
     print("created message")
@@ -196,24 +189,22 @@ class SelfSendAgent(Agent):
             i += 1
         # send message to yourself if necessary
         if self.no_received_msg < self.final_no:
-            self.schedule_instant_message(
-                receiver_addr=self.addr, content=content
-            )
+            self.schedule_instant_message(receiver_addr=self.addr, content=content)
         else:
-            self.schedule_instant_message(content, AgentAddress("AnyOtherAddr", "AnyOtherId"))
+            self.schedule_instant_message(
+                content, AgentAddress("AnyOtherAddr", "AnyOtherId")
+            )
 
 
 @pytest.mark.asyncio
 async def test_send_internal_messages():
-    external_scheduling_container = create_ec_container(
-        addr="external_eid_1"
-    )
+    external_scheduling_container = create_ec_container(addr="external_eid_1")
     agent_1 = external_scheduling_container.include(SelfSendAgent(final_number=3))
     message = create_acl(
         content="",
         receiver_addr=external_scheduling_container.addr,
         receiver_id=agent_1.aid,
-        sender_addr=external_scheduling_container.addr
+        sender_addr=external_scheduling_container.addr,
     )
     encoded_msg = external_scheduling_container.codec.encode(message)
     return_values = await external_scheduling_container.step(
@@ -226,9 +217,7 @@ async def test_send_internal_messages():
 
 @pytest.mark.asyncio
 async def test_step_with_replying_agent():
-    external_scheduling_container = create_ec_container(
-        addr="external_eid_1"
-    )
+    external_scheduling_container = create_ec_container(addr="external_eid_1")
     reply_agent = external_scheduling_container.include(ReplyAgent())
     new_acl_msg = ACLMessage()
     new_acl_msg.content = "hello you"

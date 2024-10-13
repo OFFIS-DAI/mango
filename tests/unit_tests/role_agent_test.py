@@ -4,14 +4,16 @@ from typing import Any, Dict
 
 import pytest
 
+from mango import activate, create_tcp_container, sender_addr
 from mango.agent.role import Role, RoleAgent, RoleContext
 from mango.util.scheduling import TimestampScheduledTask
-from mango import sender_addr, create_tcp_container, activate
 
 
 class SimpleReactiveRole(Role):
     def setup(self):
-        self.context.subscribe_message(self, self.react_handle_message, self.is_applicable)
+        self.context.subscribe_message(
+            self, self.react_handle_message, self.is_applicable
+        )
 
     def react_handle_message(self, content, meta: Dict[str, Any]) -> None:
         pass
@@ -30,8 +32,7 @@ class PongRole(SimpleReactiveRole):
 
         # send back pong, providing your own details
         t = self.context.schedule_instant_message(
-            content="pong",
-            receiver_addr=sender_addr(meta)
+            content="pong", receiver_addr=sender_addr(meta)
         )
 
         self.sending_tasks.append(t)
@@ -51,9 +52,7 @@ class PingRole(SimpleReactiveRole):
         sender = sender_addr(meta)
         assert sender in self.open_ping_requests.keys()
 
-        self.open_ping_requests[sender].set_result(
-            True
-        )
+        self.open_ping_requests[sender].set_result(True)
 
     def is_applicable(self, content, meta):
         return content == "pong"
@@ -70,9 +69,7 @@ class PingRole(SimpleReactiveRole):
         ):
             self.context.schedule_task(task)
 
-    async def send_ping_to_other(
-        self, other_addr, agent_context: RoleContext
-    ):
+    async def send_ping_to_other(self, other_addr, agent_context: RoleContext):
         # create
         self.open_ping_requests[other_addr] = asyncio.Future()
         success = await agent_context.send_message(

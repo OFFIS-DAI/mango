@@ -1,5 +1,3 @@
-import asyncio
-
 import pytest
 
 from mango import activate, addr
@@ -14,13 +12,18 @@ JSON_CODEC = JSON()
 async def setup_and_run_test_case(connection_type, codec):
     init_addr = ("localhost", 1555) if connection_type == "tcp" else "c1"
     repl_addr = ("localhost", 1556) if connection_type == "tcp" else "c2"
-    
-    container_man, container_ag = create_test_container(connection_type, init_addr, repl_addr, codec)
+
+    container_man, container_ag = create_test_container(
+        connection_type, init_addr, repl_addr, codec
+    )
 
     clock_agent = container_ag.include(DistributedClockAgent())
-    clock_manager = container_man.include(DistributedClockManager(receiver_clock_addresses=[addr(repl_addr, clock_agent.aid)]
-    ))
- 
+    clock_manager = container_man.include(
+        DistributedClockManager(
+            receiver_clock_addresses=[addr(repl_addr, clock_agent.aid)]
+        )
+    )
+
     async with activate(container_man, container_ag) as cl:
         # increasing the time
         container_man.clock.set_time(100)
@@ -39,7 +42,6 @@ async def setup_and_run_test_case(connection_type, codec):
         await clock_manager.distribute_time()
         # did work the second time too
         assert container_ag.clock.time == 2000
-
 
 
 @pytest.mark.asyncio

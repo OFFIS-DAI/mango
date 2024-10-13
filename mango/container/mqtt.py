@@ -74,7 +74,12 @@ class MQTTContainer(Container):
          allowed
         """
         super().__init__(
-            codec=codec, addr=broker_addr, loop=loop, clock=clock, name=client_id, **kwargs
+            codec=codec,
+            addr=broker_addr,
+            loop=loop,
+            clock=clock,
+            name=client_id,
+            **kwargs,
         )
 
         self.client_id: str = client_id
@@ -106,7 +111,9 @@ class MQTTContainer(Container):
 
         # check if addr is a valid topic without wildcards
         if self.inbox_topic is not None and (
-            not isinstance(self.inbox_topic, str) or "#" in self.inbox_topic or "+" in self.inbox_topic
+            not isinstance(self.inbox_topic, str)
+            or "#" in self.inbox_topic
+            or "+" in self.inbox_topic
         ):
             raise ValueError(
                 "inbox topic is not set correctly. It must be a string without any wildcards ('#' or '+')!"
@@ -156,7 +163,9 @@ class MQTTContainer(Container):
                 raise ValueError("Invalid broker address")
             mqtt_messenger.connect(self.addr, **self._kwargs)
 
-        logger.info("[%s]: Going to connect to broker at %s..", self.client_id, self.addr)
+        logger.info(
+            "[%s]: Going to connect to broker at %s..", self.client_id, self.addr
+        )
 
         counter = 0
         # process MQTT messages for maximum of 10 seconds to
@@ -184,7 +193,9 @@ class MQTTContainer(Container):
         if self.inbox_topic is not None:
             # connection has been set up, subscribe to inbox topic now
             logger.info(
-                "[%s]: Going to subscribe to %s as inbox topic..", self.client_id, self.inbox_topic
+                "[%s]: Going to subscribe to %s as inbox topic..",
+                self.client_id,
+                self.inbox_topic,
             )
 
             # create Future that is triggered on successful subscription
@@ -222,15 +233,14 @@ class MQTTContainer(Container):
         # connection and subscription is successful, remove callbacks
         mqtt_messenger.on_subscribe = None
         mqtt_messenger.on_connect = None
-        
+
         self.mqtt_client = mqtt_messenger
         # set the callbacks
         self._set_mqtt_callbacks()
         # start the mqtt client
         self.mqtt_client.loop_start()
-        
-        await super().start()
 
+        await super().start()
 
     def _set_mqtt_callbacks(self):
         """
@@ -337,7 +347,7 @@ class MQTTContainer(Container):
         content: Any,
         receiver_addr: AgentAddress,
         sender_id: None | str = None,
-        **kwargs
+        **kwargs,
     ):
         """
         The container sends the message of one of its own agents to a specific topic.
@@ -356,7 +366,7 @@ class MQTTContainer(Container):
         # the broker
         meta = {}
         for key, value in kwargs.items():
-            meta[key] = value 
+            meta[key] = value
         meta["sender_id"] = sender_id
         meta["sender_addr"] = self.inbox_topic
         meta["receiver_id"] = receiver_addr.aid
@@ -367,12 +377,14 @@ class MQTTContainer(Container):
             and receiver_addr == self.inbox_topic
             and not actual_mqtt_kwargs.get("retain", False)
         ):
-            meta.update({
-                "topic": self.inbox_topic,
-                "qos": actual_mqtt_kwargs.get("qos", 0),
-                "retain": False,
-                "network_protocol": "mqtt",
-            })
+            meta.update(
+                {
+                    "topic": self.inbox_topic,
+                    "qos": actual_mqtt_kwargs.get("qos", 0),
+                    "retain": False,
+                    "network_protocol": "mqtt",
+                }
+            )
             return self._send_internal_message(
                 content, receiver_addr.aid, default_meta=meta, inbox=self.inbox
             )

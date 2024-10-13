@@ -4,6 +4,7 @@ This module implements the base class for agents (:class:`Agent`).
 Every agent must live in a container. Containers are responsible for making
  connections to other agents.
 """
+
 import asyncio
 import logging
 from abc import ABC
@@ -15,10 +16,12 @@ from ..util.scheduling import ScheduledProcessTask, ScheduledTask, Scheduler
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass(frozen=True)
 class AgentAddress:
     addr: Any
     aid: str
+
 
 class AgentContext:
     def __init__(self, container) -> None:
@@ -64,16 +67,14 @@ class AgentContext:
 class AgentDelegates:
     def __init__(self) -> None:
         self.context: AgentContext = None
-        self.scheduler: Scheduler = None 
-        self._aid = None   
+        self.scheduler: Scheduler = None
+        self._aid = None
 
     def on_start(self):
-        """Called when container started in which the agent is contained
-        """
+        """Called when container started in which the agent is contained"""
 
     def on_ready(self):
-        """Called when all container has been started using activate(...).
-        """
+        """Called when all container has been started using activate(...)."""
 
     @property
     def current_timestamp(self) -> float:
@@ -108,7 +109,6 @@ class AgentDelegates:
             content, receiver_addr=receiver_addr, sender_id=self.aid, **kwargs
         )
 
-
     def schedule_instant_message(
         self,
         content,
@@ -126,9 +126,7 @@ class AgentDelegates:
         """
 
         return self.schedule_instant_task(
-            self.send_message(
-                content, receiver_addr=receiver_addr, **kwargs
-            )
+            self.send_message(content, receiver_addr=receiver_addr, **kwargs)
         )
 
     def schedule_conditional_process_task(
@@ -359,15 +357,15 @@ class Agent(ABC, AgentDelegates):
 
         self.inbox = asyncio.Queue()
 
-    @property 
+    @property
     def observable_tasks(self):
         return self.scheduler.observable
 
     @observable_tasks.setter
     def observable_tasks(self, value: bool):
         self.scheduler.observable = value
-    
-    @property 
+
+    @property
     def suspendable_tasks(self):
         return self.scheduler.suspendable
 
@@ -387,9 +385,7 @@ class Agent(ABC, AgentDelegates):
         self._aid = aid
         self.context = AgentContext(container)
         self.scheduler = Scheduler(
-            suspendable=True,
-            observable=True,
-            clock=container.clock
+            suspendable=True, observable=True, clock=container.clock
         )
         self.on_register()
 

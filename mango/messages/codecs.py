@@ -312,4 +312,3 @@ class PROTOBUF(Codec):
             acl.content = self.deserialize_obj(obj_repr)
 
         return acl
-    

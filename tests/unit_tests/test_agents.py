@@ -3,7 +3,8 @@ from typing import Any
 
 import pytest
 
-from mango import sender_addr, create_tcp_container, activate, Agent
+from mango import Agent, activate, create_tcp_container, sender_addr
+
 
 class PingPongAgent(Agent):
     """
@@ -22,8 +23,7 @@ class PingPongAgent(Agent):
 
             # send back pong, providing your own details
             t = self.schedule_instant_message(
-                content="pong",
-                receiver_addr=sender_addr(meta)
+                content="pong", receiver_addr=sender_addr(meta)
             )
             self.sending_tasks.append(t)
 
@@ -32,17 +32,12 @@ class PingPongAgent(Agent):
             # get host, port and id from sender
             assert sender_addr(meta) in self.open_ping_requests.keys()
 
-            self.open_ping_requests[sender_addr(meta)].set_result(
-                True
-            )
+            self.open_ping_requests[sender_addr(meta)].set_result(True)
 
     async def send_ping_to_other(self, other_addr):
         # create
         self.open_ping_requests[other_addr] = asyncio.Future()
-        success = await self.send_message(
-            content="ping",
-            receiver_addr=other_addr
-        )
+        success = await self.send_message(content="ping", receiver_addr=other_addr)
         assert success
 
     async def wait_for_sending_messages(self, timeout=1):
