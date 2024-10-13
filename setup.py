@@ -15,7 +15,7 @@ DESCRIPTION = "Modular Python Agent Framework"
 URL = "https://github.com/OFFIS-DAI/mango"
 EMAIL = "mango@offis.de"
 AUTHOR = "mango Team"
-REQUIRES_PYTHON = ">=3.9.0"
+REQUIRES_PYTHON = ">=3.10.0"
 VERSION = "2.0.0"
 
 # What packages are required for this module to be executed?
