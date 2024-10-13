@@ -171,7 +171,7 @@ async def test_send_ping_pong_deactivated_pong(num_agents, num_containers):
         a = c.include(RoleAgent())
         a.add_role(PongRole())
         agents.append(a)
-        addrs.append((c.addr, a.aid))
+        addrs.append(a.addr)
 
     # add Ping Role and deactivate it immediately
     for a in agents:
