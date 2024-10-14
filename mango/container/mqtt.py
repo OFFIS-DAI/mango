@@ -55,7 +55,6 @@ class MQTTContainer(Container):
         *,
         client_id: str,
         broker_addr: tuple | dict | str,
-        loop: asyncio.AbstractEventLoop,
         clock: Clock,
         codec: Codec,
         inbox_topic: None | str = None,
@@ -76,7 +75,6 @@ class MQTTContainer(Container):
         super().__init__(
             codec=codec,
             addr=broker_addr,
-            loop=loop,
             clock=clock,
             name=client_id,
             **kwargs,
@@ -92,6 +90,7 @@ class MQTTContainer(Container):
         self.pending_sub_request: None | asyncio.Future = None
 
     async def start(self):
+        self._loop = asyncio.get_event_loop()
         if not self.client_id:
             raise ValueError("client_id is required!")
         if not self.addr:
@@ -137,9 +136,7 @@ class MQTTContainer(Container):
         # callbacks to check for successful connection
         def on_con(client, userdata, flags, reason_code, properties):
             logger.info("Connection Callback with the following flags: %s", flags)
-            asyncio.get_running_loop().call_soon_threadsafe(
-                connected.set_result, reason_code
-            )
+            self._loop.call_soon_threadsafe(connected.set_result, reason_code)
 
         mqtt_messenger.on_connect = on_con
 
@@ -205,9 +202,7 @@ class MQTTContainer(Container):
 
             # set up subscription callback
             def on_sub(client, userdata, mid, reason_code_list, properties):
-                asyncio.get_running_loop().call_soon_threadsafe(
-                    subscribed.set_result, True
-                )
+                self._loop.call_soon_threadsafe(subscribed.set_result, True)
 
             mqtt_messenger.on_subscribe = on_sub
 
@@ -268,9 +263,7 @@ class MQTTContainer(Container):
         self.mqtt_client.on_disconnect = on_discon
 
         def on_sub(client, userdata, mid, reason_code_list, properties):
-            asyncio.get_running_loop().call_soon_threadsafe(
-                self.pending_sub_request.set_result, 0
-            )
+            self._loop.call_soon_threadsafe(self.pending_sub_request.set_result, 0)
 
         self.mqtt_client.on_subscribe = on_sub
 
@@ -289,9 +282,7 @@ class MQTTContainer(Container):
             # update meta dict
             meta.update(message_meta)
             # put information to inbox
-            asyncio.get_running_loop().call_soon_threadsafe(
-                self.inbox.put_nowait, (0, content, meta)
-            )
+            self._loop.call_soon_threadsafe(self.inbox.put_nowait, (0, content, meta))
 
         self.mqtt_client.on_message = on_message
         self.mqtt_client.enable_logger(logger)

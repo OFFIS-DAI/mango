@@ -79,7 +79,7 @@ class InitiatorAgent(Agent):
     async def start(self):
         if getattr(self.container, "subscribe_for_agent", None):
             await self.container.subscribe_for_agent(
-                aid=self.aid, topic=self.target.addr
+                aid=self.aid, topic=self.target.protocol_addr
             )
 
         await asyncio.sleep(0.1)
@@ -119,7 +119,7 @@ class ReplierAgent(Agent):
     async def start(self):
         if getattr(self.container, "subscribe_for_agent", None):
             await self.container.subscribe_for_agent(
-                aid=self.aid, topic=self.target.addr
+                aid=self.aid, topic=self.target.protocol_addr
             )
 
         # await "Hello"

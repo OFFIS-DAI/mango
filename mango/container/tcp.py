@@ -33,11 +33,9 @@ class TCPConnectionPool:
 
     def __init__(
         self,
-        asyncio_loop,
         ttl_in_sec: float = 30.0,
         max_connections_per_target: int = 10,
     ) -> None:
-        self._loop = asyncio_loop
         self._available_connections = {}
         self._connection_counts = {}
         self._ttl_in_sec = ttl_in_sec
@@ -93,7 +91,7 @@ class TCPConnectionPool:
                 addr_key,
                 (
                     (
-                        await self._loop.create_connection(
+                        await asyncio.get_running_loop().create_connection(
                             lambda: protocol,
                             host,
                             port,
@@ -182,18 +180,17 @@ class TCPContainer(Container):
             **kwargs,
         )
 
+        self._tcp_connection_pool = None
         self.server = None  # will be set within start
         self.running = False
-
-    async def start(self):
         self._tcp_connection_pool = TCPConnectionPool(
-            asyncio.get_running_loop(),
             ttl_in_sec=self._kwargs.get(TCP_CONNECTION_TTL, 30),
             max_connections_per_target=self._kwargs.get(
                 TCP_MAX_CONNECTIONS_PER_TARGET, 10
             ),
         )
 
+    async def start(self):
         # create a TCP server bound to host and port that uses the
         # specified protocol
         self.server = await asyncio.get_running_loop().create_server(
@@ -303,7 +300,9 @@ class TCPContainer(Container):
         calls shutdown() from super class Container and closes the server
         """
         await super().shutdown()
-        await self._tcp_connection_pool.shutdown()
+
+        if self._tcp_connection_pool is not None:
+            await self._tcp_connection_pool.shutdown()
 
         if self.server is not None:
             self.server.close()

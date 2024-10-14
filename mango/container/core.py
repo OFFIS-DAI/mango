@@ -126,6 +126,12 @@ class Container(ABC):
         logger.debug("Successfully registered agent;%s", aid)
         return agent
 
+    def _get_aid(self, agent):
+        for aid, a in self._agents.items():
+            if id(a) == id(agent):
+                return aid
+        return None
+
     def include(self, agent: A, suggested_aid: str = None) -> A:
         """Include the agent in the container. Return the agent for
         convenience.

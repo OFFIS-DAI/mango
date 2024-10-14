@@ -20,10 +20,10 @@ async def test_register_aid_pattern_match():
     suggested_aid = "agent12"
 
     # WHEN
-    actual_aid = c.register(agent, suggested_aid)
+    agent_r = c.register(agent, suggested_aid)
 
     # THEN
-    assert actual_aid == "agent0"
+    assert c._get_aid(agent_r) == "agent0"
     await c.shutdown()
 
 
@@ -35,10 +35,10 @@ async def test_register_aid_success():
     suggested_aid = "cagent12"
 
     # WHEN
-    actual_aid = c.register(agent, suggested_aid)
+    agent_r = c.register(agent, suggested_aid)
 
     # THEN
-    assert actual_aid == suggested_aid
+    assert c._get_aid(agent_r) == suggested_aid
     await c.shutdown()
 
 
@@ -49,10 +49,10 @@ async def test_register_no_suggested():
     agent = LooksLikeAgent()
 
     # WHEN
-    actual_aid = c.register(agent)
+    agent_r = c.register(agent)
 
     # THEN
-    assert actual_aid == "agent0"
+    assert c._get_aid(agent_r) == "agent0"
     await c.shutdown()
 
 
@@ -64,10 +64,10 @@ async def test_register_pattern_half_match():
     suggested_aid = "agentABC"
 
     # WHEN
-    actual_aid = c.register(agent, suggested_aid)
+    agent_r = c.register(agent, suggested_aid)
 
     # THEN
-    assert actual_aid == "agentABC"
+    assert c._get_aid(agent_r) == "agentABC"
     await c.shutdown()
 
 
@@ -76,15 +76,16 @@ async def test_register_existing():
     # GIVEN
     c = create_tcp_container(addr=("127.0.0.2", 5555))
     agent = LooksLikeAgent()
+    agent2 = LooksLikeAgent()
     suggested_aid = "agentABC"
 
     # WHEN
-    actual_aid = c.register(agent, suggested_aid)
-    actual_aid2 = c.register(agent, suggested_aid)
+    agent_r = c.register(agent, suggested_aid)
+    agent_r2 = c.register(agent2, suggested_aid)
 
     # THEN
-    assert actual_aid == "agentABC"
-    assert actual_aid2 == "agent0"
+    assert c._get_aid(agent_r) == "agentABC"
+    assert c._get_aid(agent_r2) == "agent0"
     await c.shutdown()
 
 
