@@ -47,7 +47,7 @@ jobs:
     - name: Doctests
       run: |
         source venv/bin/activate
-        docs/make doctest
+        make -C docs doctest
     - name: Test+Coverage
       run: |
         source venv/bin/activate
