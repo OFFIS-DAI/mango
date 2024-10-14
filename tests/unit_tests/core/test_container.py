@@ -20,7 +20,7 @@ async def test_register_aid_pattern_match():
     suggested_aid = "agent12"
 
     # WHEN
-    actual_aid = c.register_agent(agent, suggested_aid)
+    actual_aid = c.register(agent, suggested_aid)
 
     # THEN
     assert actual_aid == "agent0"
@@ -35,7 +35,7 @@ async def test_register_aid_success():
     suggested_aid = "cagent12"
 
     # WHEN
-    actual_aid = c.register_agent(agent, suggested_aid)
+    actual_aid = c.register(agent, suggested_aid)
 
     # THEN
     assert actual_aid == suggested_aid
@@ -49,7 +49,7 @@ async def test_register_no_suggested():
     agent = LooksLikeAgent()
 
     # WHEN
-    actual_aid = c.register_agent(agent)
+    actual_aid = c.register(agent)
 
     # THEN
     assert actual_aid == "agent0"
@@ -64,7 +64,7 @@ async def test_register_pattern_half_match():
     suggested_aid = "agentABC"
 
     # WHEN
-    actual_aid = c.register_agent(agent, suggested_aid)
+    actual_aid = c.register(agent, suggested_aid)
 
     # THEN
     assert actual_aid == "agentABC"
@@ -79,8 +79,8 @@ async def test_register_existing():
     suggested_aid = "agentABC"
 
     # WHEN
-    actual_aid = c.register_agent(agent, suggested_aid)
-    actual_aid2 = c.register_agent(agent, suggested_aid)
+    actual_aid = c.register(agent, suggested_aid)
+    actual_aid2 = c.register(agent, suggested_aid)
 
     # THEN
     assert actual_aid == "agentABC"
@@ -120,7 +120,7 @@ async def test_is_aid_available_but_match():
 async def test_is_aid_not_available():
     # GIVEN
     c = create_tcp_container(addr=("127.0.0.2", 5555))
-    c.register_agent(LooksLikeAgent(), "abc")
+    c.register(LooksLikeAgent(), "abc")
     aid_to_check = "abc"
 
     # WHEN
@@ -135,7 +135,7 @@ async def test_is_aid_not_available():
 async def test_is_aid_not_available_and_match():
     # GIVEN
     c = create_tcp_container(addr=("127.0.0.2", 5555))
-    c.register_agent(LooksLikeAgent())
+    c.register(LooksLikeAgent())
     aid_to_check = "agent0"
 
     # WHEN
@@ -199,7 +199,7 @@ class Data:
 @pytest.mark.asyncio
 async def test_send_message_no_copy():
     c = create_tcp_container(addr=("127.0.0.2", 5555), copy_internal_messages=False)
-    agent1 = c.include(ExampleAgent())
+    agent1 = c.register(ExampleAgent())
     message_to_send = Data()
 
     await c.send_message(message_to_send, receiver_addr=agent1.addr)
@@ -211,7 +211,7 @@ async def test_send_message_no_copy():
 @pytest.mark.asyncio
 async def test_send_message_copy():
     c = create_tcp_container(addr=("127.0.0.2", 5555), copy_internal_messages=True)
-    agent1 = c.include(ExampleAgent())
+    agent1 = c.register(ExampleAgent())
     message_to_send = Data()
 
     await c.send_message(message_to_send, receiver_addr=agent1.addr)

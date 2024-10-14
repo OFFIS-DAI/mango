@@ -44,6 +44,10 @@ jobs:
         source venv/bin/activate
         ruff check .
         ruff format --check .
+    - name: Doctests
+      run: |
+        source venv/bin/activate
+        docs/make doctest
     - name: Test+Coverage
       run: |
         source venv/bin/activate

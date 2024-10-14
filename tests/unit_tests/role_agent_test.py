@@ -131,7 +131,7 @@ async def test_send_ping_pong(num_agents, num_containers):
     addrs = []
     for i in range(num_agents):
         c = containers[i % num_containers]
-        a = c.include(RoleAgent())
+        a = c.register(RoleAgent())
         a.add_role(PongRole())
         agents.append(a)
         addrs.append(a.addr)
@@ -168,7 +168,7 @@ async def test_send_ping_pong_deactivated_pong(num_agents, num_containers):
     addrs = []
     for i in range(num_agents):
         c = containers[i % num_containers]
-        a = c.include(RoleAgent())
+        a = c.register(RoleAgent())
         a.add_role(PongRole())
         agents.append(a)
         addrs.append(a.addr)
@@ -196,7 +196,7 @@ async def test_send_ping_pong_deactivated_pong(num_agents, num_containers):
 @pytest.mark.asyncio
 async def test_role_add_remove():
     c = create_tcp_container(addr=("127.0.0.2", 5555))
-    agent = c.include(RoleAgent())
+    agent = c.register(RoleAgent())
     role = SampleRole()
     agent.add_role(role)
 
@@ -210,7 +210,7 @@ async def test_role_add_remove():
 @pytest.mark.asyncio
 async def test_role_add_remove_context():
     c = create_tcp_container(addr=("127.0.0.2", 5555))
-    agent = c.include(RoleAgent())
+    agent = c.register(RoleAgent())
     role = SampleRole()
     agent.add_role(role)
 

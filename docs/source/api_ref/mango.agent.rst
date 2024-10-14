@@ -1,7 +1,7 @@
-mango.agent package
+Agents API
 ===================
 
-mango.agent.core module
+Agent core
 -----------------------
 
 .. automodule:: mango.agent.core
@@ -9,7 +9,7 @@ mango.agent.core module
    :undoc-members:
    :show-inheritance:
 
-mango.agent.role module
+Roles
 -----------------------
 
 .. automodule:: mango.agent.role

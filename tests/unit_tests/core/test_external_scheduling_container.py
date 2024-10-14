@@ -119,7 +119,7 @@ class WaitForMessageAgent(Agent):
 @pytest.mark.asyncio
 async def test_step_with_cond_task():
     external_scheduling_container = create_ec_container(addr="external_eid_1")
-    agent_1 = external_scheduling_container.include(WaitForMessageAgent())
+    agent_1 = external_scheduling_container.register(WaitForMessageAgent())
     print("Agent init")
 
     current_time = 0
@@ -199,7 +199,7 @@ class SelfSendAgent(Agent):
 @pytest.mark.asyncio
 async def test_send_internal_messages():
     external_scheduling_container = create_ec_container(addr="external_eid_1")
-    agent_1 = external_scheduling_container.include(SelfSendAgent(final_number=3))
+    agent_1 = external_scheduling_container.register(SelfSendAgent(final_number=3))
     message = create_acl(
         content="",
         receiver_addr=external_scheduling_container.addr,
@@ -218,7 +218,7 @@ async def test_send_internal_messages():
 @pytest.mark.asyncio
 async def test_step_with_replying_agent():
     external_scheduling_container = create_ec_container(addr="external_eid_1")
-    reply_agent = external_scheduling_container.include(ReplyAgent())
+    reply_agent = external_scheduling_container.register(ReplyAgent())
     new_acl_msg = ACLMessage()
     new_acl_msg.content = "hello you"
     new_acl_msg.receiver_addr = "external_eid_1"

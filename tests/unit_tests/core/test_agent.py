@@ -18,7 +18,7 @@ class MyAgent(Agent):
 async def test_periodic_facade():
     # GIVEN
     c = create_tcp_container(addr=("127.0.0.2", 5555))
-    agent = c.include(MyAgent())
+    agent = c.register(MyAgent())
     l = []
 
     async def increase_counter():
@@ -40,8 +40,8 @@ async def test_periodic_facade():
 async def test_send_message():
     # GIVEN
     c = create_tcp_container(addr=("127.0.0.2", 5555))
-    agent = c.include(MyAgent())
-    agent2 = c.include(MyAgent())
+    agent = c.register(MyAgent())
+    agent2 = c.register(MyAgent())
 
     async with activate(c) as c:
         await agent.send_message("", receiver_addr=agent2.addr)
@@ -57,8 +57,8 @@ async def test_send_message():
 async def test_send_acl_message():
     # GIVEN
     c = create_tcp_container(addr=("127.0.0.2", 5555))
-    agent = c.include(MyAgent())
-    agent2 = c.include(MyAgent())
+    agent = c.register(MyAgent())
+    agent2 = c.register(MyAgent())
 
     async with activate(c) as c:
         await agent.send_message(
@@ -77,8 +77,8 @@ async def test_send_acl_message():
 async def test_schedule_message():
     # GIVEN
     c = create_tcp_container(addr=("127.0.0.2", 5555))
-    agent = c.include(MyAgent())
-    agent2 = c.include(MyAgent())
+    agent = c.register(MyAgent())
+    agent2 = c.register(MyAgent())
 
     async with activate(c) as c:
         await agent.schedule_instant_message("", receiver_addr=agent2.addr)
@@ -91,8 +91,8 @@ async def test_schedule_message():
 async def test_schedule_acl_message():
     # GIVEN
     c = create_tcp_container(addr=("127.0.0.2", 5555))
-    agent = c.include(MyAgent())
-    agent2 = c.include(MyAgent())
+    agent = c.register(MyAgent())
+    agent2 = c.register(MyAgent())
 
     async with activate(c) as c:
         await agent.schedule_instant_message(

@@ -67,8 +67,8 @@ async def test_termination_single_container():
     clock = ExternalClock(start_time=1000)
 
     c = create_ec_container(clock=clock)
-    receiver = c.include(Receiver())
-    caller = c.include(Caller(receiver.addr, send_response_messages=True))
+    receiver = c.register(Receiver())
+    caller = c.register(Caller(receiver.addr, send_response_messages=True))
 
     async with activate(c) as c:
         await asyncio.sleep(0.1)
@@ -97,14 +97,14 @@ async def distribute_ping_pong_test(connection_type, codec=None, max_count=100):
         connection_type, init_addr, repl_addr, codec
     )
 
-    clock_agent = container_ag.include(DistributedClockAgent())
-    clock_manager = container_man.include(
+    clock_agent = container_ag.register(DistributedClockAgent())
+    clock_manager = container_man.register(
         DistributedClockManager(
             receiver_clock_addresses=[addr(repl_addr, clock_agent.aid)]
         )
     )
-    receiver = container_ag.include(Receiver())
-    caller = container_man.include(
+    receiver = container_ag.register(Receiver())
+    caller = container_man.register(
         Caller(
             addr(repl_addr, receiver.aid),
             send_response_messages=True,
@@ -132,14 +132,14 @@ async def distribute_ping_pong_test_timestamp(
         connection_type, init_addr, repl_addr, codec
     )
 
-    clock_agent = container_ag.include(DistributedClockAgent())
-    clock_manager = container_man.include(
+    clock_agent = container_ag.register(DistributedClockAgent())
+    clock_manager = container_man.register(
         DistributedClockManager(
             receiver_clock_addresses=[addr(repl_addr, clock_agent.aid)]
         )
     )
-    receiver = container_ag.include(Receiver())
-    caller = container_man.include(
+    receiver = container_ag.register(Receiver())
+    caller = container_man.register(
         Caller(
             addr(repl_addr, receiver.aid),
             send_response_messages=True,
@@ -198,14 +198,14 @@ async def distribute_time_test_case(connection_type, codec=None):
         connection_type, init_addr, repl_addr, codec
     )
 
-    clock_agent = container_ag.include(DistributedClockAgent())
-    clock_manager = container_man.include(
+    clock_agent = container_ag.register(DistributedClockAgent())
+    clock_manager = container_man.register(
         DistributedClockManager(
             receiver_clock_addresses=[addr(repl_addr, clock_agent.aid)]
         )
     )
-    receiver = container_ag.include(Receiver())
-    caller = container_ag.include(Caller(addr(repl_addr, receiver.aid)))
+    receiver = container_ag.register(Receiver())
+    caller = container_ag.register(Caller(addr(repl_addr, receiver.aid)))
 
     async with activate(container_man, container_ag) as cl:
         assert receiver.scheduler.clock.time == 0
@@ -247,14 +247,14 @@ async def send_current_time_test_case(connection_type, codec=None):
         connection_type, init_addr, repl_addr, codec
     )
 
-    clock_agent = container_ag.include(DistributedClockAgent())
-    clock_manager = container_man.include(
+    clock_agent = container_ag.register(DistributedClockAgent())
+    clock_manager = container_man.register(
         DistributedClockManager(
             receiver_clock_addresses=[addr(repl_addr, clock_agent.aid)]
         )
     )
-    receiver = container_ag.include(Receiver())
-    caller = container_ag.include(Caller(addr(repl_addr, receiver.aid)))
+    receiver = container_ag.register(Receiver())
+    caller = container_ag.register(Caller(addr(repl_addr, receiver.aid)))
 
     async with activate(container_man, container_ag) as cl:
         await tasks_complete_or_sleeping(container_man)

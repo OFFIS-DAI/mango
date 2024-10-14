@@ -17,8 +17,8 @@ async def setup_and_run_test_case(connection_type, codec):
         connection_type, init_addr, repl_addr, codec
     )
 
-    clock_agent = container_ag.include(DistributedClockAgent())
-    clock_manager = container_man.include(
+    clock_agent = container_ag.register(DistributedClockAgent())
+    clock_manager = container_man.register(
         DistributedClockManager(
             receiver_clock_addresses=[addr(repl_addr, clock_agent.aid)]
         )

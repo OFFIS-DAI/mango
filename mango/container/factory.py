@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from typing import Any
 
@@ -35,7 +34,6 @@ def create_mqtt(
     return MQTTContainer(
         client_id=client_id,
         broker_addr=broker_addr,
-        loop=asyncio.get_running_loop(),
         clock=clock,
         codec=codec,
         inbox_topic=inbox_topic,
@@ -55,9 +53,7 @@ def create_external_coupling(
     if clock is None:
         clock = ExternalClock()
 
-    return ExternalSchedulingContainer(
-        addr=addr, loop=asyncio.get_running_loop(), codec=codec, clock=clock, **kwargs
-    )
+    return ExternalSchedulingContainer(addr=addr, codec=codec, clock=clock, **kwargs)
 
 
 def create_tcp(
@@ -87,7 +83,6 @@ def create_tcp(
     return TCPContainer(
         addr=addr,
         codec=codec,
-        loop=asyncio.get_running_loop(),
         clock=clock,
         copy_internal_messages=copy_internal_messages,
         **kwargs,

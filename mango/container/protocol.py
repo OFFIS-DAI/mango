@@ -16,18 +16,16 @@ class ContainerProtocol(asyncio.Protocol):
     """Protocol for implementing the TCP Container connection. Internally reads the asyncio transport object
     into a buffer and moves the read messages async to the container inbox."""
 
-    def __init__(self, *, container, loop, codec):
+    def __init__(self, *, container, codec):
         """
 
         :param container:
-        :param loop:
         """
         super().__init__()
 
         self.codec = codec
         self.transport = None  # type: _SelectorTransport
         self.container = container
-        self._loop = loop
         self._buffer = bytearray()
 
     def connection_made(self, transport):

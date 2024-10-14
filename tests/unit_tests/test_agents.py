@@ -68,7 +68,7 @@ class PingPongAgent(Agent):
 @pytest.mark.asyncio
 async def test_init_and_shutdown():
     c = create_tcp_container(addr=("127.0.0.1", 5555))
-    a = c.include(PingPongAgent())
+    a = c.register(PingPongAgent())
 
     async with activate(c) as c:
         assert a.aid is not None
@@ -95,7 +95,7 @@ async def test_send_ping_pong(num_agents, num_containers):
     addrs = []
     for i in range(num_agents):
         c = containers[i % num_containers]
-        a = c.include(PingPongAgent())
+        a = c.register(PingPongAgent())
         agents.append(a)
         addrs.append(a.addr)
 

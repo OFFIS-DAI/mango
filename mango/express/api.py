@@ -51,7 +51,7 @@ class RunWithContainer(ABC):
             container = container_list[container_id]
             actual_agent = agent_tuple[0]
             agent_params = agent_tuple[1]
-            container.register_agent(
+            container.register(
                 actual_agent, suggested_aid=agent_params.get("aid", None)
             )
         self.__activation_cm = activate(container_list)
@@ -126,27 +126,26 @@ class RunWithMQTTManager(RunWithContainer):
 
 
 def activate(*containers: Container) -> ContainerActivationManager:
-    """Create and return an async activation context manager. This can be used with the
-    `async with` syntax to run code while the container(s) are active. The containers
-    are started first, after your code under `async with` will run, and at the end
-    the container will shut down (even when an error occurs).
+    """
+    Create and return an async activation context manager.
+    This can be used with the `async with` syntax to run code while the container(s) are active.
+    The containers are started first, after your code under `async with` will run, and
+    at the end the container will shut down (even when an error occurs).
 
     Example:
-    ```python
-    # Single container
-    async with activate(container) as container:
-        # do your stuff
 
-    # Multiple container
-    async with activate(container_list) as container_list:
-        # do your stuff
-    ```
+    .. code-block:: python
 
-    Args:
-        containers (Container | list): a single container or a list of containers
+        # Single container
+        async with activate(container) as container:
+            # do your stuff
 
-    Returns:
-        ContainerActivationManager: The context manager to be used as described
+        # Multiple container
+        async with activate(container_list) as container_list:
+            # do your stuff
+
+    :return: The context manager to be used as described
+    :rtype: ContainerActivationManager
     """
     if isinstance(containers[0], list):
         containers = containers[0]
@@ -159,22 +158,24 @@ def run_with_tcp(
     addr: tuple[str, int] = ("127.0.0.1", 5555),
     codec: None | Codec = None,
 ) -> RunWithTCPManager:
-    """Create and return an async context manager, which can be used to run the given
+    """
+    Create and return an async context manager, which can be used to run the given
     agents in `num` automatically created tcp container. The agents are distributed
     evenly.
 
-    Example:
-    ```python
-    async with run_with_tcp(2, Agent(), Agent(), (Agent(), dict(aid="my_agent_id"))) as c:
-        # do your stuff
-    ```
+    .. code-block:: python
 
-    Args:
-        num (int): number of tcp container
-        agents (args): list of agents which shall run
+        async with run_with_tcp(2, Agent(), Agent(), (Agent(), dict(aid="my_agent_id"))) as c:
+            # do your stuff
 
-    Returns:
-        RunWithTCPManager: the async context manager to run the agents with
+    :param num: number of tcp container
+    :type num: int
+    :param addr: the starting addr of the containers, defaults to ("127.0.0.1", 5555)
+    :type addr: tuple[str, int], optional
+    :param codec: the codec for the containers, defaults to None
+    :type codec: None | Codec, optional
+    :return: the async context manager to run the agents with
+    :rtype: RunWithTCPManager
     """
     return RunWithTCPManager(num, agents, addr=addr, codec=codec)
 
@@ -189,16 +190,18 @@ def run_with_mqtt(
     agents in `num` automatically created mqtt container. The agents are distributed according
     to the topic
 
-    Args:
-        num (int): _description_
-        agents (args): list of agents which shall run, it is possible to provide a tuple
-                       (Agent, dict), the dict supports "aid" for the suggested_aid and "topics" as list of topics the agent
-                       wants to subscribe to.
-        broker_addr (tuple[str, int], optional): Address of the broker the container shall connect to. Defaults to ("127.0.0.1", 5555).
-        codec (None | Codec, optional): The codec of the container
+    The function takes a list of agents which shall run, it is possible to provide a tuple
+    (Agent, dict), the dict supports "aid" for the suggested_aid and "topics" as list of topics the agent
+    wants to subscribe to.
 
-    Returns:
-        RunWithMQTTManager: _description_
+    :param num: _description_
+    :type num: int
+    :param broker_addr: Address of the broker the container shall connect to, defaults to ("127.0.0.1", 1883)
+    :type broker_addr: tuple[str, int], optional
+    :param codec: _description_, defaults to None
+    :type codec: None | Codec, optional, The codec of the container
+    :return: the async context manager
+    :rtype: RunWithMQTTManager
     """
     return RunWithMQTTManager(num, agents, broker_addr=broker_addr, codec=codec)
 
@@ -208,19 +211,22 @@ class ComposedAgent(RoleAgent):
 
 
 def agent_composed_of(*roles: Role, register_in: None | Container) -> ComposedAgent:
-    """Create an agent composed of the given `roles`. If a container is provided,
+    """
+    Create an agent composed of the given `roles`. If a container is provided,
     the created agent is automatically registered with the container `register_in`.
 
-    Args:
-        *roles Role: The roles which are added to the agent
-        register_in (None | Container): container in which the created agent is registered,
+
+    :param register_in: container in which the created agent is registered,
                                         if provided
+    :type register_in: None | Container
+    :return: the composed agent
+    :rtype: ComposedAgent
     """
     agent = ComposedAgent()
     for role in roles:
         agent.add_role(role)
     if register_in is not None:
-        register_in.register_agent(agent)
+        register_in.register(agent)
     return agent
 
 
@@ -230,7 +236,8 @@ class PrintingAgent(Agent):
 
 
 def sender_addr(meta: dict) -> AgentAddress:
-    """Extract the sender_addr from the meta dict.
+    """
+    Extract the sender_addr from the meta dict.
 
     Args:
         meta (dict): the meta you received
@@ -247,14 +254,15 @@ def sender_addr(meta: dict) -> AgentAddress:
     )
 
 
-def addr(protocol_part: Any, aid: str) -> AgentAddress:
-    """Create an Address from the topic.
+def addr(protocol_addr: Any, aid: str) -> AgentAddress:
+    """
+    Create an Address from the topic.
 
     Args:
-        protocol_part (Any): protocol part of the address, e.g. topic for mqtt, or host/port for tcp, ...
+        protocol_addr (Any): the container part of the addr, e.g. topic for mqtt, or host/port for tcp, ...
         aid (str): the agent id
 
     Returns:
         AgentAddress: the address
     """
-    return AgentAddress(protocol_part, aid)
+    return AgentAddress(protocol_addr, aid)

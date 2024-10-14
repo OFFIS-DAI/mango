@@ -1,7 +1,7 @@
-mango.util package
+Utilities
 ==================
 
-mango.util.clock module
+Clock
 -----------------------
 
 .. automodule:: mango.util.clock
@@ -9,7 +9,7 @@ mango.util.clock module
    :undoc-members:
    :show-inheritance:
 
-mango.util.distributed\_clock module
+Distributed clock
 ------------------------------------
 
 .. automodule:: mango.util.distributed_clock
@@ -17,15 +17,7 @@ mango.util.distributed\_clock module
    :undoc-members:
    :show-inheritance:
 
-mango.util.multiprocessing module
----------------------------------
-
-.. automodule:: mango.util.multiprocessing
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-mango.util.scheduling module
+Scheduling
 ----------------------------
 
 .. automodule:: mango.util.scheduling
@@ -33,7 +25,7 @@ mango.util.scheduling module
    :undoc-members:
    :show-inheritance:
 
-mango.util.termination\_detection module
+Termination detection
 ----------------------------------------
 
 .. automodule:: mango.util.termination_detection

@@ -164,7 +164,6 @@ class TCPContainer(Container):
         *,
         addr: tuple[str, int],
         codec: Codec,
-        loop: asyncio.AbstractEventLoop,
         clock: Clock,
         **kwargs,
     ):
@@ -178,25 +177,27 @@ class TCPContainer(Container):
         super().__init__(
             addr=addr,
             codec=codec,
-            loop=loop,
             name=f"{addr[0]}:{addr[1]}",
             clock=clock,
             **kwargs,
         )
 
         self.server = None  # will be set within start
-        self.running = True
-        self._tcp_connection_pool = TCPConnectionPool(
-            loop,
-            ttl_in_sec=kwargs.get(TCP_CONNECTION_TTL, 30),
-            max_connections_per_target=kwargs.get(TCP_MAX_CONNECTIONS_PER_TARGET, 10),
-        )
+        self.running = False
 
     async def start(self):
+        self._tcp_connection_pool = TCPConnectionPool(
+            asyncio.get_running_loop(),
+            ttl_in_sec=self._kwargs.get(TCP_CONNECTION_TTL, 30),
+            max_connections_per_target=self._kwargs.get(
+                TCP_MAX_CONNECTIONS_PER_TARGET, 10
+            ),
+        )
+
         # create a TCP server bound to host and port that uses the
         # specified protocol
-        self.server = await self.loop.create_server(
-            lambda: ContainerProtocol(container=self, loop=self.loop, codec=self.codec),
+        self.server = await asyncio.get_running_loop().create_server(
+            lambda: ContainerProtocol(container=self, codec=self.codec),
             self.addr[0],
             self.addr[1],
         )
@@ -217,7 +218,7 @@ class TCPContainer(Container):
         :param receiver_id: The agent id of the receiver
         :param kwargs: Additional parameters to provide protocol specific settings
         """
-        protocol_addr = receiver_addr.addr
+        protocol_addr = receiver_addr.protocol_addr
         if isinstance(protocol_addr, str) and ":" in protocol_addr:
             protocol_addr = protocol_addr.split(":")
         elif isinstance(protocol_addr, (tuple, list)) and len(protocol_addr) == 2:
@@ -245,7 +246,7 @@ class TCPContainer(Container):
             if not hasattr(content, "split_content_and_meta"):
                 message = MangoMessage(content, meta)
             success = await self._send_external_message(
-                receiver_addr.addr, message, meta
+                receiver_addr.protocol_addr, message, meta
             )
 
         return success
@@ -268,7 +269,7 @@ class TCPContainer(Container):
             protocol = await self._tcp_connection_pool.obtain_connection(
                 addr[0],
                 addr[1],
-                ContainerProtocol(container=self, loop=self.loop, codec=self.codec),
+                ContainerProtocol(container=self, codec=self.codec),
             )
             logger.debug("Connection established to addr; %s", addr)
 

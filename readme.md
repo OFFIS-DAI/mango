@@ -1,7 +1,17 @@
-# mango
+<p align="center">
+
+![logo](docs/source/_static/Logo_mango_ohne_sub.svg#gh-light-mode-only)
+![logo](docs/source/_static/Logo_mango_ohne_sub_white.svg#gh-dark-mode-only)
+
+</p>
 
 [PyPi](https://pypi.org/project/mango-agents/) | [Read the Docs](https://mango-agents.readthedocs.io)
 | [Github](https://github.com/OFFIS-DAI/mango) | [mail](mailto:mango@offis.de)
+
+![lifecycle](https://img.shields.io/badge/lifecycle-maturing-blue.svg)
+[![MIT License](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/OFFIS-DAI/mango/blob/development/LICENSE)
+[![Test mango-python](https://github.com/OFFIS-DAI/mango/actions/workflows/test-mango.yml/badge.svg)](https://github.com/OFFIS-DAI/mango/actions/workflows/test-mango.yml)
+
 
 **Note:** _This project is still in an early development stage.
 We appreciate constructive feedback and suggestions for improvement._
@@ -161,9 +171,9 @@ class HelloWorldAgent(Agent):
 async def run_container_and_two_agents(first_addr, second_addr):
     first_container = create_tcp_container(addr=first_addr)
     second_container = create_tcp_container(addr=second_addr)
-    
-    first_agent = first_container.include(RepeatingAgent())
-    second_agent = second_container.include(HelloWorldAgent())
+
+    first_agent = first_container.register(RepeatingAgent())
+    second_agent = second_container.register(HelloWorldAgent())
 
     async with activate(first_container, second_container) as cl:
         await second_agent.greet(first_agent.addr)

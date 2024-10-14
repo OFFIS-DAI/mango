@@ -58,8 +58,8 @@ class MyAgent(Agent):
 async def test_activate_api_style_agent():
     # GIVEN
     c = create_tcp_container(addr=("127.0.0.2", 5555))
-    agent = c.include(MyAgent())
-    agent2 = c.include(MyAgent())
+    agent = c.register(MyAgent())
+    agent2 = c.register(MyAgent())
 
     # WHEN
     async with activate(c) as c:

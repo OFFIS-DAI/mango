@@ -29,7 +29,6 @@ class Container(ABC):
         addr,
         name: str,
         codec,
-        loop,
         clock: Clock,
         copy_internal_messages=False,
         mirror_data=None,
@@ -41,29 +40,28 @@ class Container(ABC):
         self._copy_internal_messages = copy_internal_messages
 
         self.codec: Codec = codec
-        self.loop: asyncio.AbstractEventLoop = loop
 
         # dict of agents. aid: agent instance
-        self._agents: dict = {}
+        self._agents: dict[str, Agent] = {}
         self._aid_counter: int = 0  # counter for aids
 
-        self.running: bool = True  # True until self.shutdown() is called
-        self._no_agents_running: asyncio.Future = asyncio.Future()
-        self._no_agents_running.set_result(
-            True
-        )  # signals that currently no agent lives in this container
+        self.running: bool = False  # True until self.shutdown() is called
+        self._no_agents_running: asyncio.Future = None
 
         # inbox for all incoming messages
-        self.inbox: asyncio.Queue = asyncio.Queue()
+        self.inbox: asyncio.Queue = None
 
         # task that processes the inbox.
-        self._check_inbox_task: asyncio.Task = asyncio.create_task(self._check_inbox())
+        self._check_inbox_task: asyncio.Task = None
 
         # multiprocessing
         self._kwargs = kwargs
-        if mirror_data is not None:
+        self._mirror_data = mirror_data
+
+        # multiprocessing
+        if self._mirror_data is not None:
             self._container_process_manager = MirrorContainerProcessManager(
-                self, mirror_data
+                self, self._mirror_data
             )
         else:
             self._container_process_manager = MainContainerProcessManager(self)
@@ -110,7 +108,7 @@ class Container(ABC):
         self._aid_counter += 1
         return aid
 
-    def register_agent(self, agent: Agent, suggested_aid: str = None):
+    def register(self, agent: Agent, suggested_aid: str = None):
         """
         Register *agent* and return the agent id
 
@@ -126,7 +124,7 @@ class Container(ABC):
         self._agents[aid] = agent
         agent._do_register(self, aid)
         logger.debug("Successfully registered agent;%s", aid)
-        return aid
+        return agent
 
     def include(self, agent: A, suggested_aid: str = None) -> A:
         """Include the agent in the container. Return the agent for
@@ -139,10 +137,10 @@ class Container(ABC):
         Returns:
             _type_: the agent included
         """
-        self.register_agent(agent, suggested_aid=suggested_aid)
+        self.register(agent, suggested_aid=suggested_aid)
         return agent
 
-    def deregister_agent(self, aid):
+    def deregister(self, aid):
         """
         Deregister an agent
 
@@ -303,6 +301,18 @@ class Container(ABC):
         self._container_process_manager.dispatch_to_agent_process(pid, coro_func, *args)
 
     async def start(self):
+        self.running: bool = True  # True until self.shutdown() is called
+        self._no_agents_running: asyncio.Future = asyncio.Future()
+        self._no_agents_running.set_result(
+            True
+        )  # signals that currently no agent lives in this container
+
+        # inbox for all incoming messages
+        self.inbox: asyncio.Queue = asyncio.Queue()
+
+        # task that processes the inbox.
+        self._check_inbox_task: asyncio.Task = asyncio.create_task(self._check_inbox())
+
         """Start the container. It totally depends on the implementation for what is actually happening."""
         for agent in self._agents.values():
             agent.on_start()

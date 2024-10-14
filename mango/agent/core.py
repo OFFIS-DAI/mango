@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class AgentAddress:
-    addr: Any
+    protocol_addr: Any
     aid: str
 
 
@@ -42,12 +42,12 @@ class AgentContext:
     def addr(self):
         return self._container.addr
 
-    def register_agent(self, agent, suggested_aid):
-        return self._container.register_agent(agent, suggested_aid=suggested_aid)
+    def register(self, agent, suggested_aid):
+        return self._container.register(agent, suggested_aid=suggested_aid)
 
-    def deregister_agent(self, aid):
+    def deregister(self, aid):
         if self._container.running:
-            self._container.deregister_agent(aid)
+            self._container.deregister(aid)
 
     async def send_message(
         self,
@@ -94,6 +94,8 @@ class AgentDelegates:
         Returns:
             _type_: AgentAddress
         """
+        if self.context is None:
+            return None
         return AgentAddress(self.context.addr, self.aid)
 
     async def send_message(
@@ -440,7 +442,7 @@ class Agent(ABC, AgentDelegates):
 
         if not self._stopped.done():
             self._stopped.set_result(True)
-        self.context.deregister_agent(self.aid)
+        self.context.deregister(self.aid)
         try:
             # Shutdown reactive inbox task
             self._check_inbox_task.remove_done_callback(self._raise_exceptions)

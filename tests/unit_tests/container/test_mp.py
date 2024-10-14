@@ -65,11 +65,11 @@ async def test_agent_processes_ping_pong(num_sp_agents, num_sp):
     for i in range(num_sp):
         await c.as_agent_process(
             agent_creator=lambda container: [
-                container.include(MyAgent(), suggested_aid=f"process_agent{i},{j}")
+                container.register(MyAgent(), suggested_aid=f"process_agent{i},{j}")
                 for j in range(num_sp_agents)
             ]
         )
-    agent = c.include(MyAgent())
+    agent = c.register(MyAgent())
 
     # WHEN
     async with activate(c) as c:
@@ -92,15 +92,15 @@ async def test_agent_processes_ping_pong_p_to_p():
     aid_main_agent = "main_agent"
     c = create_tcp_container(addr=addr, copy_internal_messages=False)
     await c.as_agent_process(
-        agent_creator=lambda container: container.include(
+        agent_creator=lambda container: container.register(
             P2PTestAgent(aid_main_agent), suggested_aid="process_agent1"
         )
     )
-    main_agent = c.include(P2PMainAgent(), suggested_aid=aid_main_agent)
+    main_agent = c.register(P2PMainAgent(), suggested_aid=aid_main_agent)
 
     # WHEN
     def agent_init(c):
-        agent = c.include(MyAgent(), suggested_aid="process_agent2")
+        agent = c.register(MyAgent(), suggested_aid="process_agent2")
         agent.schedule_instant_message(
             "Message To Process Agent",
             receiver_addr=AgentAddress(addr, "process_agent1"),
@@ -122,10 +122,10 @@ async def test_async_agent_processes_ping_pong_p_to_p():
     addr = ("127.0.0.2", 5811)
     aid_main_agent = "main_agent"
     c = create_tcp_container(addr=addr, copy_internal_messages=False)
-    main_agent = c.include(P2PMainAgent(), suggested_aid=aid_main_agent)
+    main_agent = c.register(P2PMainAgent(), suggested_aid=aid_main_agent)
 
     async def agent_creator(container):
-        p2pta = container.include(
+        p2pta = container.register(
             P2PTestAgent(aid_main_agent), suggested_aid="process_agent1"
         )
         await p2pta.send_message(content="pong", receiver_addr=main_agent.addr)
@@ -135,7 +135,7 @@ async def test_async_agent_processes_ping_pong_p_to_p():
 
         # WHEN
         def agent_init(c):
-            agent = c.include(MyAgent(), suggested_aid="process_agent2")
+            agent = c.register(MyAgent(), suggested_aid="process_agent2")
             agent.schedule_instant_message(
                 "Message To Process Agent", AgentAddress(addr, "process_agent1")
             )

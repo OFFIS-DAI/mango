@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import time
 from dataclasses import dataclass
@@ -55,7 +54,6 @@ class ExternalSchedulingContainer(Container):
         *,
         addr: str,
         codec: Codec,
-        loop: asyncio.AbstractEventLoop,
         clock: ExternalClock = None,
         **kwargs,
     ):
@@ -74,7 +72,6 @@ class ExternalSchedulingContainer(Container):
             addr=addr,
             name=addr,
             codec=codec,
-            loop=loop,
             clock=clock,
             **kwargs,
         )
@@ -106,9 +103,9 @@ class ExternalSchedulingContainer(Container):
         meta["sender_id"] = sender_id
         meta["sender_addr"] = self.addr
         meta["receiver_id"] = receiver_addr.aid
-        meta["receiver_addr"] = receiver_addr.addr
+        meta["receiver_addr"] = receiver_addr.protocol_addr
 
-        if receiver_addr.addr == self.addr:
+        if receiver_addr.protocol_addr == self.addr:
             receiver_id = receiver_addr.aid
             meta.update({"network_protocol": "external_connection"})
             success = self._send_internal_message(
@@ -134,7 +131,7 @@ class ExternalSchedulingContainer(Container):
         self.message_buffer.append(
             ExternalAgentMessage(
                 time=time.time() - self.current_start_time_of_step + self.clock.time,
-                receiver=addr.addr,
+                receiver=addr.protocol_addr,
                 message=encoded_msg,
             )
         )

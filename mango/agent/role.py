@@ -298,7 +298,7 @@ class RoleContext(AgentDelegates):
 
         :param role: the Role
         """
-        role.bind(self)
+        role._bind(self)
         self._role_handler.add_role(role)
 
         # Setup role
@@ -463,7 +463,7 @@ class Role(ABC):
         """
         self._context = None
 
-    def bind(self, context: RoleContext) -> None:
+    def _bind(self, context: RoleContext) -> None:
         """Method used internal to set the context, do not override!
 
         :param context: the role context

@@ -137,7 +137,9 @@ class MQTTContainer(Container):
         # callbacks to check for successful connection
         def on_con(client, userdata, flags, reason_code, properties):
             logger.info("Connection Callback with the following flags: %s", flags)
-            self.loop.call_soon_threadsafe(connected.set_result, reason_code)
+            asyncio.get_running_loop().call_soon_threadsafe(
+                connected.set_result, reason_code
+            )
 
         mqtt_messenger.on_connect = on_con
 
@@ -203,7 +205,9 @@ class MQTTContainer(Container):
 
             # set up subscription callback
             def on_sub(client, userdata, mid, reason_code_list, properties):
-                self.loop.call_soon_threadsafe(subscribed.set_result, True)
+                asyncio.get_running_loop().call_soon_threadsafe(
+                    subscribed.set_result, True
+                )
 
             mqtt_messenger.on_subscribe = on_sub
 
@@ -264,7 +268,9 @@ class MQTTContainer(Container):
         self.mqtt_client.on_disconnect = on_discon
 
         def on_sub(client, userdata, mid, reason_code_list, properties):
-            self.loop.call_soon_threadsafe(self.pending_sub_request.set_result, 0)
+            asyncio.get_running_loop().call_soon_threadsafe(
+                self.pending_sub_request.set_result, 0
+            )
 
         self.mqtt_client.on_subscribe = on_sub
 
@@ -283,7 +289,9 @@ class MQTTContainer(Container):
             # update meta dict
             meta.update(message_meta)
             # put information to inbox
-            self.loop.call_soon_threadsafe(self.inbox.put_nowait, (0, content, meta))
+            asyncio.get_running_loop().call_soon_threadsafe(
+                self.inbox.put_nowait, (0, content, meta)
+            )
 
         self.mqtt_client.on_message = on_message
         self.mqtt_client.enable_logger(logger)
@@ -393,7 +401,9 @@ class MQTTContainer(Container):
             message = content
             if not hasattr(content, "split_content_and_meta"):
                 message = MangoMessage(content, meta)
-            self._send_external_message(topic=receiver_addr.addr, message=message)
+            self._send_external_message(
+                topic=receiver_addr.protocol_addr, message=message
+            )
             return True
 
     def _send_external_message(self, *, topic: str, message):
@@ -433,13 +443,13 @@ class MQTTContainer(Container):
         await self.pending_sub_request
         return True
 
-    def deregister_agent(self, aid):
+    def deregister(self, aid):
         """
 
         :param aid:
         :return:
         """
-        super().deregister_agent(aid)
+        super().deregister(aid)
         empty_subscriptions = []
         for subscription, aid_set in self.additional_subscriptions.items():
             if aid in aid_set:

@@ -51,8 +51,8 @@ async def setup_and_run_test_case(connection_type, codec):
         init_target = repl_addr
         repl_target = init_addr
 
-    init_agent = container_1.include(InitiatorAgent(container_1))
-    repl_agent = container_2.include(ReplierAgent(container_2))
+    init_agent = container_1.register(InitiatorAgent(container_1))
+    repl_agent = container_2.register(ReplierAgent(container_2))
     repl_agent.target = addr(repl_target, init_agent.aid)
     init_agent.target = addr(init_target, repl_agent.aid)
 

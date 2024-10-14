@@ -102,6 +102,7 @@ In mango the following process tasks are available:
             def handle_message(self, content, meta: Dict[str, Any]):
                 pass
 
+.. _ClockDocs:
 *******************************
 Using an external clock
 *******************************
@@ -188,7 +189,7 @@ If you comment in the ExternalClock and change your main() as follows, the progr
 *******************************
 Using a distributed clock
 *******************************
-To distribute simulations, mango provides a distributed clock, which is implemented with by two Agents: 
+To distribute simulations, mango provides a distributed clock, which is implemented with by two Agents:
 1. DistributedClockAgent: this agent needs to be present in every participating container
 2. DistributedClockManager: this agent shall exist exactly once
 
@@ -212,8 +213,8 @@ In the following a simple example is shown.
     container_man = create_tcp_container(("localhost", 1555), clock=ExternalClock())
     container_ag = create_tcp_container(("localhost", 1556), clock=ExternalClock())
 
-    clock_agent = container_ag.include(DistributedClockAgent())
-    clock_manager = container_man.include(DistributedClockManager(
+    clock_agent = container_ag.register(DistributedClockAgent())
+    clock_manager = container_man.register(DistributedClockManager(
       receiver_clock_addresses=[clock_agent.addr]
     ))
 
@@ -226,7 +227,7 @@ In the following a simple example is shown.
         # the clock_manager distributed the time to the other container
         assert container_ag.clock.time == 100
         print("Time has been distributed!")
-      
+
   asyncio.run(main())
 .. testoutput::
 
