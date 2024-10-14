@@ -32,6 +32,7 @@ jobs:
         pip install virtualenv
         virtualenv venv
         source venv/bin/activate
+        pip3 install -U sphinx
         pip3 install -r requirements.txt
         pip3 install -e .
         sudo apt update
