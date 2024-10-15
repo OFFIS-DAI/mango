@@ -1,4 +1,4 @@
-from .messages.message import create_acl
+from .messages.message import create_acl, Performatives
 from .agent.core import Agent, AgentAddress
 from .agent.role import Role, RoleAgent, RoleContext
 from .container.factory import (
@@ -17,3 +17,4 @@ from .express.api import (
 )
 from .util.distributed_clock import DistributedClockAgent, DistributedClockManager
 from .util.clock import ExternalClock
+from .messages.codecs import json_serializable, JSON, FastJSON, PROTOBUF

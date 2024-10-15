@@ -46,7 +46,6 @@ class Container(ABC):
         self._aid_counter: int = 0  # counter for aids
 
         self.running: bool = False  # True until self.shutdown() is called
-        self._no_agents_running: asyncio.Future = None
 
         # inbox for all incoming messages
         self.inbox: asyncio.Queue = None
@@ -118,8 +117,6 @@ class Container(ABC):
 
         :return The agent ID
         """
-        if not self._no_agents_running or self._no_agents_running.done():
-            self._no_agents_running = asyncio.Future()
         aid = self._reserve_aid(suggested_aid)
         self._agents[aid] = agent
         agent._do_register(self, aid)
@@ -154,8 +151,6 @@ class Container(ABC):
         :return:
         """
         del self._agents[aid]
-        if len(self._agents) == 0:
-            self._no_agents_running.set_result(True)
 
     @abstractmethod
     async def send_message(
@@ -308,10 +303,6 @@ class Container(ABC):
 
     async def start(self):
         self.running: bool = True  # True until self.shutdown() is called
-        self._no_agents_running: asyncio.Future = asyncio.Future()
-        self._no_agents_running.set_result(
-            True
-        )  # signals that currently no agent lives in this container
 
         # inbox for all incoming messages
         self.inbox: asyncio.Queue = asyncio.Queue()

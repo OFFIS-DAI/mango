@@ -210,7 +210,9 @@ class ComposedAgent(RoleAgent):
     pass
 
 
-def agent_composed_of(*roles: Role, register_in: None | Container) -> ComposedAgent:
+def agent_composed_of(
+    *roles: Role, register_in: None | Container = None, suggested_aid: None | str = None
+) -> ComposedAgent:
     """
     Create an agent composed of the given `roles`. If a container is provided,
     the created agent is automatically registered with the container `register_in`.
@@ -219,6 +221,8 @@ def agent_composed_of(*roles: Role, register_in: None | Container) -> ComposedAg
     :param register_in: container in which the created agent is registered,
                                         if provided
     :type register_in: None | Container
+    :param suggested_aid: the suggested aid for registration
+    :type suggested_aid: str
     :return: the composed agent
     :rtype: ComposedAgent
     """
@@ -226,7 +230,7 @@ def agent_composed_of(*roles: Role, register_in: None | Container) -> ComposedAg
     for role in roles:
         agent.add_role(role)
     if register_in is not None:
-        register_in.register(agent)
+        register_in.register(agent, suggested_aid=suggested_aid)
     return agent
 
 
