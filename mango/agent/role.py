@@ -34,10 +34,9 @@ Furthermore there are two lifecycle methods to know about:
 
 import asyncio
 from abc import ABC
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable
 
-from mango.agent.core import Agent, AgentContext, AgentDelegates
-from mango.util.scheduling import Scheduler
+from mango.agent.core import Agent, AgentAddress, AgentDelegates
 
 
 class DataContainer:
@@ -61,61 +60,8 @@ class DataContainer:
             self.__setattr__(k, v)
 
 
-class RoleContext:
+class Role:
     pass
-
-
-class Role(ABC):
-    """General role class, defining the API every role can use. A role implements one responsibility
-    of an agent.
-
-    Every role
-    must be added to a :class:`RoleAgent` and is defined by some lifecycle methods:
-
-    * :func:`Role.setup` is called when the Role is added to the agent, so its the perfect place for
-                         initialization and scheduling of tasks
-    * :func:`Role.on_stop` is called when the container the agent lives in, is shut down
-
-    To interact with the environment you have to use the context, accessible via :func:Role.context.
-    """
-
-    def __init__(self) -> None:
-        """Initialize the roles internals.
-        !!Care!! the role context is unknown at this point!
-        """
-        self._context = None
-
-    def bind(self, context: RoleContext) -> None:
-        """Method used internal to set the context, do not override!
-
-        :param context: the role context
-        """
-        self._context = context
-
-    @property
-    def context(self) -> RoleContext:
-        """Return the context of the role. This context can be send as bridge to the agent.
-
-        :return: the context of the role
-        """
-        return self._context
-
-    def setup(self) -> None:
-        """Lifecycle hook in, which will be called on adding the role to agent. The role context
-        is known from hereon.
-        """
-
-    def on_change_model(self, model) -> None:
-        """Will be invoked when a subscribed model changes via :func:`RoleContext.update`.
-
-        :param model: the model
-        """
-
-    def on_deactivation(self, src) -> None:
-        """Hook in, which will be called when another role deactivates this instance (temporarily)"""
-
-    async def on_stop(self) -> None:
-        """Lifecycle hook in, which will be called when the container is shut down or if the role got removed."""
 
 
 class RoleHandler:
@@ -191,7 +137,7 @@ class RoleHandler:
         del self._role_to_active[role]
 
     @property
-    def roles(self) -> List[Role]:
+    def roles(self) -> list[Role]:
         """Returns all roles
 
         Returns:
@@ -227,7 +173,7 @@ class RoleHandler:
         for role in self._roles:
             await role.on_stop()
 
-    def handle_message(self, content, meta: Dict[str, Any]):
+    def handle_message(self, content, meta: dict[str, Any]):
         """Handle an incoming message, delegating it to all applicable subscribers
 
         .. code-block:: python
@@ -239,54 +185,21 @@ class RoleHandler:
         :param content: content
         :param meta: meta
         """
+        for role in self.roles:
+            role.handle_message(content, meta)
         for role, message_condition, method, _ in self._message_subs:
             if self._is_role_active(role) and message_condition(content, meta):
                 method(content, meta)
 
-    def _notify_send_message_subs(self, content, receiver_addr, receiver_id, **kwargs):
+    def _notify_send_message_subs(self, content, receiver_addr: AgentAddress, **kwargs):
         for role in self._send_msg_subs:
             for sub in self._send_msg_subs[role]:
                 if self._is_role_active(role):
                     sub(
                         content=content,
                         receiver_addr=receiver_addr,
-                        receiver_id=receiver_id,
                         **kwargs,
                     )
-
-    async def send_message(
-        self,
-        content,
-        receiver_addr: Union[str, Tuple[str, int]],
-        *,
-        receiver_id: Optional[str] = None,
-        **kwargs,
-    ):
-        self._notify_send_message_subs(content, receiver_addr, receiver_id, **kwargs)
-        return await self._agent_context.send_message(
-            content=content,
-            receiver_addr=receiver_addr,
-            receiver_id=receiver_id,
-            **kwargs,
-        )
-
-    async def send_acl_message(
-        self,
-        content,
-        receiver_addr: Union[str, Tuple[str, int]],
-        *,
-        receiver_id: Optional[str] = None,
-        acl_metadata: Optional[Dict[str, Any]] = None,
-        **kwargs,
-    ):
-        self._notify_send_message_subs(content, receiver_addr, receiver_id, **kwargs)
-        return await self._agent_context.send_acl_message(
-            content=content,
-            receiver_addr=receiver_addr,
-            receiver_id=receiver_id,
-            acl_metadata=acl_metadata,
-            **kwargs,
-        )
 
     def subscribe_message(self, role, method, message_condition, priority=0):
         if len(self._message_subs) == 0:
@@ -320,22 +233,28 @@ class RoleHandler:
 
         self._role_event_type_to_handler[event_type] += [(role, method)]
 
+    def on_start(self):
+        for role in self.roles:
+            role.on_start()
+
+    def on_ready(self):
+        for role in self.roles:
+            role.on_ready()
+
 
 class RoleContext(AgentDelegates):
     """Implementation of the RoleContext."""
 
     def __init__(
         self,
-        agent_context: AgentContext,
-        scheduler: Scheduler,
         role_handler: RoleHandler,
         aid: str,
         inbox,
     ):
-        self._agent_context = agent_context
+        super().__init__()
+        self._agent_context = None
         self._role_handler = role_handler
         self._aid = aid
-        self._scheduler = scheduler
         self._inbox = inbox
 
     @property
@@ -379,7 +298,7 @@ class RoleContext(AgentDelegates):
 
         :param role: the Role
         """
-        role.bind(self)
+        role._bind(self)
         self._role_handler.add_role(role)
 
         # Setup role
@@ -394,7 +313,7 @@ class RoleContext(AgentDelegates):
         self._role_handler.remove_role(role)
         asyncio.create_task(role.on_stop())
 
-    def handle_message(self, content, meta: Dict[str, Any]):
+    def handle_message(self, content, meta: dict[str, Any]):
         """Handle an incoming message, delegating it to all applicable subscribers
 
         .. code-block:: python
@@ -411,32 +330,14 @@ class RoleContext(AgentDelegates):
     async def send_message(
         self,
         content,
-        receiver_addr: Union[str, Tuple[str, int]],
-        *,
-        receiver_id: Optional[str] = None,
+        receiver_addr: AgentAddress,
         **kwargs,
     ):
-        return await self._role_handler.send_message(
+        self._role_handler._notify_send_message_subs(content, receiver_addr, **kwargs)
+        return await self._agent_context.send_message(
             content=content,
             receiver_addr=receiver_addr,
-            receiver_id=receiver_id,
-            **kwargs,
-        )
-
-    async def send_acl_message(
-        self,
-        content,
-        receiver_addr: Union[str, Tuple[str, int]],
-        *,
-        receiver_id: Optional[str] = None,
-        acl_metadata: Optional[Dict[str, Any]] = None,
-        **kwargs,
-    ):
-        return await self._role_handler.send_acl_message(
-            content=content,
-            receiver_addr=receiver_addr,
-            receiver_id=receiver_id,
-            acl_metadata=acl_metadata,
+            sender_id=self.aid,
             **kwargs,
         )
 
@@ -475,36 +376,41 @@ class RoleContext(AgentDelegates):
     def activate(self, role) -> None:
         self._role_handler.activate(role)
 
+    def on_start(self):
+        self._role_handler.on_start()
+
+    def on_ready(self):
+        self._role_handler.on_ready()
+
 
 class RoleAgent(Agent):
     """Agent, which support the role API-system. When you want to use the role-api you always need
     a RoleAgent as base for your agents. A role can be added with :func:`RoleAgent.add_role`.
     """
 
-    def __init__(
-        self,
-        container,
-        suggested_aid: str = None,
-        suspendable_tasks=True,
-        observable_tasks=True,
-    ):
+    def __init__(self):
         """Create a role-agent
 
         :param container: container the agent lives in
         :param suggested_aid: (Optional) suggested aid, if the aid is already taken, a generated aid is used.
                               Using the generated aid-style ("agentX") is not allowed.
         """
-        super().__init__(
-            container,
-            suggested_aid=suggested_aid,
-            suspendable_tasks=suspendable_tasks,
-            observable_tasks=observable_tasks,
-        )
+        super().__init__()
+        self._role_handler = RoleHandler(None, None)
+        self._role_context = RoleContext(self._role_handler, self.aid, self.inbox)
 
-        self._role_handler = RoleHandler(self._context, self._scheduler)
-        self._role_context = RoleContext(
-            self._context, self._scheduler, self._role_handler, self.aid, self.inbox
-        )
+    def on_start(self):
+        self._role_context.on_start()
+
+    def on_ready(self):
+        self._role_context.on_ready()
+
+    def on_register(self):
+        self._role_context._agent_context = self.context
+        self._role_handler._agent_context = self.context
+        self._role_context.scheduler = self.scheduler
+        self._role_handler._scheduler = self.scheduler
+        self._role_context._aid = self.aid
 
     def add_role(self, role: Role):
         """Add a role to the agent. This will lead to the call of :func:`Role.setup`.
@@ -522,16 +428,78 @@ class RoleAgent(Agent):
         self._role_context.remove_role(role)
 
     @property
-    def roles(self) -> List[Role]:
+    def roles(self) -> list[Role]:
         """Returns list of roles
 
         :return: list of roles
         """
         return self._role_handler.roles
 
-    def handle_message(self, content, meta: Dict[str, Any]):
+    def handle_message(self, content, meta: dict[str, Any]):
         self._role_context.handle_message(content, meta)
 
     async def shutdown(self):
         await self._role_handler.on_stop()
         await super().shutdown()
+
+
+class Role(ABC):
+    """General role class, defining the API every role can use. A role implements one responsibility
+    of an agent.
+
+    Every role
+    must be added to a :class:`RoleAgent` and is defined by some lifecycle methods:
+
+    * :func:`Role.setup` is called when the Role is added to the agent, so its the perfect place for
+                         initialization and scheduling of tasks
+    * :func:`Role.on_stop` is called when the container the agent lives in, is shut down
+
+    To interact with the environment you have to use the context, accessible via :func:Role.context.
+    """
+
+    def __init__(self) -> None:
+        """Initialize the roles internals.
+        !!Care!! the role context is unknown at this point!
+        """
+        self._context = None
+
+    def _bind(self, context: RoleContext) -> None:
+        """Method used internal to set the context, do not override!
+
+        :param context: the role context
+        """
+        self._context = context
+
+    @property
+    def context(self) -> RoleContext:
+        """Return the context of the role. This context can be send as bridge to the agent.
+
+        :return: the context of the role
+        """
+        return self._context
+
+    def setup(self) -> None:
+        """Lifecycle hook in, which will be called on adding the role to agent. The role context
+        is known from hereon.
+        """
+
+    def on_change_model(self, model) -> None:
+        """Will be invoked when a subscribed model changes via :func:`RoleContext.update`.
+
+        :param model: the model
+        """
+
+    def on_deactivation(self, src) -> None:
+        """Hook in, which will be called when another role deactivates this instance (temporarily)"""
+
+    async def on_stop(self) -> None:
+        """Lifecycle hook in, which will be called when the container is shut down or if the role got removed."""
+
+    def on_start(self) -> None:
+        """Called when container started in which the agent is contained"""
+
+    def on_ready(self):
+        """Called after the start of all container using activate"""
+
+    def handle_message(self, content: Any, meta: dict):
+        pass

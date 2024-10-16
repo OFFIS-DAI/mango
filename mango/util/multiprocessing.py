@@ -29,12 +29,12 @@ import struct
 from contextlib import asynccontextmanager, contextmanager
 from multiprocessing.connection import Connection
 from multiprocessing.reduction import ForkingPickler
-from typing import Any, AsyncContextManager, ContextManager, Tuple
+from typing import Any
 
 import dill
 
 
-def aiopipe() -> Tuple["AioPipeReader", "AioPipeWriter"]:
+def aiopipe() -> tuple["AioPipeReader", "AioPipeWriter"]:
     """Create a pair of pipe endpoints, both readable and writable (duplex).
 
     :return: Reader-, Writer-Pair
@@ -43,7 +43,7 @@ def aiopipe() -> Tuple["AioPipeReader", "AioPipeWriter"]:
     return AioPipeReader(rx), AioPipeWriter(tx)
 
 
-def aioduplex() -> Tuple["AioDuplex", "AioDuplex"]:
+def aioduplex() -> tuple["AioDuplex", "AioDuplex"]:
     """Create a pair of pipe endpoints, both readable and writable (duplex).
 
     :return: AioDuplex-Pair
@@ -75,11 +75,11 @@ class AioPipeStream:
 
             await asyncio.sleep(0)
 
-    async def _open(self) -> Tuple[asyncio.BaseTransport, Any]:
+    async def _open(self) -> tuple[asyncio.BaseTransport, Any]:
         raise NotImplementedError()
 
     @contextmanager
-    def detach(self) -> ContextManager["AioPipeStream"]:
+    def detach(self):
         try:
             os.set_inheritable(self._fd, True)
             yield self
@@ -262,26 +262,26 @@ class AioDuplex:
         self._tx = tx
 
     @contextmanager
-    def detach(self) -> ContextManager["AioDuplex"]:
+    def detach(self):
         with self._rx.detach(), self._tx.detach():
             yield self
 
     @asynccontextmanager
     async def open(
         self,
-    ) -> AsyncContextManager[Tuple["asyncio.StreamReader", "asyncio.StreamWriter"]]:
+    ):
         async with self._rx.open() as rx, self._tx.open() as tx:
             yield rx, tx
 
     @asynccontextmanager
-    async def open_readonly(self) -> AsyncContextManager[Tuple["asyncio.StreamReader"]]:
+    async def open_readonly(self):
         async with self._rx.open() as rx:
             yield rx
 
     @asynccontextmanager
     async def open_writeonly(
         self,
-    ) -> AsyncContextManager[Tuple["asyncio.StreamWriter"]]:
+    ):
         async with self._tx.open() as tx:
             yield tx
 

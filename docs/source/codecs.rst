@@ -30,7 +30,7 @@ Quickstart
 
 Consider a simple example class we wish to encode as json:
 
-.. code-block:: python3
+.. testcode::
 
     class MyClass:
         def __init__(self, x, y):
@@ -55,25 +55,27 @@ Consider a simple example class we wish to encode as json:
 
 If we try to encode an object of ``MyClass`` without adding a serializer we get an SerializationError:
 
-.. code-block:: python3
+.. testcode::
 
-    codec = codecs.JSON()
+    from mango import JSON, SerializationError
+
+    codec = JSON()
 
     my_object = MyClass("abc", 123)
-    encoded = codec.encode(my_object)
+    try:
+        encoded = codec.encode(my_object)
+    except SerializationError as e:
+        print(e)
 
-.. code-block:: bash
+.. testoutput::
 
-    python main.py
-    ...
-    mango.messages.codecs.SerializationError: No serializer found for type "<class '__main__.MyClass'>"
-
+    No serializer found for type "<class 'MyClass'>"
 
 We have to make the type known to the codec to use it:
 
-.. code-block:: python3
+.. testcode::
 
-    codec = codecs.JSON()
+    codec = JSON()
     codec.add_serializer(*MyClass.__serializer__())
 
     my_object = MyClass("abc", 123)
@@ -83,66 +85,62 @@ We have to make the type known to the codec to use it:
     print(my_object.x, my_object.y)
     print(decoded.x, decoded.y)
 
-.. code-block:: bash
+.. testoutput::
 
-    python main.py
     abc 123
     abc 123
 
 All that is left to do now is to pass our codec to the container. This is done during container creation in the ``create_container`` method.
 
-.. code-block:: python3
+.. testcode::
+
+    from mango import Agent, create_tcp_container, activate
+    import asyncio
 
     class SimpleReceivingAgent(Agent):
-        def __init__(self, container):
-            super().__init__(container)
+        def __init__(self):
+            super().__init__()
 
         def handle_message(self, content, meta):
-            print(f"{self.aid} received a message with content {content} and meta f{meta}")
             if isinstance(content, MyClass):
                 print(content.x)
                 print(content.y)
 
 
     async def main():
-        codec = codecs.JSON()
+        codec = JSON()
         codec.add_serializer(*MyClass.__serializer__())
 
         # codecs can be passed directly to the container
         # if no codec is passed a new instance of JSON() is created
-        sending_container = await create_container(addr=("localhost", 5556), codec=codec)
-        receiving_container = await create_container(addr=("localhost", 5555), codec=codec)
-        receiving_agent = SimpleReceivingAgent(receiving_container)
+        sending_container = create_tcp_container(addr=("localhost", 5556), codec=codec)
+        receiving_container = create_tcp_container(addr=("localhost", 5555), codec=codec)
+        receiving_agent = receiving_container.register(SimpleReceivingAgent())
 
-        # agents can now directly pass content of type MyClass to each other
-        my_object = MyClass("abc", 123)
-        await sending_container.send_acl_message(
-            content=my_object, receiver_addr=("localhost", 5555), receiver_id="agent0"
-        )
+        async with activate(sending_container, receiving_container):
+            # agents can now directly pass content of type MyClass to each other
+            my_object = MyClass("abc", 123)
+            await sending_container.send_message(
+                content=my_object, receiver_addr=receiving_agent.addr
+            )
+            await asyncio.sleep(0.1)
 
-        await receiving_container.shutdown()
-        await sending_container.shutdown()
+    asyncio.run(main())
 
+.. testoutput::
 
-    if __name__ == "__main__":
-        asyncio.run(main())
-
-.. code-block:: bash
-
-    python main.py
-    agent0 received a message with content <__main__.MyClass object at 0x7f42c930edc0> and meta f{'sender_id': None, 'sender_addr': ['localhost', 5556], 'receiver_id': 'agent0', 'receiver_addr': ['localhost', 5555], 'performative': None, 'conversation_id': None, 'reply_by': None, 'in_reply_to': None, 'protocol': None, 'language': None, 'encoding': None, 'ontology': None, 'reply_with': None, 'network_protocol': 'tcp', 'priority': 0}
     abc
     123
 
 **@json_serializable decorator**
 
 In the above example we explicitely defined methods to (de)serialize our class. For simple classes, especially data classes,
-we can achieve the same result (for json codecs) via the ``@json_serializable`` decorator. This creates the ``__asdict__``,
+we can achieve the same result (for json codecs) via the :meth:`mango.json_serializable`` decorator. This creates the ``__asdict__``,
 ``__fromdict__`` and ``__serializer__`` functions in the class:
 
-.. code-block:: python3
+.. testcode::
 
-    from mango.messages.codecs import serializable
+    from mango import json_serializable, JSON
 
     @json_serializable
     class DecoratorData:
@@ -151,20 +149,18 @@ we can achieve the same result (for json codecs) via the ``@json_serializable`` 
             self.y = y
             self.z = z
 
-    def main():
-        codec = codecs.JSON()
-        codec.add_serializer(*DecoratorData.__serializer__())
+    codec = JSON()
+    codec.add_serializer(*DecoratorData.__serializer__())
 
-        my_data = DecoratorData(1,2,3)
-        encoded = codec.encode(my_data)
-        decoded = codec.decode(encoded)
+    my_data = DecoratorData(1,2,3)
+    encoded = codec.encode(my_data)
+    decoded = codec.decode(encoded)
 
-        print(my_data.x, my_data.y, my_data.z)
-        print(decoded.x, decoded.y, decoded.z)
+    print(my_data.x, my_data.y, my_data.z)
+    print(decoded.x, decoded.y, decoded.z)
 
-.. code-block:: bash
+.. testoutput::
 
-    python main.py
     1 2 3
     1 2 3
 
@@ -185,98 +181,6 @@ protobuf message object and a type id.
 This is necessary because in general the original type of a protobuf message can not be infered
 from its serialized form.
 
-
 The ``ACLMessage`` class is encouraged to be used for fipa compliant agent communication. For ease of use it gets specially handled in
 the protobuf codec: Its content field may contain any proto object known to the codec and gets encoded with the associated type id just
 like a non-ACL message would be encoded into the generic message wrapper.
-
-
-Here is an example class implementing a proto serializer for a proto message containing the same fields
-as the example class:
-
-.. code-block:: python3
-
-    from msg_pb2 import MyOtherMsg
-    from mango.messages.message import ACLMessage
-
-    class SomeOtherClass:
-        def __init__(self, x=1, y='abc', z=None) -> None:
-            self.x = x
-            self.y = y
-            if z is None:
-                self.z = {}
-            else:
-                self.z = z
-
-        def __toproto__(self):
-            msg = MyOtherMsg()
-            msg.x = self.x
-            msg.y = self.y
-            msg.z = str(self.z)
-            return msg
-
-        @classmethod
-        def __fromproto__(cls, data):
-            msg = MyOtherMsg()
-            msg.ParseFromString(data)
-            return cls(msg.x, msg.y, eval(msg.z))
-
-        @classmethod
-        def __protoserializer__(cls):
-            return cls, cls.__toproto__, cls.__fromproto__
-
-    def main():
-        codec = codecs.PROTOBUF()
-        codec.add_serializer(*SomeOtherClass.__protoserializer__())
-
-        my_object = SomeOtherClass()
-        decoded = codec.decode(codec.encode(my_object))
-
-        wrapper = ACLMessage()
-        wrapper.content = my_object
-        w_decoded = codec.decode(codec.encode(wrapper))
-
-        print(my_object.x, my_object.y, my_object.z)
-        print(decoded.x, decoded.y, decoded.z)
-        print(
-            wrapper_decoded.content.x,
-            wrapper_decoded.content.y,
-            wrapper_decoded.content.z,
-        )
-
-.. code-block:: bash
-
-    python main.py
-    1 2 abc123 {1: 'test', 2: 'data', 3: 123}
-    1 2 abc123 {1: 'test', 2: 'data', 3: 123}
-    1 2 abc123 {1: 'test', 2: 'data', 3: 123}
-
-
-In case you want to directly pass proto objects as content to the codec (or as content to the containers ``send_message``) you can shorten this
-process by making the proto type known to the codec using the ``register_proto_type`` function as in this example:
-
-.. code-block:: python3
-
-    from msg_pb2 import MyMsg
-
-    def main():
-    codec = codecs.PROTOBUF()
-    codec.register_proto_type(MyMsg)
-
-    my_obj = MyMsg()
-    my_obj.content = b"some_bytes"
-    encoded = codec.encode(my_obj)
-    decoded = codec.decode(encoded)
-
-    print(my_obj)
-    print(encoded)
-    print(decoded)
-
-
-.. code-block:: bash
-
-    python main.py
-    content: "some_bytes"
-
-    b'\x08\x01\x12\x0c\x12\nsome_bytes'
-    content: "some_bytes"

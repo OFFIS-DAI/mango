@@ -16,7 +16,12 @@ import json
 
 import msgspec
 
-from mango.messages.message import ACLMessage, Performatives, enum_serializer
+from mango.messages.message import (
+    ACLMessage,
+    MangoMessage,
+    Performatives,
+    enum_serializer,
+)
 
 from ..messages.acl_message_pb2 import ACLMessage as ACLProto
 from ..messages.other_proto_msgs_pb2 import GenericMsg as GenericProtoMsg
@@ -166,6 +171,7 @@ class JSON(Codec):
     def __init__(self):
         super().__init__()
         self.add_serializer(*ACLMessage.__json_serializer__())
+        self.add_serializer(*MangoMessage.__json_serializer__())
         self.add_serializer(*enum_serializer(Performatives))
 
     def encode(self, data):
@@ -179,11 +185,12 @@ class FastJSON(Codec):
     def __init__(self):
         super().__init__()
         self.add_serializer(*ACLMessage.__json_serializer__())
+        self.add_serializer(*MangoMessage.__json_serializer__())
         self.add_serializer(*enum_serializer(Performatives))
 
         self.encoder = msgspec.json.Encoder(enc_hook=self.serialize_obj)
         self.decoder = msgspec.json.Decoder(
-            dec_hook=lambda _, b: self.deserialize_obj(b), type=ACLMessage
+            dec_hook=lambda _, b: self.deserialize_obj(b), type=MangoMessage
         )
 
     def encode(self, data):
@@ -202,6 +209,7 @@ class PROTOBUF(Codec):
         # the codec merely handles the mapping of object types to these methods
         # it does not require any knowledge of the actual proto classes
         self.add_serializer(ACLMessage, self._acl_to_proto, self._proto_to_acl)
+        self.add_serializer(*MangoMessage.__protoserializer__())
 
     def encode(self, data):
         # All known proto messages are wrapped in this generic proto msg.

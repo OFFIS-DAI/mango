@@ -16,18 +16,16 @@ class ContainerProtocol(asyncio.Protocol):
     """Protocol for implementing the TCP Container connection. Internally reads the asyncio transport object
     into a buffer and moves the read messages async to the container inbox."""
 
-    def __init__(self, *, container, loop, codec):
+    def __init__(self, *, container, codec):
         """
 
         :param container:
-        :param loop:
         """
         super().__init__()
 
         self.codec = codec
         self.transport = None  # type: _SelectorTransport
         self.container = container
-        self._loop = loop
         self._buffer = bytearray()
 
     def connection_made(self, transport):
@@ -91,14 +89,14 @@ class ContainerProtocol(asyncio.Protocol):
                 message = self.codec.decode(data)
 
                 if hasattr(message, "split_content_and_meta"):
-                    content, acl_meta = message.split_content_and_meta()
-                    acl_meta["network_protocol"] = "tcp"
+                    content, meta = message.split_content_and_meta()
+                    meta["network_protocol"] = "tcp"
                 else:
-                    content, acl_meta = message, message
+                    content, meta = message, None
 
                 # TODO priority is now always 0,
                 #  but should be encoded in the message
-                self.container.inbox.put_nowait((0, content, acl_meta))
+                self.container.inbox.put_nowait((0, content, meta))
 
             else:
                 # No complete message in the buffer, nothing more to do.

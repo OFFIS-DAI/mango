@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 
-import mango.container.factory as container_factory
+from mango import AgentAddress, activate, create_tcp_container, sender_addr
 from mango.agent.core import Agent
 
 
@@ -15,17 +15,10 @@ class PingPongAgent(Agent):
 
         # get addr and id from sender
         if self.test_counter == 1:
-            receiver_host, receiver_port = meta["sender_addr"]
-            receiver_id = meta["sender_id"]
             # send back pong, providing your own details
-            self.current_task = self.schedule_instant_acl_message(
+            self.current_task = self.schedule_instant_message(
                 content="pong",
-                receiver_addr=(receiver_host, receiver_port),
-                receiver_id=receiver_id,
-                acl_metadata={
-                    "sender_addr": self.addr,
-                    "sender_id": self.aid,
-                },
+                receiver_addr=sender_addr(meta),
             )
 
 
@@ -36,40 +29,32 @@ async def test_mp_simple_ping_pong_multi_container_tcp():
     aid1 = "c1_p1_agent"
     aid2 = "c2_p1_agent"
 
-    container_1 = await container_factory.create(
+    container_1 = create_tcp_container(
         addr=init_addr,
     )
-    container_2 = await container_factory.create(
+    container_2 = create_tcp_container(
         addr=repl_addr,
     )
     await container_1.as_agent_process(
-        agent_creator=lambda c: PingPongAgent(c, suggested_aid=aid1)
+        agent_creator=lambda c: c.register(PingPongAgent(), suggested_aid=aid1)
     )
     await container_2.as_agent_process(
-        agent_creator=lambda c: PingPongAgent(c, suggested_aid=aid2)
+        agent_creator=lambda c: c.register(PingPongAgent(), suggested_aid=aid2)
     )
-    agent = PingPongAgent(container_1)
+    agent = container_1.register(PingPongAgent())
 
-    await agent.send_acl_message(
-        "Message To Process Agent1",
-        receiver_addr=container_1.addr,
-        receiver_id=aid1,
-        acl_metadata={"sender_id": agent.aid},
-    )
+    async with activate(container_1, container_2) as cl:
+        await agent.send_message(
+            "Message To Process Agent1",
+            receiver_addr=AgentAddress(container_1.addr, aid1),
+        )
 
-    await agent.send_acl_message(
-        "Message To Process Agent2",
-        receiver_addr=container_2.addr,
-        receiver_id=aid2,
-        acl_metadata={"sender_id": agent.aid},
-    )
+        await agent.send_message(
+            "Message To Process Agent2",
+            receiver_addr=AgentAddress(container_2.addr, aid2),
+        )
 
-    while agent.test_counter != 2:
-        await asyncio.sleep(0.1)
+        while agent.test_counter != 2:
+            await asyncio.sleep(0.1)
 
     assert agent.test_counter == 2
-
-    await asyncio.gather(
-        container_1.shutdown(),
-        container_2.shutdown(),
-    )
