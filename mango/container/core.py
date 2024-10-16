@@ -129,20 +129,6 @@ class Container(ABC):
                 return aid
         return None
 
-    def include(self, agent: A, suggested_aid: str = None) -> A:
-        """Include the agent in the container. Return the agent for
-        convenience.
-
-        Args:
-            agent (Agent): the agent to be included
-            suggested_aid (str, optional): suggested aid for registration
-
-        Returns:
-            _type_: the agent included
-        """
-        self.register(agent, suggested_aid=suggested_aid)
-        return agent
-
     def deregister(self, aid):
         """
         Deregister an agent

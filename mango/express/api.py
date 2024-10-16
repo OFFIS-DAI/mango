@@ -236,7 +236,7 @@ def agent_composed_of(
 
 class PrintingAgent(Agent):
     def handle_message(self, content, meta: dict[str, Any]):
-        logging.info("Received: %s with %s", content, meta)
+        print(f"Received: {content} with {meta}")
 
 
 def sender_addr(meta: dict) -> AgentAddress:

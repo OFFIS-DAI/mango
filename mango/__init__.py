@@ -17,4 +17,10 @@ from .express.api import (
 )
 from .util.distributed_clock import DistributedClockAgent, DistributedClockManager
 from .util.clock import ExternalClock
-from .messages.codecs import json_serializable, JSON, FastJSON, PROTOBUF
+from .messages.codecs import (
+    json_serializable,
+    JSON,
+    FastJSON,
+    PROTOBUF,
+    SerializationError,
+)

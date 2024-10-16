@@ -637,12 +637,12 @@ responsibilities we can use the role API.
 The idea of using roles is to divide the functionality of an agent by responsibility in a structured way.
 
 A role is a python object that can be assigned to a RoleAgent. There are several lifecycle functions each role may implement:
-    - __init__ - where you do the initial object setup
+    - ``__init__`` - where you do the initial object setup
     - :meth:`mango.Role.setup` - which is called when the role is assigned to an agent
     - :meth:`mango.Role.on_start` - which is called when the container is started
     - :meth:`mango.Role.on_ready` - which is called when are activated
 
-This distinction is relevant because not all features exist after construction with __init__. Most of the time
+This distinction is relevant because not all features exist after construction with ``__init__``. Most of the time
 you want to implement :meth:`mango.Role.on_ready` for actions like message sending, or scheduling, because only
 since this point you can be sure that all relevant container are started and the agent the role belongs to has been registered.
 However, the setup of the role itself should be done in :meth:`mango.Role.setup`.
@@ -651,20 +651,20 @@ This example covers:
     - role API basics
     - scheduling and periodic tasks
 
-The key part of defining roles are their `__init__`, `setup`, and `on_ready` methods.
+The key part of defining roles are their ``__init__``, :meth:`mango.Role.setup`, and :meth:`mango.Role.on_ready` methods.
 The first is called to create the role object. The second is called when the role is assigned to
 an agent. While the third is called when all containers are started using :meth:`mango.activate`.
 In our case, the main change is that the previous distinction of message types within `handle_message` is now done
 by subscribing to the corresponding message type to tell the agent it should forward these messages
 to this role.
-The :meth:`mango.Role.subscribe_message` method expects, besides the role and a handle method, a message condition function.
+The :meth:`mango.RoleContext.subscribe_message` method expects, besides the role and a handle method, a message condition function.
 The idea of the condition function is to allow to define a condition filtering incoming messages.
 Another idea is that sending messages from the role is now done via its context with the method:
-`self.context.send_message`.
+``self.context.send_message```.
 
 We first create the `Ping` role, which has to periodically send out its messages.
 We can use mango's scheduling API to handle
-this for us via the :meth:`mango.RoleContext.schedule_periodic_tasks` function. This takes a coroutine to execute and a time
+this for us via the :meth:`mango.RoleContext.schedule_periodic_task` function. This takes a coroutine to execute and a time
 interval. Whenever the time interval runs out the coroutine is triggered. With the scheduling API you can
 also run tasks at specific times. For a full overview we refer to the documentation.
 
