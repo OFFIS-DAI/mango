@@ -10,6 +10,17 @@ functions.
    :undoc-members:
    :imported-members:
    :inherited-members:
+   :exclude-members: PrintingAgent, DistributedClockManager, DistributedClockAgent
+
+.. autoclass:: mango.PrintingAgent
+   :members:
+
+.. autoclass:: mango.DistributedClockManager
+   :members:
+
+.. autoclass:: mango.DistributedClockAgent
+   :members:
+
 
 
 .. note::
