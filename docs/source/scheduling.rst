@@ -31,32 +31,39 @@ The core of this API is the scheduler, which is part of every agent. To schedule
 
 Furthermore there are convenience methods to get rid of the class imports when using these types of tasks.
 
-.. code-block:: python3
+.. code-block:: python
 
-    from mango import Agent
-    from mango.util.scheduling import InstantScheduledTask
+  from mango import Agent
 
-        class ScheduleAgent(Agent):
-            def __init__(self, container, other_addr, other_id):
-                self.schedule_instant_message(
-                    "Hello world!"
-                    other_addr
-                )
-
-            def handle_message(self, content, meta: Dict[str, Any]):
-                pass
+  class ScheduleAgent(Agent):
+      def schedule(self, other_addr):
+          self.schedule_instant_message(
+              "Hello world!"
+              other_addr
+          )
 
 
-When using the scheduling another feature becomes available: suspendable tasks. This makes it possible to pause and resume all tasks started with the scheduling API. Using this it is necessary to specify an identifier when starting the task (using `src=your_identifier`). To suspend a task you can call `scheduler.suspend(your_identifier)`, to resume them just call the counterpart `scheduler.resume(your_identifier)`. The scheduler is part of the agent and accessible via `self._scheduler`.
+When using the scheduling another feature becomes available: suspendable tasks.
+This makes it possible to pause and resume all tasks started with the scheduling API.
+Using this it is necessary to specify an identifier when starting the task (using ``src=your_identifier``).
+To suspend a task you can call ``scheduler.suspend(your_identifier)``, to resume them just call the
+counterpart ``scheduler.resume(your_identifier)``. The scheduler is part of the agent and accessible
+via ``self._scheduler``.
 
 
 *******************************
 Dispatch Tasks to other Process
 *******************************
 
-As asyncio does not provide real parallelism to utilize multiple cores and agents may have tasks, which need a lot computational power, the need to dispatch certain tasks to other processes appear. Handling inter process communication manually is quite exhausting and having multiple process pools across different roles or agents leads to inefficient resource allocations. As a result mango offers a way to dispatch tasks, based on coroutine-functions, to other processes, managed by the framework.
+As asyncio does not provide real parallelism to utilize multiple cores and agents may have tasks,
+which need a lot computational power, the need to dispatch certain tasks to other processes appear.
+Handling inter process communication manually is quite exhausting and having multiple process pools
+across different roles or agents leads to inefficient resource allocations. As a result mango offers
+a way to dispatch tasks, based on coroutine-functions, to other processes, managed by the framework.
 
-Analogues to the normal API there are two different ways, first you create a ScheduledProcessTask and call ``schedule_process_task``, second you invoke the convnience methods with "process" in the name. These methods exists on any Agent, the RoleContext and the Scheduler.
+Analogues to the normal API there are two different ways, first you create a ScheduledProcessTask
+and call ``schedule_process_task``, second you invoke the convnience methods with "process" in the name.
+These methods exists on any Agent, the RoleContext and the Scheduler.
 In mango the following process tasks are available:
 
 .. list-table:: Available ProcessTasks
@@ -80,29 +87,7 @@ In mango the following process tasks are available:
    * - ConditionalProcessTask
      - Will get executed as soon as the given condition is fulfilled
 
-.. code-block:: python3
 
-    from mango import Agent
-    from mango.util.scheduling import InstantScheduledProcessTask
-
-        class ScheduleAgent(Agent):
-            def __init__(self, container, other_addr, other_id):
-                self.schedule_instant_process_task(coroutine_creator=lambda: self.send_message(
-                    receiver_addr=other_addr,
-                    receiver_id=other_id,
-                    content="Hello world!")
-                )
-                # equivalent to
-                self.schedule_process_task(InstantScheduledProcessTask(coroutine_creator=lambda: self.send_message(
-                    receiver_addr=other_addr,
-                    receiver_id=other_id,
-                    content="Hello world!"))
-                )
-
-            def handle_message(self, content, meta: Dict[str, Any]):
-                pass
-
-.. _ClockDocs:
 *******************************
 Using an external clock
 *******************************
@@ -116,32 +101,28 @@ The default clock is the ``AsyncioClock``, which works as a real-time clock. An 
 is the ``ExternalClock``. Time of this clock has to be set by an external process. That way you can
 control how fast or slow time passes within your agent system:
 
-.. code-block:: python3
+.. testcode::
 
     import asyncio
-    from mango import create_container
-    from mango import Agent
-    from mango.util.clock import AsyncioClock, ExternalClock
-
+    from mango import create_tcp_container, Agent, AsyncioClock, ExternalClock, activate
 
     class Caller(Agent):
-        def __init__(self, container, receiver_addr, receiver_id):
-            super().__init__(container)
-            self.schedule_timestamp_task(coroutine=self.send_hello_world(receiver_addr, receiver_id),
-                                         timestamp=self.current_timestamp + 5)
+        def __init__(self, receiver_addr):
+            super().__init__()
+            self.receiver_addr = receiver_addr
 
-        async def send_hello_world(self, receiver_addr, receiver_id):
-            await self.send_message(receiver_addr=receiver_addr,
-                                               receiver_id=receiver_id,
+        def on_ready(self):
+          self.schedule_timestamp_task(coroutine=self.send_hello_world(self.receiver_addr),
+                                      timestamp=self.current_timestamp + 0.5)
+
+        async def send_hello_world(self, receiver_addr):
+            await self.send_message(receiver_addr=self.receiver_addr,
                                                content='Hello World')
-
-        def handle_message(self, content, meta):
-            pass
 
 
     class Receiver(Agent):
-        def __init__(self, container):
-            super().__init__(container)
+        def __init__(self):
+            super().__init__()
             self.wait_for_reply = asyncio.Future()
 
         def handle_message(self, content, meta):
@@ -151,40 +132,45 @@ control how fast or slow time passes within your agent system:
 
     async def main():
         clock = AsyncioClock()
-        # clock = ExternalClock(start_time=1000)
         addr = ('127.0.0.1', 5555)
-        c = await create_container(addr=addr, clock=clock)
-        receiver = Receiver(c)
-        caller = Caller(c, addr, receiver.aid)
-        await receiver.wait_for_reply
-        await c.shutdown()
+        c = create_tcp_container(addr=addr, clock=clock)
+        receiver = c.register(Receiver())
+        caller = c.register(Caller(receiver.addr))
 
+        async with activate(c):
+          await receiver.wait_for_reply
 
-    if __name__ == '__main__':
-        asyncio.run(main())
+    asyncio.run(main())
 
+.. testoutput::
 
-This code will terminate after 5 seconds.
-If you change the clock to an ``ExternalClock`` by uncommenting the ExternalClock in the example above,
+  Received a message with the following content Hello World.
+
+This code will terminate after 0.5 seconds.
+If you change the clock to an ``ExternalClock`` in the example above,
 the program won't terminate as the time of the clock is not proceeded by an external process.
 If you comment in the ExternalClock and change your main() as follows, the program will terminate after one second:
 
-.. code-block:: python
+.. testcode::
 
     async def main():
-        # clock = AsyncioClock()
+
         clock = ExternalClock(start_time=1000)
         addr = ('127.0.0.1', 5555)
+        c = create_tcp_container(addr=addr, clock=clock)
+        receiver = c.register(Receiver())
+        caller = c.register(Caller(receiver.addr))
 
-        c = await create_container(addr=addr, clock=clock)
-        receiver = Receiver(c)
-        caller = Caller(c, addr, receiver.aid)
-        if isinstance(clock, ExternalClock):
-            await asyncio.sleep(1)
-            clock.set_time(clock.time + 5)
-        await receiver.wait_for_reply
-        await c.shutdown()
+        async with activate(c):
+          await asyncio.sleep(1)
+          clock.set_time(clock.time + 0.5)
+          await receiver.wait_for_reply
 
+    asyncio.run(main())
+
+.. testoutput::
+
+    Received a message with the following content Hello World.
 
 *******************************
 Using a distributed clock

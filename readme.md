@@ -13,9 +13,6 @@
 [![Test mango-python](https://github.com/OFFIS-DAI/mango/actions/workflows/test-mango.yml/badge.svg)](https://github.com/OFFIS-DAI/mango/actions/workflows/test-mango.yml)
 
 
-**Note:** _This project is still in an early development stage.
-We appreciate constructive feedback and suggestions for improvement._
-
 mango (**m**odul**a**r pytho**n** a**g**ent framew**o**rk) is a python library for multi-agent systems (MAS).
 It is written on top of asyncio and is released under the MIT license.
 
@@ -48,9 +45,9 @@ Once you have created a virtual environment you can just run [pip](https://pip.p
 
 ## Getting started
 
-####Creating an agent
+### Creating an agent
 
-In our first example, we'll create a very simple agent that simply prints the content of
+In our first example, we create a very simple agent that simply prints the content of
 all messages it receives:
 
 ```python
@@ -58,141 +55,120 @@ all messages it receives:
     from mango import Agent
 
     class RepeatingAgent(Agent):
-        def __init__(self, container):
-            # We must pass a ref of the container to "mango.Agent":
-            super().__init__(container)
-            print(f"Hello world! My id is {self.aid}.")
+
+        def __init__(self):
+            super().__init__()
+            print(f"Creating a RepeatingAgent. At this point self.addr={self.addr}")
 
         def handle_message(self, content, meta):
             # This method defines what the agent will do with incoming messages.
-            print(f"Received a message with the following content: {content}")
+            print(f"Received a message with the following content: {content}!")
+
+        def on_register(self):
+            print(f"The agent has been registered to a container: {self.addr}!")
+
+        def on_ready(self):
+            print("All containers have been activated!")
+
 ```
-Agents must be a subclass of `Agent`. This base class needs
-a reference to the container the agents live in, so you must forward
-a *container* argument to it if you override `__init__()`.
+Agents must be a subclass of `mango.Agent`. Agent's are notified when they are registered `mango.Agent.on_register`
+and when the container(s) has been activated `mango.Agent.on_ready`. Consequenty, most agent features (like scheduling,
+sending internal messages, the agent address) are available after registration, and only after `mango.Agent.on_ready` has
+been called, all features are available (sending external messages).
 
-####Creating a container
 
-Agents live in a container, so we need to know how to create a mango container.
+### Creating a container
+
+
+Agents live in containers, so we need to know how to create a mango container.
 The container is responsible for message exchange between agents.
 
-```python3
+```python
 
-    # Containers need to be started via a factory function.
-    # This method is a coroutine so it needs to be called using the
-    # await statement
-    first_container = await create_container(addr=('localhost', 5555))
+    from mango import create_tcp_container
+
+    # Containers have to be created using a factory method
+    # Other container types are available through create_mqtt_container and create_ec_container
+    container = create_tcp_container(addr=('localhost', 5555))
 ```
 
-This is how a container is created. Since the method `create_container()` is a
-[coroutine](https://docs.python.org/3.9/library/asyncio-task.html) we need to await its result.
 
-#### Running your first agent within a container
+This is how a tcp container is created. While container creation, it is possible to set the codec, the address information (depending on the type) and the clock (see read the docs `Scheduling`).
 
-To put it all together we will wrap the creation of a container and the agent into a coroutine
-and execute it using `asyncio.run()`.
-The following script will create a RepeatingAgent
-and let it run within a container for three seconds and
-then shutdown the container:
+### Running your first agent within a container
+
+
+The container and the contained agents need `asyncio` (see `asyncio docs <https://docs.python.org/3.10/library/asyncio.html>`_) to work, therefore we need write a coroutine
+function and execute it using `asyncio.run`.
+
+The following script will create a RepeatingAgent, register it, and let it run within a container for 50ms and then shutdown the container:
+
 
 ```python
 
     import asyncio
-    from mango import Agent, create_container
+    from mango import create_tcp_container, Agent, activate
 
     class RepeatingAgent(Agent):
-            def __init__(self, container):
-                # We must pass a ref. to the container to "mango.Agent":
-                super().__init__(container)
-                print(f"Hello world! My id is {self.aid}.")
+        def __init__(self):
+            super().__init__()
+            print(f"Creating a RepeatingAgent. At this point self.addr={self.addr}")
 
-            def handle_message(self, content, meta):
-                # This method defines what the agent will do with incoming messages.
-                print(f"Received a message with the following content: {content}")
+        def handle_message(self, content, meta):
+            print(f"Received a message with the following content: {content}!")
+
+        def on_register(self):
+            print(f"The agent has been registered to a container: {self.addr}!")
+
+        def on_ready(self):
+            print("All containers have been activated!")
+
 
     async def run_container_and_agent(addr, duration):
-        first_container = await create_container(addr=addr)
-        first_agent = RepeatingAgent(first_container)
-        await asyncio.sleep(duration)
-        await first_agent.shutdown()
-        await first_container.shutdown()
+        first_container = create_tcp_container(addr=addr)
+        first_agent = first_container.register(RepeatingAgent())
 
-    asyncio.run(run_container_and_agent(addr=('localhost', 5555), duration=3))
+        async with activate(first_container) as container:
+            await asyncio.sleep(duration)
+
+    asyncio.run(run_container_and_agent(addr=('localhost', 5555), duration=0.05))
+
 ```
-The only output you should see is `Hello world! My id is agent0.`, because
-the agent does yet not receive any messages.
+In this example no messages are sent, nor does the Agent do anything, but the call order of the hook-in functions is clearly visible.
+The function `mango.activate` will start the container and shut it down after the
+code in its scope has been execute (here, after the sleep).
 
-#### Creating a proactive Agent
+### Creating a proactive Agent
 
 Let's implement another agent that is able to send a hello world message
 to another agent:
 
 ```python
 
-from mango import Agent
+    import asyncio
+    from mango import Agent
 
     class HelloWorldAgent(Agent):
-        def __init__(self, container, other_addr, other_id):
-            super().__init__(container)
-            self.schedule_instant_message(
-                receiver_addr=other_addr,
-                receiver_id=other_id,
-                content="Hello world!"
-            )
+        async def greet(self, other_addr):
+            await self.send_message("Hello world!", other_addr)
 
         def handle_message(self, content, meta):
             print(f"Received a message with the following content: {content}")
-```
-#### Connecting two agents
-We can now connect an instance of a HelloWorldAgent with an instance of a RepeatingAgent and run them.
-```python
-import asyncio
-from mango import Agent, create_tcp_container, activate
 
+    async def run_container_and_agent(addr, duration):
+        first_container = create_tcp_container(addr=addr)
+        first_hello_agent = first_container.register(HelloWorldAgent())
+        second_hello_agent = first_container.register(HelloWorldAgent())
 
-class RepeatingAgent(Agent):
-    def __init__(self, container):
-        # We must pass a ref. to the container to "mango.Agent":
-        super().__init__(container)
-        print(f"Hello world! My id is {self.aid}.")
+        async with activate(first_container) as container:
+            await first_hello_agent.greet(second_hello_agent.addr)
 
-    def handle_message(self, content, meta):
-        # This method defines what the agent will do with incoming messages.
-        print(f"Received a message with the following content: {content}")
-
-class HelloWorldAgent(Agent):
-    async def greet(self, other_addr):
-        await self.send_message("Hello world!", other_addr)
-
-    def handle_message(self, content, meta):
-        print(f"Received a message with the following content: {content}")
-
-
-async def run_container_and_two_agents(first_addr, second_addr):
-    first_container = create_tcp_container(addr=first_addr)
-    second_container = create_tcp_container(addr=second_addr)
-
-    first_agent = first_container.register(RepeatingAgent())
-    second_agent = second_container.register(HelloWorldAgent())
-
-    async with activate(first_container, second_container) as cl:
-        await second_agent.greet(first_agent.addr)
-
-
-def test_second_example():
-    asyncio.run(run_container_and_two_agents(
-        first_addr=('localhost', 5555), second_addr=('localhost', 5556))
-    )
+    asyncio.run(run_container_and_agent(addr=('localhost', 5555), duration=0.05))
 
 ```
 
-You should now see the following output:
-
-`Hello world! My id is agent0.`
-
-`Received a message with the following content: Hello world!`
-
-You have now successfully created two agents and connected them.
+If you do not want to await sending the message, and just let asyncio/mango schedule it, you can use `mango.Agent.schedule_instant_message` instead of
+`mango.Agent.send_message`.
 
 ## Support
 - Documentation: [mango-agents.readthedocs.io](https://mango-agents.readthedocs.io)
@@ -201,6 +177,3 @@ You have now successfully created two agents and connected them.
 ## License
 
 Distributed under the MIT license.
-
-[comment]: <> (##TODO  Release History * 0.0.1 First TCPContainer with json)
-[comment]: <> (* 0.0.2 * Added MQTTContainer and protobuf support  )

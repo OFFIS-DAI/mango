@@ -16,7 +16,7 @@ from .express.api import (
     addr,
 )
 from .util.distributed_clock import DistributedClockAgent, DistributedClockManager
-from .util.clock import ExternalClock
+from .util.clock import ExternalClock, AsyncioClock
 from .messages.codecs import (
     json_serializable,
     JSON,
