@@ -158,21 +158,25 @@ Connecting two agents
 We can now connect an instance of a HelloWorldAgent with an instance of
 a RepeatingAgent and let them run.
 
-.. code-block:: python
+.. testcode::
 
     import asyncio
     from mango import Agent, create_tcp_container, activate
 
 
     class RepeatingAgent(Agent):
-        def __init__(self, container):
-            # We must pass a ref. to the container to "mango.Agent":
-            super().__init__(container)
-            print(f"Hello world! My id is {self.aid}.")
+        def __init__(self):
+            super().__init__()
+            print(f"Creating a RepeatingAgent. At this point self.addr={self.addr}")
 
         def handle_message(self, content, meta):
-            # This method defines what the agent will do with incoming messages.
-            print(f"Received a message with the following content: {content}")
+            print(f"Received a message with the following content: {content}!")
+
+        def on_register(self):
+            print(f"The agent has been registered to a container: {self.addr}!")
+
+        def on_ready(self):
+            print("All containers have been activated!")
 
     class HelloWorldAgent(Agent):
         async def greet(self, other_addr):
@@ -191,16 +195,17 @@ a RepeatingAgent and let them run.
 
         async with activate(first_container, second_container) as cl:
             await second_agent.greet(first_agent.addr)
+            await asyncio.sleep(.1)
 
+    asyncio.run(run_container_and_two_agents(
+        first_addr=('localhost', 5555), second_addr=('localhost', 5556))
+    )
 
-    def test_second_example():
-        asyncio.run(run_container_and_two_agents(
-            first_addr=('localhost', 5555), second_addr=('localhost', 5556))
-        )
+.. testoutput::
 
-You should now see the following output:
-
-`Hello world! My id is agent0.`
-`Received a message with the following content: Hello world!`
+    Creating a RepeatingAgent. At this point self.addr=None
+    The agent has been registered to a container: AgentAddress(protocol_addr=('localhost', 5555), aid='agent0')!
+    All containers have been activated!
+    Received a message with the following content: Hello world!!
 
 You have now successfully created two agents and connected them.
