@@ -14,7 +14,7 @@ The main features of mango are listed below.
 Features
 =================================
 - Container mechanism to speedup local message exchange
-- Message definition based on the FIPA ACL standard
+- Support for using FIPA message based on the FIPA ACL standard
 - Structuring complex agents with loose coupling and agent roles
 - Built-in codecs: `JSON <https://www.json.org>`_ and `protobuf <https://developers.google.com/protocol-buffers>`_
 - Supports communication between agents directly via TCP or via an external MQTT broker in the middle
@@ -25,19 +25,18 @@ Features
 
    installation
    getting_started
-   migration
    tutorial
    agents-container
    message exchange
+   role-api
    scheduling
    codecs
-   role-api
-   development
    api_ref/index
+   migration
+   development
    privacy
    legals
    datenschutz
-   impressum
 
 
 

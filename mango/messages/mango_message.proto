@@ -1,0 +1,6 @@
+syntax = "proto3";
+
+message MangoMessage {
+    bytes content = 1;
+    bytes meta = 2;
+}

@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+        python-version: ["3.10", "3.11", "3.12"]
     steps:
     - uses: actions/checkout@v4
     - name: Set up Python
@@ -32,6 +32,8 @@ jobs:
         pip install virtualenv
         virtualenv venv
         source venv/bin/activate
+        pip3 install -U sphinx
+        pip3 install -r docs/requirements.txt
         pip3 install -r requirements.txt
         pip3 install -e .
         sudo apt update
@@ -44,6 +46,10 @@ jobs:
         source venv/bin/activate
         ruff check .
         ruff format --check .
+    - name: Doctests
+      run: |
+        source venv/bin/activate
+        make -C docs doctest
     - name: Test+Coverage
       run: |
         source venv/bin/activate

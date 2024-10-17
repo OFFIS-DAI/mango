@@ -1,7 +1,7 @@
-mango.container package
+Container API
 =======================
 
-mango.container.core module
+Container core
 ---------------------------
 
 .. automodule:: mango.container.core
@@ -9,7 +9,7 @@ mango.container.core module
    :undoc-members:
    :show-inheritance:
 
-mango.container.external\_coupling module
+Container external coupling
 -----------------------------------------
 
 .. automodule:: mango.container.external_coupling
@@ -17,7 +17,7 @@ mango.container.external\_coupling module
    :undoc-members:
    :show-inheritance:
 
-mango.container.factory module
+Container creation
 ------------------------------
 
 .. automodule:: mango.container.factory
@@ -25,7 +25,7 @@ mango.container.factory module
    :undoc-members:
    :show-inheritance:
 
-mango.container.mqtt module
+MQTT Container
 ---------------------------
 
 .. automodule:: mango.container.mqtt
@@ -33,15 +33,7 @@ mango.container.mqtt module
    :undoc-members:
    :show-inheritance:
 
-mango.container.protocol module
--------------------------------
-
-.. automodule:: mango.container.protocol
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-mango.container.tcp module
+TCP Container
 --------------------------
 
 .. automodule:: mango.container.tcp

@@ -2,7 +2,6 @@ import asyncio
 import bisect
 import time
 from abc import ABC, abstractmethod
-from typing import List, Tuple
 
 
 class Clock(ABC):
@@ -51,8 +50,8 @@ class ExternalClock(Clock):
 
     def __init__(self, start_time: float = 0):
         self._time: float = start_time
-        self._futures: List[
-            Tuple[float, asyncio.Future]
+        self._futures: list[
+            tuple[float, asyncio.Future]
         ] = []  # list of all futures to be triggered
 
     @property

@@ -2,27 +2,28 @@ import asyncio
 
 import pytest
 
-from mango import create_container
+from mango import create_tcp_container
 from mango.container.protocol import ContainerProtocol
 from mango.container.tcp import TCPConnectionPool
 
 
 @pytest.mark.asyncio
 async def test_connection_open_close():
-    c = await create_container(addr=("127.0.0.2", 5555), copy_internal_messages=False)
+    c = create_tcp_container(addr=("127.0.0.2", 5555), copy_internal_messages=False)
+    await c.start()
     await c.shutdown()
 
 
 @pytest.mark.asyncio
 async def test_connection_pool_obtain_release():
-    c = await create_container(addr=("127.0.0.2", 5555), copy_internal_messages=False)
-    c2 = await create_container(addr=("127.0.0.2", 5556), copy_internal_messages=False)
+    c = create_tcp_container(addr=("127.0.0.2", 5555), copy_internal_messages=False)
+    c2 = create_tcp_container(addr=("127.0.0.2", 5556), copy_internal_messages=False)
+    await c.start()
+    await c2.start()
 
     addr = "127.0.0.2", 5556
-    connection_pool = TCPConnectionPool(asyncio.get_event_loop())
-    raw_prot = ContainerProtocol(
-        container=c, loop=asyncio.get_event_loop(), codec=c.codec
-    )
+    connection_pool = TCPConnectionPool()
+    raw_prot = ContainerProtocol(container=c, codec=c.codec)
     protocol = await connection_pool.obtain_connection(addr[0], addr[1], raw_prot)
 
     assert connection_pool._available_connections[addr].qsize() == 0
@@ -40,22 +41,20 @@ async def test_connection_pool_obtain_release():
 
 @pytest.mark.asyncio
 async def test_connection_pool_double_obtain_release():
-    c = await create_container(addr=("127.0.0.2", 5555), copy_internal_messages=False)
-    c2 = await create_container(addr=("127.0.0.2", 5556), copy_internal_messages=False)
+    c = create_tcp_container(addr=("127.0.0.2", 5555), copy_internal_messages=False)
+    c2 = create_tcp_container(addr=("127.0.0.2", 5556), copy_internal_messages=False)
+    await c.start()
+    await c2.start()
 
     addr = "127.0.0.2", 5556
-    connection_pool = TCPConnectionPool(asyncio.get_event_loop())
-    raw_prot = ContainerProtocol(
-        container=c, loop=asyncio.get_event_loop(), codec=c.codec
-    )
+    connection_pool = TCPConnectionPool()
+    raw_prot = ContainerProtocol(container=c, codec=c.codec)
     protocol = await connection_pool.obtain_connection(addr[0], addr[1], raw_prot)
 
     assert connection_pool._available_connections[addr].qsize() == 0
     assert connection_pool._connection_counts[addr] == 1
 
-    raw_prot = ContainerProtocol(
-        container=c, loop=asyncio.get_event_loop(), codec=c.codec
-    )
+    raw_prot = ContainerProtocol(container=c, codec=c.codec)
     protocol2 = await connection_pool.obtain_connection(addr[0], addr[1], raw_prot)
 
     assert connection_pool._available_connections[addr].qsize() == 0
@@ -80,14 +79,15 @@ async def test_connection_pool_double_obtain_release():
 async def test_ttl():
     addr = "127.0.0.2", 5556
     addr2 = "127.0.0.2", 5557
-    c = await create_container(addr=("127.0.0.2", 5555), copy_internal_messages=False)
-    c2 = await create_container(addr=addr, copy_internal_messages=False)
-    c3 = await create_container(addr=addr2, copy_internal_messages=False)
+    c = create_tcp_container(addr=("127.0.0.2", 5555), copy_internal_messages=False)
+    c2 = create_tcp_container(addr=addr, copy_internal_messages=False)
+    c3 = create_tcp_container(addr=addr2, copy_internal_messages=False)
+    await c.start()
+    await c2.start()
+    await c3.start()
 
-    connection_pool = TCPConnectionPool(asyncio.get_event_loop(), ttl_in_sec=0.1)
-    raw_prot = ContainerProtocol(
-        container=c, loop=asyncio.get_event_loop(), codec=c.codec
-    )
+    connection_pool = TCPConnectionPool(ttl_in_sec=0.1)
+    raw_prot = ContainerProtocol(container=c, codec=c.codec)
     protocol = await connection_pool.obtain_connection(addr[0], addr[1], raw_prot)
 
     assert connection_pool._available_connections[addr].qsize() == 0
@@ -120,16 +120,14 @@ async def test_ttl():
 
 @pytest.mark.asyncio
 async def test_max_connections():
-    c = await create_container(addr=("127.0.0.2", 5555), copy_internal_messages=False)
-    c2 = await create_container(addr=("127.0.0.2", 5556), copy_internal_messages=False)
+    c = create_tcp_container(addr=("127.0.0.2", 5555), copy_internal_messages=False)
+    c2 = create_tcp_container(addr=("127.0.0.2", 5556), copy_internal_messages=False)
+    await c.start()
+    await c2.start()
 
     addr = "127.0.0.2", 5556
-    connection_pool = TCPConnectionPool(
-        asyncio.get_event_loop(), max_connections_per_target=1
-    )
-    raw_prot = ContainerProtocol(
-        container=c, loop=asyncio.get_event_loop(), codec=c.codec
-    )
+    connection_pool = TCPConnectionPool(max_connections_per_target=1)
+    raw_prot = ContainerProtocol(container=c, codec=c.codec)
     protocol = await connection_pool.obtain_connection(addr[0], addr[1], raw_prot)
 
     with pytest.raises(asyncio.TimeoutError):

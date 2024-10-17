@@ -125,7 +125,7 @@ class RoleHandlingEvents(Role):
 def test_emit_event():
     # GIVEN
     role_handler = RoleHandler(None, None)
-    context = RoleContext(None, None, role_handler, None, None)
+    context = RoleContext(role_handler, None, None)
     ex_role = SubRole()
     ex_role2 = RoleHandlingEvents()
     context.add_role(ex_role)
