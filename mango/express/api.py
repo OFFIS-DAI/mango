@@ -70,6 +70,7 @@ class RunWithTCPManager(RunWithContainer):
         *agents: Agent | tuple[Agent, dict],
         addr: tuple[str, int] = ("127.0.0.1", 5555),
         codec: None | Codec = None,
+        auto_port: bool = False,
     ) -> None:
         agents = [
             agent if isinstance(agent, tuple) else (agent, dict())
@@ -79,10 +80,14 @@ class RunWithTCPManager(RunWithContainer):
 
         self._addr = addr
         self._codec = codec
+        self.__auto_port = auto_port
 
     def create_container_list(self, num):
         return [
-            create_tcp((self._addr[0], self._addr[1] + i), codec=self._codec)
+            create_tcp(
+                (self._addr[0], 0 if self.__auto_port else self._addr[1] + i),
+                codec=self._codec,
+            )
             for i in range(num)
         ]
 
