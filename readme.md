@@ -89,7 +89,7 @@ The container is responsible for message exchange between agents.
 
     # Containers have to be created using a factory method
     # Other container types are available through create_mqtt_container and create_ec_container
-    container = create_tcp_container(addr=('localhost', 5555))
+    container = create_tcp_container(addr=('127.0.0.1', 5555))
 ```
 
 
@@ -131,7 +131,7 @@ The following script will create a RepeatingAgent, register it, and let it run w
         async with activate(first_container) as container:
             await asyncio.sleep(duration)
 
-    asyncio.run(run_container_and_agent(addr=('localhost', 5555), duration=0.05))
+    asyncio.run(run_container_and_agent(addr=('127.0.0.1', 5555), duration=0.05))
 
 ```
 In this example no messages are sent, nor does the Agent do anything, but the call order of the hook-in functions is clearly visible.
@@ -163,7 +163,7 @@ to another agent:
         async with activate(first_container) as container:
             await first_hello_agent.greet(second_hello_agent.addr)
 
-    asyncio.run(run_container_and_agent(addr=('localhost', 5555), duration=0.05))
+    asyncio.run(run_container_and_agent(addr=('127.0.0.1', 5555), duration=0.05))
 
 ```
 

@@ -196,8 +196,8 @@ In the following a simple example is shown.
   from mango import DistributedClockAgent, DistributedClockManager, create_tcp_container, activate, ExternalClock
 
   async def main():
-    container_man = create_tcp_container(("localhost", 1555), clock=ExternalClock())
-    container_ag = create_tcp_container(("localhost", 1556), clock=ExternalClock())
+    container_man = create_tcp_container(("127.0.0.1", 1555), clock=ExternalClock())
+    container_ag = create_tcp_container(("127.0.0.1", 1556), clock=ExternalClock())
 
     clock_agent = container_ag.register(DistributedClockAgent())
     clock_manager = container_man.register(DistributedClockManager(

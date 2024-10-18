@@ -57,7 +57,7 @@ class MyAgent(Agent):
 @pytest.mark.asyncio
 async def test_activate_api_style_agent():
     # GIVEN
-    c = create_tcp_container(addr=("127.0.0.2", 5555))
+    c = create_tcp_container(addr=("127.0.0.1", 5555))
     agent = c.register(MyAgent())
     agent2 = c.register(MyAgent())
 

@@ -37,8 +37,8 @@ PROTO_CODEC.add_serializer(*string_serializer())
 
 async def setup_and_run_test_case(connection_type, codec):
     comm_topic = "test_topic"
-    init_addr = ("localhost", 1555) if connection_type == "tcp" else None
-    repl_addr = ("localhost", 1556) if connection_type == "tcp" else None
+    init_addr = ("127.0.0.1", 1555) if connection_type == "tcp" else None
+    repl_addr = ("127.0.0.1", 1556) if connection_type == "tcp" else None
 
     container_1, container_2 = create_test_container(
         connection_type, init_addr, repl_addr, codec
