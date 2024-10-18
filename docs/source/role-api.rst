@@ -175,8 +175,8 @@ determine the message dispatch order (lower number = earlier execution, default=
 
     async def show_handle_sub():
         my_composed_agent = agent_composed_of(MyRole())
-        async with run_with_tcp(1, my_composed_agent) as cl:
-            await cl[0].send_message(Ping(), my_composed_agent.addr)
+        async with run_with_tcp(1, my_composed_agent) as container:
+            await container.send_message(Ping(), my_composed_agent.addr)
 
     asyncio.run(show_handle_sub())
 
