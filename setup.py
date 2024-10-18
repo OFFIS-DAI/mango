@@ -23,13 +23,12 @@ REQUIRED = [
     "paho-mqtt>=2.1.0",
     "python-dateutil>=2.9.0",
     "dill>=0.3.8",
-    "msgspec>=0.18.6",
     "protobuf>=5.27.2",
 ]
 
 # What packages are optional?
 EXTRAS = {
-    # 'fancy feature': ['django'],
+    "msgspec>=0.18.6",
 }
 
 # The rest you shouldn't have to touch too much :)
