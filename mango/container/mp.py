@@ -102,6 +102,7 @@ def create_agent_process_environment(
     :type process_initialized_event: Event
     """
     asyncio.set_event_loop(asyncio.new_event_loop())
+    container_data.codec = dill.loads(container_data.codec)
 
     async def start_agent_loop():
         container = mirror_container_creator(
@@ -448,7 +449,7 @@ class MainContainerProcessManager(BaseContainerProcessManager):
                 args=(
                     ContainerData(
                         addr=container.addr,
-                        codec=container.codec,
+                        codec=dill.dumps(container.codec),
                         clock=container.clock,
                         kwargs=container._kwargs,
                     ),
