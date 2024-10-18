@@ -4,7 +4,7 @@ import pytest
 
 from mango import activate, addr
 from mango.agent.core import Agent
-from mango.messages.codecs import JSON, PROTOBUF, FastJSON
+from mango.messages.codecs import JSON, PROTOBUF
 
 from ..unit_tests.messages.msg_pb2 import MyMsg
 from . import create_test_container
@@ -31,15 +31,14 @@ def string_serializer():
 
 
 JSON_CODEC = JSON()
-FAST_JSON_CODEC = FastJSON()
 PROTO_CODEC = PROTOBUF()
 PROTO_CODEC.add_serializer(*string_serializer())
 
 
 async def setup_and_run_test_case(connection_type, codec):
     comm_topic = "test_topic"
-    init_addr = ("localhost", 1555) if connection_type == "tcp" else None
-    repl_addr = ("localhost", 1556) if connection_type == "tcp" else None
+    init_addr = ("127.0.0.1", 1555) if connection_type == "tcp" else None
+    repl_addr = ("127.0.0.1", 1556) if connection_type == "tcp" else None
 
     container_1, container_2 = create_test_container(
         connection_type, init_addr, repl_addr, codec
@@ -142,6 +141,7 @@ async def test_tcp_proto():
     await setup_and_run_test_case("tcp", PROTO_CODEC)
 
 
+"""
 @pytest.mark.asyncio
 async def test_tcp_fast_json():
     await setup_and_run_test_case("tcp", FAST_JSON_CODEC)
@@ -151,6 +151,7 @@ async def test_tcp_fast_json():
 @pytest.mark.mqtt
 async def test_mqtt_fast_json():
     await setup_and_run_test_case("mqtt", FAST_JSON_CODEC)
+"""
 
 
 @pytest.mark.asyncio

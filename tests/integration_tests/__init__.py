@@ -3,7 +3,7 @@ from mango.util.clock import ExternalClock
 
 
 def create_test_container(type, init_addr, repl_addr, codec):
-    broker = ("localhost", 1883, 60)
+    broker = ("127.0.0.1", 1883, 60)
 
     clock_man = ExternalClock(5)
     if type == "tcp":

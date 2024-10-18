@@ -17,7 +17,7 @@ class MyAgent(Agent):
 @pytest.mark.asyncio
 async def test_periodic_facade():
     # GIVEN
-    c = create_tcp_container(addr=("127.0.0.2", 5555))
+    c = create_tcp_container(addr=("127.0.0.1", 5555))
     agent = c.register(MyAgent())
     l = []
 
@@ -39,7 +39,7 @@ async def test_periodic_facade():
 @pytest.mark.asyncio
 async def test_send_message():
     # GIVEN
-    c = create_tcp_container(addr=("127.0.0.2", 5555))
+    c = create_tcp_container(addr=("127.0.0.1", 5555))
     agent = c.register(MyAgent())
     agent2 = c.register(MyAgent())
 
@@ -56,7 +56,7 @@ async def test_send_message():
 @pytest.mark.asyncio
 async def test_send_acl_message():
     # GIVEN
-    c = create_tcp_container(addr=("127.0.0.2", 5555))
+    c = create_tcp_container(addr=("127.0.0.1", 5555))
     agent = c.register(MyAgent())
     agent2 = c.register(MyAgent())
 
@@ -76,7 +76,7 @@ async def test_send_acl_message():
 @pytest.mark.asyncio
 async def test_schedule_message():
     # GIVEN
-    c = create_tcp_container(addr=("127.0.0.2", 5555))
+    c = create_tcp_container(addr=("127.0.0.1", 5555))
     agent = c.register(MyAgent())
     agent2 = c.register(MyAgent())
 
@@ -90,7 +90,7 @@ async def test_schedule_message():
 @pytest.mark.asyncio
 async def test_schedule_acl_message():
     # GIVEN
-    c = create_tcp_container(addr=("127.0.0.2", 5555))
+    c = create_tcp_container(addr=("127.0.0.1", 5555))
     agent = c.register(MyAgent())
     agent2 = c.register(MyAgent())
 

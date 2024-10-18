@@ -198,6 +198,8 @@ class TCPContainer(Container):
             self.addr[0],
             self.addr[1],
         )
+        # if 0 is specified
+        self.addr = (self.addr[0], self.server.sockets[0]._sock.getsockname()[1])
         await super().start()
 
     async def send_message(

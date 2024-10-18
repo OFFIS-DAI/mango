@@ -20,7 +20,6 @@ from .util.clock import ExternalClock, AsyncioClock
 from .messages.codecs import (
     json_serializable,
     JSON,
-    FastJSON,
     PROTOBUF,
     SerializationError,
 )

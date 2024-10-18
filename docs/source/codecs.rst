@@ -113,8 +113,8 @@ All that is left to do now is to pass our codec to the container. This is done d
 
         # codecs can be passed directly to the container
         # if no codec is passed a new instance of JSON() is created
-        sending_container = create_tcp_container(addr=("localhost", 5556), codec=codec)
-        receiving_container = create_tcp_container(addr=("localhost", 5555), codec=codec)
+        sending_container = create_tcp_container(addr=("127.0.0.1", 5556), codec=codec)
+        receiving_container = create_tcp_container(addr=("127.0.0.1", 5555), codec=codec)
         receiving_agent = receiving_container.register(SimpleReceivingAgent())
 
         async with activate(sending_container, receiving_container):

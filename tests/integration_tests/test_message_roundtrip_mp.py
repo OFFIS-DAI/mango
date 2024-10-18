@@ -24,8 +24,8 @@ class PingPongAgent(Agent):
 
 @pytest.mark.asyncio
 async def test_mp_simple_ping_pong_multi_container_tcp():
-    init_addr = ("localhost", 1555)
-    repl_addr = ("localhost", 1556)
+    init_addr = ("127.0.0.1", 1555)
+    repl_addr = ("127.0.0.1", 1556)
     aid1 = "c1_p1_agent"
     aid2 = "c2_p1_agent"
 

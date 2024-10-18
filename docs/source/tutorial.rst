@@ -83,7 +83,7 @@ For this tutorial we will cover the tcp container.
 
     from mango import create_tcp_container
 
-    PV_CONTAINER_ADDRESS = ("localhost", 5555)
+    PV_CONTAINER_ADDRESS = ("127.0.0.1", 5555)
 
     pv_container = create_tcp_container(addr=PV_CONTAINER_ADDRESS)
 
@@ -91,7 +91,7 @@ For this tutorial we will cover the tcp container.
 
 .. testoutput::
 
-    ('localhost', 5555)
+    ('127.0.0.1', 5555)
 
 Now we can create our agents. Agents always live inside a container and therefore need to be registered to the container.
 
@@ -110,7 +110,7 @@ Now we can create our agents. Agents always live inside a container and therefor
 
     Hello I am a PV agent!
     Hello I am a PV agent!
-    AgentAddress(protocol_addr=('localhost', 5555), aid='agent1')
+    AgentAddress(protocol_addr=('127.0.0.1', 5555), aid='agent1')
 
 For now, our agents and containers are purely passive entities. First, we need to activate the container to start
 the tcp server and its internal asynchronous behavior. In mango this can be done with :meth:`mango.activate` and the `async with` syntax.
@@ -143,7 +143,7 @@ is wrapped in the :class:`mango.AgentAddress` class and can be retrieved with :m
 
     Hello I am a PV agent!
     Hello I am a PV agent!
-    Received message with content: Hello, this is a simple message. and meta {'sender_id': 'agent2', 'sender_addr': ('localhost', 5555), 'receiver_id': 'agent3', 'network_protocol': 'tcp', 'priority': 0}.
+    Received message with content: Hello, this is a simple message. and meta {'sender_id': 'agent2', 'sender_addr': ('127.0.0.1', 5555), 'receiver_id': 'agent3', 'network_protocol': 'tcp', 'priority': 0}.
 
 
 *********************************
@@ -369,8 +369,8 @@ Lastly, we call all relevant instantiations and the run function within our main
 
     from mango import create_tcp_container, activate, Performatives
 
-    PV_CONTAINER_ADDRESS = ("localhost", 5555)
-    CONTROLLER_CONTAINER_ADDRESS = ("localhost", 5556)
+    PV_CONTAINER_ADDRESS = ("127.0.0.1", 5555)
+    CONTROLLER_CONTAINER_ADDRESS = ("127.0.0.1", 5556)
     PV_FEED_IN = {
         'PV Agent 0': 2.0,
         'PV Agent 1': 1.0,
@@ -464,8 +464,8 @@ Next, we need to create a codec, make our message objects known to it, and pass 
 
     from mango import JSON
 
-    PV_CONTAINER_ADDRESS = ("localhost", 5555)
-    CONTROLLER_CONTAINER_ADDRESS = ("localhost", 5556)
+    PV_CONTAINER_ADDRESS = ("127.0.0.1", 5555)
+    CONTROLLER_CONTAINER_ADDRESS = ("127.0.0.1", 5556)
 
     my_codec = JSON()
     my_codec.add_serializer(*AskFeedInMsg.__serializer__())
@@ -675,8 +675,8 @@ also run tasks at specific times. For a full overview we refer to the documentat
 
     from mango import sender_addr, Role, RoleAgent, JSON, create_tcp_container, json_serializable, agent_composed_of
 
-    PV_CONTAINER_ADDRESS = ("localhost", 5555)
-    CONTROLLER_CONTAINER_ADDRESS = ("localhost", 5556)
+    PV_CONTAINER_ADDRESS = ("127.0.0.1", 5555)
+    CONTROLLER_CONTAINER_ADDRESS = ("127.0.0.1", 5556)
     PV_FEED_IN = {
         "PV Agent 0": 2.0,
         "PV Agent 1": 1.0,

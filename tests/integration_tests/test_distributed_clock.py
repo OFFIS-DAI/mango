@@ -10,8 +10,8 @@ JSON_CODEC = JSON()
 
 
 async def setup_and_run_test_case(connection_type, codec):
-    init_addr = ("localhost", 1555) if connection_type == "tcp" else "c1"
-    repl_addr = ("localhost", 1556) if connection_type == "tcp" else "c2"
+    init_addr = ("127.0.0.1", 1555) if connection_type == "tcp" else "c1"
+    repl_addr = ("127.0.0.1", 1556) if connection_type == "tcp" else "c2"
 
     container_man, container_ag = create_test_container(
         connection_type, init_addr, repl_addr, codec

@@ -87,7 +87,7 @@ async def test_send_ping_pong(num_agents, num_containers):
     # create containers
     containers = []
     for i in range(num_containers):
-        c = create_tcp_container(addr=("127.0.0.2", 5555 + i))
+        c = create_tcp_container(addr=("127.0.0.1", 5555 + i))
         containers.append(c)
 
     # create agents

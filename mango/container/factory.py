@@ -61,6 +61,7 @@ def create_tcp(
     codec: Codec = None,
     clock: Clock = None,
     copy_internal_messages: bool = False,
+    auto_port=False,
     **kwargs: dict[str, Any],
 ) -> Container:
     """
@@ -81,7 +82,7 @@ def create_tcp(
 
     # initialize TCPContainer
     return TCPContainer(
-        addr=addr,
+        addr=(addr[0], 0) if auto_port else addr,
         codec=codec,
         clock=clock,
         copy_internal_messages=copy_internal_messages,
