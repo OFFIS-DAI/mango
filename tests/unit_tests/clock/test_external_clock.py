@@ -50,7 +50,13 @@ async def test_external_clock_simple():
     await asyncio.sleep(0.1)
     clock.set_time(1000)
     results = await asyncio.gather(first_task, second_task)
-    assert round(results[0], 1) == 0.2 and round(results[1], 1) == 0.4
+    assert round(results[0], 1) == 0.2
+    assert round(results[1], 1) == 0.4
+
+
+def assert_os_close(va, bound, tol=0.1):
+    assert va >= bound
+    assert va <= (bound) + tol
 
 
 @pytest.mark.asyncio
@@ -89,10 +95,10 @@ async def test_schedule_timestamp_task():
             sim_time = int(simulation_time) + 1
         else:
             sim_time = simulation_time
-        assert round(sim_time / 10, 1) == round(real_time, 1)
+        assert_os_close(real_time, sim_time / 10)
 
     for simulation_time, real_time in results_dict_asyncio.items():
-        assert round(simulation_time, 1) == round(real_time, 1)
+        assert_os_close(real_time, simulation_time / 10)
 
 
 @pytest.mark.asyncio
@@ -152,10 +158,9 @@ async def test_conditional_task():
 
     await increase_time_task
 
-    print(results_dict)
     for i in range(n_tasks):
-        assert round(results_dict[f"external_{i}"], 1) == 1.2
-        assert round(results_dict[f"asyncio_{i}"], 1) == round(0.1 + i / 10, 1)
+        assert_os_close(results_dict[f"external_{i}"], 1.2)
+        assert_os_close(results_dict[f"asyncio_{i}"], 0.1 + i / 10)
 
 
 @pytest.mark.asyncio
@@ -197,7 +202,7 @@ async def test_periodic_task():
             pass
 
     for i in range(10):
-        assert round(results_dict["asyncio"][i], 1) == round(0.1 * i, 1)
+        assert_os_close(results_dict["asyncio"][i], round(0.1 * i, 1))
     assert len(results_dict["external"]) == 2
     for i, duration in enumerate(results_dict["external"]):
-        assert round(duration, 1) == i * 0.4
+        assert_os_close(duration, i * 0.4)

@@ -37,7 +37,7 @@ jobs:
         pip3 install -r requirements.txt
         pip3 install -e .
         brew install mosquitto
-        launchctl load ~/Library/LaunchAgents/homebrew.mxcl.mosquitto.plist
+        brew services start mosquitto
         pip3 install pytest coverage ruff
     - name: Lint with ruff
       run: |
