@@ -27,9 +27,8 @@ REQUIRED = [
 ]
 
 # What packages are optional?
-EXTRAS = {
-    "msgspec>=0.18.6",
-}
+EXTRAS = {"fastjson": ["msgspec>=0.18.6"]}
+
 
 # The rest you shouldn't have to touch too much :)
 # ------------------------------------------------
