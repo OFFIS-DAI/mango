@@ -57,6 +57,8 @@ class RunWithContainer(ABC):
         self.__activation_cm = activate(container_list)
         await self.__activation_cm.__aenter__()
         await self.after_start(container_list, self._agents)
+        if len(container_list) == 1:
+            return container_list[0]
         return container_list
 
     async def __aexit__(self, exc_type, exc, tb):
@@ -162,6 +164,7 @@ def run_with_tcp(
     *agents: Agent | tuple[Agent, dict],
     addr: tuple[str, int] = ("127.0.0.1", 5555),
     codec: None | Codec = None,
+    auto_port: bool = False,
 ) -> RunWithTCPManager:
     """
     Create and return an async context manager, which can be used to run the given
@@ -179,10 +182,12 @@ def run_with_tcp(
     :type addr: tuple[str, int], optional
     :param codec: the codec for the containers, defaults to None
     :type codec: None | Codec, optional
+    :param auto_port: set if the port should be chosen automatically
+    :type auto_port: bool
     :return: the async context manager to run the agents with
     :rtype: RunWithTCPManager
     """
-    return RunWithTCPManager(num, agents, addr=addr, codec=codec)
+    return RunWithTCPManager(num, agents, addr=addr, codec=codec, auto_port=auto_port)
 
 
 def run_with_mqtt(

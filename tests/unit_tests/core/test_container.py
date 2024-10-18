@@ -1,6 +1,6 @@
 import pytest
 
-from mango import create_acl, create_tcp_container
+from mango import activate, create_acl, create_tcp_container
 from mango.agent.core import Agent
 
 
@@ -249,3 +249,13 @@ async def test_containers_dont_share_default_codec():
 
     await c1.shutdown()
     await c2.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_auto_port_container():
+    c1 = create_tcp_container(addr=("127.0.0.1", None), auto_port=True)
+
+    async with activate(c1):
+        pass
+
+    assert c1.addr[1] is not None

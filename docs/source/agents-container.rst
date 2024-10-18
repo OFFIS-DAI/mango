@@ -28,6 +28,7 @@ a simple but fast network protocol.
         codec: Codec = None,
         clock: Clock = None,
         copy_internal_messages: bool = False,
+        auto_port=False,
         **kwargs: dict[str, Any],
     ) -> Container:
 
