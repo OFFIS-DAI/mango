@@ -56,7 +56,7 @@ async def test_external_clock_simple():
 
 def assert_os_close(va, bound, tol=0.1):
     assert va >= bound
-    assert va <= (bound) + tol
+    assert va <= bound + tol
 
 
 @pytest.mark.asyncio
@@ -98,7 +98,7 @@ async def test_schedule_timestamp_task():
         assert_os_close(real_time, sim_time / 10)
 
     for simulation_time, real_time in results_dict_asyncio.items():
-        assert_os_close(real_time, simulation_time / 10)
+        assert_os_close(real_time, simulation_time)
 
 
 @pytest.mark.asyncio
