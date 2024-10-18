@@ -124,11 +124,13 @@ async def test_async_agent_processes_ping_pong_p_to_p():
     c = create_tcp_container(addr=addr, copy_internal_messages=False)
     main_agent = c.register(P2PMainAgent(), suggested_aid=aid_main_agent)
 
+    target_addr = main_agent.addr
+
     async def agent_creator(container):
         p2pta = container.register(
             P2PTestAgent(aid_main_agent), suggested_aid="process_agent1"
         )
-        await p2pta.send_message(content="pong", receiver_addr=main_agent.addr)
+        await p2pta.send_message(content="pong", receiver_addr=target_addr)
 
     async with activate(c) as c:
         await c.as_agent_process(agent_creator=agent_creator)
