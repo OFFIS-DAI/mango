@@ -3,7 +3,7 @@ name: Test mango
 on:
   push:
     branches:
-      - main
+      - master
       - development
   pull_request:
     types: [opened, synchronize, reopened]
