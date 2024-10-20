@@ -130,8 +130,8 @@ jobs:
       run: |
         # stop the build if there are Python syntax errors or undefined names
         .\venv\Scripts\activate
-        ruff check .
-        ruff format --check .
+        python -m ruff check .
+        python -m ruff format --check .
     - name: Doctests
       run: |
         .\venv\Scripts\activate
@@ -139,5 +139,5 @@ jobs:
     - name: Test+Coverage
       run: |
         .\venv\Scripts\activate
-        coverage run -m pytest
-        coverage report
+        python -m coverage run -m pytest
+        python -m coverage report
