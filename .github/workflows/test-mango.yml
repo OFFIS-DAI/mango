@@ -131,7 +131,7 @@ jobs:
     - name: Lint with ruff
       run: |
         # stop the build if there are Python syntax errors or undefined names
-        source venv/bin/activate
+        .\venv\Scripts\activate
         ruff check .
         ruff format --check .
     - name: Doctests
