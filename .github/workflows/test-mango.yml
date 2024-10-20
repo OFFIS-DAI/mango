@@ -121,7 +121,7 @@ jobs:
         pip3 install -r docs/requirements.txt
         pip3 install -r requirements.txt
         pip3 install -e .
-        pip3 install pytest coverage
+        pip3 install pytest coverage ruff
         curl.exe -o m.exe https://mosquitto.org/files/binary/win64/mosquitto-2.0.9-install-windows-x64.exe
         dir
         .\m.exe /S
