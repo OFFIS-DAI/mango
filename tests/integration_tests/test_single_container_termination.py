@@ -276,6 +276,7 @@ async def send_current_time_test_case(connection_type, codec=None):
         next_event = await clock_manager.get_next_event()
         assert receiver.scheduler.clock.time == 10
         # now the response should be received
+        await asyncio.sleep(0.1)
         assert caller.i == 1, "received one message"
         container_man.clock.set_time(15)
         await clock_manager.send_current_time()
