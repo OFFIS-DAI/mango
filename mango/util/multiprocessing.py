@@ -34,22 +34,22 @@ from typing import Any
 import dill
 
 
-def aiopipe() -> tuple["AioPipeReader", "AioPipeWriter"]:
+def aiopipe(ctx=None) -> tuple["AioPipeReader", "AioPipeWriter"]:
     """Create a pair of pipe endpoints, both readable and writable (duplex).
 
     :return: Reader-, Writer-Pair
     """
-    rx, tx = os.pipe()
+    rx, tx = ctx.Pipe(False)
     return AioPipeReader(rx), AioPipeWriter(tx)
 
 
-def aioduplex() -> tuple["AioDuplex", "AioDuplex"]:
+def aioduplex(ctx=None) -> tuple["AioDuplex", "AioDuplex"]:
     """Create a pair of pipe endpoints, both readable and writable (duplex).
 
     :return: AioDuplex-Pair
     """
-    rxa, txa = aiopipe()
-    rxb, txb = aiopipe()
+    rxa, txa = aiopipe(ctx)
+    rxb, txb = aiopipe(ctx)
 
     return AioDuplex(rxa, txb), AioDuplex(rxb, txa)
 
@@ -220,9 +220,9 @@ class AioPipeReader(AioPipeStream):
     event loop, to enable asynchronous reading from the pipe fd.
     """
 
-    def __init__(self, fd):
-        super().__init__(fd)
-        self.connection = OwnershiplessConnection(fd, writable=False)
+    def __init__(self, conn):
+        super().__init__(conn.fileno())
+        self.connection = conn
 
     async def _open(self):
         rx = asyncio.StreamReader(limit=2**32)
@@ -238,9 +238,9 @@ class AioPipeWriter(AioPipeStream):
     event loop, to enable asynchronous writing to the pipe fd.
     """
 
-    def __init__(self, fd):
-        super().__init__(fd)
-        self.connection = OwnershiplessConnection(fd, readable=False)
+    def __init__(self, conn):
+        super().__init__(conn.fileno())
+        self.connection = conn
 
     async def _open(self):
         rx = asyncio.StreamReader(limit=2**32)
@@ -260,6 +260,18 @@ class AioDuplex:
     def __init__(self, rx: AioPipeReader, tx: AioPipeWriter):
         self._rx = rx
         self._tx = tx
+
+    def dup(self):
+        rf = os.dup(self._rx.connection.fileno())
+        wf = os.dup(self._tx.connection.fileno())
+        return AioDuplex(
+            AioPipeReader(OwnershiplessConnection(rf)),
+            AioPipeWriter(OwnershiplessConnection(wf)),
+        )
+
+    def close(self):
+        self._rx.connection.close()
+        self._tx.connection.close()
 
     @contextmanager
     def detach(self):
