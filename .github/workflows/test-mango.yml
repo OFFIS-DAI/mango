@@ -135,7 +135,9 @@ jobs:
     - name: Doctests
       run: |
         .\venv\Scripts\activate
-        .\make.bat -C docs doctest
+        cd docs
+        .\make.bat -C doctest
+        cd ..
     - name: Test+Coverage
       run: |
         .\venv\Scripts\activate
