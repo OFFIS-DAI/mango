@@ -57,7 +57,7 @@ class MyAgent(Agent):
 @pytest.mark.asyncio
 async def test_activate_api_style_agent():
     # GIVEN
-    c = create_tcp_container(addr=("127.0.0.2", 5555))
+    c = create_tcp_container(addr=("127.0.0.1", 5555))
     agent = c.register(MyAgent())
     agent2 = c.register(MyAgent())
 
@@ -78,6 +78,25 @@ async def test_run_api_style_agent():
     # WHEN
     async with run_with_tcp(1, run_agent, run_agent2) as c:
         await run_agent.schedule_instant_message("", receiver_addr=run_agent2.addr)
+
+    # THEN
+    assert run_agent2.test_counter == 1
+
+
+@pytest.mark.asyncio
+async def test_run_api_style_agent_auto_port():
+    # GIVEN
+    run_agent = MyAgent()
+    run_agent2 = MyAgent()
+
+    # WHEN
+    async with run_with_tcp(
+        2, run_agent, run_agent2, auto_port=True, addr=("127.0.0.1", None)
+    ) as cl:
+        await run_agent.schedule_instant_message("", receiver_addr=run_agent2.addr)
+        await asyncio.sleep(0.1)
+        assert cl[0].addr[1] is not None
+        assert cl[1].addr[1] is not None
 
     # THEN
     assert run_agent2.test_counter == 1

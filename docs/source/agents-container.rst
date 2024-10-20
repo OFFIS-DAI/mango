@@ -28,6 +28,7 @@ a simple but fast network protocol.
         codec: Codec = None,
         clock: Clock = None,
         copy_internal_messages: bool = False,
+        auto_port=False,
         **kwargs: dict[str, Any],
     ) -> Container:
 
@@ -41,14 +42,14 @@ A simple container, that uses plain tcp for message exchange can be created as f
     from mango import create_tcp_container
 
     def get_simple_container():
-        container = create_tcp_container(addr=('localhost', 5555))
+        container = create_tcp_container(addr=('127.0.0.1', 5555))
         return container
 
     print(get_simple_container().addr)
 
 .. testoutput::
 
-    ('localhost', 5555)
+    ('127.0.0.1', 5555)
 
 The container type depends totally on the factory method you invoke. Every supported type has its own class backing
 the functionality.
@@ -66,7 +67,7 @@ asynchronous context manager, which we provide by invoking :meth:`mango.activate
     from mango import create_tcp_container, activate
 
     async def start_container():
-        container = create_tcp_container(addr=('localhost', 5555))
+        container = create_tcp_container(addr=('127.0.0.1', 5555))
 
         async with activate(container) as c:
             print("The container is activated now!")
@@ -105,7 +106,7 @@ Note that, custom agents that inherit from the ``Agent`` class have to call ``su
         pass
 
     async def create_and_register_agent():
-        container = create_tcp_container(addr=('localhost', 5555))
+        container = create_tcp_container(addr=('127.0.0.1', 5555))
 
         agent = container.register(MyAgent(), suggested_aid="CustomAgent")
         return agent

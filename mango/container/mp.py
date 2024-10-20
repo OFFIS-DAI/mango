@@ -2,7 +2,7 @@ import asyncio
 import logging
 import os
 from dataclasses import dataclass
-from multiprocessing import Event, Process
+from multiprocessing import get_context
 from multiprocessing.synchronize import Event as MultiprocessingEvent
 
 import dill  # noqa F401 # do not remove! Necessary for the auto loaded pickle reg extensions
@@ -102,16 +102,21 @@ def create_agent_process_environment(
     :type process_initialized_event: Event
     """
     asyncio.set_event_loop(asyncio.new_event_loop())
+    container_data.codec = dill.loads(container_data.codec)
+    agent_creator = dill.loads(agent_creator)
+    mirror_container_creator = dill.loads(mirror_container_creator)
 
     async def start_agent_loop():
         container = mirror_container_creator(
             container_data,
             asyncio.get_event_loop(),
-            message_pipe,
+            message_pipe.dup(),
             main_queue,
-            event_pipe,
+            event_pipe.dup(),
             terminate_event,
         )
+        message_pipe.close()
+        event_pipe.close()
         if asyncio.iscoroutinefunction(agent_creator):
             await agent_creator(container)
         else:
@@ -354,11 +359,12 @@ class MainContainerProcessManager(BaseContainerProcessManager):
         self._active = False
         self._container = container
         self._mp_enabled = False
+        self._ctx = get_context("spawn")
 
     def _init_mp(self):
         # For agent multiprocessing support
         self._agent_processes = []
-        self._terminate_sub_processes = Event()
+        self._terminate_sub_processes = self._ctx.Event()
         self._pid_to_message_pipe = {}
         self._pid_to_pipe = {}
         self._pid_to_aids = {}
@@ -439,21 +445,21 @@ class MainContainerProcessManager(BaseContainerProcessManager):
             self._init_mp()
             self._active = True
 
-        from_pipe_message, to_pipe_message = aioduplex()
-        from_pipe, to_pipe = aioduplex()
-        process_initialized = Event()
+        from_pipe_message, to_pipe_message = aioduplex(self._ctx)
+        from_pipe, to_pipe = aioduplex(self._ctx)
+        process_initialized = self._ctx.Event()
         with to_pipe.detach() as to_pipe, to_pipe_message.detach() as to_pipe_message:
-            agent_process = Process(
+            agent_process = self._ctx.Process(
                 target=create_agent_process_environment,
                 args=(
                     ContainerData(
                         addr=container.addr,
-                        codec=container.codec,
+                        codec=dill.dumps(container.codec),
                         clock=container.clock,
                         kwargs=container._kwargs,
                     ),
-                    agent_creator,
-                    mirror_container_creator,
+                    dill.dumps(agent_creator),
+                    dill.dumps(mirror_container_creator),
                     to_pipe_message,
                     self._main_queue,
                     to_pipe,
@@ -465,18 +471,24 @@ class MainContainerProcessManager(BaseContainerProcessManager):
             agent_process.daemon = True
             agent_process.start()
 
-        self._pid_to_message_pipe[agent_process.pid] = from_pipe_message
-        self._pid_to_pipe[agent_process.pid] = from_pipe
+        from_pipe_message_dup = from_pipe_message.dup()
+        from_pipe_dup = from_pipe.dup()
+        from_pipe_message.close()
+        from_pipe.close()
+        self._pid_to_message_pipe[agent_process.pid] = from_pipe_message_dup
+        self._pid_to_pipe[agent_process.pid] = from_pipe_dup
         self._handle_process_events_tasks.append(
-            asyncio.create_task(self._handle_process_events(from_pipe))
+            asyncio.create_task(self._handle_process_events(from_pipe_dup))
         )
         self._handle_sp_messages_tasks.append(
-            asyncio.create_task(self._handle_process_message(from_pipe_message))
+            asyncio.create_task(self._handle_process_message(from_pipe_message_dup))
         )
 
         async def wait_for_process_initialized():
             while not process_initialized.is_set():
                 await asyncio.sleep(WAIT_STEP)
+
+            await asyncio.sleep(0)
 
         return AgentProcessHandle(
             asyncio.create_task(wait_for_process_initialized()), agent_process.pid

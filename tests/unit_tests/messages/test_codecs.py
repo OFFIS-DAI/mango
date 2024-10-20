@@ -153,7 +153,7 @@ def test_codec_known(codec):
     # known == (Performatives, ACLMessage)
     msg = ACLMessage(
         performative=Performatives.inform,
-        sender_addr="localhost:1883",
+        sender_addr="127.0.0.1:1883",
     )
 
     my_codec = codec()

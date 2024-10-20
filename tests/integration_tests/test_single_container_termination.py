@@ -90,8 +90,8 @@ async def test_termination_single_container():
 
 
 async def distribute_ping_pong_test(connection_type, codec=None, max_count=100):
-    init_addr = ("localhost", 1555) if connection_type == "tcp" else "c1"
-    repl_addr = ("localhost", 1556) if connection_type == "tcp" else "c2"
+    init_addr = ("127.0.0.1", 1555) if connection_type == "tcp" else "c1"
+    repl_addr = ("127.0.0.1", 1556) if connection_type == "tcp" else "c2"
 
     container_man, container_ag = create_test_container(
         connection_type, init_addr, repl_addr, codec
@@ -125,8 +125,8 @@ async def distribute_ping_pong_test(connection_type, codec=None, max_count=100):
 async def distribute_ping_pong_test_timestamp(
     connection_type, codec=None, max_count=10
 ):
-    init_addr = ("localhost", 1555) if connection_type == "tcp" else "c1"
-    repl_addr = ("localhost", 1556) if connection_type == "tcp" else "c2"
+    init_addr = ("127.0.0.1", 1555) if connection_type == "tcp" else "c1"
+    repl_addr = ("127.0.0.1", 1556) if connection_type == "tcp" else "c2"
 
     container_man, container_ag = create_test_container(
         connection_type, init_addr, repl_addr, codec
@@ -191,8 +191,8 @@ async def test_distribute_ping_pong_ts_mqtt():
 
 
 async def distribute_time_test_case(connection_type, codec=None):
-    init_addr = ("localhost", 1555) if connection_type == "tcp" else "c1"
-    repl_addr = ("localhost", 1556) if connection_type == "tcp" else "c2"
+    init_addr = ("127.0.0.1", 1555) if connection_type == "tcp" else "c1"
+    repl_addr = ("127.0.0.1", 1556) if connection_type == "tcp" else "c2"
 
     container_man, container_ag = create_test_container(
         connection_type, init_addr, repl_addr, codec
@@ -240,8 +240,8 @@ async def distribute_time_test_case(connection_type, codec=None):
 
 
 async def send_current_time_test_case(connection_type, codec=None):
-    init_addr = ("localhost", 1555) if connection_type == "tcp" else "c1"
-    repl_addr = ("localhost", 1556) if connection_type == "tcp" else "c2"
+    init_addr = ("127.0.0.1", 1555) if connection_type == "tcp" else "c1"
+    repl_addr = ("127.0.0.1", 1556) if connection_type == "tcp" else "c2"
 
     container_man, container_ag = create_test_container(
         connection_type, init_addr, repl_addr, codec
@@ -276,6 +276,7 @@ async def send_current_time_test_case(connection_type, codec=None):
         next_event = await clock_manager.get_next_event()
         assert receiver.scheduler.clock.time == 10
         # now the response should be received
+        await asyncio.sleep(0.1)
         assert caller.i == 1, "received one message"
         container_man.clock.set_time(15)
         await clock_manager.send_current_time()
