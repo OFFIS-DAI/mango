@@ -11,7 +11,7 @@ copyright = "2024, mango team"
 author = "mango team"
 
 # The full version, including alpha/beta/rc tags
-version = release = "1.1.4"
+version = release = "2.0.0"
 
 
 # -- General configuration ---------------------------------------------------
@@ -25,7 +25,6 @@ extensions = [
     "sphinx.ext.intersphinx",
     "sphinx.ext.graphviz",
     "sphinx.ext.imgmath",
-    "sphinx_rtd_theme",
 ]
 
 
@@ -43,9 +42,15 @@ exclude_patterns = []
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = "sphinx_rtd_theme"
+html_theme = "furo"
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ["_static"]
+
+html_theme_options = {
+    "light_logo": "Logo_mango_ohne_sub.svg",
+    "dark_logo": "Logo_mango_ohne_sub_white.svg",
+    "sidebar_hide_name": True,
+}

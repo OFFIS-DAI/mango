@@ -5,7 +5,7 @@ Message exchange
 ******************
 Receiving messages
 ******************
-Custom agents that inherit from the ``Agent`` class are able to receive messages from
+Custom agents that inherit from the :class:`mango.Agent` class are able to receive messages from
 other agents via the method ``handle_message``.
 Hence this method has to be overwritten. The structure of this method looks like this:
 
@@ -13,33 +13,35 @@ Hence this method has to be overwritten. The structure of this method looks like
 
     @abstractmethod
     def handle_message(self, content, meta: Dict[str, Any]):
-
         raise NotImplementedError
 
-Once a message arrives at a container,
-the container is responsible to deserialize the message and
+Once a message arrives at a container, the container is responsible to deserialize the message and
 to split the content from all meta information.
+
 While the meta information may include e. g.
 information about the sender of the message or about the performative,
 the content parameter holds the actual content of the message.
 
-..
-    **COMMENT**
-    The exact structure of the ``ACL-messages`` that are exchanged within
-    mango is described here ZZZ. **TODO**
+There are two entries always present.
+
+* "sender_addr": protocol address of the sending agent
+* "sender_id": aid of the sending agent
+
+As mango will usually expect an instance of :meth:`mango.AgentAddress` for describing addresses of agents, we
+recommend to use :meth:`mango.sender_addr` to retreive the sender information from the meta data.
 
 A simple agent, that just prints the content and meta information of incoming messages could look like this:
 
-.. code-block:: python3
+.. testcode::
 
     from mango import Agent
 
     class SimpleReceivingAgent(Agent):
-        def __init__(self, container):
-            super().__init__(container)
+        def __init__(self):
+            super().__init__()
 
         def handle_message(self, content, meta):
-            print(f'{self.aid} received a message with content {content} and'
+            print(f'{self.aid} received a message with content {content} and '
                 f'meta {meta}')
 
 
@@ -51,42 +53,39 @@ Agents are able to send messages to other agents via the container method send_m
 
 .. code-block:: python3
 
-    async def send_message(self, content,
-                            receiver_addr: Union[str, Tuple[str, int]], *,
-                            receiver_id: Optional[str] = None,
-                            **kwargs) -> bool:
+    async def send_message(self,
+        content,
+        receiver_addr: AgentAddress,
+        **kwargs,
+    ) -> bool
 
 
-To send a tcp message, the receiver address and receiver id (the agent id of the receiving agent)
-has to be provided.
-`content` defines the content of the message.
-This will appear as the `content` argument at the receivers handle_message() method.
+To send a tcp message, two parameters need to be set, ``content``, which defines the content of the message, and ``receiver_addr``, which describes the destination. The ``receiver_addr``
+needs to be provided as :class:`mango.AgentAddress`. In most cases this can be created using several convenience functions (:meth:`mango.sender_addr`, :meth:`mango.Agent.addr`), if that
+is not possible it should be created with :meth:`mango.addr`.
 
+If you want to send an ACL-message use the method ``create_acl`` to create the ACL content and send it with the regular ``send_message``-method internally.
 
-If you want to send an ACL-message use the method ``container.send_acl_message``, which will wrap the content in a ACLMessage using ``create_acl`` internally.
+The argument ``kwargs`` can be used to put custom key,value pairs in the metadata of the message. For some protocols it might be possible that these metadata is additionally
+interpreted internally.
 
-.. code-block:: python3
+With this knowledge, we can now send a message to the ``SimpleReceivingAgent``:
 
-    async def send_acl_message(self, content,
-                            receiver_addr: Union[str, Tuple[str, int]], *,
-                            receiver_id: Optional[str] = None,
-                            acl_metadata: Optional[Dict[str, Any]] = None,
-                            **kwargs) -> bool:
+.. testcode::
 
-The argument ``acl_metadata`` enables to set all meta information of an acl message.
-It expects a dictionary with the field name as string as a key and the field value as key.
-For example:
+    import asyncio
+    from mango import run_with_tcp
 
-.. code-block:: python3
+    async def send_to_receiving():
+        receiving_agent = SimpleReceivingAgent()
+        sending_agent = SimpleReceivingAgent()
 
-    from mango.messages.message import Performatives
+        async with run_with_tcp(1, receiving_agent, sending_agent) as cl:
+            await sending_agent.send_message("Hey!", receiving_agent.addr)
+            await asyncio.sleep(0.1)
 
-    example_acl_metadata = {
-        'performative': Performatives.inform,
-        'sender_id': 'agent0',
-        'sender_addr': ('localhost', 5555),
-        'conversation_id': 'conversation01'
-    }
+    asyncio.run(send_to_receiving())
 
-The argument ``kwargs`` can be used to set specific configs, if the container is connected via MQTT
-to a message broker.
+.. testoutput::
+
+    agent0 received a message with content Hey! and meta {'sender_id': 'agent1', 'sender_addr': ('127.0.0.1', 5555), 'receiver_id': 'agent0', 'network_protocol': 'tcp', 'priority': 0}

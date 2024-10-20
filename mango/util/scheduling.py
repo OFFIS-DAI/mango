@@ -463,8 +463,8 @@ class Scheduler:
         self._manager = None
         self._num_process_parallel = num_process_parallel
         self._process_pool_exec = None
-        self._suspendable = suspendable
-        self._observable = observable
+        self.suspendable = suspendable
+        self.observable = observable
 
     @staticmethod
     def _run_task_in_p_context(
@@ -500,7 +500,7 @@ class Scheduler:
         :type: Object
         """
         l_task = None
-        if self._suspendable:
+        if self.suspendable:
             coro = Suspendable(task.run())
             l_task = asyncio.ensure_future(coro)
         else:
@@ -531,7 +531,7 @@ class Scheduler:
                 timestamp=timestamp,
                 clock=self.clock,
                 on_stop=on_stop,
-                observable=self._observable,
+                observable=self.observable,
             ),
             src=src,
         )
@@ -551,7 +551,7 @@ class Scheduler:
                 coroutine=coroutine,
                 clock=self.clock,
                 on_stop=on_stop,
-                observable=self._observable,
+                observable=self.observable,
             ),
             src=src,
         )
@@ -574,7 +574,7 @@ class Scheduler:
                 delay=delay,
                 clock=self.clock,
                 on_stop=on_stop,
-                observable=self._observable,
+                observable=self.observable,
             ),
             src=src,
         )
@@ -599,7 +599,7 @@ class Scheduler:
                 recurrency=recurrency,
                 clock=self.clock,
                 on_stop=on_stop,
-                observable=self._observable,
+                observable=self.observable,
             ),
             src=src,
         )
@@ -632,7 +632,7 @@ class Scheduler:
                 clock=self.clock,
                 lookup_delay=lookup_delay,
                 on_stop=on_stop,
-                observable=self._observable,
+                observable=self.observable,
             ),
             src=src,
         )
@@ -657,7 +657,7 @@ class Scheduler:
                 awaited_coroutine=awaited_coroutine,
                 clock=self.clock,
                 on_stop=on_stop,
-                observable=self._observable,
+                observable=self.observable,
             ),
             src=src,
         )
@@ -827,7 +827,7 @@ class Scheduler:
         :param given_src: the src object
         :type given_src: object
         """
-        if not self._suspendable:
+        if not self.suspendable:
             raise Exception("The scheduler is configured as non-suspendable!")
 
         for _, _, coro, src in self._scheduled_tasks:
@@ -843,7 +843,7 @@ class Scheduler:
         :param given_src: the src object
         :type given_src: object
         """
-        if not self._suspendable:
+        if not self.suspendable:
             raise Exception("The scheduler is configured as non-suspendable!")
 
         for _, _, coro, src in self._scheduled_tasks:

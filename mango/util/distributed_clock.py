@@ -1,7 +1,7 @@
 import asyncio
 import logging
 
-from mango import Agent
+from mango import Agent, sender_addr
 
 from .termination_detection import tasks_complete_or_sleeping
 
@@ -10,33 +10,32 @@ logger = logging.getLogger(__name__)
 
 class ClockAgent(Agent):
     async def wait_all_done(self):
-        await tasks_complete_or_sleeping(self._context._container)
+        await tasks_complete_or_sleeping(self.context._container)
 
 
 class DistributedClockManager(ClockAgent):
-    def __init__(self, container, receiver_clock_addresses: list):
-        super().__init__(container, "clock")
+    def __init__(self, receiver_clock_addresses: list):
+        super().__init__()
+
         self.receiver_clock_addresses = receiver_clock_addresses
         self.schedules = []
         self.futures = {}
+
+    def on_ready(self):
         self.schedule_instant_task(self.wait_all_online())
 
     def handle_message(self, content: float, meta):
-        if isinstance(meta["sender_addr"], list):
-            sender_addr = tuple(meta["sender_addr"])
-        else:
-            sender_addr = meta["sender_addr"]
-
-        logger.debug("clockmanager: %s from %s", content, sender_addr)
+        sender = sender_addr(meta)
+        logger.debug("clockmanager: %s from %s", content, sender)
         if content:
             assert isinstance(content, (int, float)), f"{content} was {type(content)}"
             self.schedules.append(content)
 
-        if not self.futures[sender_addr].done():
-            self.futures[sender_addr].set_result(True)
+        if not self.futures[sender].done():
+            self.futures[sender].set_result(True)
         else:
             # with as_agent_process - messages can come from ourselves
-            logger.debug("got another message from agent %s - %s", sender_addr, content)
+            logger.debug("got another message from agent %s - %s", sender, content)
 
     async def broadcast(self, message, add_futures=True):
         """
@@ -47,16 +46,11 @@ class DistributedClockManager(ClockAgent):
             message (object): the given message
             add_futures (bool, optional): Adds futures which can be awaited until a response to a message is given. Defaults to True.
         """
-        for receiver_addr, receiver_aid in self.receiver_clock_addresses:
+        for receiver_addr in self.receiver_clock_addresses:
             logger.debug("clockmanager send: %s - %s", message, receiver_addr)
             # in MQTT we can not be sure if the message was delivered
             # checking the return code here would only help for TCP
-            await self.send_acl_message(
-                message,
-                receiver_addr,
-                receiver_aid,
-                acl_metadata={"sender_id": self.aid},
-            )
+            await self.send_message(message, receiver_addr)
             if add_futures:
                 self.futures[receiver_addr] = asyncio.Future()
 
@@ -73,7 +67,7 @@ class DistributedClockManager(ClockAgent):
         Args:
             time (number, optional): The current time which is set. Defaults to None.
         """
-        time = time or self._scheduler.clock.time
+        time = time or self.scheduler.clock.time
         await self.broadcast(time, add_futures=False)
 
     async def wait_for_futures(self):
@@ -118,7 +112,7 @@ class DistributedClockManager(ClockAgent):
 
         # wait for our container too
         await self.wait_all_done()
-        next_activity = self._scheduler.clock.get_next_activity()
+        next_activity = self.scheduler.clock.get_next_activity()
 
         if next_activity is not None:
             # logger.error(f"{next_activity}")
@@ -128,11 +122,11 @@ class DistributedClockManager(ClockAgent):
             next_event = min(self.schedules)
         else:
             logger.warning("%s: no new events, time stands still", self.aid)
-            next_event = self._scheduler.clock.time
+            next_event = self.scheduler.clock.time
 
-        if next_event < self._scheduler.clock.time:
+        if next_event < self.scheduler.clock.time:
             logger.warning("%s: got old event, time stands still", self.aid)
-            next_event = self._scheduler.clock.time
+            next_event = self.scheduler.clock.time
         logger.debug("next event at %s", next_event)
         return next_event
 
@@ -156,14 +150,13 @@ class DistributedClockManager(ClockAgent):
 
 
 class DistributedClockAgent(ClockAgent):
-    def __init__(self, container, suggested_aid="clock_agent"):
-        super().__init__(container, suggested_aid=suggested_aid)
+    def __init__(self):
+        super().__init__()
         self.stopped = asyncio.Future()
 
     def handle_message(self, content: float, meta):
-        sender_addr = meta["sender_addr"]
-        sender_id = meta["sender_id"]
-        logger.info("clockagent: %s from %s", content, sender_addr)
+        sender = sender_addr(meta)
+        logger.info("clockagent: %s from %s", content, sender)
         if content == "stop":
             if not self.stopped.done():
                 self.stopped.set_result(True)
@@ -178,16 +171,11 @@ class DistributedClockAgent(ClockAgent):
                 if self.stopped.done():
                     return
 
-                next_time = self._scheduler.clock.get_next_activity()
+                next_time = self.scheduler.clock.get_next_activity()
 
-                self.schedule_instant_acl_message(
-                    next_time,
-                    sender_addr,
-                    sender_id,
-                    acl_metadata={"sender_id": self.aid},
-                )
+                self.schedule_instant_message(next_time, sender_addr(meta))
 
             t.add_done_callback(respond)
         else:
             assert isinstance(content, (int, float)), f"{content} was {type(content)}"
-            self._scheduler.clock.set_time(content)
+            self.scheduler.clock.set_time(content)

@@ -10,7 +10,7 @@ from mango.messages.codecs import (
     SerializationError,
     json_serializable,
 )
-from mango.messages.message import ACLMessage, Performatives
+from mango.messages.message import ACLMessage, MangoMessage, Performatives
 
 from .msg_pb2 import MyMsg
 
@@ -153,8 +153,18 @@ def test_codec_known(codec):
     # known == (Performatives, ACLMessage)
     msg = ACLMessage(
         performative=Performatives.inform,
-        sender_addr="localhost:1883",
+        sender_addr="127.0.0.1:1883",
     )
+
+    my_codec = codec()
+    msg_new = my_codec.decode(my_codec.encode(msg))
+
+    assert vars(msg_new) == vars(msg)
+
+
+@pytest.mark.parametrize("codec", testcodecs)
+def test_codec_mango_message(codec):
+    msg = MangoMessage("abc", dict(sender_id=2))
 
     my_codec = codec()
     msg_new = my_codec.decode(my_codec.encode(msg))

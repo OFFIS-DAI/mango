@@ -8,17 +8,24 @@ Every agent must live in a container. Containers are responsible for making
 import asyncio
 import logging
 from abc import ABC
-from typing import Any, Dict, Optional, Tuple, Union
+from dataclasses import dataclass
+from typing import Any
 
-from ..container.core import Container
+from ..util.clock import Clock
 from ..util.scheduling import ScheduledProcessTask, ScheduledTask, Scheduler
 
 logger = logging.getLogger(__name__)
 
 
+@dataclass(frozen=True)
+class AgentAddress:
+    protocol_addr: Any
+    aid: str
+
+
 class AgentContext:
     def __init__(self, container) -> None:
-        self._container: Container = container
+        self._container = container
 
     @property
     def current_timestamp(self) -> float:
@@ -28,104 +35,86 @@ class AgentContext:
         return self._container.clock.time
 
     @property
+    def clock(self) -> Clock:
+        return self._container.clock
+
+    @property
     def addr(self):
         return self._container.addr
 
-    def register_agent(self, agent, suggested_aid):
-        return self._container.register_agent(agent, suggested_aid=suggested_aid)
+    def register(self, agent, suggested_aid):
+        return self._container.register(agent, suggested_aid=suggested_aid)
 
-    def deregister_agent(self, aid):
+    def deregister(self, aid):
         if self._container.running:
-            self._container.deregister_agent(aid)
+            self._container.deregister(aid)
 
     async def send_message(
         self,
         content,
-        receiver_addr: Union[str, Tuple[str, int]],
-        receiver_id: Optional[str] = None,
+        receiver_addr: AgentAddress,
+        sender_id: None | str = None,
         **kwargs,
     ):
         """
         See container.send_message(...)
         """
         return await self._container.send_message(
-            content, receiver_addr=receiver_addr, receiver_id=receiver_id, **kwargs
-        )
-
-    async def send_acl_message(
-        self,
-        content,
-        receiver_addr: Union[str, Tuple[str, int]],
-        receiver_id: Optional[str] = None,
-        acl_metadata: Optional[Dict[str, Any]] = None,
-        **kwargs,
-    ):
-        """
-        See container.send_acl_message(...)
-        """
-        return await self._container.send_acl_message(
-            content,
-            receiver_addr=receiver_addr,
-            receiver_id=receiver_id,
-            acl_metadata=acl_metadata,
-            **kwargs,
+            content, receiver_addr=receiver_addr, sender_id=sender_id, **kwargs
         )
 
 
 class AgentDelegates:
-    def __init__(self, context, scheduler) -> None:
-        self._context: AgentContext = context
-        self._scheduler: Scheduler = scheduler
+    def __init__(self) -> None:
+        self.context: AgentContext = None
+        self.scheduler: Scheduler = None
+        self._aid = None
+
+    def on_start(self):
+        """Called when container started in which the agent is contained"""
+
+    def on_ready(self):
+        """Called when all container has been started using activate(...)."""
 
     @property
     def current_timestamp(self) -> float:
         """
         Method that returns the current unix timestamp given the clock within the container
         """
-        return self._context.current_timestamp
+        return self.context.current_timestamp
+
+    @property
+    def aid(self):
+        return self._aid
 
     @property
     def addr(self):
-        return self._context.addr
+        """Return the address of the agent as AgentAddress
+
+        Returns:
+            _type_: AgentAddress
+        """
+        if self.context is None:
+            return None
+        return AgentAddress(self.context.addr, self.aid)
 
     async def send_message(
         self,
         content,
-        receiver_addr: Union[str, Tuple[str, int]],
-        receiver_id: Optional[str] = None,
+        receiver_addr: AgentAddress,
         **kwargs,
     ):
         """
         See container.send_message(...)
         """
-        return await self._context.send_message(
-            content, receiver_addr=receiver_addr, receiver_id=receiver_id, **kwargs
-        )
-
-    async def send_acl_message(
-        self,
-        content,
-        receiver_addr: Union[str, Tuple[str, int]],
-        receiver_id: Optional[str] = None,
-        acl_metadata: Optional[Dict[str, Any]] = None,
-        **kwargs,
-    ):
-        """
-        See container.send_acl_message(...)
-        """
-        return await self._context.send_acl_message(
-            content,
-            receiver_addr=receiver_addr,
-            receiver_id=receiver_id,
-            acl_metadata=acl_metadata,
-            **kwargs,
+        return await self.context.send_message(
+            content, receiver_addr=receiver_addr, sender_id=self.aid, **kwargs
         )
 
     def schedule_instant_message(
         self,
         content,
-        receiver_addr: Union[str, Tuple[str, int]],
-        receiver_id: Optional[str] = None,
+        receiver_addr: AgentAddress,
         **kwargs,
     ):
         """
@@ -134,45 +123,12 @@ class AgentDelegates:
 
         :param content: The content of the message
         :param receiver_addr: The address passed to the container
-        :param receiver_id: The agent id of the receiver
         :param kwargs: Additional parameters to provide protocol specific settings
         :returns: asyncio.Task for the scheduled coroutine
         """
 
         return self.schedule_instant_task(
-            self.send_message(
-                content, receiver_addr=receiver_addr, receiver_id=receiver_id, **kwargs
-            )
-        )
-
-    def schedule_instant_acl_message(
-        self,
-        content,
-        receiver_addr: Union[str, Tuple[str, int]],
-        receiver_id: Optional[str] = None,
-        acl_metadata: Optional[Dict[str, Any]] = None,
-        **kwargs,
-    ):
-        """
-        Schedules sending an acl message without any delay. This is equivalent to using the schedulers 'schedule_instant_task' with the coroutine created by
-        'container.send_acl_message'.
-
-        :param content: The content of the message
-        :param receiver_addr: The address passed to the container
-        :param receiver_id: The agent id of the receiver
-        :param acl_metadata: Metadata for the acl message
-        :param kwargs: Additional parameters to provide protocol specific settings
-        :returns: asyncio.Task for the scheduled coroutine
-        """
-
-        return self.schedule_instant_task(
-            self.send_acl_message(
-                content,
-                receiver_addr=receiver_addr,
-                receiver_id=receiver_id,
-                acl_metadata=acl_metadata,
-                **kwargs,
-            )
+            self.send_message(content, receiver_addr=receiver_addr, **kwargs)
         )
 
     def schedule_conditional_process_task(
@@ -194,7 +150,7 @@ class AgentDelegates:
         :param src: creator of the task
         :type src: Object
         """
-        return self._scheduler.schedule_conditional_process_task(
+        return self.scheduler.schedule_conditional_process_task(
             coroutine_creator=coroutine_creator,
             condition_func=condition_func,
             lookup_delay=lookup_delay,
@@ -216,7 +172,7 @@ class AgentDelegates:
         :param src: creator of the task
         :type src: Object
         """
-        return self._scheduler.schedule_conditional_task(
+        return self.scheduler.schedule_conditional_task(
             coroutine=coroutine,
             condition_func=condition_func,
             lookup_delay=lookup_delay,
@@ -236,7 +192,7 @@ class AgentDelegates:
         :param src: creator of the task
         :type src: Object
         """
-        return self._scheduler.schedule_timestamp_task(
+        return self.scheduler.schedule_timestamp_task(
             coroutine=coroutine, timestamp=timestamp, on_stop=on_stop, src=src
         )
 
@@ -252,7 +208,7 @@ class AgentDelegates:
         :param src: creator of the task
         :type src: Object
         """
-        return self._scheduler.schedule_timestamp_process_task(
+        return self.scheduler.schedule_timestamp_process_task(
             coroutine_creator=coroutine_creator,
             timestamp=timestamp,
             on_stop=on_stop,
@@ -273,7 +229,7 @@ class AgentDelegates:
         :param src: creator of the task
         :type src: Object
         """
-        return self._scheduler.schedule_periodic_process_task(
+        return self.scheduler.schedule_periodic_process_task(
             coroutine_creator=coroutine_creator, delay=delay, on_stop=on_stop, src=src
         )
 
@@ -289,7 +245,7 @@ class AgentDelegates:
         :param src: creator of the task
         :type src: Object
         """
-        return self._scheduler.schedule_periodic_task(
+        return self.scheduler.schedule_periodic_task(
             coroutine_func=coroutine_func, delay=delay, on_stop=on_stop, src=src
         )
 
@@ -307,7 +263,7 @@ class AgentDelegates:
         :param src: creator of the task
         :type src: Object
         """
-        return self._scheduler.schedule_recurrent_process_task(
+        return self.scheduler.schedule_recurrent_process_task(
             coroutine_creator=coroutine_creator,
             recurrency=recurrency,
             on_stop=on_stop,
@@ -328,7 +284,7 @@ class AgentDelegates:
         :param src: creator of the task
         :type src: Object
         """
-        return self._scheduler.schedule_recurrent_task(
+        return self.scheduler.schedule_recurrent_task(
             coroutine_func=coroutine_func,
             recurrency=recurrency,
             on_stop=on_stop,
@@ -345,7 +301,7 @@ class AgentDelegates:
         :param src: creator of the task
         :type src: Object
         """
-        return self._scheduler.schedule_instant_process_task(
+        return self.scheduler.schedule_instant_process_task(
             coroutine_creator=coroutine_creator, on_stop=on_stop, src=src
         )
 
@@ -359,7 +315,7 @@ class AgentDelegates:
         :param src: creator of the task
         :type src: Object
         """
-        return self._scheduler.schedule_instant_task(
+        return self.scheduler.schedule_instant_task(
             coroutine=coroutine, on_stop=on_stop, src=src
         )
 
@@ -370,7 +326,7 @@ class AgentDelegates:
         :param task: task to be scheduled
         :param src: object, which represents the source of the task (for example the object in which the task got created)
         """
-        return self._scheduler.schedule_process_task(task, src=src)
+        return self.scheduler.schedule_process_task(task, src=src)
 
     def schedule_task(self, task: ScheduledTask, src=None):
         """Schedule a task with asyncio. When the task is finished, if finite, its automatically
@@ -379,14 +335,14 @@ class AgentDelegates:
         :param task: task to be scheduled
         :param src: object, which represents the source of the task (for example the object in which the task got created)
         """
-        return self._scheduler.schedule_task(task, src=src)
+        return self.scheduler.schedule_task(task, src=src)
 
     async def tasks_complete(self, timeout=1):
         """Wait for all scheduled tasks to complete using a timeout.
 
         :param timeout: waiting timeout. Defaults to 1.
         """
-        await self._scheduler.tasks_complete(timeout=timeout)
+        await self.scheduler.tasks_complete(timeout=timeout)
 
 
 class Agent(ABC, AgentDelegates):
@@ -394,34 +350,48 @@ class Agent(ABC, AgentDelegates):
 
     def __init__(
         self,
-        container: Container,
-        suggested_aid: str = None,
-        suspendable_tasks=True,
-        observable_tasks=True,
     ):
-        """Initialize an agent and register it with its container
-        :param container: The container that the agent lives in. Must be a Container
-        :param suggested_aid: (Optional) suggested aid, if the aid is already taken, a generated aid is used.
-                              Using the generated aid-style ("agentX") is not allowed.
         """
-        scheduler = Scheduler(
-            clock=container.clock,
-            suspendable=suspendable_tasks,
-            observable=observable_tasks,
-        )
-        context = AgentContext(container)
-        self.aid = context.register_agent(self, suggested_aid)
+        Initialize an agent
+        """
+
+        super().__init__()
+
         self.inbox = asyncio.Queue()
 
-        super().__init__(context, scheduler)
+    @property
+    def observable_tasks(self):
+        return self.scheduler.observable
 
+    @observable_tasks.setter
+    def observable_tasks(self, value: bool):
+        self.scheduler.observable = value
+
+    @property
+    def suspendable_tasks(self):
+        return self.scheduler.suspendable
+
+    @suspendable_tasks.setter
+    def suspendable_tasks(self, value: bool):
+        self.self.scheduler.suspendable = value
+
+    def on_register(self):
+        """
+        Hook-in to define behavior of the agent directly after it got registered by a container
+        """
+
+    def _do_register(self, container, aid):
         self._check_inbox_task = asyncio.create_task(self._check_inbox())
-        self._check_inbox_task.add_done_callback(self.raise_exceptions)
+        self._check_inbox_task.add_done_callback(self._raise_exceptions)
         self._stopped = asyncio.Future()
+        self._aid = aid
+        self.context = AgentContext(container)
+        self.scheduler = Scheduler(
+            suspendable=True, observable=True, clock=container.clock
+        )
+        self.on_register()
 
-        logger.info("Agent %s: start running in container %s", self.aid, self.addr)
-
-    def raise_exceptions(self, fut: asyncio.Future):
+    def _raise_exceptions(self, fut: asyncio.Future):
         """
         Inline function used as a callback to raise exceptions
         :param fut: The Future object of the task
@@ -455,7 +425,7 @@ class Agent(ABC, AgentDelegates):
         except Exception:
             logger.exception("The check inbox task of %s failed!", self.aid)
 
-    def handle_message(self, content, meta: Dict[str, Any]):
+    def handle_message(self, content, meta: dict[str, Any]):
         """
 
         Has to be implemented by the user.
@@ -472,20 +442,20 @@ class Agent(ABC, AgentDelegates):
 
         if not self._stopped.done():
             self._stopped.set_result(True)
-        self._context.deregister_agent(self.aid)
+        self.context.deregister(self.aid)
         try:
             # Shutdown reactive inbox task
-            self._check_inbox_task.remove_done_callback(self.raise_exceptions)
+            self._check_inbox_task.remove_done_callback(self._raise_exceptions)
             self._check_inbox_task.cancel()
             await self._check_inbox_task
         except asyncio.CancelledError:
             pass
         try:
-            await self._scheduler.stop()
+            await self.scheduler.stop()
         except asyncio.CancelledError:
             pass
         try:
-            await self._scheduler.shutdown()
+            await self.scheduler.shutdown()
         except asyncio.CancelledError:
             pass
         finally:
