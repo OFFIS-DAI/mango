@@ -16,14 +16,14 @@ URL = "https://github.com/OFFIS-DAI/mango"
 EMAIL = "mango@offis.de"
 AUTHOR = "mango Team"
 REQUIRES_PYTHON = ">=3.10.0"
-VERSION = "2.0.1"
+VERSION = "2.0.2"
 
 # What packages are required for this module to be executed?
 REQUIRED = [
     "paho-mqtt>=2.1.0",
     "python-dateutil>=2.9.0",
     "dill>=0.3.8",
-    "protobuf>=5.27.2",
+    "protobuf>=5.28.2",
 ]
 
 # What packages are optional?
