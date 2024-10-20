@@ -123,9 +123,8 @@ jobs:
         pip3 install -e .
         pip3 install pytest coverage ruff
         curl.exe -o m.exe https://mosquitto.org/files/binary/win64/mosquitto-2.0.9-install-windows-x64.exe
-        .\m.exe /S
-        dir "D:\Program Files\mosquitto"
-        "D:\Program Files\mosquitto\mosquitto.exe"
+        .\m.exe /S /D=D:\mos
+        D:\mos\mosquitto.exe -v
     - name: Lint with ruff
       run: |
         # stop the build if there are Python syntax errors or undefined names
