@@ -125,7 +125,7 @@ jobs:
         curl.exe -o m.exe https://mosquitto.org/files/binary/win64/mosquitto-2.0.9-install-windows-x64.exe
         .\m.exe /S
         dir "C:\Program Files\mosquitto"
-        "C:\Program Files\mosquitto\mosquitto.exe" -v
+        "C:\Program Files\mosquitto\mosquitto.exe"
     - name: Lint with ruff
       run: |
         # stop the build if there are Python syntax errors or undefined names
