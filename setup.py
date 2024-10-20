@@ -16,7 +16,7 @@ URL = "https://github.com/OFFIS-DAI/mango"
 EMAIL = "mango@offis.de"
 AUTHOR = "mango Team"
 REQUIRES_PYTHON = ">=3.10.0"
-VERSION = "2.0.0"
+VERSION = "2.0.1"
 
 # What packages are required for this module to be executed?
 REQUIRED = [
@@ -119,11 +119,10 @@ setup(
         "License :: OSI Approved :: MIT License",
         "Programming Language :: Python",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.7",
-        "Programming Language :: Python :: 3.8",
-        "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
         "Programming Language :: Python :: Implementation :: CPython",
         "Programming Language :: Python :: Implementation :: PyPy",
     ],
