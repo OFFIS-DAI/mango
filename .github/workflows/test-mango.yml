@@ -97,3 +97,49 @@ jobs:
         source venv/bin/activate
         coverage run -m pytest
         coverage report
+
+  build-win:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+        cache: 'pip'
+        cache-dependency-path: '**/setup.py'
+    - name: Start Mosquitto
+      uses: namoshek/mosquitto-github-action@v1
+      with:
+        version: '1.6'
+        ports: '1883:1883 8883:8883'
+        container-name: 'mqtt'
+    - name: Install dependencies
+      run: |
+        pip install virtualenv
+        virtualenv venv
+        .\venv\Scripts\activate
+        pip3 install -U sphinx
+        pip3 install -r docs/requirements.txt
+        pip3 install -r requirements.txt
+        pip3 install -e .
+        pip3 install pytest coverage ruff
+    - name: Lint with ruff
+      run: |
+        # stop the build if there are Python syntax errors or undefined names
+        source venv/bin/activate
+        ruff check .
+        ruff format --check .
+    - name: Doctests
+      run: |
+        .\venv\Scripts\activate
+        .\make.bat -C docs doctest
+    - name: Test+Coverage
+      run: |
+        .\venv\Scripts\activate
+        coverage run -m pytest
+        coverage report
