@@ -21,7 +21,7 @@ class SubRole(Role):
 
 def test_subscription():
     # GIVEN
-    role_handler = RoleHandler(None, None)
+    role_handler = RoleHandler(None)
     ex_role = SubRole()
     ex_role2 = SubRole()
     role_model = role_handler.get_or_create_model(RoleModel)
@@ -40,7 +40,7 @@ def test_subscription():
 
 def test_subscription_deactivated():
     # GIVEN
-    role_handler = RoleHandler(None, Scheduler())
+    role_handler = RoleHandler(Scheduler())
     ex_role = SubRole()
     ex_role2 = SubRole()
     role_model = role_handler.get_or_create_model(RoleModel)
@@ -60,7 +60,7 @@ def test_subscription_deactivated():
 
 def test_no_subscription_update():
     # GIVEN
-    role_handler = RoleHandler(None, None)
+    role_handler = RoleHandler(None)
     ex_role = SubRole()
     role_model = role_handler.get_or_create_model(RoleModel)
 
@@ -74,7 +74,7 @@ def test_no_subscription_update():
 
 def test_append_message_subs():
     # GIVEN
-    role_handler = RoleHandler(None, None)
+    role_handler = RoleHandler(None)
     test_role = SubRole()
 
     # WHEN
@@ -124,7 +124,7 @@ class RoleHandlingEvents(Role):
 
 def test_emit_event():
     # GIVEN
-    role_handler = RoleHandler(None, None)
+    role_handler = RoleHandler(None)
     context = RoleContext(role_handler, None, None)
     ex_role = SubRole()
     ex_role2 = RoleHandlingEvents()

@@ -265,14 +265,6 @@ class RoleContext(AgentDelegates):
         return self._get_container()
 
     @property
-    def context(self) -> float:
-        return self._agent_context
-
-    @context.setter
-    def context(self, value: bool):
-        pass
-
-    @property
     def current_timestamp(self) -> float:
         return self.context.current_timestamp
 
