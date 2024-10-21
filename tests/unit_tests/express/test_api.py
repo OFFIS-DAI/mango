@@ -119,6 +119,7 @@ async def test_run_api_style_agent_with_aid():
 
 
 @pytest.mark.asyncio
+@pytest.mark.mqtt
 async def test_run_api_style_agent_with_aid_mqtt():
     # GIVEN
     run_agent = MyAgent()
