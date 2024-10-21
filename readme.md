@@ -11,6 +11,8 @@
 ![lifecycle](https://img.shields.io/badge/lifecycle-maturing-blue.svg)
 [![MIT License](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/OFFIS-DAI/mango/blob/development/LICENSE)
 [![Test mango-python](https://github.com/OFFIS-DAI/mango/actions/workflows/test-mango.yml/badge.svg)](https://github.com/OFFIS-DAI/mango/actions/workflows/test-mango.yml)
+[![codecov](https://codecov.io/gh/OFFIS-DAI/mango/graph/badge.svg?token=6KVKBICGYG)](https://codecov.io/gh/OFFIS-DAI/mango)
+
 
 
 mango (**m**odul**a**r pytho**n** a**g**ent framew**o**rk) is a python library for multi-agent systems (MAS).
@@ -30,14 +32,8 @@ A detailed documentation for this project can be found at [mango-agents.readthed
 
 ## Installation
 
-*mango* requires Python >= 3.8 and runs on Linux, OSX and Windows.
-
-For installation of mango you should use
+For installation of mango you may use
 [virtualenv](https://virtualenv.pypa.io/en/latest/#) which can create isolated Python environments for different projects.
-
-It is also recommended to install
-[virtualenvwrapper](https://virtualenvwrapper.readthedocs.io/en/latest/index.html)
-which makes it easier to manage different virtual environments.
 
 Once you have created a virtual environment you can just run [pip](https://pip.pypa.io/en/stable/) to install it:
 
