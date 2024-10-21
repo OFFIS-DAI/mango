@@ -14,8 +14,9 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
-from ..messages.acl_message_pb2 import ACLMessage as ACLProto
-from ..messages.mango_message_pb2 import MangoMessage as MangoMsg
+from ..agent.core import AgentAddress
+from .acl_message_pb2 import ACLMessage as ACLProto
+from .mango_message_pb2 import MangoMessage as MangoMsg
 
 
 class Message(ABC):
@@ -245,41 +246,42 @@ class Performatives(Enum):
 
 def create_acl(
     content,
-    receiver_addr: str | tuple[str, int],
-    sender_addr: str | tuple[str, int],
-    receiver_id: None | str = None,
+    receiver_addr: AgentAddress,
+    sender_addr: AgentAddress,
     acl_metadata: None | dict[str, Any] = None,
     is_anonymous_acl=False,
 ):
     acl_metadata = {} if acl_metadata is None else acl_metadata.copy()
     # analyse and complete acl_metadata
-    if "receiver_addr" not in acl_metadata.keys():
-        acl_metadata["receiver_addr"] = receiver_addr
-    elif acl_metadata["receiver_addr"] != receiver_addr:
+    if (
+        "receiver_addr" in acl_metadata.keys()
+        and acl_metadata["receiver_addr"] != receiver_addr.protocol_addr
+    ):
         warnings.warn(
-            f"The argument receiver_addr ({receiver_addr}) is not equal to "
+            f"The argument receiver_addr ({receiver_addr.protocol_addr}) is not equal to "
             f"acl_metadata['receiver_addr'] ({acl_metadata['receiver_addr']}). \
                         For consistency, the value in acl_metadata['receiver_addr'] "
             f"was overwritten with receiver_addr.",
             UserWarning,
         )
-        acl_metadata["receiver_addr"] = receiver_addr
-    if receiver_id:
-        if "receiver_id" not in acl_metadata.keys():
-            acl_metadata["receiver_id"] = receiver_id
-        elif acl_metadata["receiver_id"] != receiver_id:
-            warnings.warn(
-                f"The argument receiver_id ({receiver_id}) is not equal to "
-                f"acl_metadata['receiver_id'] ({acl_metadata['receiver_id']}). \
-                            For consistency, the value in acl_metadata['receiver_id'] "
-                f"was overwritten with receiver_id.",
-                UserWarning,
-            )
-            acl_metadata["receiver_id"] = receiver_id
+    if (
+        "receiver_id" in acl_metadata.keys()
+        and acl_metadata["receiver_id"] != receiver_addr.aid
+    ):
+        warnings.warn(
+            f"The argument receiver_id ({receiver_addr.aid}) is not equal to "
+            f"acl_metadata['receiver_id'] ({acl_metadata['receiver_id']}). \
+                        For consistency, the value in acl_metadata['receiver_id'] "
+            f"was overwritten with receiver_id.",
+            UserWarning,
+        )
+    acl_metadata["receiver_addr"] = receiver_addr.protocol_addr
+    acl_metadata["receiver_id"] = receiver_addr.aid
+
     # add sender_addr if not defined and not anonymous
     if not is_anonymous_acl:
-        if "sender_addr" not in acl_metadata.keys() and sender_addr is not None:
-            acl_metadata["sender_addr"] = sender_addr
+        acl_metadata["sender_addr"] = sender_addr.protocol_addr
+        acl_metadata["sender_id"] = sender_addr.aid
 
     message = ACLMessage()
     message.content = content

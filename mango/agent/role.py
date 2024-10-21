@@ -360,10 +360,6 @@ class RoleContext(AgentDelegates):
         """
         self._role_handler.subscribe_event(role, event_type, handler_method)
 
-    @property
-    def aid(self):
-        return self._aid
-
     def deactivate(self, role) -> None:
         self._role_handler.deactivate(role)
 
