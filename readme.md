@@ -11,6 +11,8 @@
 ![lifecycle](https://img.shields.io/badge/lifecycle-maturing-blue.svg)
 [![MIT License](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/OFFIS-DAI/mango/blob/development/LICENSE)
 [![Test mango-python](https://github.com/OFFIS-DAI/mango/actions/workflows/test-mango.yml/badge.svg)](https://github.com/OFFIS-DAI/mango/actions/workflows/test-mango.yml)
+[![codecov](https://codecov.io/gh/OFFIS-DAI/mango/graph/badge.svg?token=6KVKBICGYG)](https://codecov.io/gh/OFFIS-DAI/mango)
+
 
 
 mango (**m**odul**a**r pytho**n** a**g**ent framew**o**rk) is a python library for multi-agent systems (MAS).
