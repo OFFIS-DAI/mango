@@ -62,7 +62,7 @@ async def test_send_acl_message():
 
     async with activate(c) as c:
         await agent.send_message(
-            create_acl("", receiver_addr=agent2.addr, sender_addr=c.addr),
+            create_acl("", receiver_addr=agent2.addr, sender_addr=agent.addr),
             receiver_addr=agent2.addr,
         )
         msg = await agent2.inbox.get()
@@ -96,7 +96,7 @@ async def test_schedule_acl_message():
 
     async with activate(c) as c:
         await agent.schedule_instant_message(
-            create_acl("", receiver_addr=agent2.addr, sender_addr=c.addr),
+            create_acl("", receiver_addr=agent2.addr, sender_addr=agent.addr),
             receiver_addr=agent2.addr,
         )
 

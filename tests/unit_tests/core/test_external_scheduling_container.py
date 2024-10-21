@@ -146,9 +146,8 @@ async def test_step_with_cond_task():
         # create and send message in next step
         message = create_acl(
             content="",
-            receiver_addr=external_scheduling_container.addr,
-            receiver_id=agent_1.aid,
-            sender_addr=external_scheduling_container.addr,
+            receiver_addr=AgentAddress(external_scheduling_container.addr, agent_1.aid),
+            sender_addr=AgentAddress(external_scheduling_container.addr, agent_1.aid),
         )
         encoded_msg = external_scheduling_container.codec.encode(message)
         print("created message")
@@ -204,9 +203,8 @@ async def test_send_internal_messages():
     async with activate(external_scheduling_container) as c:
         message = create_acl(
             content="",
-            receiver_addr=external_scheduling_container.addr,
-            receiver_id=agent_1.aid,
-            sender_addr=external_scheduling_container.addr,
+            receiver_addr=AgentAddress(external_scheduling_container.addr, agent_1.aid),
+            sender_addr=AgentAddress(external_scheduling_container.addr, agent_1.aid),
         )
         encoded_msg = external_scheduling_container.codec.encode(message)
         return_values = await external_scheduling_container.step(
