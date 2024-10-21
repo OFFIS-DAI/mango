@@ -9,6 +9,7 @@ import asyncio
 import logging
 from abc import ABC
 from dataclasses import dataclass
+from enum import Enum
 from typing import Any
 
 from ..util.clock import Clock
@@ -21,6 +22,21 @@ logger = logging.getLogger(__name__)
 class AgentAddress:
     protocol_addr: Any
     aid: str
+
+
+class State(Enum):
+    NORMAL = 0  # normal neighbor
+    INACTIVE = (
+        1  # neighbor link exists but link is not active (could be activated/used)
+    )
+    BROKEN = 2  # neighbor link exists but link is not usable (can not be activated)
+
+
+class TopologyService:
+    state_to_neighbors: dict[State, list] = dict()
+
+    def neighbors(self, state: State = State.NORMAL):
+        return [f() for f in self.state_to_neighbors.get(state, [])]
 
 
 class AgentContext:
@@ -69,6 +85,7 @@ class AgentDelegates:
         self.context: AgentContext = None
         self.scheduler: Scheduler = None
         self._aid = None
+        self._services = {}
 
     def on_start(self):
         """Called when container started in which the agent is contained"""
@@ -343,6 +360,28 @@ class AgentDelegates:
         :param timeout: waiting timeout. Defaults to 1.
         """
         await self.scheduler.tasks_complete(timeout=timeout)
+
+    def service_of_type(self, type: type, default: Any = None) -> Any:
+        """Return the service of the type ``type`` or set the default as service and return it.
+
+        :param type: the type of the service
+        :type type: type
+        :param default: the default if applicable
+        :type default: Any (optional)
+        :return: the service
+        :rtype: Any
+        """
+        if type not in self._services:
+            self._services[type] = default
+        return self._services[type]
+
+    def neighbors(self, state: State = State.NORMAL) -> list[AgentAddress]:
+        """Return the neighbors of the agent (controlled by the topology api).
+
+        :return: the list of agent addresses filtered by state
+        :rtype: list[AgentAddress]
+        """
+        return self.service_of_type(TopologyService).neighbors(state)
 
 
 class Agent(ABC, AgentDelegates):

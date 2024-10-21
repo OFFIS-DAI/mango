@@ -114,6 +114,9 @@ class SampleRole(Role):
         assert self.context is not None
         self.setup_called = True
 
+    def handle_message(self, content: Any, meta: Dict):
+        self.messages = 1
+
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
@@ -220,3 +223,26 @@ async def test_role_add_remove_context():
     agent.remove_role(role)
 
     assert len(agent.roles) == 0
+
+
+@pytest.mark.asyncio
+async def test_role_addr():
+    c = create_tcp_container(addr=("127.0.0.1", 5555))
+    agent = c.register(RoleAgent())
+    role = SampleRole()
+    agent.add_role(role)
+
+    assert role.context.addr == agent.addr
+
+
+@pytest.mark.asyncio
+async def test_role_register_after_agent_register():
+    c = create_tcp_container(addr=("127.0.0.1", 5555))
+    agent = c.register(RoleAgent())
+    role = SampleRole()
+    agent.add_role(role)
+
+    async with activate(c):
+        await role.context.send_message("", role.context.addr)
+
+    assert role.messages == 1

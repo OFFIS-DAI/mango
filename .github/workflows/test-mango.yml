@@ -34,8 +34,7 @@ jobs:
         source venv/bin/activate
         pip3 install -U sphinx
         pip3 install -r docs/requirements.txt
-        pip3 install -r requirements.txt
-        pip3 install -e .
+        pip3 install -e .[test]
         brew install mosquitto
         brew services start mosquitto
         pip3 install pytest coverage ruff
@@ -76,8 +75,7 @@ jobs:
         source venv/bin/activate
         pip3 install -U sphinx
         pip3 install -r docs/requirements.txt
-        pip3 install -r requirements.txt
-        pip3 install -e .
+        pip3 install -e .[test]
         sudo apt update
         sudo apt install --assume-yes mosquitto
         sudo service mosquitto start
