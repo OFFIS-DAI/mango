@@ -81,6 +81,7 @@ class MQTTContainer(Container):
         )
 
         self.client_id: str = client_id
+        self._loop = asyncio.get_event_loop()
         # the client will be created on start.
         self.mqtt_client: paho.Client = None
         self.inbox_topic: None | str = inbox_topic
@@ -90,7 +91,6 @@ class MQTTContainer(Container):
         self.pending_sub_request: None | asyncio.Future = None
 
     async def start(self):
-        self._loop = asyncio.get_event_loop()
         if not self.client_id:
             raise ValueError("client_id is required!")
         if not self.addr:

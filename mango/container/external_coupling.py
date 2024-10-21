@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import time
 from dataclasses import dataclass
@@ -76,6 +77,7 @@ class ExternalSchedulingContainer(Container):
             **kwargs,
         )
 
+        self._loop = asyncio.get_event_loop()
         self.running = True
         self.current_start_time_of_step = time.time()
         self._new_internal_message: bool = False

@@ -183,6 +183,7 @@ class TCPContainer(Container):
         self._tcp_connection_pool = None
         self.server = None  # will be set within start
         self.running = False
+        self._loop = asyncio.get_event_loop()
         self._tcp_connection_pool = TCPConnectionPool(
             ttl_in_sec=self._kwargs.get(TCP_CONNECTION_TTL, 30),
             max_connections_per_target=self._kwargs.get(
@@ -193,7 +194,7 @@ class TCPContainer(Container):
     async def start(self):
         # create a TCP server bound to host and port that uses the
         # specified protocol
-        self.server = await asyncio.get_running_loop().create_server(
+        self.server = await self._loop.create_server(
             lambda: ContainerProtocol(container=self, codec=self.codec),
             self.addr[0],
             self.addr[1],

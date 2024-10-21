@@ -420,7 +420,7 @@ class Agent(ABC, AgentDelegates):
         """
 
     def _do_register(self, container, aid):
-        self._check_inbox_task = asyncio.create_task(self._check_inbox())
+        self._check_inbox_task = container._loop.create_task(self._check_inbox())
         self._check_inbox_task.add_done_callback(self._raise_exceptions)
         self._stopped = asyncio.Future()
         self._aid = aid
