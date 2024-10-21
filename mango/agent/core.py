@@ -373,7 +373,7 @@ class Agent(ABC, AgentDelegates):
 
     @suspendable_tasks.setter
     def suspendable_tasks(self, value: bool):
-        self.self.scheduler.suspendable = value
+        self.scheduler.suspendable = value
 
     def on_register(self):
         """

@@ -139,3 +139,13 @@ async def test_run_api_style_agent_with_aid_mqtt():
     assert run_agent2.test_counter == 1
     assert run_agent2.aid == "my_custom_aid"
     assert run_agent.aid == "agent0"
+
+
+@pytest.mark.asyncio
+async def test_deactivate_suspendable():
+    container = create_tcp_container("127.0.0.1:5555")
+    ping_pong_agent = agent_composed_of(PingPongRole(), register_in=container)
+    ping_pong_agent.suspendable_tasks = False
+
+    async with activate(container) as c:
+        assert ping_pong_agent.scheduler.suspendable is False
