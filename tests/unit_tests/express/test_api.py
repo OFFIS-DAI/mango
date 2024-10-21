@@ -41,10 +41,21 @@ async def test_activate_pingpong():
         await c.send_message(
             "Ping", ping_pong_agent.addr, sender_id=ping_pong_agent_two.aid
         )
+        assert ping_pong_agent.roles[0].context.addr is not None
         while ping_pong_agent.roles[0].counter < 5:
             await asyncio.sleep(0.01)
 
     assert ping_pong_agent.roles[0].counter == 5
+
+
+@pytest.mark.asyncio
+async def test_activate_rolecontext():
+    container = create_tcp_container("127.0.0.1:5555")
+    ping_pong_agent = agent_composed_of(PingPongRole(), register_in=container)
+
+    async with activate(container) as c:
+        assert ping_pong_agent.roles[0].context.addr is not None
+        assert ping_pong_agent.roles[0].context.context is not None
 
 
 class MyAgent(Agent):
