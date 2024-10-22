@@ -66,7 +66,7 @@ class ReplyAgent(Agent):
         self.current_ping = 0
         self.tasks = []
 
-    def on_register(self):
+    def on_ready(self):
         self.tasks.append(self.schedule_periodic_task(self.send_ping, delay=10))
 
     async def send_ping(self):
@@ -216,9 +216,9 @@ async def test_send_internal_messages():
 @pytest.mark.asyncio
 async def test_step_with_replying_agent():
     external_scheduling_container = create_ec_container(addr="external_eid_1")
+    reply_agent = external_scheduling_container.register(ReplyAgent())
 
     async with activate(external_scheduling_container) as c:
-        reply_agent = external_scheduling_container.register(ReplyAgent())
         new_acl_msg = ACLMessage()
         new_acl_msg.content = "hello you"
         new_acl_msg.receiver_addr = "external_eid_1"
