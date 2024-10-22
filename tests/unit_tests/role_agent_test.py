@@ -109,13 +109,20 @@ class DeactivateAllRoles(Role):
 class SampleRole(Role):
     def __init__(self):
         self.setup_called = False
+        self.messages = 0
 
     def setup(self):
         assert self.context is not None
         self.setup_called = True
 
     def handle_message(self, content: Any, meta: dict):
-        self.messages = 1
+        self.messages += 1
+
+
+class SampleSubRole(SampleRole):
+    def setup(self):
+        super().setup()
+        self.context.subscribe_message(self, self.handle_message, lambda c, m: True)
 
 
 @pytest.mark.asyncio
@@ -240,6 +247,19 @@ async def test_role_register_after_agent_register():
     c = create_tcp_container(addr=("127.0.0.1", 5555))
     agent = c.register(RoleAgent())
     role = SampleRole()
+    agent.add_role(role)
+
+    async with activate(c):
+        await role.context.send_message("", role.context.addr)
+
+    assert role.messages == 1
+
+
+@pytest.mark.asyncio
+async def test_role_with_message_handler():
+    c = create_tcp_container(addr=("127.0.0.1", 5555))
+    agent = c.register(RoleAgent())
+    role = SampleSubRole()
     agent.add_role(role)
 
     async with activate(c):

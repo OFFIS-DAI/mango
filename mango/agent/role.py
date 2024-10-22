@@ -185,11 +185,16 @@ class RoleHandler:
         :param content: content
         :param meta: meta
         """
-        for role in self.roles:
-            role.handle_message(content, meta)
+        handle_message_found = False
         for role, message_condition, method, _ in self._message_subs:
+            # do not execute handle_message twice if role has subscription as well
+            if method.__name__ == "handle_message":
+                handle_message_found = True
             if self._is_role_active(role) and message_condition(content, meta):
                 method(content, meta)
+        if not handle_message_found:
+            for role in self.roles:
+                role.handle_message(content, meta)
 
     def _notify_send_message_subs(self, content, receiver_addr: AgentAddress, **kwargs):
         for role in self._send_msg_subs:
