@@ -50,11 +50,11 @@ class DataContainer:
     def __contains__(self, key):
         return hasattr(self, key)
 
-    def get(self, key):
+    def get(self, key, default=None):
         if key in self:
             return self[key]
         else:
-            return None
+            return default
 
     def update(self, data: dict):
         for k, v in data.items():
