@@ -11,7 +11,7 @@ copyright = "2024, mango team"
 author = "mango team"
 
 # The full version, including alpha/beta/rc tags
-version = release = "2.0.0"
+version = release = "2.1.0"
 
 
 # -- General configuration ---------------------------------------------------
