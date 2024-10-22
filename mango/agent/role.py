@@ -34,7 +34,8 @@ Furthermore there are two lifecycle methods to know about:
 
 import asyncio
 from abc import ABC
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from mango.agent.core import Agent, AgentAddress, AgentDelegates
 

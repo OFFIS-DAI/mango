@@ -244,14 +244,14 @@ class PROTOBUF(Codec):
         msg.reply_by = acl_message.reply_by if acl_message.reply_by else ""
         msg.in_reply_to = acl_message.in_reply_to if acl_message.in_reply_to else ""
 
-        if isinstance(acl_message.sender_addr, (tuple, list)):
+        if isinstance(acl_message.sender_addr, tuple | list):
             msg.sender_addr = (
                 f"{acl_message.sender_addr[0]}:{acl_message.sender_addr[1]}"
             )
         elif acl_message.sender_addr:
             msg.sender_addr = acl_message.sender_addr
 
-        if isinstance(acl_message.receiver_addr, (tuple, list)):
+        if isinstance(acl_message.receiver_addr, tuple | list):
             msg.receiver_addr = (
                 f"{acl_message.receiver_addr[0]}:{acl_message.receiver_addr[1]}"
             )

@@ -1,5 +1,5 @@
 import asyncio
-from typing import Any, Dict
+from typing import Any
 
 import pytest
 
@@ -76,7 +76,7 @@ class ReplyAgent(Agent):
         )
         self.current_ping += 1
 
-    def handle_message(self, content, meta: Dict[str, Any]):
+    def handle_message(self, content, meta: dict[str, Any]):
         self.schedule_instant_task(self.sleep_and_answer(content, meta))
 
     async def sleep_and_answer(self, content, meta):
@@ -113,7 +113,7 @@ class WaitForMessageAgent(Agent):
     async def print_cond_task_finished(self):
         pass
 
-    def handle_message(self, content, meta: Dict[str, Any]):
+    def handle_message(self, content, meta: dict[str, Any]):
         self.received_msg = True
 
 
@@ -180,7 +180,7 @@ class SelfSendAgent(Agent):
         self.no_received_msg = 0
         self.final_no = final_number
 
-    def handle_message(self, content, meta: Dict[str, Any]):
+    def handle_message(self, content, meta: dict[str, Any]):
         self.no_received_msg += 1
         # pretend to be really busy
         i = 0
