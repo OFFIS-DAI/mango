@@ -30,6 +30,7 @@ Features
    message exchange
    role-api
    scheduling
+   topology
    codecs
    api_ref/index
    migration
