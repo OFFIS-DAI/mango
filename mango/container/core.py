@@ -120,6 +120,11 @@ class Container(ABC):
         aid = self._reserve_aid(suggested_aid)
         self._agents[aid] = agent
         agent._do_register(self, aid)
+        if self.running:
+            for agent in self._agents.values():
+                agent._do_start()
+            for agent in self._agents.values():
+                agent.on_ready()
         logger.debug("Successfully registered agent;%s", aid)
         return agent
 

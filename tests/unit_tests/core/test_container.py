@@ -263,3 +263,28 @@ async def test_auto_port_container():
         pass
 
     assert c1.addr[1] is not None
+
+
+class AfterStartRegisterAgent(Agent):
+    def __init__(self):
+        super().__init__()
+        self.str = ""
+
+    def on_ready(self):
+        self.str += "ready"
+
+    def on_register(self):
+        self.str += "register"
+
+    def on_start(self):
+        self.str += "start"
+
+
+@pytest.mark.asyncio
+async def test_register_after_activate():
+    c1 = create_tcp_container(addr=("127.0.0.1", None), auto_port=True)
+    a = None
+    async with activate(c1):
+        a = c1.register(AfterStartRegisterAgent())
+
+    assert a.str == "registerstartready"

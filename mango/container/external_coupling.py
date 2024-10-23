@@ -76,7 +76,7 @@ class ExternalSchedulingContainer(Container):
             **kwargs,
         )
 
-        self.running = True
+        self.running = False
         self.current_start_time_of_step = time.time()
         self._new_internal_message: bool = False
         self.message_buffer = []
