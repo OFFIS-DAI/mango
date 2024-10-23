@@ -4,11 +4,7 @@ Installation
 For installation of mango you could use
 virtualenv__ which can create isolated Python environments for different projects.
 
-It is also recommended to install virtualenvwrapper__ which makes it easier to manage
-different virtual environments.
-
 __ https://virtualenv.pypa.io/en/latest/#
-__ https://virtualenvwrapper.readthedocs.io/en/latest/index.html
 
 Installation with pip
 ---------------------
