@@ -53,4 +53,5 @@ html_theme_options = {
     "light_logo": "Logo_mango_ohne_sub.svg",
     "dark_logo": "Logo_mango_ohne_sub_white.svg",
     "sidebar_hide_name": True,
+    "top_of_page_buttons": ["view", "edit"],
 }
