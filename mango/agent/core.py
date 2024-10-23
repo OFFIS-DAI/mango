@@ -420,15 +420,19 @@ class Agent(ABC, AgentDelegates):
         """
 
     def _do_register(self, container, aid):
-        self._check_inbox_task = asyncio.create_task(self._check_inbox())
-        self._check_inbox_task.add_done_callback(self._raise_exceptions)
-        self._stopped = asyncio.Future()
         self._aid = aid
         self.context = AgentContext(container)
         self.scheduler = Scheduler(
             suspendable=True, observable=True, clock=container.clock
         )
         self.on_register()
+
+    def _do_start(self):
+        self._check_inbox_task = asyncio.create_task(self._check_inbox())
+        self._check_inbox_task.add_done_callback(self._raise_exceptions)
+        self._stopped = asyncio.Future()
+
+        self.on_start()
 
     def _raise_exceptions(self, fut: asyncio.Future):
         """

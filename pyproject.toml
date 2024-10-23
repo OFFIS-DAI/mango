@@ -27,7 +27,7 @@ dependencies = [
     "paho-mqtt>=2.1.0",
     "python-dateutil>=2.9.0",
     "dill>=0.3.8",
-    "protobuf>=5.27.2",
+    "protobuf==5.27.2",
     "networkx>=3.4.1"
 ]
 

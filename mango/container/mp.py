@@ -123,6 +123,9 @@ def create_agent_process_environment(
             agent_creator(container)
         process_initialized_event.set()
 
+        for agent in container._agents.values():
+            agent._do_start()
+        container.running = True
         while not terminate_event.is_set():
             await asyncio.sleep(WAIT_STEP)
         await container.shutdown()
