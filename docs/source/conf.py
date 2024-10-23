@@ -55,6 +55,6 @@ html_theme_options = {
     "sidebar_hide_name": True,
     "source_repository": "https://github.com/OFFIS-DAI/mango/",
     "source_branch": "master",
-    "source_directory": "docs/",
+    "source_directory": "docs/source/",
     "top_of_page_buttons": ["view", "edit"],
 }
