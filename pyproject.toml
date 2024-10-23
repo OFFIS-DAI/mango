@@ -1,0 +1,80 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mango-agents"
+version = "2.1.0"
+authors = [
+  { name="mango Team", email="mango@offis.de" },
+]
+description = "Modular Python Agent Framework"
+readme = "readme.md"
+requires-python = ">=3.10"
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+]
+license = {file="LICENSE"}
+dependencies = [
+    "paho-mqtt>=2.1.0",
+    "python-dateutil>=2.9.0",
+    "dill>=0.3.8",
+    "protobuf==5.27.2",
+    "networkx>=3.4.1"
+]
+
+[project.optional-dependencies]
+fastjson = [
+    "msgspec>=0.18.6"
+]
+test = [
+    "pytest",
+    "pytest-cov",
+    "pytest-asyncio",
+    "pre-commit"
+]
+
+[project.urls]
+Homepage = "https://mango-agents.readthedocs.io"
+Repository = "https://github.com/OFFIS-DAI/mango"
+Issues = "https://github.com/OFFIS-DAI/mango/issues"
+
+
+[tool.pytest.ini_options]
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "mqtt",
+]
+
+[tool.coverage.run]
+omit = ["tests/*"]
+
+[tool.ruff.lint]
+# Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`)  codes by default.
+# Unlike Flake8, Ruff doesn't enable pycodestyle warnings (`W`) or
+# McCabe complexity (`C901`) by default.
+select = ["E", "F", "G", "I", "UP", "AIR", "PIE", "PLR1714", "PLW2901", "TRY201"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = [
+    "I001", # allow unsorted imports in __init__.py
+    "F401", # allow unused imports in __init__.py
+]
+"examples/*" = [
+    "ARG",  # allow unused arguments
+    "F841", # allow unused local variables
+]
+"tests/*" = [
+    "ARG",  # allow unused arguments for pytest fixtures
+    "E741", # allow reused variables
+    "F841", # allow unused local variables
+]

@@ -220,7 +220,7 @@ class TCPContainer(Container):
         protocol_addr = receiver_addr.protocol_addr
         if isinstance(protocol_addr, str) and ":" in protocol_addr:
             protocol_addr = protocol_addr.split(":")
-        elif isinstance(protocol_addr, (tuple, list)) and len(protocol_addr) == 2:
+        elif isinstance(protocol_addr, tuple | list) and len(protocol_addr) == 2:
             protocol_addr = tuple(protocol_addr)
         else:
             logger.warning("Address for sending message is not valid;%s", protocol_addr)
@@ -257,7 +257,7 @@ class TCPContainer(Container):
         :param message: The message
         :return:
         """
-        if addr is None or not isinstance(addr, (tuple, list)) or len(addr) != 2:
+        if addr is None or not isinstance(addr, tuple | list) or len(addr) != 2:
             logger.warning(
                 "Sending external message not successful, invalid address; %s",
                 addr,

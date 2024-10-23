@@ -298,7 +298,7 @@ class Container(ABC):
 
         """Start the container. It totally depends on the implementation for what is actually happening."""
         for agent in self._agents.values():
-            agent.on_start()
+            agent._do_start()
 
     def on_ready(self):
         for agent in self._agents.values():

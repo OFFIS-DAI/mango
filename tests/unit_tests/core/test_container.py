@@ -1,7 +1,7 @@
 import pytest
 
 from mango import activate, create_acl, create_tcp_container
-from mango.agent.core import Agent
+from mango.agent.core import Agent, AgentAddress
 
 
 class LooksLikeAgent:
@@ -153,10 +153,9 @@ async def test_create_acl_no_modify():
     common_acl_q = {}
     actual_acl_message = create_acl(
         "",
-        receiver_addr="",
-        receiver_id="",
+        receiver_addr=AgentAddress("", ""),
         acl_metadata=common_acl_q,
-        sender_addr=c.addr,
+        sender_addr=AgentAddress(c.addr, ""),
     )
 
     assert "reeiver_addr" not in common_acl_q
@@ -170,7 +169,10 @@ async def test_create_acl_no_modify():
 async def test_create_acl_anon():
     c = create_tcp_container(addr=("127.0.0.1", 5555))
     actual_acl_message = create_acl(
-        "", receiver_addr="", receiver_id="", is_anonymous_acl=True, sender_addr=c.addr
+        "",
+        receiver_addr=AgentAddress("", ""),
+        is_anonymous_acl=True,
+        sender_addr=AgentAddress(c.addr, ""),
     )
 
     assert actual_acl_message.sender_addr is None
@@ -181,7 +183,10 @@ async def test_create_acl_anon():
 async def test_create_acl_not_anon():
     c = create_tcp_container(addr=("127.0.0.1", 5555))
     actual_acl_message = create_acl(
-        "", receiver_addr="", receiver_id="", is_anonymous_acl=False, sender_addr=c.addr
+        "",
+        receiver_addr=AgentAddress("", ""),
+        is_anonymous_acl=False,
+        sender_addr=AgentAddress(c.addr, ""),
     )
 
     assert actual_acl_message.sender_addr is not None
@@ -203,8 +208,8 @@ async def test_send_message_no_copy():
     agent1 = c.register(ExampleAgent())
     message_to_send = Data()
 
-    await c.send_message(message_to_send, receiver_addr=agent1.addr)
-    await c.shutdown()
+    async with activate(c):
+        await c.send_message(message_to_send, receiver_addr=agent1.addr)
 
     assert agent1.content is message_to_send
 
@@ -215,8 +220,8 @@ async def test_send_message_copy():
     agent1 = c.register(ExampleAgent())
     message_to_send = Data()
 
-    await c.send_message(message_to_send, receiver_addr=agent1.addr)
-    await c.shutdown()
+    async with activate(c):
+        await c.send_message(message_to_send, receiver_addr=agent1.addr)
 
     assert agent1.content is not message_to_send
 
@@ -227,10 +232,9 @@ async def test_create_acl_diff_receiver():
     with pytest.warns(UserWarning) as record:
         actual_acl_message = create_acl(
             "",
-            receiver_addr="A",
-            receiver_id="A",
+            receiver_addr=AgentAddress("A", "A"),
             acl_metadata={"receiver_id": "B", "receiver_addr": "B"},
-            sender_addr=c.addr,
+            sender_addr=AgentAddress(c.addr, ""),
             is_anonymous_acl=False,
         )
 

@@ -41,10 +41,21 @@ async def test_activate_pingpong():
         await c.send_message(
             "Ping", ping_pong_agent.addr, sender_id=ping_pong_agent_two.aid
         )
+        assert ping_pong_agent.roles[0].context.addr is not None
         while ping_pong_agent.roles[0].counter < 5:
             await asyncio.sleep(0.01)
 
     assert ping_pong_agent.roles[0].counter == 5
+
+
+@pytest.mark.asyncio
+async def test_activate_rolecontext():
+    container = create_tcp_container("127.0.0.1:5555")
+    ping_pong_agent = agent_composed_of(PingPongRole(), register_in=container)
+
+    async with activate(container) as c:
+        assert ping_pong_agent.roles[0].context.addr is not None
+        assert ping_pong_agent.roles[0].context.context is not None
 
 
 class MyAgent(Agent):
@@ -119,6 +130,7 @@ async def test_run_api_style_agent_with_aid():
 
 
 @pytest.mark.asyncio
+@pytest.mark.mqtt
 async def test_run_api_style_agent_with_aid_mqtt():
     # GIVEN
     run_agent = MyAgent()
@@ -138,3 +150,13 @@ async def test_run_api_style_agent_with_aid_mqtt():
     assert run_agent2.test_counter == 1
     assert run_agent2.aid == "my_custom_aid"
     assert run_agent.aid == "agent0"
+
+
+@pytest.mark.asyncio
+async def test_deactivate_suspendable():
+    container = create_tcp_container("127.0.0.1:5555")
+    ping_pong_agent = agent_composed_of(PingPongRole(), register_in=container)
+    ping_pong_agent.suspendable_tasks = False
+
+    async with activate(container) as c:
+        assert ping_pong_agent.scheduler.suspendable is False

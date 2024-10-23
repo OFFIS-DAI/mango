@@ -1,6 +1,6 @@
 import asyncio
 import datetime
-from typing import Any, Dict
+from typing import Any
 
 import pytest
 
@@ -15,10 +15,10 @@ class SimpleReactiveRole(Role):
             self, self.react_handle_message, self.is_applicable
         )
 
-    def react_handle_message(self, content, meta: Dict[str, Any]) -> None:
+    def react_handle_message(self, content, meta: dict[str, Any]) -> None:
         pass
 
-    def is_applicable(self, content, meta: Dict[str, Any]) -> bool:
+    def is_applicable(self, content, meta: dict[str, Any]) -> bool:
         return True
 
 
@@ -27,7 +27,7 @@ class PongRole(SimpleReactiveRole):
         super().__init__()
         self.sending_tasks = []
 
-    def react_handle_message(self, content, meta: Dict[str, Any]):
+    def react_handle_message(self, content, meta: dict[str, Any]):
         assert "sender_addr" in meta.keys() and "sender_id" in meta.keys()
 
         # send back pong, providing your own details
@@ -47,7 +47,7 @@ class PingRole(SimpleReactiveRole):
         self.target = target
         self._expect_no_answer = expect_no_answer
 
-    def react_handle_message(self, content, meta: Dict[str, Any]):
+    def react_handle_message(self, content, meta: dict[str, Any]):
         assert "sender_addr" in meta.keys() and "sender_id" in meta.keys()
         sender = sender_addr(meta)
         assert sender in self.open_ping_requests.keys()
@@ -109,10 +109,20 @@ class DeactivateAllRoles(Role):
 class SampleRole(Role):
     def __init__(self):
         self.setup_called = False
+        self.messages = 0
 
     def setup(self):
         assert self.context is not None
         self.setup_called = True
+
+    def handle_message(self, content: Any, meta: dict):
+        self.messages += 1
+
+
+class SampleSubRole(SampleRole):
+    def setup(self):
+        super().setup()
+        self.context.subscribe_message(self, self.handle_message, lambda c, m: True)
 
 
 @pytest.mark.asyncio
@@ -220,3 +230,39 @@ async def test_role_add_remove_context():
     agent.remove_role(role)
 
     assert len(agent.roles) == 0
+
+
+@pytest.mark.asyncio
+async def test_role_addr():
+    c = create_tcp_container(addr=("127.0.0.1", 5555))
+    agent = c.register(RoleAgent())
+    role = SampleRole()
+    agent.add_role(role)
+
+    assert role.context.addr == agent.addr
+
+
+@pytest.mark.asyncio
+async def test_role_register_after_agent_register():
+    c = create_tcp_container(addr=("127.0.0.1", 5555))
+    agent = c.register(RoleAgent())
+    role = SampleRole()
+    agent.add_role(role)
+
+    async with activate(c):
+        await role.context.send_message("", role.context.addr)
+
+    assert role.messages == 1
+
+
+@pytest.mark.asyncio
+async def test_role_with_message_handler():
+    c = create_tcp_container(addr=("127.0.0.1", 5555))
+    agent = c.register(RoleAgent())
+    role = SampleSubRole()
+    agent.add_role(role)
+
+    async with activate(c):
+        await role.context.send_message("", role.context.addr)
+
+    assert role.messages == 1

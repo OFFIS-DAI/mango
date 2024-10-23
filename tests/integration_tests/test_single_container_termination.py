@@ -176,6 +176,7 @@ async def test_distribute_ping_pong_tcp():
 
 
 @pytest.mark.asyncio
+@pytest.mark.mqtt
 async def test_distribute_ping_pong_mqtt():
     await distribute_ping_pong_test("mqtt")
 
@@ -186,6 +187,7 @@ async def test_distribute_ping_pong_ts_tcp():
 
 
 @pytest.mark.asyncio
+@pytest.mark.mqtt
 async def test_distribute_ping_pong_ts_mqtt():
     await distribute_ping_pong_test_timestamp("mqtt")
 
@@ -296,6 +298,7 @@ async def test_distribute_time_tcp():
 
 
 @pytest.mark.asyncio
+@pytest.mark.mqtt
 async def test_distribute_time_mqtt():
     await distribute_time_test_case("mqtt")
 
@@ -306,5 +309,6 @@ async def test_send_current_time_tcp():
 
 
 @pytest.mark.asyncio
+@pytest.mark.mqtt
 async def test_send_current_time_mqtt():
     await send_current_time_test_case("mqtt")

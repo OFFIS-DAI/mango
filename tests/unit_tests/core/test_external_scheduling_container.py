@@ -1,5 +1,5 @@
 import asyncio
-from typing import Any, Dict
+from typing import Any
 
 import pytest
 
@@ -66,7 +66,7 @@ class ReplyAgent(Agent):
         self.current_ping = 0
         self.tasks = []
 
-    def on_register(self):
+    def on_ready(self):
         self.tasks.append(self.schedule_periodic_task(self.send_ping, delay=10))
 
     async def send_ping(self):
@@ -76,7 +76,7 @@ class ReplyAgent(Agent):
         )
         self.current_ping += 1
 
-    def handle_message(self, content, meta: Dict[str, Any]):
+    def handle_message(self, content, meta: dict[str, Any]):
         self.schedule_instant_task(self.sleep_and_answer(content, meta))
 
     async def sleep_and_answer(self, content, meta):
@@ -113,7 +113,7 @@ class WaitForMessageAgent(Agent):
     async def print_cond_task_finished(self):
         pass
 
-    def handle_message(self, content, meta: Dict[str, Any]):
+    def handle_message(self, content, meta: dict[str, Any]):
         self.received_msg = True
 
 
@@ -146,9 +146,8 @@ async def test_step_with_cond_task():
         # create and send message in next step
         message = create_acl(
             content="",
-            receiver_addr=external_scheduling_container.addr,
-            receiver_id=agent_1.aid,
-            sender_addr=external_scheduling_container.addr,
+            receiver_addr=AgentAddress(external_scheduling_container.addr, agent_1.aid),
+            sender_addr=AgentAddress(external_scheduling_container.addr, agent_1.aid),
         )
         encoded_msg = external_scheduling_container.codec.encode(message)
         print("created message")
@@ -181,7 +180,7 @@ class SelfSendAgent(Agent):
         self.no_received_msg = 0
         self.final_no = final_number
 
-    def handle_message(self, content, meta: Dict[str, Any]):
+    def handle_message(self, content, meta: dict[str, Any]):
         self.no_received_msg += 1
         # pretend to be really busy
         i = 0
@@ -204,9 +203,8 @@ async def test_send_internal_messages():
     async with activate(external_scheduling_container) as c:
         message = create_acl(
             content="",
-            receiver_addr=external_scheduling_container.addr,
-            receiver_id=agent_1.aid,
-            sender_addr=external_scheduling_container.addr,
+            receiver_addr=AgentAddress(external_scheduling_container.addr, agent_1.aid),
+            sender_addr=AgentAddress(external_scheduling_container.addr, agent_1.aid),
         )
         encoded_msg = external_scheduling_container.codec.encode(message)
         return_values = await external_scheduling_container.step(
@@ -218,9 +216,9 @@ async def test_send_internal_messages():
 @pytest.mark.asyncio
 async def test_step_with_replying_agent():
     external_scheduling_container = create_ec_container(addr="external_eid_1")
+    reply_agent = external_scheduling_container.register(ReplyAgent())
 
     async with activate(external_scheduling_container) as c:
-        reply_agent = external_scheduling_container.register(ReplyAgent())
         new_acl_msg = ACLMessage()
         new_acl_msg.content = "hello you"
         new_acl_msg.receiver_addr = "external_eid_1"

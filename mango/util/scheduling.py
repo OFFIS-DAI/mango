@@ -10,7 +10,7 @@ from asyncio import Future
 from dataclasses import dataclass
 from multiprocessing import Manager
 from multiprocessing.synchronize import Event as MultiprocessingEvent
-from typing import Any, List, Tuple
+from typing import Any
 
 from dateutil.rrule import rrule
 
@@ -453,12 +453,12 @@ class Scheduler:
         observable=True,
     ):
         # List of Tuples with asyncio.Future, ScheduledTask, Suspendable coro, Source
-        self._scheduled_tasks: List[
-            Tuple[ScheduledTask, asyncio.Future, Suspendable, Any]
+        self._scheduled_tasks: list[
+            tuple[ScheduledTask, asyncio.Future, Suspendable, Any]
         ] = []
         self.clock = clock if clock is not None else AsyncioClock()
-        self._scheduled_process_tasks: List[
-            Tuple[ScheduledProcessTask, Future, ScheduledProcessControl, Any]
+        self._scheduled_process_tasks: list[
+            tuple[ScheduledProcessTask, Future, ScheduledProcessControl, Any]
         ] = []
         self._manager = None
         self._num_process_parallel = num_process_parallel

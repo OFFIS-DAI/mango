@@ -34,7 +34,8 @@ Furthermore there are two lifecycle methods to know about:
 
 import asyncio
 from abc import ABC
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from mango.agent.core import Agent, AgentAddress, AgentDelegates
 
@@ -49,11 +50,11 @@ class DataContainer:
     def __contains__(self, key):
         return hasattr(self, key)
 
-    def get(self, key):
+    def get(self, key, default=None):
         if key in self:
             return self[key]
         else:
-            return None
+            return default
 
     def update(self, data: dict):
         for k, v in data.items():
@@ -67,7 +68,7 @@ class Role:
 class RoleHandler:
     """Contains all roles and their models. Implements the communication between roles."""
 
-    def __init__(self, agent_context, scheduler):
+    def __init__(self, scheduler):
         self._role_models = {}
         self._roles = []
         self._role_to_active = {}
@@ -75,7 +76,6 @@ class RoleHandler:
         self._message_subs = []
         self._send_msg_subs = {}
         self._role_event_type_to_handler = {}
-        self._agent_context = agent_context
         self._scheduler = scheduler
         self._data = DataContainer()
 
@@ -185,11 +185,16 @@ class RoleHandler:
         :param content: content
         :param meta: meta
         """
-        for role in self.roles:
-            role.handle_message(content, meta)
+        handle_message_found = False
         for role, message_condition, method, _ in self._message_subs:
+            # do not execute handle_message twice if role has subscription as well
+            if method.__name__ == "handle_message":
+                handle_message_found = True
             if self._is_role_active(role) and message_condition(content, meta):
                 method(content, meta)
+        if not handle_message_found:
+            for role in self.roles:
+                role.handle_message(content, meta)
 
     def _notify_send_message_subs(self, content, receiver_addr: AgentAddress, **kwargs):
         for role in self._send_msg_subs:
@@ -252,7 +257,6 @@ class RoleContext(AgentDelegates):
         inbox,
     ):
         super().__init__()
-        self._agent_context = None
         self._role_handler = role_handler
         self._aid = aid
         self._inbox = inbox
@@ -268,7 +272,7 @@ class RoleContext(AgentDelegates):
 
     @property
     def current_timestamp(self) -> float:
-        return self._agent_context.current_timestamp
+        return self.context.current_timestamp
 
     def _get_container(self):
         return self._role_handler._data
@@ -334,7 +338,7 @@ class RoleContext(AgentDelegates):
         **kwargs,
     ):
         self._role_handler._notify_send_message_subs(content, receiver_addr, **kwargs)
-        return await self._agent_context.send_message(
+        return await self.context.send_message(
             content=content,
             receiver_addr=receiver_addr,
             sender_id=self.aid,
@@ -362,14 +366,6 @@ class RoleContext(AgentDelegates):
         """
         self._role_handler.subscribe_event(role, event_type, handler_method)
 
-    @property
-    def addr(self):
-        return self._agent_context.addr
-
-    @property
-    def aid(self):
-        return self._aid
-
     def deactivate(self, role) -> None:
         self._role_handler.deactivate(role)
 
@@ -396,7 +392,7 @@ class RoleAgent(Agent):
                               Using the generated aid-style ("agentX") is not allowed.
         """
         super().__init__()
-        self._role_handler = RoleHandler(None, None)
+        self._role_handler = RoleHandler(None)
         self._role_context = RoleContext(self._role_handler, self.aid, self.inbox)
 
     def on_start(self):
@@ -406,8 +402,7 @@ class RoleAgent(Agent):
         self._role_context.on_ready()
 
     def on_register(self):
-        self._role_context._agent_context = self.context
-        self._role_handler._agent_context = self.context
+        self._role_context.context = self.context
         self._role_context.scheduler = self.scheduler
         self._role_handler._scheduler = self.scheduler
         self._role_context._aid = self.aid

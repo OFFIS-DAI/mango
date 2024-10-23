@@ -33,7 +33,6 @@ async def test_periodic_facade():
 
     # THEN
     assert len(l) == 2
-    await c.shutdown()
 
 
 @pytest.mark.asyncio
@@ -62,7 +61,7 @@ async def test_send_acl_message():
 
     async with activate(c) as c:
         await agent.send_message(
-            create_acl("", receiver_addr=agent2.addr, sender_addr=c.addr),
+            create_acl("", receiver_addr=agent2.addr, sender_addr=agent.addr),
             receiver_addr=agent2.addr,
         )
         msg = await agent2.inbox.get()
@@ -96,9 +95,27 @@ async def test_schedule_acl_message():
 
     async with activate(c) as c:
         await agent.schedule_instant_message(
-            create_acl("", receiver_addr=agent2.addr, sender_addr=c.addr),
+            create_acl("", receiver_addr=agent2.addr, sender_addr=agent.addr),
             receiver_addr=agent2.addr,
         )
 
     # THEN
     assert agent2.test_counter == 1
+
+
+def test_sync_setup_agent():
+    # this test is not async and therefore does not provide a running event loop
+    c = create_tcp_container(addr=("127.0.0.1", 5555))
+    # registration without async context should not raise "no running event loop" error
+    agent = c.register(MyAgent())
+    agent2 = c.register(MyAgent())
+
+    async def run_this(c):
+        async with activate(c) as c:
+            await agent.schedule_instant_message(
+                create_acl("", receiver_addr=agent2.addr, sender_addr=agent.addr),
+                receiver_addr=agent2.addr,
+            )  # THEN
+        assert agent2.test_counter == 1
+
+    asyncio.run(run_this(c))
