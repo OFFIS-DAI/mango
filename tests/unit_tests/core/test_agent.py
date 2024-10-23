@@ -102,3 +102,11 @@ async def test_schedule_acl_message():
 
     # THEN
     assert agent2.test_counter == 1
+
+def test_register_twice():
+    c = create_tcp_container(addr=("127.0.0.1", 5555))
+    agent = MyAgent()
+    c.register(agent)
+
+    with pytest.raises(ValueError):
+        c.register(agent)
