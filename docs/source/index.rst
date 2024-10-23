@@ -5,7 +5,7 @@
 
 Welcome to mango's documentation!
 =================================
-*mango* (modular python agent framework) is a python library for *multi-agent systems (MAS)*. It is written on top of `asyncio <https://docs.python.org/3/library/asyncio.html>`_ and is releassed under the MIT license.
+*mango* (modular python agent framework) is a python library for *multi-agent systems (MAS)*. It is written on top of `asyncio <https://docs.python.org/3/library/asyncio.html>`_ and is released under the MIT license.
 
 *mango* allows the user to create simple agents with little effort and in the same
 time offers options to structure agents with complex behaviour.
