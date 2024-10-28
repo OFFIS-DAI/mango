@@ -5,6 +5,8 @@ from mango.agent.core import Agent, AgentAddress
 
 
 class LooksLikeAgent:
+    context = None
+
     async def shutdown(self):
         pass
 
@@ -263,3 +265,22 @@ async def test_auto_port_container():
         pass
 
     assert c1.addr[1] is not None
+
+
+def test_agent_address_sortable():
+    a1 = AgentAddress(("127.0.0.1", 5555), "aid1")
+    a2 = AgentAddress(("127.0.0.1", 5555), "aid2")
+
+    # generally allow sorting AgentAddresses
+    assert a1 < a2
+
+    # known caveat: same address is not resolved
+    a10 = AgentAddress(("127.0.0.1", 5555), "aid10")
+    a1_local = AgentAddress(("localhost", 5555), "aid1")
+    assert a1 != a1_local
+
+    # container takes precedence over agent_id
+    assert a2 < a1_local
+
+    # sorting is alphanumically
+    assert a10 < a2
