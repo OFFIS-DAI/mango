@@ -208,8 +208,8 @@ async def test_send_message_no_copy():
     agent1 = c.register(ExampleAgent())
     message_to_send = Data()
 
-    await c.send_message(message_to_send, receiver_addr=agent1.addr)
-    await c.shutdown()
+    async with activate(c):
+        await c.send_message(message_to_send, receiver_addr=agent1.addr)
 
     assert agent1.content is message_to_send
 
@@ -220,8 +220,8 @@ async def test_send_message_copy():
     agent1 = c.register(ExampleAgent())
     message_to_send = Data()
 
-    await c.send_message(message_to_send, receiver_addr=agent1.addr)
-    await c.shutdown()
+    async with activate(c):
+        await c.send_message(message_to_send, receiver_addr=agent1.addr)
 
     assert agent1.content is not message_to_send
 

@@ -53,4 +53,8 @@ html_theme_options = {
     "light_logo": "Logo_mango_ohne_sub.svg",
     "dark_logo": "Logo_mango_ohne_sub_white.svg",
     "sidebar_hide_name": True,
+    "source_repository": "https://github.com/OFFIS-DAI/mango/",
+    "source_branch": "master",
+    "source_directory": "docs/source/",
+    "top_of_page_buttons": ["view", "edit"],
 }
