@@ -37,8 +37,8 @@ PROTO_CODEC.add_serializer(*string_serializer())
 
 async def setup_and_run_test_case(connection_type, codec):
     comm_topic = "test_topic"
-    init_addr = ("127.0.0.1", 1555) if connection_type == "tcp" else None
-    repl_addr = ("127.0.0.1", 1556) if connection_type == "tcp" else None
+    init_addr = ("127.0.0.1", 1555) if connection_type == "tcp" else "c1"
+    repl_addr = ("127.0.0.1", 1556) if connection_type == "tcp" else "c2"
 
     container_1, container_2 = create_test_container(
         connection_type, init_addr, repl_addr, codec
@@ -164,3 +164,15 @@ async def test_mqtt_json():
 @pytest.mark.mqtt
 async def test_mqtt_proto():
     await setup_and_run_test_case("mqtt", PROTO_CODEC)
+
+
+@pytest.mark.asyncio
+@pytest.mark.mqtt
+async def test_mqtt_minimal_json():
+    await asyncio.wait_for(setup_and_run_test_case("mqtt_minimal", JSON_CODEC), 1)
+
+
+@pytest.mark.asyncio
+@pytest.mark.mqtt
+async def test_mqtt_minimal_proto():
+    await asyncio.wait_for(setup_and_run_test_case("mqtt_minimal", PROTO_CODEC), 1)
