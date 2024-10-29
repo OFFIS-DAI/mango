@@ -102,6 +102,7 @@ async def test_schedule_acl_message():
     # THEN
     assert agent2.test_counter == 1
 
+
 def test_register_twice():
     c = create_tcp_container(addr=("127.0.0.1", 5555))
     agent = MyAgent()
@@ -109,6 +110,7 @@ def test_register_twice():
 
     with pytest.raises(ValueError):
         c.register(agent)
+
 
 def test_sync_setup_agent():
     # this test is not async and therefore does not provide a running event loop
