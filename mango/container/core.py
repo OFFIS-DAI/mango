@@ -298,6 +298,8 @@ class Container(ABC):
         # task that processes the inbox.
         self._check_inbox_task: asyncio.Task = asyncio.create_task(self._check_inbox())
 
+        await self._container_process_manager.start()
+
         """Start the container. It totally depends on the implementation for what is actually happening."""
         for agent in self._agents.values():
             agent._do_start()

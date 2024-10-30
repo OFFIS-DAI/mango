@@ -363,6 +363,8 @@ class MainContainerProcessManager(BaseContainerProcessManager):
         self._container = container
         self._mp_enabled = False
         self._ctx = get_context("spawn")
+        self._agent_process_init_list = []
+        self._started = False
 
     def _init_mp(self):
         # For agent multiprocessing support
@@ -444,6 +446,18 @@ class MainContainerProcessManager(BaseContainerProcessManager):
         raise ValueError(f"The aid '{aid}' does not exist in any subprocess.")
 
     def create_agent_process(self, agent_creator, container, mirror_container_creator):
+        if not self._started:
+            self._agent_process_init_list.append(
+                (agent_creator, container, mirror_container_creator)
+            )
+        else:
+            self.create_internal_agent_process(
+                agent_creator, container, mirror_container_creator
+            )
+
+    def create_internal_agent_process(
+        self, agent_creator, container, mirror_container_creator
+    ):
         if not self._active:
             self._init_mp()
             self._active = True
@@ -509,6 +523,17 @@ class MainContainerProcessManager(BaseContainerProcessManager):
             logger.warning("Received a message for an unknown receiver;%s", receiver_id)
         else:
             sp_queue_of_agent.put_nowait((priority, message, meta))
+
+    async def start(self):
+        self._started = True
+        for (
+            agent_creator,
+            container,
+            mirror_container_creator,
+        ) in self._agent_process_init_list:
+            await self.create_internal_agent_process(
+                agent_creator, container, mirror_container_creator
+            )
 
     async def shutdown(self):
         if self._active:
