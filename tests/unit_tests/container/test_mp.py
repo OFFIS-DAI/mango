@@ -63,7 +63,7 @@ async def test_agent_processes_ping_pong(num_sp_agents, num_sp):
     # GIVEN
     c = create_tcp_container(addr=("127.0.0.1", 15589), copy_internal_messages=False)
     for i in range(num_sp):
-        await c.as_agent_process(
+        c.as_agent_process(
             agent_creator=lambda container: [
                 container.register(MyAgent(), suggested_aid=f"process_agent{i},{j}")
                 for j in range(num_sp_agents)
@@ -151,5 +151,17 @@ async def test_async_agent_processes_ping_pong_p_to_p():
     assert main_agent.test_counter == 2
 
 
+def test_sync_setup_agent_processes():
+    # GIVEN
+    c = create_tcp_container(addr=("127.0.0.1", 15589), copy_internal_messages=False)
+    c.as_agent_process(
+        agent_creator=lambda container: [
+            container.register(MyAgent(), suggested_aid="process_agent0")
+        ]
+    )
+    agent = c.register(MyAgent())
+
 if __name__ == "__main__":
     asyncio.run(test_agent_processes_ping_pong(5, 5))
+
+
