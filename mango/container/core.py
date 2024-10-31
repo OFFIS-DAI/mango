@@ -99,7 +99,8 @@ class Container(ABC):
                 return suggested_aid
             else:
                 logger.warning(
-                    "The suggested aid could not be reserved, either it is not available or it is not allowed (pattern agentX);%s",
+                    "The suggested aid could not be reserved, either it is not available or it is not allowed (pattern %sX);%s",
+                    AGENT_PATTERN_NAME_PRE,
                     suggested_aid,
                 )
 
