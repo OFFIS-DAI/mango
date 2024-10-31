@@ -22,7 +22,9 @@ def unfinished_task_count(container: Container):
 async def tasks_complete_or_sleeping(container: Container, except_sources=["no_wait"]):
     sleeping_tasks = []
     task_list = []
-    await container.inbox.join()
+    # is None for containers in MirrorContainerProcessManager
+    if container.inbox is not None:
+        await container.inbox.join()
     # python does not have do while pattern
     for agent in container._agents.values():
         await agent.inbox.join()
@@ -33,7 +35,8 @@ async def tasks_complete_or_sleeping(container: Container, except_sources=["no_w
     while len(task_list) > len(sleeping_tasks):
         # sleep needed so that asyncio tasks of this time step are correctly awaken.
         # await asyncio.sleep(0)
-        await container.inbox.join()
+        if container.inbox is not None:
+            await container.inbox.join()
         for scheduled_task, task, _, _ in task_list:
             await asyncio.wait(
                 [scheduled_task._is_sleeping, scheduled_task._is_done],
