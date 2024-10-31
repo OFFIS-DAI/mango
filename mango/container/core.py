@@ -46,6 +46,7 @@ class Container(ABC):
         self._aid_counter: int = 0  # counter for aids
 
         self.running: bool = False  # True until self.shutdown() is called
+        self.ready: bool = False  # True after self.on_ready() is called
 
         # inbox for all incoming messages
         self.inbox: asyncio.Queue = None
@@ -123,6 +124,11 @@ class Container(ABC):
         self._agents[aid] = agent
         agent._do_register(self, aid)
         logger.debug("Successfully registered agent;%s", aid)
+        if self.running:
+            agent._do_start()
+
+        if self.ready:
+            agent.on_ready()
         return agent
 
     def _get_aid(self, agent):
@@ -290,6 +296,8 @@ class Container(ABC):
         self._container_process_manager.dispatch_to_agent_process(pid, coro_func, *args)
 
     async def start(self):
+        if self.running:
+            raise RuntimeError("Container is already running")
         self.running: bool = True  # True until self.shutdown() is called
 
         # inbox for all incoming messages
@@ -303,6 +311,9 @@ class Container(ABC):
             agent._do_start()
 
     def on_ready(self):
+        if self.ready:
+            raise RuntimeError("Container is already ready")
+        self.ready = True
         for agent in self._agents.values():
             agent.on_ready()
 
