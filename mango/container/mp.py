@@ -294,7 +294,7 @@ class MirrorContainerProcessManager(BaseContainerProcessManager):
                         except Exception:
                             logger.exception("A dispatched coroutine has failed!")
         except EOFError:
-            # other side disconnected -> task not necessry anymore
+            # other side disconnected -> task not necessary anymore
             pass
         except Exception:
             logger.exception("The Dispatch Event Loop has failed!")
@@ -446,6 +446,9 @@ class MainContainerProcessManager(BaseContainerProcessManager):
         raise ValueError(f"The aid '{aid}' does not exist in any subprocess.")
 
     def create_agent_process(self, agent_creator, container, mirror_container_creator):
+        # dill must be dumped on creation, otherwise the later variable state would be stored
+        agent_creator = dill.dumps(agent_creator)
+        mirror_container_creator = dill.dumps(mirror_container_creator)
         if not self._started:
             self._agent_process_init_list.append(
                 (agent_creator, container, mirror_container_creator)
@@ -475,8 +478,8 @@ class MainContainerProcessManager(BaseContainerProcessManager):
                         clock=container.clock,
                         kwargs=container._kwargs,
                     ),
-                    dill.dumps(agent_creator),
-                    dill.dumps(mirror_container_creator),
+                    agent_creator,
+                    mirror_container_creator,
                     to_pipe_message,
                     self._main_queue,
                     to_pipe,
@@ -525,15 +528,16 @@ class MainContainerProcessManager(BaseContainerProcessManager):
             sp_queue_of_agent.put_nowait((priority, message, meta))
 
     async def start(self):
-        self._started = True
-        for (
-            agent_creator,
-            container,
-            mirror_container_creator,
-        ) in self._agent_process_init_list:
-            await self.create_internal_agent_process(
-                agent_creator, container, mirror_container_creator
-            )
+        if not self._started:
+            self._started = True
+            for (
+                agent_creator,
+                container,
+                mirror_container_creator,
+            ) in self._agent_process_init_list:
+                await self.create_internal_agent_process(
+                    agent_creator, container, mirror_container_creator
+                )
 
     async def shutdown(self):
         if self._active:
