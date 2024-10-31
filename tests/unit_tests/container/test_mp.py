@@ -2,7 +2,15 @@ import asyncio
 
 import pytest
 
-from mango import Agent, AgentAddress, activate, addr, create_tcp_container, sender_addr
+from mango import (
+    Agent,
+    AgentAddress,
+    activate,
+    addr,
+    create_ec_container,
+    create_tcp_container,
+    sender_addr,
+)
 
 
 class MyAgent(Agent):
@@ -128,6 +136,41 @@ async def test_async_agent_processes_ping_pong_p_to_p():
     addr = ("127.0.0.1", 5811)
     aid_main_agent = "main_agent"
     c = create_tcp_container(addr=addr, copy_internal_messages=False)
+    main_agent = c.register(P2PMainAgent(), suggested_aid=aid_main_agent)
+
+    target_addr = main_agent.addr
+
+    async def agent_creator(container):
+        p2pta = container.register(
+            P2PTestAgent(aid_main_agent), suggested_aid="process_agent1"
+        )
+        await p2pta.send_message(content="pong", receiver_addr=target_addr)
+
+    async with activate(c) as c:
+        c.as_agent_process(agent_creator=agent_creator)
+
+        # WHEN
+        def agent_init(c):
+            agent = c.register(MyAgent(), suggested_aid="process_agent2")
+            agent.schedule_instant_message(
+                "Message To Process Agent", AgentAddress(addr, "process_agent1")
+            )
+            return agent
+
+        c.as_agent_process(agent_creator=agent_init)
+
+        while main_agent.test_counter != 2:
+            await asyncio.sleep(0.01)
+
+    assert main_agent.test_counter == 2
+
+
+@pytest.mark.asyncio
+async def test_async_agent_processes_ping_pong_p_to_p_external():
+    # GIVEN
+    addr = ("127.0.0.1", 5811)
+    aid_main_agent = "main_agent"
+    c = create_ec_container(addr=addr, copy_internal_messages=False)
     main_agent = c.register(P2PMainAgent(), suggested_aid=aid_main_agent)
 
     target_addr = main_agent.addr
