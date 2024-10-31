@@ -8,6 +8,10 @@ from mango import Agent, AgentAddress, activate, addr, create_tcp_container, sen
 class MyAgent(Agent):
     test_counter: int = 0
     current_task: object
+    i_am_ready = False
+
+    def on_ready(self):
+        self.i_am_ready = True
 
     def handle_message(self, content, meta):
         self.test_counter += 1
@@ -16,7 +20,7 @@ class MyAgent(Agent):
         if self.test_counter == 1:
             # send back pong, providing your own details
             self.current_task = self.schedule_instant_message(
-                content="pong", receiver_addr=sender_addr(meta)
+                content=self.i_am_ready, receiver_addr=sender_addr(meta)
             )
 
 
@@ -80,7 +84,9 @@ async def test_agent_processes_ping_pong(num_sp_agents, num_sp):
                     receiver_addr=addr(c.addr, f"process_agent{i},{j}"),
                 )
         while agent.test_counter != num_sp_agents * num_sp:
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(0.01)
+
+    assert agent.i_am_ready is True
 
     assert agent.test_counter == num_sp_agents * num_sp
 
@@ -111,7 +117,7 @@ async def test_agent_processes_ping_pong_p_to_p():
         c.as_agent_process(agent_creator=agent_init)
 
         while main_agent.test_counter != 1:
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(0.01)
 
     assert main_agent.test_counter == 1
 
@@ -146,7 +152,7 @@ async def test_async_agent_processes_ping_pong_p_to_p():
         c.as_agent_process(agent_creator=agent_init)
 
         while main_agent.test_counter != 2:
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(0.01)
 
     assert main_agent.test_counter == 2
 
@@ -160,6 +166,31 @@ def test_sync_setup_agent_processes():
         ]
     )
     agent = c.register(MyAgent())
+
+
+@pytest.mark.asyncio
+async def test_ready_agent_processes():
+    # GIVEN
+    c = create_tcp_container(addr=("127.0.0.1", 15589), copy_internal_messages=False)
+    c.as_agent_process(
+        agent_creator=lambda container: [
+            container.register(MyAgent(), suggested_aid="process_agent0")
+        ]
+    )
+    agent = c.register(MyAgent())
+
+    def handle_message(content, meta):
+        agent.other_agent_is_ready = content
+
+    agent.handle_message = handle_message
+
+    async with activate(c) as c:
+        await agent.send_message(
+            "Message To Process Agent",
+            receiver_addr=addr(c.addr, "process_agent0"),
+        )
+        await asyncio.sleep(0.01)
+        assert agent.other_agent_is_ready is True
 
 
 if __name__ == "__main__":
