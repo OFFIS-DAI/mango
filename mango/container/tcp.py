@@ -182,7 +182,6 @@ class TCPContainer(Container):
 
         self._tcp_connection_pool = None
         self.server = None  # will be set within start
-        self.running = False
         self._tcp_connection_pool = TCPConnectionPool(
             ttl_in_sec=self._kwargs.get(TCP_CONNECTION_TTL, 30),
             max_connections_per_target=self._kwargs.get(
