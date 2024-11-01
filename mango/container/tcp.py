@@ -291,6 +291,9 @@ class TCPContainer(Container):
             return False
         return True
 
+    def _create_mirror_container(self):
+        return tcp_mirror_container_creator
+
     def as_agent_process(
         self,
         agent_creator,

@@ -35,10 +35,10 @@ async def test_mp_simple_ping_pong_multi_container_tcp():
     container_2 = create_tcp_container(
         addr=repl_addr,
     )
-    container_1.as_agent_process(
+    await container_1.as_agent_process(
         agent_creator=lambda c: c.register(PingPongAgent(), suggested_aid=aid1)
     )
-    container_2.as_agent_process(
+    await container_2.as_agent_process(
         agent_creator=lambda c: c.register(PingPongAgent(), suggested_aid=aid2)
     )
     agent = container_1.register(PingPongAgent())

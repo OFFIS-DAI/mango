@@ -112,7 +112,7 @@ def test_register_twice():
         c.register(agent)
 
 
-def test_sync_setup_agent():
+def test_lazy_setup_agent():
     # this test is not async and therefore does not provide a running event loop
     c = create_tcp_container(addr=("127.0.0.1", 5555))
     # registration without async context should not raise "no running event loop" error

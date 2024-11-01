@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+from collections.abc import Callable
 from dataclasses import dataclass
 from multiprocessing import get_context
 from multiprocessing.synchronize import Event as MultiprocessingEvent
@@ -448,7 +449,20 @@ class MainContainerProcessManager(BaseContainerProcessManager):
                 return PipeToWriteQueue(self._pid_to_message_pipe[pid])
         raise ValueError(f"The aid '{aid}' does not exist in any subprocess.")
 
-    def create_agent_process(self, agent_creator, container, mirror_container_creator):
+    def create_agent_process_lazy(
+        self, agent_creator: Callable, container, mirror_container_creator: Callable
+    ):
+        """
+        Adds information to create a new agent process to a list.
+        The agent process will be created when the container is started.
+        If the container is already started, the agent process will be created immediately.
+        :param agent_creator: The agent creator function.
+        :type agent_creator: Callable
+        :param container: The container instance.
+        :type container: Container
+        :param mirror_container_creator: The mirror container creator function.
+        :type mirror_container_creator: Callable
+        """
         # dill must be dumped on creation, otherwise the later variable state would be stored
         agent_creator = dill.dumps(agent_creator)
         mirror_container_creator = dill.dumps(mirror_container_creator)
@@ -457,13 +471,38 @@ class MainContainerProcessManager(BaseContainerProcessManager):
                 (agent_creator, container, mirror_container_creator)
             )
         else:
-            self.create_internal_agent_process(
+            self._create_agent_process_bytes(
                 agent_creator, container, mirror_container_creator
             )
 
-    def create_internal_agent_process(
-        self, agent_creator, container, mirror_container_creator
+    async def create_agent_process(
+        self, agent_creator: Callable, container, mirror_container_creator: Callable
     ):
+        """
+        Creates a new agent process and awaits the creation of the AgentProcess.
+        This function requires to have a running event loop.
+        """
+        agent_creator = dill.dumps(agent_creator)
+        mirror_container_creator = dill.dumps(mirror_container_creator)
+        return await self._create_agent_process_bytes(
+            agent_creator, container, mirror_container_creator
+        )
+
+    def _create_agent_process_bytes(
+        self, agent_creator: bytes, container, mirror_container_creator: bytes
+    ):
+        """
+        Creates a new agent process and starts it in a separate process.
+        Uses the serialized agent creator and mirror container creator function.
+
+        :param agent_creator: dill dump of the agent creator function.
+        :type agent_creator: bytes
+        :param container: The container for which the agent process is mirrored.
+        :type container: Container
+        :param mirror_container_creator: The dill dump of the mirror container creator function.
+        :type mirror_container_creator: bytes
+        :return: The handle to the mirror container process.
+        """
         if not self._active:
             self._init_mp()
             self._active = True
@@ -533,14 +572,11 @@ class MainContainerProcessManager(BaseContainerProcessManager):
     async def start(self):
         if not self._started:
             self._started = True
-            for (
-                agent_creator,
-                container,
-                mirror_container_creator,
-            ) in self._agent_process_init_list:
-                await self.create_internal_agent_process(
-                    agent_creator, container, mirror_container_creator
-                )
+            processes = []
+            for a, c, m in self._agent_process_init_list:
+                processes.append(self._create_agent_process_bytes(a, c, m))
+            for process in processes:
+                await process
 
     async def shutdown(self):
         if self._active:

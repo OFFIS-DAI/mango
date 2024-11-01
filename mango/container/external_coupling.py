@@ -182,12 +182,5 @@ class ExternalSchedulingContainer(Container):
             next_activity=self.clock.get_next_activity(),
         )
 
-    def as_agent_process(
-        self,
-        agent_creator,
-        mirror_container_creator=ext_mirror_container_creator,
-    ):
-        return super().as_agent_process(
-            agent_creator=agent_creator,
-            mirror_container_creator=mirror_container_creator,
-        )
+    def _create_mirror_container(self):
+        return ext_mirror_container_creator

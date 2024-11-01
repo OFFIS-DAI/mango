@@ -75,7 +75,7 @@ async def test_agent_processes_ping_pong(num_sp_agents, num_sp):
     # GIVEN
     c = create_tcp_container(addr=("127.0.0.1", 15589), copy_internal_messages=False)
     for i in range(num_sp):
-        c.as_agent_process(
+        await c.as_agent_process(
             agent_creator=lambda container: [
                 container.register(MyAgent(), suggested_aid=f"process_agent{i},{j}")
                 for j in range(num_sp_agents)
@@ -105,7 +105,7 @@ async def test_agent_processes_ping_pong_p_to_p():
     addr = ("127.0.0.1", 5829)
     aid_main_agent = "main_agent"
     c = create_tcp_container(addr=addr, copy_internal_messages=False)
-    c.as_agent_process(
+    await c.as_agent_process(
         agent_creator=lambda container: container.register(
             P2PTestAgent(aid_main_agent), suggested_aid="process_agent1"
         )
@@ -122,7 +122,7 @@ async def test_agent_processes_ping_pong_p_to_p():
         return agent
 
     async with activate(c) as c:
-        c.as_agent_process(agent_creator=agent_init)
+        await c.as_agent_process(agent_creator=agent_init)
 
         while main_agent.test_counter != 1:
             await asyncio.sleep(0.01)
@@ -147,7 +147,7 @@ async def test_async_agent_processes_ping_pong_p_to_p():
         await p2pta.send_message(content="pong", receiver_addr=target_addr)
 
     async with activate(c) as c:
-        c.as_agent_process(agent_creator=agent_creator)
+        await c.as_agent_process(agent_creator=agent_creator)
 
         # WHEN
         def agent_init(c):
@@ -157,7 +157,7 @@ async def test_async_agent_processes_ping_pong_p_to_p():
             )
             return agent
 
-        c.as_agent_process(agent_creator=agent_init)
+        await c.as_agent_process(agent_creator=agent_init)
 
         while main_agent.test_counter != 2:
             await asyncio.sleep(0.01)
@@ -182,7 +182,7 @@ async def test_async_agent_processes_ping_pong_p_to_p_external():
         await p2pta.send_message(content="pong", receiver_addr=target_addr)
 
     async with activate(c) as c:
-        c.as_agent_process(agent_creator=agent_creator)
+        await c.as_agent_process(agent_creator=agent_creator)
 
         # WHEN
         def agent_init(c):
@@ -192,7 +192,7 @@ async def test_async_agent_processes_ping_pong_p_to_p_external():
             )
             return agent
 
-        c.as_agent_process(agent_creator=agent_init)
+        await c.as_agent_process(agent_creator=agent_init)
 
         while main_agent.test_counter != 2:
             await asyncio.sleep(0.01)
@@ -200,10 +200,10 @@ async def test_async_agent_processes_ping_pong_p_to_p_external():
     assert main_agent.test_counter == 2
 
 
-def test_sync_setup_agent_processes():
+def test_lazy_setup_agent_processes():
     # GIVEN
     c = create_tcp_container(addr=("127.0.0.1", 15589), copy_internal_messages=False)
-    c.as_agent_process(
+    c.as_agent_process_lazy(
         agent_creator=lambda container: [
             container.register(MyAgent(), suggested_aid="process_agent0")
         ]
@@ -212,10 +212,36 @@ def test_sync_setup_agent_processes():
 
 
 @pytest.mark.asyncio
+async def test_lazy_ready_agent_processes():
+    # GIVEN
+    c = create_tcp_container(addr=("127.0.0.1", 15589), copy_internal_messages=False)
+    c.as_agent_process_lazy(
+        agent_creator=lambda container: [
+            container.register(MyAgent(), suggested_aid="process_agent0")
+        ]
+    )
+    agent = c.register(MyAgent())
+
+    def handle_message(content, meta):
+        agent.other_agent_is_ready = content
+
+    agent.handle_message = handle_message
+
+    async with activate(c) as c:
+        await asyncio.sleep(0.2)
+        await agent.send_message(
+            "Message To Process Agent",
+            receiver_addr=addr(c.addr, "process_agent0"),
+        )
+        await asyncio.sleep(0.01)
+        # assert agent.other_agent_is_ready is True
+
+
+@pytest.mark.asyncio
 async def test_ready_agent_processes():
     # GIVEN
     c = create_tcp_container(addr=("127.0.0.1", 15589), copy_internal_messages=False)
-    c.as_agent_process(
+    await c.as_agent_process(
         agent_creator=lambda container: [
             container.register(MyAgent(), suggested_aid="process_agent0")
         ]
