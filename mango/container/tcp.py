@@ -222,7 +222,11 @@ class TCPContainer(Container):
         elif isinstance(protocol_addr, tuple | list) and len(protocol_addr) == 2:
             protocol_addr = tuple(protocol_addr)
         else:
-            logger.warning("Address for sending message is not valid;%s", protocol_addr)
+            logger.warning(
+                "Receiver ProtocolAddress sending message from %s to %s is not valid",
+                sender_id,
+                receiver_addr,
+            )
             return False
 
         meta = {}
@@ -285,6 +289,9 @@ class TCPContainer(Container):
             logger.error(e)
             return False
         return True
+
+    def _create_mirror_container(self):
+        return tcp_mirror_container_creator
 
     def as_agent_process(
         self,

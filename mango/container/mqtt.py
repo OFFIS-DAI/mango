@@ -453,20 +453,11 @@ class MQTTContainer(Container):
             self.additional_subscriptions.pop(subscription)
             self.mqtt_client.unsubscribe(topic=subscription)
 
-    def as_agent_process(
-        self,
-        agent_creator,
-        mirror_container_creator=None,
-    ):
-        if not mirror_container_creator:
-            mirror_container_creator = partial(
-                mqtt_mirror_container_creator,
-                self.client_id,
-                self.inbox_topic,
-            )
-        return super().as_agent_process(
-            agent_creator=agent_creator,
-            mirror_container_creator=mirror_container_creator,
+    def _create_mirror_container(self):
+        return partial(
+            mqtt_mirror_container_creator,
+            self.client_id,
+            self.inbox_topic,
         )
 
     async def shutdown(self):

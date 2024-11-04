@@ -120,7 +120,7 @@ async def test_delayed_agent_creation():
     assert agent2.test_counter == 1
 
 
-def test_sync_setup_agent():
+def test_lazy_setup_agent():
     # this test is not async and therefore does not provide a running event loop
     c = create_tcp_container(addr=("127.0.0.1", 5555))
     # registration without async context should not raise "no running event loop" error
