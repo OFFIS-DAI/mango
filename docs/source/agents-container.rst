@@ -87,7 +87,7 @@ user to worry about it. This will also shutdown all agents that are still runnin
 ***************
 mango agents
 ***************
-mango agents can be implemented by inheriting from the abstract class ``mango.Agent``.
+mango agents can be implemented by inheriting from the abstract class :meth:`mango.Agent`.
 This class provides basic functionality such as to scheduling convenience methods or to constantly check the inbox for incoming messages.
 Every agent can live in exactly one container, to register an agent the method :meth:`mango.Container.register` can be used. This method will assign
 the agent a generated agent id (aid) and enables the agent scheduling feature.
@@ -177,7 +177,7 @@ The ``process_handle`` is awaitable and will finish exactly when the process is 
 
 Note that after the creation, the agent lives in a mirror container in another process. Therefore, it is not possible to interact
 with the agent directly from the main process. If you want to interact with the agent after the creation, it is possible to
-dispatch a task in the agent process using `dispatch_to_agent_process`.
+dispatch a task in the agent process using :meth:`mango.container.core.Container.dispatch_to_agent_process`.
 
 .. code-block:: python3
 
@@ -186,3 +186,7 @@ dispatch a task in the agent process using `dispatch_to_agent_process`.
         your_function, # will be called with the mirror container + varargs as arguments
         ... # varargs, additional arguments you want to pass to your_function
     )
+
+To also be able to use this feature when setting up agents without a running asyncio loop, you can use the :meth:`mango.container.core.Container.as_agent_process_lazy` function.
+This function does not have a return value and therefore does not enable access to the process handle.
+When the container is activated (and thus, an asyncio context exists), the mirror containers are created.

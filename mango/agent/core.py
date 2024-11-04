@@ -18,7 +18,7 @@ from ..util.scheduling import ScheduledProcessTask, ScheduledTask, Scheduler
 logger = logging.getLogger(__name__)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, order=True)
 class AgentAddress:
     protocol_addr: Any
     aid: str

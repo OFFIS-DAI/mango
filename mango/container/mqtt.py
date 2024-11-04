@@ -74,7 +74,7 @@ class MQTTContainer(Container):
         """
         super().__init__(
             codec=codec,
-            addr=broker_addr,
+            addr=inbox_topic or client_id,
             clock=clock,
             name=client_id,
             **kwargs,
@@ -83,7 +83,8 @@ class MQTTContainer(Container):
         self.client_id: str = client_id
         # the client will be created on start.
         self.mqtt_client: paho.Client = None
-        self.inbox_topic: None | str = inbox_topic
+        self.inbox_topic: None | str = inbox_topic or client_id
+        self.broker_addr = broker_addr
         # dict mapping additionally subscribed topics to a set of aids
         self.additional_subscriptions: dict[str, set[str]] = {}
         # Future for pending sub requests
@@ -93,7 +94,7 @@ class MQTTContainer(Container):
         self._loop = asyncio.get_event_loop()
         if not self.client_id:
             raise ValueError("client_id is required!")
-        if not self.addr:
+        if not self.broker_addr:
             raise ValueError("broker_addr is required!")
 
         # get parameters for Client.init()
@@ -141,29 +142,29 @@ class MQTTContainer(Container):
         mqtt_messenger.on_connect = on_con
 
         # check broker_addr input and connect
-        if isinstance(self.addr, tuple):
-            if not 0 < len(self.addr) < 4:
+        if isinstance(self.broker_addr, tuple):
+            if not 0 < len(self.broker_addr) < 4:
                 raise ValueError("Invalid broker address argument count")
-            if len(self.addr) > 0 and not isinstance(self.addr[0], str):
+            if len(self.broker_addr) > 0 and not isinstance(self.broker_addr[0], str):
                 raise ValueError("Invalid broker address - host must be str")
-            if len(self.addr) > 1 and not isinstance(self.addr[1], int):
+            if len(self.broker_addr) > 1 and not isinstance(self.broker_addr[1], int):
                 raise ValueError("Invalid broker address - port must be int")
-            if len(self.addr) > 2 and not isinstance(self.addr[2], int):
+            if len(self.broker_addr) > 2 and not isinstance(self.broker_addr[2], int):
                 raise ValueError("Invalid broker address - keepalive must be int")
-            mqtt_messenger.connect(*self.addr, **self._kwargs)
+            mqtt_messenger.connect(*self.broker_addr, **self._kwargs)
 
-        elif isinstance(self.addr, dict):
-            if "hostname" not in self.addr.keys():
+        elif isinstance(self.broker_addr, dict):
+            if "hostname" not in self.broker_addr.keys():
                 raise ValueError("Invalid broker address - host not given")
-            mqtt_messenger.connect(**self.addr, **self._kwargs)
+            mqtt_messenger.connect(**self.broker_addr, **self._kwargs)
 
         else:
-            if not isinstance(self.addr, str):
+            if not isinstance(self.broker_addr, str):
                 raise ValueError("Invalid broker address")
-            mqtt_messenger.connect(self.addr, **self._kwargs)
+            mqtt_messenger.connect(self.broker_addr, **self._kwargs)
 
         logger.info(
-            "[%s]: Going to connect to broker at %s..", self.client_id, self.addr
+            "[%s]: Going to connect to broker at %s..", self.client_id, self.broker_addr
         )
 
         counter = 0
@@ -178,12 +179,12 @@ class MQTTContainer(Container):
         if not connected.done():
             # timeout
             raise ConnectionError(
-                f"Connection to {self.addr} could not be "
+                f"Connection to {self.broker_addr} could not be "
                 f"established after {counter * 0.1} seconds"
             )
         if connected.result() != 0:
             raise ConnectionError(
-                f"Connection to {self.addr} could not be "
+                f"Connection to {self.broker_addr} could not be "
                 f"set up. Callback returner error code "
                 f"{connected.result()}"
             )
@@ -212,7 +213,7 @@ class MQTTContainer(Container):
                 # subscription to inbox topic was not successful
                 mqtt_messenger.disconnect()
                 raise ConnectionError(
-                    f"Subscription request to {self.inbox_topic} at {self.addr} "
+                    f"Subscription request to {self.inbox_topic} at {self.broker_addr} "
                     f"returned error code: {result}"
                 )
 
@@ -224,7 +225,7 @@ class MQTTContainer(Container):
                 counter += 1
             if not subscribed.done():
                 raise ConnectionError(
-                    f"Subscription request to {self.inbox_topic} at {self.addr} "
+                    f"Subscription request to {self.inbox_topic} at {self.broker_addr} "
                     f"did not succeed after {counter * 0.1} seconds."
                 )
             logger.info("successfully subscribed to topic")
@@ -373,7 +374,7 @@ class MQTTContainer(Container):
         actual_mqtt_kwargs = {} if kwargs is None else kwargs
         if (
             self.inbox_topic
-            and receiver_addr == self.inbox_topic
+            and receiver_addr.protocol_addr == self.inbox_topic
             and not actual_mqtt_kwargs.get("retain", False)
         ):
             meta.update(
@@ -452,20 +453,11 @@ class MQTTContainer(Container):
             self.additional_subscriptions.pop(subscription)
             self.mqtt_client.unsubscribe(topic=subscription)
 
-    def as_agent_process(
-        self,
-        agent_creator,
-        mirror_container_creator=None,
-    ):
-        if not mirror_container_creator:
-            mirror_container_creator = partial(
-                mqtt_mirror_container_creator,
-                self.client_id,
-                self.inbox_topic,
-            )
-        return super().as_agent_process(
-            agent_creator=agent_creator,
-            mirror_container_creator=mirror_container_creator,
+    def _create_mirror_container(self):
+        return partial(
+            mqtt_mirror_container_creator,
+            self.client_id,
+            self.inbox_topic,
         )
 
     async def shutdown(self):

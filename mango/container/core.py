@@ -46,6 +46,7 @@ class Container(ABC):
         self._aid_counter: int = 0  # counter for aids
 
         self.running: bool = False  # True until self.shutdown() is called
+        self.ready: bool = False  # True after self.on_ready() is called
 
         # inbox for all incoming messages
         self.inbox: asyncio.Queue = None
@@ -99,7 +100,8 @@ class Container(ABC):
                 return suggested_aid
             else:
                 logger.warning(
-                    "The suggested aid could not be reserved, either it is not available or it is not allowed (pattern agentX);%s",
+                    "The suggested aid could not be reserved, either it is not available or it is not allowed (pattern %sX);%s",
+                    AGENT_PATTERN_NAME_PRE,
                     suggested_aid,
                 )
 
@@ -118,9 +120,16 @@ class Container(ABC):
         :return The agent ID
         """
         aid = self._reserve_aid(suggested_aid)
+        if agent.context:
+            raise ValueError("Agent is already registered to a container")
         self._agents[aid] = agent
         agent._do_register(self, aid)
         logger.debug("Successfully registered agent;%s", aid)
+        if self.running:
+            agent._do_start()
+
+        if self.ready:
+            agent.on_ready()
         return agent
 
     def _get_aid(self, agent):
@@ -248,7 +257,11 @@ class Container(ABC):
                 content, receiver_id, priority, meta
             )
 
-    def as_agent_process(self, agent_creator, mirror_container_creator):
+    def _create_mirror_container(self):
+        """Returns the Container specific creation function for a new mirror container"""
+        raise NotImplementedError
+
+    async def as_agent_process(self, agent_creator, mirror_container_creator=None):
         """Spawn a new process with a container, mirroring the current container, and
         1 to n agents, created by `agent_creator`. Can be used to introduce real
         parallelization using the agents as unit to divide.
@@ -268,7 +281,22 @@ class Container(ABC):
             to make sure the initialization of the agents in the subprocess is actually done.
         :rtype: AgentProcessHandle
         """
-        return self._container_process_manager.create_agent_process(
+        if not mirror_container_creator:
+            mirror_container_creator = self._create_mirror_container()
+        return await self._container_process_manager.create_agent_process(
+            agent_creator=agent_creator,
+            container=self,
+            mirror_container_creator=mirror_container_creator,
+        )
+
+    def as_agent_process_lazy(self, agent_creator, mirror_container_creator=None):
+        """
+        Similar to as_agent_process, but does not wait for the agent process to be initialized.
+        Does also not need a running event loop, making it suitable to add agent processes without an asyncio context.
+        """
+        if not mirror_container_creator:
+            mirror_container_creator = self._create_mirror_container()
+        self._container_process_manager.create_agent_process_lazy(
             agent_creator=agent_creator,
             container=self,
             mirror_container_creator=mirror_container_creator,
@@ -288,6 +316,8 @@ class Container(ABC):
         self._container_process_manager.dispatch_to_agent_process(pid, coro_func, *args)
 
     async def start(self):
+        if self.running:
+            raise RuntimeError("Container is already running")
         self.running: bool = True  # True until self.shutdown() is called
 
         # inbox for all incoming messages
@@ -296,11 +326,16 @@ class Container(ABC):
         # task that processes the inbox.
         self._check_inbox_task: asyncio.Task = asyncio.create_task(self._check_inbox())
 
+        await self._container_process_manager.start()
+
         """Start the container. It totally depends on the implementation for what is actually happening."""
         for agent in self._agents.values():
             agent._do_start()
 
     def on_ready(self):
+        if self.ready:
+            raise RuntimeError("Container is already ready")
+        self.ready = True
         for agent in self._agents.values():
             agent.on_ready()
 
