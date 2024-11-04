@@ -22,7 +22,7 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
-license = {file="LICENSE"}
+license = {text = "MIT"}
 dependencies = [
     "paho-mqtt>=2.1.0",
     "python-dateutil>=2.9.0",
