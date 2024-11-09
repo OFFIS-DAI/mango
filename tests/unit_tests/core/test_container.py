@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 import pytest
 
 from mango import activate, create_acl, create_tcp_container
@@ -220,12 +222,34 @@ async def test_send_message_no_copy():
 async def test_send_message_copy():
     c = create_tcp_container(addr=("127.0.0.1", 5555), copy_internal_messages=True)
     agent1 = c.register(ExampleAgent())
+    agent2 = c.register(ExampleAgent())
+
     message_to_send = Data()
 
     async with activate(c):
-        await c.send_message(message_to_send, receiver_addr=agent1.addr)
+        await agent1.send_message(message_to_send, agent2.addr)
 
-    assert agent1.content is not message_to_send
+    assert agent2.content is not message_to_send
+
+
+@dataclass
+class DataCompl:
+    i = 0
+
+
+@pytest.mark.asyncio
+async def test_send_message_internal_cls():
+    c = create_tcp_container(addr="localhost:5555")
+    agent1 = c.register(ExampleAgent())
+    agent2 = c.register(ExampleAgent())
+
+    message_to_send = DataCompl()
+    addr = agent2.addr
+
+    async with activate(c):
+        await c.send_message(message_to_send, addr)
+
+    assert agent2.content is message_to_send
 
 
 @pytest.mark.asyncio
