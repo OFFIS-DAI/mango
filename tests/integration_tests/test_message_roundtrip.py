@@ -1,8 +1,9 @@
 import asyncio
+from dataclasses import dataclass
 
 import pytest
 
-from mango import activate, addr
+from mango import AgentAddress, activate, addr, json_serializable
 from mango.agent.core import Agent
 from mango.messages.codecs import JSON, PROTOBUF
 
@@ -35,7 +36,7 @@ PROTO_CODEC = PROTOBUF()
 PROTO_CODEC.add_serializer(*string_serializer())
 
 
-async def setup_and_run_test_case(connection_type, codec):
+async def setup_and_run_test_case(connection_type, codec, message=None):
     comm_topic = "test_topic"
     init_addr = ("127.0.0.1", 1555) if connection_type == "tcp" else "c1"
     repl_addr = ("127.0.0.1", 1556) if connection_type == "tcp" else "c2"
@@ -50,8 +51,12 @@ async def setup_and_run_test_case(connection_type, codec):
         init_target = repl_addr
         repl_target = init_addr
 
-    init_agent = container_1.register(InitiatorAgent(container_1))
-    repl_agent = container_2.register(ReplierAgent(container_2))
+    init_agent = container_1.register(
+        InitiatorAgent(container_1, custom_message=message or M3)
+    )
+    repl_agent = container_2.register(
+        ReplierAgent(container_2, expect_custom_message=message is not None)
+    )
     repl_agent.target = addr(repl_target, init_agent.aid)
     init_agent.target = addr(init_target, repl_agent.aid)
 
@@ -65,11 +70,12 @@ async def setup_and_run_test_case(connection_type, codec):
 # - answers to reply
 # - shuts down
 class InitiatorAgent(Agent):
-    def __init__(self, container):
+    def __init__(self, container, custom_message):
         super().__init__()
         self.target = None
         self.got_reply = asyncio.Future()
         self.container = container
+        self.custom_message = custom_message
 
     def handle_message(self, content, meta):
         if content == M2:
@@ -90,7 +96,7 @@ class InitiatorAgent(Agent):
         await self.got_reply
 
         # answer to reply
-        await self.send_message(M3, self.target)
+        await self.send_message(self.custom_message, self.target)
 
 
 # ReplierAgent:
@@ -99,10 +105,11 @@ class InitiatorAgent(Agent):
 # - awaits reply
 # - shuts down
 class ReplierAgent(Agent):
-    def __init__(self, container):
+    def __init__(self, container, expect_custom_message):
         super().__init__()
         self.target = None
         self.other_aid = None
+        self.expect_custom_mesage = expect_custom_message
 
         self.got_first = asyncio.Future()
         self.got_second = asyncio.Future()
@@ -112,7 +119,7 @@ class ReplierAgent(Agent):
     def handle_message(self, content, meta):
         if content == M1:
             self.got_first.set_result(True)
-        elif content == M3:
+        elif content == M3 or self.expect_custom_mesage:
             self.got_second.set_result(True)
 
     async def start(self):
@@ -134,6 +141,22 @@ class ReplierAgent(Agent):
 @pytest.mark.asyncio
 async def test_tcp_json():
     await setup_and_run_test_case("tcp", JSON_CODEC)
+
+
+@json_serializable
+@dataclass
+class ABC:
+    AA: list[AgentAddress]
+
+
+@pytest.mark.asyncio
+async def test_tcp_json_with_complex_agentaddress():
+    JSON_CODEC.add_serializer(*ABC.__serializer__())
+    await setup_and_run_test_case(
+        "tcp",
+        JSON_CODEC,
+        ABC([AgentAddress(("123", 1), "Test"), AgentAddress(("123", 1), "Test2")]),
+    )
 
 
 @pytest.mark.asyncio
