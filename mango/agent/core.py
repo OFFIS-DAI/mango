@@ -8,20 +8,14 @@ Every agent must live in a container. Containers are responsible for making
 import asyncio
 import logging
 from abc import ABC
-from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
+from ..messages.message import AgentAddress
 from ..util.clock import Clock
 from ..util.scheduling import ScheduledProcessTask, ScheduledTask, Scheduler
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass(frozen=True, order=True)
-class AgentAddress:
-    protocol_addr: Any
-    aid: str
 
 
 class State(Enum):

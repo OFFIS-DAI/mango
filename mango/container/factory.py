@@ -78,7 +78,8 @@ def create_tcp(
     if clock is None:
         clock = AsyncioClock()
     if isinstance(addr, str):
-        addr = tuple(addr.split(":"))
+        host, port = addr.split(":")
+        addr = (host, int(port))
 
     # initialize TCPContainer
     return TCPContainer(
