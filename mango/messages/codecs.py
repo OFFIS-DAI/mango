@@ -16,6 +16,7 @@ import json
 
 from mango.messages.message import (
     ACLMessage,
+    AgentAddress,
     MangoMessage,
     Performatives,
     enum_serializer,
@@ -170,6 +171,7 @@ class JSON(Codec):
         super().__init__()
         self.add_serializer(*ACLMessage.__json_serializer__())
         self.add_serializer(*MangoMessage.__json_serializer__())
+        self.add_serializer(*AgentAddress.__serializer__())
         self.add_serializer(*enum_serializer(Performatives))
 
     def encode(self, data):

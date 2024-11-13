@@ -14,9 +14,25 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
-from ..agent.core import AgentAddress
 from .acl_message_pb2 import ACLMessage as ACLProto
 from .mango_message_pb2 import MangoMessage as MangoMsg
+
+
+@dataclass(frozen=True, order=True)
+class AgentAddress:
+    protocol_addr: Any
+    aid: str
+
+    def __asdict__(self):
+        return vars(self)
+
+    @classmethod
+    def __fromdict__(cls, attrs):
+        return cls(**attrs)
+
+    @classmethod
+    def __serializer__(cls):
+        return cls, cls.__asdict__, cls.__fromdict__
 
 
 class Message(ABC):
