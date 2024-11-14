@@ -25,6 +25,7 @@ extensions = [
     "sphinx.ext.intersphinx",
     "sphinx.ext.graphviz",
     "sphinx.ext.imgmath",
+    "sphinx.ext.viewcode",
 ]
 
 
