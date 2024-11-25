@@ -32,6 +32,7 @@ class Container(ABC):
         clock: Clock,
         copy_internal_messages=False,
         mirror_data=None,
+        mp_method="spawn",
         **kwargs,
     ):
         self.name: str = name
@@ -64,7 +65,9 @@ class Container(ABC):
                 self, self._mirror_data
             )
         else:
-            self._container_process_manager = MainContainerProcessManager(self)
+            self._container_process_manager = MainContainerProcessManager(
+                self, mp_method
+            )
 
     def _all_aids(self):
         all_aids = list(self._agents.keys()) + self._container_process_manager.aids
