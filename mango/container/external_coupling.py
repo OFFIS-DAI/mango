@@ -111,12 +111,11 @@ class ExternalSchedulingContainer(Container):
                 message=message, receiver_id=receiver_id, default_meta=meta
             )
             self._new_internal_message = True
+            return success
         else:
             if not hasattr(content, "split_content_and_meta"):
                 message = MangoMessage(content, meta)
-            success = await self._send_external_message(receiver_addr, message)
-
-        return success
+            return await self._send_external_message(receiver_addr, message)
 
     async def _send_external_message(self, addr, message) -> bool:
         """
