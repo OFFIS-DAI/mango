@@ -336,7 +336,7 @@ class RoleContext(AgentDelegates):
         content,
         receiver_addr: AgentAddress,
         **kwargs,
-    ):
+    ) -> bool:
         self._role_handler._notify_send_message_subs(content, receiver_addr, **kwargs)
         return await self.context.send_message(
             content=content,

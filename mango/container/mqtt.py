@@ -208,7 +208,8 @@ class MQTTContainer(Container):
             mqtt_messenger.on_subscribe = on_sub
 
             # subscribe topic
-            result, _ = mqtt_messenger.subscribe(self.inbox_topic, 2)
+            # set maximum QoS to 2
+            result, _ = mqtt_messenger.subscribe(self.inbox_topic, qos=2)
             if result != paho.MQTT_ERR_SUCCESS:
                 # subscription to inbox topic was not successful
                 mqtt_messenger.disconnect()
@@ -348,7 +349,7 @@ class MQTTContainer(Container):
         receiver_addr: AgentAddress,
         sender_id: None | str = None,
         **kwargs,
-    ):
+    ) -> bool:
         """
         The container sends the message of one of its own agents to a specific topic.
 
@@ -393,28 +394,35 @@ class MQTTContainer(Container):
             message = content
             if not hasattr(content, "split_content_and_meta"):
                 message = MangoMessage(content, meta)
-            self._send_external_message(
-                topic=receiver_addr.protocol_addr, message=message
+            return self._send_external_message(
+                topic=receiver_addr.protocol_addr,
+                message=message,
+                qos=actual_mqtt_kwargs.get("qos", 0),
+                retain=actual_mqtt_kwargs.get("retain", False),
             )
-            return True
 
-    def _send_external_message(self, *, topic: str, message):
+    def _send_external_message(
+        self, *, topic: str, message, qos: int = 0, retain: bool = False
+    ) -> bool:
         """
 
         :param topic: MQTT topic
         :param message: The ACL message
+        :param qos: The quality of service param passed to mqtt publish
+        :param retain: The retain param passed to mqtt publish
         :return:
         """
         encoded_message = self.codec.encode(message)
         logger.debug("Sending message;%s;%s", message, topic)
-        self.mqtt_client.publish(topic, encoded_message)
+        msg_info = self.mqtt_client.publish(topic, encoded_message, qos, retain)
+        return msg_info.is_published()
 
-    async def subscribe_for_agent(self, *, aid: str, topic: str, qos: int = 0) -> bool:
+    async def subscribe_for_agent(self, *, aid: str, topic: str, qos: int = 2) -> bool:
         """
 
         :param aid: aid of the corresponding agent
         :param topic: topic to subscribe (wildcards are allowed)
-        :param qos: The quality of service for the subscription
+        :param qos: The maximum quality of service this subscription supports
         :return: A boolean signaling if subscription was true or not
         """
         if aid not in self._agents.keys():

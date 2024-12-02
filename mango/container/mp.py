@@ -205,7 +205,7 @@ class BaseContainerProcessManager:
 
     def pre_hook_send_internal_message(
         self, message, receiver_id, priority, default_meta
-    ):
+    ) -> tuple[bool, str]:
         """Hook in before an internal message is sent. Capable of preventing the default
         send_internal_message call.
         Therefore this method is able to reroute messages without side effects.
@@ -340,7 +340,7 @@ class MirrorContainerProcessManager(BaseContainerProcessManager):
 
     def pre_hook_send_internal_message(
         self, message, receiver_id, priority, default_meta
-    ):
+    ) -> tuple[bool, str]:
         self._out_queue.put_nowait((message, receiver_id, priority, default_meta))
         return True, None
 
@@ -436,7 +436,7 @@ class MainContainerProcessManager(BaseContainerProcessManager):
 
     def pre_hook_send_internal_message(
         self, message, receiver_id, priority, default_meta
-    ):
+    ) -> tuple[bool, str]:
         target_inbox = None
         if self._active:
             target_inbox = self._find_sp_queue(receiver_id)

@@ -65,7 +65,7 @@ class AgentContext:
         receiver_addr: AgentAddress,
         sender_id: None | str = None,
         **kwargs,
-    ):
+    ) -> bool:
         """
         See container.send_message(...)
         """
@@ -114,7 +114,7 @@ class AgentDelegates:
         content,
         receiver_addr: AgentAddress,
         **kwargs,
-    ):
+    ) -> bool:
         """
         See container.send_message(...)
         """

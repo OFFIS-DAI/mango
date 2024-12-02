@@ -239,7 +239,7 @@ class TCPContainer(Container):
         if protocol_addr == self.addr:
             # internal message
             meta["network_protocol"] = "tcp"
-            success = self._send_internal_message(
+            return self._send_internal_message(
                 content, receiver_addr.aid, default_meta=meta
             )
         else:
@@ -247,11 +247,9 @@ class TCPContainer(Container):
             # if the user does not provide a splittable content, we create the default one
             if not hasattr(content, "split_content_and_meta"):
                 message = MangoMessage(content, meta)
-            success = await self._send_external_message(
+            return await self._send_external_message(
                 receiver_addr.protocol_addr, message, meta
             )
-
-        return success
 
     async def _send_external_message(self, addr, message, meta) -> bool:
         """

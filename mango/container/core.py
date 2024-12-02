@@ -181,11 +181,10 @@ class Container(ABC):
 
         # first delegate to process manager to possibly reroute the message
         if receiver_id not in self._agents:
-            (
-                result,
-                inbox_overwrite,
-            ) = self._container_process_manager.pre_hook_send_internal_message(
-                message, receiver_id, priority, default_meta
+            result, inbox_overwrite = (
+                self._container_process_manager.pre_hook_send_internal_message(
+                    message, receiver_id, priority, default_meta
+                )
             )
             if result is not None:
                 return result
