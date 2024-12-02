@@ -6,19 +6,17 @@ Tutorial
 Introduction
 ***************
 
-This tutorial gives an overview of the basic functions of mango agents and containers. It consists of four
-parts building a scenario of two PV plants, operated by their respective agents being directed by a remote
+This tutorial gives an overview of the essential functions of mango agents and containers. It consists of four
+parts in which we are building a scenario of two solar power plants, operated by their respective agents being directed by a remote
 controller.
 
-Subsequent parts either extend the functionality or simplify some concept in the previous part.
+Subsequent parts either extend the functionality or simplify some concepts in the previous part.
 
-As a whole, this tutorial covers:
-    - container and agent creation
-    - message passing within a container
-    - message passing between containers
-    - codecs
-    - scheduling
-    - roles
+As a whole, this tutorial covers
+ #. container and agent creation, message passing within a container
+ #. message passing between containers
+ #. codecs
+ #. scheduling and roles.
 
 
 *****************************
@@ -29,10 +27,10 @@ For your first mango tutorial, you will learn the fundamentals of creating mango
 as making them communicate with each other.
 
 This example covers:
-    - container
-    - agent creation
-    - basic message passing
-    - clean shutdown of containers
+ - container
+ - agent creation
+ - basic message passing
+ - clean shutdown of containers
 
 First, we want to create two simple agents and have the container send a message to one of them.
 An agent is created by defining a class that inherits from the base Agent class of mango.
@@ -76,14 +74,17 @@ pattern:
     This will run in the asyncio loop.
 
 First, we create the container. A tcp container is created via the :meth:`mango.create_tcp_container` function which requires at least
-the address of the container as a parameter. Other container types available by using :meth:`mango.create_mqtt_container` and :meth:`mango.create_ec_container`.
-For this tutorial we will cover the tcp container.
+the address of the container as a parameter. The address consists of the host (IP) and a port number (usually, you can choose an arbitrary number).
+Other container types available by using :meth:`mango.create_mqtt_container` and :meth:`mango.create_ec_container`.
+For this tutorial, we will cover the tcp container.
 
 .. testcode::
 
     from mango import create_tcp_container
 
-    PV_CONTAINER_ADDRESS = ("127.0.0.1", 5555)
+    HOST = "127.0.0.1"
+    PORT = 5555
+    PV_CONTAINER_ADDRESS = (HOST, PORT)
 
     pv_container = create_tcp_container(addr=PV_CONTAINER_ADDRESS)
 
@@ -93,7 +94,8 @@ For this tutorial we will cover the tcp container.
 
     ('127.0.0.1', 5555)
 
-Now we can create our agents. Agents always live inside a container and therefore need to be registered to the container.
+Now, we can create our agents. Agents must always be registered to the container to enable messaging and task scheduling (will be introduced later).
+Registration will assign the agent an ``aid``, which, together with the protocol address (HOST + PORT), is the so-called agent address.
 
 .. testcode::
 
@@ -113,11 +115,10 @@ Now we can create our agents. Agents always live inside a container and therefor
     AgentAddress(protocol_addr=('127.0.0.1', 5555), aid='agent1')
 
 For now, our agents and containers are purely passive entities. First, we need to activate the container to start
-the tcp server and its internal asynchronous behavior. In mango this can be done with :meth:`mango.activate` and the `async with` syntax.
+the tcp server and its internal asynchronous behavior. In mango, this can be done with :meth:`mango.activate` and the `async with` syntax.
 Second, we need to send a message from one agent to the other. Messages are passed by the container via the :meth:`mango.Agent.send_message`
-function always at least expects some content and a target agent address. To send a message directly to an agent, we also need to provide
-its agent id which is set by the container when the agent is created. The address of the container and the aid
-is wrapped in the :class:`mango.AgentAddress` class and can be retrieved with :meth:`mango.Agent.addr`.
+function. This function always at least expects some content and a target agent address. Note, that The address of the container and the aid
+is wrapped as the agent address in the :class:`mango.AgentAddress` class and can be retrieved with :meth:`mango.Agent.addr`.
 
 .. testcode::
 
@@ -151,20 +152,19 @@ is wrapped in the :class:`mango.AgentAddress` class and can be retrieved with :m
 *********************************
 
 In the previous example, you learned how to create mango agents and containers and how to send basic messages between them.
-In this example, you expand upon this. We introduce a controller agent that asks the current feed_in of our PV agents and
-subsequently limits the output of both to their minimum.
+In this example, you expand upon this. We introduce a controller agent that asks the current feed_in (provided power) of our PV agents and
+subsequently limits the output of both to their minimum. This will happen using different containers, which introduces inter-container
+communication. This is useful if you need to run your agents in different processes or even on different computing units (i.e., for performance reasons).
 
 This example covers:
-    - message passing between different containers
-    - basic task scheduling
-    - setting custom agent ids
-    - use of metadata
+ - message passing between different containers
+ - basic task scheduling
+ - setting custom agent ids
+ - use of metadata
 
-First, we define our controller Agent. To ensure it can message the pv agents we pass that information
-directly to it in the constructor. The control agent will send out messages to each pv agent, await their
-replies and act according to that information. To handle this, we also add some control structures to the
+First, we define our controller Agent. We pass that information directly to the constructor to ensure it can message the PV agents. The control agent will send out messages to each PV agent, await their
+replies, and act according to that information. To handle this, we also add some control structures to the
 constructor that we will later use to keep track of which agents have already answered our messages.
-As an additional feature, we will make it possible to manually set the agent of our agents by.
 
 
 .. testcode::
@@ -188,11 +188,14 @@ As an additional feature, we will make it possible to manually set the agent of 
     [AgentAddress(protocol_addr='protocol_addr', aid='aid')]
 
 Next, we set up its :meth:`mango.Agent.handle_message` function. The controller needs to distinguish between two message types:
-The replies to feed_in requests and later the acknowledgements that a new maximum feed_in was set by a pv agent.
+The replies to feed_in requests and later the acknowledgments that a new maximum feed_in was set by a pv agent.
 We assign the key `performative` of the metadata of the message to do this. We set the `performative` entry to `inform`
-for feed_in replies and to `accept_proposal` for feed_in change acknowledgements.
+for feed_in replies and to `accept_proposal` for feed_in change acknowledgements. The task of the performative is here to
+mark the content we send, this enables receiving agents to handle it accordingly.
 
 .. testcode::
+
+    from mango import Agent, Performatives
 
     class ControllerAgent(Agent):
         def __init__(self, known_agents):
@@ -231,7 +234,7 @@ We do the same for our PV agents.
 
 .. testcode::
 
-    from mango import sender_addr
+    from mango import Agent, Performatives, sender_addr
 
     PV_FEED_IN = {
         "PV Agent 0": 2.0,
@@ -280,11 +283,10 @@ We do the same for our PV agents.
 
 When a PV agent receives a request from the controller, it immediately answers. Note two important changes to the first
 example here: First, within our message handling methods we can not ``await send_message`` directly
-because ``handle_message`` is not a coroutine. Instead, we pass ``send_message`` as a task to the scheduler to be
-executed at once via the ``schedule_instant_task`` method.
+because ``handle_message`` is not a coroutine. Instead, we call the :meth:`mango.Agent.schedule_instant_message``, which will schedule a send message coroutine.
 Second, we set ``meta`` to contain the typing information of our message.
 
-Now both of our agents can handle their respective messages. The last thing to do is make the controller actually
+Now, both of our agents can handle their respective messages. The last thing to do is make the controller actually
 perform its active actions. We do this by implementing a ``run`` function with the following control flow:
 - send a feed_in request to each known pv agent
 - wait for all pv agents to answer
@@ -417,14 +419,13 @@ messages.
 
 If instances of custom classes are exchanged over the network (or generally between different containers),
 these instances need to be serialized. In mango, objects can be encoded by mango's codecs. To make a new object type
-known to a codec it needs to provide a serialization and a deserialization method. The object type together
-with these methods is then passed to the codec which in turn is passed to a container. The container will then
+known to a codec, a serialization and deserialization method must be provided. The object type and these methods are then passed to the codec, which is then passed to a container. The container will then
 automatically use these methods when it encounters an object of this type as the content of a message.
 
 This example covers:
-    - message classes
-    - codec basics
-    - the json_serializable decorator
+ - message classes
+ - codec basics
+ - the json_serializable decorator
 
 We want to use the types of custom message objects as the new mechanism for message typing. We define these
 as simple data classes. For simple classes like this, we can use the :meth:`mango.json_serializable`` decorator to
@@ -481,7 +482,7 @@ Next, we need to create a codec, make our message objects known to it, and pass 
 
 Any time the content of a message matches one of these types now the corresponding serialize and deserialize
 functions are called. Of course, you can also create your own serialization and deserialization functions with
-more sophisticated behaviours and pass them to the codec. For more details refer to the :doc:`codecs` section of
+more sophisticated behaviours and pass them to the codec. For more details, refer to the :doc:`codecs` section of
 the documentation.
 
 With this, the message handling in our agent classes can be simplified:
@@ -633,23 +634,23 @@ by a corresponding "pong". Periodic tasks can be handled for you by mango's sche
 
 With the introduction of this task, we know have different responsibilities for the agents
 (e. g. act as PVAgent and reply to ping requests). In order to facilitate structuring an agent with different
-responsibilities we can use the role API.
+responsibilities, we can use the role API.
 The idea of using roles is to divide the functionality of an agent by responsibility in a structured way.
 
 A role is a python object that can be assigned to a RoleAgent. There are several lifecycle functions each role may implement:
-    - ``__init__`` - where you do the initial object setup
-    - :meth:`mango.Role.setup` - which is called when the role is assigned to an agent
-    - :meth:`mango.Role.on_start` - which is called when the container is started
-    - :meth:`mango.Role.on_ready` - which is called when are activated
+ - ``__init__`` - where you do the initial object setup
+ - :meth:`mango.Role.setup` - which is called when the role is assigned to an agent
+ - :meth:`mango.Role.on_start` - which is called when the container is started
+ - :meth:`mango.Role.on_ready` - which is called when are activated
 
 This distinction is relevant because not all features exist after construction with ``__init__``. Most of the time
 you want to implement :meth:`mango.Role.on_ready` for actions like message sending, or scheduling, because only
-since this point you can be sure that all relevant container are started and the agent the role belongs to has been registered.
+Since this point, you can be sure that all relevant containers have been started and the agent the role belongs to has been registered.
 However, the setup of the role itself should be done in :meth:`mango.Role.setup`.
 
 This example covers:
-    - role API basics
-    - scheduling and periodic tasks
+ - role API basics
+ - scheduling and periodic tasks
 
 The key part of defining roles are their ``__init__``, :meth:`mango.Role.setup`, and :meth:`mango.Role.on_ready` methods.
 The first is called to create the role object. The second is called when the role is assigned to
@@ -662,11 +663,11 @@ The idea of the condition function is to allow to define a condition filtering i
 Another idea is that sending messages from the role is now done via its context with the method:
 ``self.context.send_message```.
 
-We first create the `Ping` role, which has to periodically send out its messages.
+We first create the `Ping` role, which has to send out its messages periodically.
 We can use mango's scheduling API to handle
 this for us via the :meth:`mango.RoleContext.schedule_periodic_task` function. This takes a coroutine to execute and a time
 interval. Whenever the time interval runs out the coroutine is triggered. With the scheduling API you can
-also run tasks at specific times. For a full overview we refer to the documentation.
+also run tasks at specific times. For a full overview, we refer to the documentation.
 
 .. testcode::
 
