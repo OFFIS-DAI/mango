@@ -121,11 +121,11 @@ class DistributedClockManager(ClockAgent):
         if self.schedules:
             next_event = min(self.schedules)
         else:
-            logger.warning("%s: no new events, time stands still", self.aid)
+            logger.info("%s: no new events, time stands still", self.aid)
             next_event = self.scheduler.clock.time
 
         if next_event < self.scheduler.clock.time:
-            logger.warning("%s: got old event, time stands still", self.aid)
+            logger.info("%s: got old event, time stands still", self.aid)
             next_event = self.scheduler.clock.time
         logger.debug("next event at %s", next_event)
         return next_event
