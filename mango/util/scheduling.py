@@ -5,6 +5,7 @@ Module for commonly used time based scheduled task executed inside one agent.
 import asyncio
 import concurrent.futures
 import datetime
+import logging
 from abc import abstractmethod
 from asyncio import Future
 from dataclasses import dataclass
@@ -15,6 +16,20 @@ from typing import Any
 from dateutil.rrule import rrule
 
 from mango.util.clock import AsyncioClock, Clock, ExternalClock
+
+logger = logging.getLogger(__name__)
+
+
+def _raise_exceptions(fut: asyncio.Future):
+    """
+    Inline function used as a callback to raise exceptions
+    :param fut: The Future object of the task
+    """
+    if fut.exception() is not None:
+        try:
+            raise fut.exception()
+        except Exception:
+            logger.exception("got exception in scheduled event")
 
 
 @dataclass
@@ -507,6 +522,7 @@ class Scheduler:
             coro = task.run()
             l_task = asyncio.create_task(coro)
         l_task.add_done_callback(task.on_stop)
+        l_task.add_done_callback(_raise_exceptions)
         l_task.add_done_callback(self._remove_task)
         self._scheduled_tasks.append((task, l_task, coro, src))
         return l_task
@@ -703,6 +719,7 @@ class Scheduler:
         )
         l_task.add_done_callback(self._remove_process_task)
         l_task.add_done_callback(task.on_stop)
+        l_task.add_done_callback(_raise_exceptions)
         self._scheduled_process_tasks.append(
             (task, l_task, scheduled_process_control, src)
         )
