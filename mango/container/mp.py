@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import warnings
 from collections.abc import Callable
 from dataclasses import dataclass
 from multiprocessing import get_context
@@ -204,7 +205,7 @@ class BaseContainerProcessManager:
 
     def pre_hook_send_internal_message(
         self, message, receiver_id, priority, default_meta
-    ):
+    ) -> tuple[bool, str]:
         """Hook in before an internal message is sent. Capable of preventing the default
         send_internal_message call.
         Therefore this method is able to reroute messages without side effects.
@@ -339,7 +340,7 @@ class MirrorContainerProcessManager(BaseContainerProcessManager):
 
     def pre_hook_send_internal_message(
         self, message, receiver_id, priority, default_meta
-    ):
+    ) -> tuple[bool, str]:
         self._out_queue.put_nowait((message, receiver_id, priority, default_meta))
         return True, None
 
@@ -362,11 +363,12 @@ class MainContainerProcessManager(BaseContainerProcessManager):
     def __init__(
         self,
         container,
+        mp_method: str = "spawn",
     ) -> None:
         self._active = False
         self._container = container
         self._mp_enabled = False
-        self._ctx = get_context("spawn")
+        self._ctx = get_context(mp_method)
         self._agent_process_init_list = []
         self._started = False
 
@@ -434,7 +436,7 @@ class MainContainerProcessManager(BaseContainerProcessManager):
 
     def pre_hook_send_internal_message(
         self, message, receiver_id, priority, default_meta
-    ):
+    ) -> tuple[bool, str]:
         target_inbox = None
         if self._active:
             target_inbox = self._find_sp_queue(receiver_id)
@@ -510,7 +512,16 @@ class MainContainerProcessManager(BaseContainerProcessManager):
         from_pipe_message, to_pipe_message = aioduplex(self._ctx)
         from_pipe, to_pipe = aioduplex(self._ctx)
         process_initialized = self._ctx.Event()
-        with to_pipe.detach() as to_pipe, to_pipe_message.detach() as to_pipe_message:
+        with (
+            warnings.catch_warnings(),
+            to_pipe.detach() as to_pipe,
+            to_pipe_message.detach() as to_pipe_message,
+        ):
+            warnings.filterwarnings(
+                "ignore",
+                message=r".*This process .* is multi-threaded, use of fork\(\) may lead to deadlocks.*",
+                category=DeprecationWarning,
+            )
             agent_process = self._ctx.Process(
                 target=create_agent_process_environment,
                 args=(

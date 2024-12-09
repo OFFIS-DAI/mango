@@ -35,6 +35,11 @@ We recommend Mosquitto__. On Debian/Ubuntu it can be installed as follows:
 
     $ sudo apt-get install mosquitto
 
+
+Note that mosquitto requires to have a config since v2.x for it to be accessible from outside your machine.
+It may as well be desired to set the option `set_tcp_nodelay=true` in the `mosquitto.conf` to improve round-trip time.
+Using the default QoS setting of 0 is recommended.
+
 __ https://mosquitto.org/
 
 

@@ -26,6 +26,19 @@ def create_mqtt(
     copy_internal_messages: bool = False,
     **kwargs,
 ):
+    """
+    This method is called to instantiate an MQTT container
+
+    :param broker_addr: The address of the broker this container will connect to. it has to be a tuple of (host, port).
+    :param client_id: The id of the MQTT Client
+    :param codec: Defines the codec to use. Defaults to JSON
+    :param clock: The clock that the scheduler of the agent should be based on. Defaults to the AsyncioClock
+    :param inbox_topic: Default subscription to the a specific MQTT topic
+    :param copy_internal_messages: Explicitly copy internal messages. Defaults to False
+
+    :return: The instance of a MQTTContainer
+    """
+
     if codec is None:
         codec = JSON()
     if clock is None:
@@ -67,9 +80,11 @@ def create_tcp(
     """
     This method is called to instantiate a tcp container
 
+    :param addr: The address to use. it has to be a tuple of (host, port).
     :param codec: Defines the codec to use. Defaults to JSON
     :param clock: The clock that the scheduler of the agent should be based on. Defaults to the AsyncioClock
-    :param addr: the address to use. it has to be a tuple of (host, port).
+    :param copy_internal_messages: Explicitly copy internal messages. Defaults to False
+    :param auto_port: Whether you want to let the operating system pick the port. Defaults to False
 
     :return: The instance of a TCPContainer
     """

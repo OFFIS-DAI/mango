@@ -32,6 +32,7 @@ class Container(ABC):
         clock: Clock,
         copy_internal_messages=False,
         mirror_data=None,
+        mp_method="spawn",
         **kwargs,
     ):
         self.name: str = name
@@ -64,7 +65,9 @@ class Container(ABC):
                 self, self._mirror_data
             )
         else:
-            self._container_process_manager = MainContainerProcessManager(self)
+            self._container_process_manager = MainContainerProcessManager(
+                self, mp_method
+            )
 
     def _all_aids(self):
         all_aids = list(self._agents.keys()) + self._container_process_manager.aids
@@ -178,11 +181,10 @@ class Container(ABC):
 
         # first delegate to process manager to possibly reroute the message
         if receiver_id not in self._agents:
-            (
-                result,
-                inbox_overwrite,
-            ) = self._container_process_manager.pre_hook_send_internal_message(
-                message, receiver_id, priority, default_meta
+            result, inbox_overwrite = (
+                self._container_process_manager.pre_hook_send_internal_message(
+                    message, receiver_id, priority, default_meta
+                )
             )
             if result is not None:
                 return result
