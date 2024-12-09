@@ -305,3 +305,36 @@ def create_acl(
     for key, value in acl_metadata.items():
         setattr(message, key, value)
     return message
+
+
+def create_acl_with_sender(
+    content,
+    receiver_addr: AgentAddress,
+    sender_addr: AgentAddress,
+    acl_metadata: None | dict[str, Any] = None,
+    is_anonymous_acl=False,
+):
+    """
+    create_acl function, which does not require to pass the receiver_addr twice
+
+    self.context.send_message(
+        **create_acl_with_sender(
+            "message content",
+            receiver_addr,
+            self.context.addr,
+            acl_metadata={
+                "in_reply_to": "reply_to",
+            },
+        )
+    )
+    """
+    return {
+        "content": create_acl(
+            content,
+            receiver_addr,
+            sender_addr,
+            acl_metadata,
+            is_anonymous_acl,
+        ),
+        "receiver_addr": receiver_addr,
+    }
