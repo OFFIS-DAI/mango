@@ -1,5 +1,6 @@
 import asyncio
 import datetime
+import logging
 import time
 
 import pytest
@@ -501,3 +502,27 @@ async def test_task_on_stop():
     # THEN
     assert len(l) == 2
     assert l[1] == 2
+
+
+class MyException(Exception):
+    pass
+
+
+@pytest.mark.asyncio
+async def test_exception(caplog):
+    # GIVEN
+    scheduler = Scheduler()
+    l = []
+
+    async def increase_counter():
+        raise MyException()
+
+    # WHEN
+    t = scheduler.schedule_task(PeriodicScheduledTask(increase_counter, 0.2))
+
+    # THEN
+    with caplog.at_level(logging.ERROR):
+        with pytest.raises(MyException):
+            await asyncio.wait_for(t, timeout=0.3)
+
+    assert "got exception in scheduled event" in caplog.text

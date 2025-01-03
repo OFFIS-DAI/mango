@@ -29,7 +29,7 @@ def _raise_exceptions(fut: asyncio.Future):
         if fut.exception() is not None:
             try:
                 raise fut.exception()
-            except Exception:
+            except BaseException:
                 logger.exception("got exception in scheduled event")
     except asyncio.CancelledError:
         pass  # if this happens the task has been cancelled by mango
