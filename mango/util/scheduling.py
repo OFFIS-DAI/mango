@@ -22,14 +22,17 @@ logger = logging.getLogger(__name__)
 
 def _raise_exceptions(fut: asyncio.Future):
     """
-    Inline function used as a callback to raise exceptions
+    Inline function used as a callback to raise exceptions.
     :param fut: The Future object of the task
     """
-    if fut.exception() is not None:
-        try:
-            raise fut.exception()
-        except Exception:
-            logger.exception("got exception in scheduled event")
+    try:
+        if fut.exception() is not None:
+            try:
+                raise fut.exception()
+            except BaseException:
+                logger.exception("got exception in scheduled event")
+    except asyncio.CancelledError:
+        pass  # if this happens the task has been cancelled by mango
 
 
 @dataclass
