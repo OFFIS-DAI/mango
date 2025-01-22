@@ -153,7 +153,6 @@ class Codec:
             int_hash = int(sha1(data.encode("utf-8")).hexdigest(), 16)
             # truncate to 32 bit for protobuf wrapper
             type_id = c_int32(int_hash).value
-            print(type_id)
         else:
             if type_id in self._deserializers.keys():
                 raise ValueError(
