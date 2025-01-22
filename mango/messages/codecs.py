@@ -14,6 +14,7 @@ https://gitlab.com/sscherfke/aiomas/
 import inspect
 import json
 from ctypes import c_int32
+from hashlib import sha1
 
 from mango.messages.message import (
     ACLMessage,
@@ -132,14 +133,27 @@ class Codec:
             raise ValueError(f'There is already a serializer for type "{otype}"')
 
         if type_id is None:
-            type_id = c_int32(
-                hash(
-                    (
-                        otype.__name__,
-                        tuple(inspect.getmembers(otype, predicate=inspect.isfunction)),
-                    )
-                )
-            ).value
+            # make hash from type name + function names in the class + signature of the class
+            class_funcs = sorted(
+                inspect.getmembers(otype, predicate=inspect.isfunction)
+            )
+
+            data = otype.__name__
+            for d in class_funcs:
+                data += d[0]
+
+            try:
+                attrs = [a for a in inspect.signature(otype).parameters]
+                for d in attrs:
+                    data += d
+            except ValueError:
+                # object type has no inspectable signature
+                pass
+
+            int_hash = int(sha1(data.encode("utf-8")).hexdigest(), 16)
+            # truncate to 32 bit for protobuf wrapper
+            type_id = c_int32(int_hash).value
+            print(type_id)
         else:
             if type_id in self._deserializers.keys():
                 raise ValueError(
