@@ -155,11 +155,11 @@ class Codec:
         if otype in self._serializers:
             raise ValueError(f'There is already a serializer for type "{otype}"')
 
-        if type_id in self._deserializers.keys():
-            raise ValueError(f'There is already a serializer with type id "{type_id}"')
-
         if type_id is None:
             type_id = self.make_type_id(otype)
+
+        if type_id in self._deserializers.keys():
+            raise ValueError(f'There is already a serializer with type id "{type_id}"')
 
         # type_id = len(self._serializers)
         self._serializers[otype] = (type_id, serialize)
