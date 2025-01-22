@@ -117,6 +117,29 @@ class Codec:
         """Decode *data* from :class:`bytes` to the original data structure."""
         raise NotImplementedError
 
+    def make_type_id(self, otype):
+        # make hash from type name + function names in the class + signature of the class
+        class_funcs = sorted(
+            inspect.getmembers(otype, predicate=inspect.isfunction)
+        )
+
+        data = otype.__name__
+        for d in class_funcs:
+            data += d[0]
+
+        try:
+            attrs = [a for a in inspect.signature(otype).parameters]
+            for d in attrs:
+                data += d
+        except ValueError:
+            # object type has no inspectable signature
+            pass
+
+        int_hash = int(sha1(data.encode("utf-8")).hexdigest(), 16)
+        # truncate to 32 bit for protobuf wrapper
+        type_id = c_int32(int_hash).value
+        return type_id
+
     def add_serializer(self, otype, serialize, deserialize, type_id=None):
         """Add methods to *serialize* and *deserialize* objects typed *otype*.
 
@@ -132,32 +155,11 @@ class Codec:
         if otype in self._serializers:
             raise ValueError(f'There is already a serializer for type "{otype}"')
 
+        if type_id in self._deserializers.keys():
+            raise ValueError(f'There is already a serializer with type id "{type_id}"')
+
         if type_id is None:
-            # make hash from type name + function names in the class + signature of the class
-            class_funcs = sorted(
-                inspect.getmembers(otype, predicate=inspect.isfunction)
-            )
-
-            data = otype.__name__
-            for d in class_funcs:
-                data += d[0]
-
-            try:
-                attrs = [a for a in inspect.signature(otype).parameters]
-                for d in attrs:
-                    data += d
-            except ValueError:
-                # object type has no inspectable signature
-                pass
-
-            int_hash = int(sha1(data.encode("utf-8")).hexdigest(), 16)
-            # truncate to 32 bit for protobuf wrapper
-            type_id = c_int32(int_hash).value
-        else:
-            if type_id in self._deserializers.keys():
-                raise ValueError(
-                    f'There is already a serializer with type id "{type_id}"'
-                )
+            type_id = self.make_type_id(otype)
 
         # type_id = len(self._serializers)
         self._serializers[otype] = (type_id, serialize)
