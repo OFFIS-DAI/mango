@@ -118,7 +118,11 @@ class Codec:
         raise NotImplementedError
 
     def make_type_id(self, otype):
-        # make hash from type name + function names in the class + signature of the class
+        """Create a type id for *otype* using:
+        - type name
+        - function names in the class
+        - signature of the class
+        and return a 32 bit integer type id.""" 
         class_funcs = sorted(
             inspect.getmembers(otype, predicate=inspect.isfunction)
         )
