@@ -229,9 +229,9 @@ async def test_step_with_replying_agent():
         container_output = await external_scheduling_container.step(
             simulation_time=10, incoming_messages=[encoded_msg]
         )
-        assert (
-            len(container_output.messages) == 3
-        ), f"output messages: {container_output.messages}"
+        assert len(container_output.messages) == 3, (
+            f"output messages: {container_output.messages}"
+        )
         assert (
             container_output.messages[0].time
             < container_output.messages[1].time

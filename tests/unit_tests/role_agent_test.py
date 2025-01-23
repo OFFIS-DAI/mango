@@ -91,9 +91,9 @@ class PingRole(SimpleReactiveRole):
                     f"Timeout occurred while waiting for the ping response of {addr}, "
                     "going to check if all messages could be send"
                 )
-                assert (
-                    self._expect_no_answer
-                ), "Not all pong replies have arrived on time"
+                assert self._expect_no_answer, (
+                    "Not all pong replies have arrived on time"
+                )
 
 
 class DeactivateAllRoles(Role):

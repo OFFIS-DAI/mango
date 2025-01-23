@@ -122,10 +122,8 @@ class Codec:
         - type name
         - function names in the class
         - signature of the class
-        and return a 32 bit integer type id.""" 
-        class_funcs = sorted(
-            inspect.getmembers(otype, predicate=inspect.isfunction)
-        )
+        and return a 32 bit integer type id."""
+        class_funcs = sorted(inspect.getmembers(otype, predicate=inspect.isfunction))
 
         data = otype.__name__
         for d in class_funcs:
