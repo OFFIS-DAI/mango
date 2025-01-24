@@ -94,10 +94,27 @@ class DecoratorData:
 # ------------------
 # base class tests
 # ------------------
-def test_add_serializer_add_new():
+def test_add_serializer_id_auto():
     my_codec = Codec()
     my_codec.add_serializer(*SomeOtherClass.__serializer__())
+    my_codec.add_serializer(*SomeDataClass.__serializer__())
+    assert True
 
+
+def test_add_serialize_id_manual():
+    my_codec = Codec()
+    my_codec.add_serializer(*SomeOtherClass.__serializer__(), type_id=10)
+
+    # can't add same class twice with different id
+    with pytest.raises(ValueError):
+        my_codec.add_serializer(*SomeOtherClass.__serializer__(), type_id=20)
+
+    # can't add other class with same id
+    with pytest.raises(ValueError):
+        my_codec.add_serializer(*SomeDataClass.__serializer__(), type_id=10)
+
+    # can add different class with different id
+    my_codec.add_serializer(*SomeDataClass.__serializer__(), type_id=20)
     assert True
 
 
