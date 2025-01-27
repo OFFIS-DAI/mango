@@ -90,6 +90,28 @@ We have to make the type known to the codec to use it:
     abc 123
     abc 123
 
+The codec distinguishes different types for decoding by assigning a type id (32 bit integer) to the type.
+The type id can either be automatically generated (like above) or explicitely set when adding the serializer.
+Note that if you set a type_id yourself you need to ensure that the decoding container associated the same id
+with the desired type.
+
+.. testcode::
+
+    codec = JSON()
+    codec.add_serializer(*MyClass.__serializer__(), type_id=4711)
+
+    my_object = MyClass("abc", 123)
+    encoded = codec.encode(my_object)
+    decoded = codec.decode(encoded)
+
+    print(my_object.x, my_object.y)
+    print(decoded.x, decoded.y)
+
+.. testoutput::
+
+    abc 123
+    abc 123
+
 All that is left to do now is to pass our codec to the container. This is done during container creation in the ``create_container`` method.
 
 .. testcode::

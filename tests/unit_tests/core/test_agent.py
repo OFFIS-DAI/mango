@@ -136,3 +136,24 @@ def test_lazy_setup_agent():
         assert agent2.test_counter == 1
 
     asyncio.run(run_this(c))
+
+
+async def do_weird_stuff():
+    fut = asyncio.Future()
+    await fut
+
+
+@pytest.mark.asyncio
+async def test_agent_with_deadlock_task():
+    # GIVEN
+    c = create_tcp_container(addr=("127.0.0.1", 5555))
+    agent = c.register(MyAgent())
+
+    async with activate(c) as c:
+        t = agent.schedule_instant_task(do_weird_stuff())
+        t = agent.schedule_instant_task(do_weird_stuff())
+        t = agent.schedule_instant_task(do_weird_stuff())
+        t = agent.schedule_instant_task(do_weird_stuff())
+
+    # THEN
+    assert len(agent.scheduler._scheduled_tasks) == 0

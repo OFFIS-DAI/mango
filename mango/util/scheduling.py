@@ -22,14 +22,17 @@ logger = logging.getLogger(__name__)
 
 def _raise_exceptions(fut: asyncio.Future):
     """
-    Inline function used as a callback to raise exceptions
+    Inline function used as a callback to raise exceptions.
     :param fut: The Future object of the task
     """
-    if fut.exception() is not None:
-        try:
-            raise fut.exception()
-        except Exception:
-            logger.exception("got exception in scheduled event")
+    try:
+        if fut.exception() is not None:
+            try:
+                raise fut.exception()
+            except BaseException:
+                logger.exception("got exception in scheduled event")
+    except asyncio.CancelledError:
+        pass  # if this happens the task has been cancelled by mango
 
 
 @dataclass
@@ -891,13 +894,21 @@ class Scheduler:
                 del target_list[i]
                 break
 
+    async def stop_tasks(self, task_list):
+        for i in range(len(task_list) - 1, -1, -1):
+            _, task, _, _ = task_list[i]
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
     async def stop(self):
         """
         Cancel all not finished scheduled tasks
         """
-        for _, task, _, _ in self._scheduled_tasks + self._scheduled_process_tasks:
-            task.cancel()
-            await task
+        await self.stop_tasks(self._scheduled_tasks)
+        await self.stop_tasks(self._scheduled_process_tasks)
 
     async def tasks_complete(self, timeout=1, recursive=False):
         """Finish all pending tasks using a timeout.
@@ -942,8 +953,13 @@ class Scheduler:
         # resume all process so they can get shutdown
         for _, _, scheduled_process_control, _ in self._scheduled_process_tasks:
             scheduled_process_control.kill_process()
+        if len(self._scheduled_tasks) > 0:
+            logger.debug(
+                "There are still scheduled tasks running on shutdown %s",
+                self._scheduled_tasks,
+            )
+        await self.stop()
         for task, _, _, _ in self._scheduled_tasks:
             task.close()
-        await self.stop()
         if self._process_pool_exec is not None:
             self._process_pool_exec.shutdown()

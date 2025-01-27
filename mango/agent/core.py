@@ -433,13 +433,16 @@ class Agent(ABC, AgentDelegates):
         Inline function used as a callback to raise exceptions
         :param fut: The Future object of the task
         """
-        if fut.exception() is not None:
-            logger.error(
-                "Agent %s: Caught the following exception in _check_inbox: ",
-                self.aid,
-                fut.exception(),
-            )
-            raise fut.exception()
+        try:
+            if fut.exception() is not None:
+                logger.error(
+                    "Agent %s: Caught the following exception in _check_inbox: ",
+                    self.aid,
+                    fut.exception(),
+                )
+                raise fut.exception()
+        except asyncio.CancelledError:
+            pass
 
     async def _check_inbox(self):
         """Task for waiting on new message in the inbox"""
@@ -485,10 +488,6 @@ class Agent(ABC, AgentDelegates):
             self._check_inbox_task.remove_done_callback(self._raise_exceptions)
             self._check_inbox_task.cancel()
             await self._check_inbox_task
-        except asyncio.CancelledError:
-            pass
-        try:
-            await self.scheduler.stop()
         except asyncio.CancelledError:
             pass
         try:
