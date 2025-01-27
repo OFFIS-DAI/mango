@@ -13,6 +13,8 @@ https://gitlab.com/sscherfke/aiomas/
 
 import inspect
 import json
+from ctypes import c_int32
+from hashlib import sha1
 
 from mango.messages.message import (
     ACLMessage,
@@ -115,7 +117,32 @@ class Codec:
         """Decode *data* from :class:`bytes` to the original data structure."""
         raise NotImplementedError
 
-    def add_serializer(self, otype, serialize, deserialize):
+    def make_type_id(self, otype):
+        """Create a type id for *otype* using:
+        - type name
+        - function names in the class
+        - signature of the class
+        and return a 32 bit integer type id."""
+        class_funcs = sorted(inspect.getmembers(otype, predicate=inspect.isfunction))
+
+        data = otype.__name__
+        for d in class_funcs:
+            data += d[0]
+
+        try:
+            attrs = [a for a in inspect.signature(otype).parameters]
+            for d in attrs:
+                data += d
+        except ValueError:
+            # object type has no inspectable signature
+            pass
+
+        int_hash = int(sha1(data.encode("utf-8")).hexdigest(), 16)
+        # truncate to 32 bit for protobuf wrapper
+        type_id = c_int32(int_hash).value
+        return type_id
+
+    def add_serializer(self, otype, serialize, deserialize, type_id=None):
         """Add methods to *serialize* and *deserialize* objects typed *otype*.
 
         This can be used to de-/encode objects that the codec otherwise
@@ -129,9 +156,16 @@ class Codec:
         """
         if otype in self._serializers:
             raise ValueError(f'There is already a serializer for type "{otype}"')
-        typeid = len(self._serializers)
-        self._serializers[otype] = (typeid, serialize)
-        self._deserializers[typeid] = deserialize
+
+        if type_id is None:
+            type_id = self.make_type_id(otype)
+
+        if type_id in self._deserializers.keys():
+            raise ValueError(f'There is already a serializer with type id "{type_id}"')
+
+        # type_id = len(self._serializers)
+        self._serializers[otype] = (type_id, serialize)
+        self._deserializers[type_id] = deserialize
 
     def serialize_obj(self, obj):
         """Serialize *obj* to something that the codec can encode."""
@@ -141,14 +175,14 @@ class Codec:
             otype = object
 
         try:
-            typeid, serialize = self._serializers[otype]
+            type_id, serialize = self._serializers[otype]
         except KeyError:
             raise SerializationError(
                 f'No serializer found for type "{orig_type}"'
             ) from None
 
         try:
-            return {"__type__": (typeid, serialize(obj))}
+            return {"__type__": (type_id, serialize(obj))}
         except Exception as e:
             raise SerializationError(
                 f'Could not serialize object "{obj!r}": {e}'
@@ -159,8 +193,8 @@ class Codec:
         # This method is called for *all* dicts so we have to check if it
         # contains a desrializable type.
         if "__type__" in obj_repr:
-            typeid, data = obj_repr["__type__"]
-            obj_repr = self._deserializers[typeid](data)
+            type_id, data = obj_repr["__type__"]
+            obj_repr = self._deserializers[type_id](data)
         return obj_repr
 
 
@@ -197,8 +231,8 @@ class PROTOBUF(Codec):
         # This is to have the type_id available to decoding later.
         # Otherwise, we can not infer the original proto type from the serialized message.
         proto_msg = GenericProtoMsg()
-        typeid, content = self.serialize_obj(data)
-        proto_msg.type_id = typeid
+        type_id, content = self.serialize_obj(data)
+        proto_msg.type_id = type_id
         proto_msg.content = content.SerializeToString()
         return proto_msg.SerializeToString()
 
@@ -262,9 +296,9 @@ class PROTOBUF(Codec):
 
         # content is only allowed to be a proto message known to the codec here
         if acl_message.content is not None:
-            typeid, content = self.serialize_obj(acl_message.content)
+            type_id, content = self.serialize_obj(acl_message.content)
             msg.content = content.SerializeToString()
-            msg.content_type = typeid
+            msg.content_type = type_id
 
         return msg
 
