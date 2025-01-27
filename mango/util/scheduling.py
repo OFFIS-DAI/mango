@@ -894,13 +894,21 @@ class Scheduler:
                 del target_list[i]
                 break
 
+    async def stop_tasks(self, task_list):
+        for i in range(len(task_list) - 1, -1, -1):
+            _, task, _, _ = task_list[i]
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
     async def stop(self):
         """
         Cancel all not finished scheduled tasks
         """
-        for _, task, _, _ in self._scheduled_tasks + self._scheduled_process_tasks:
-            task.cancel()
-            await task
+        await self.stop_tasks(self._scheduled_tasks)
+        await self.stop_tasks(self._scheduled_process_tasks)
 
     async def tasks_complete(self, timeout=1, recursive=False):
         """Finish all pending tasks using a timeout.
@@ -945,8 +953,13 @@ class Scheduler:
         # resume all process so they can get shutdown
         for _, _, scheduled_process_control, _ in self._scheduled_process_tasks:
             scheduled_process_control.kill_process()
+        if len(self._scheduled_tasks) > 0:
+            logger.debug(
+                "There are still scheduled tasks running on shutdown %s",
+                self._scheduled_tasks,
+            )
+        await self.stop()
         for task, _, _, _ in self._scheduled_tasks:
             task.close()
-        await self.stop()
         if self._process_pool_exec is not None:
             self._process_pool_exec.shutdown()

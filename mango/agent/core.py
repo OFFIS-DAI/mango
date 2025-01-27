@@ -488,10 +488,6 @@ class Agent(ABC, AgentDelegates):
         except asyncio.CancelledError:
             pass
         try:
-            await self.scheduler.stop()
-        except asyncio.CancelledError:
-            pass
-        try:
             await self.scheduler.shutdown()
         except asyncio.CancelledError:
             pass
