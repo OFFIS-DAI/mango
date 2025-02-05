@@ -4,11 +4,11 @@ Module for commonly used time based scheduled task executed inside one agent.
 
 import asyncio
 import concurrent.futures
-import datetime
 import logging
 from abc import abstractmethod
 from asyncio import Future
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from multiprocessing import Manager
 from multiprocessing.synchronize import Event as MultiprocessingEvent
 from typing import Any
@@ -299,7 +299,9 @@ class RecurrentScheduledTask(ScheduledTask):
 
     async def run(self):
         while not self._stopped:
-            current_time = datetime.datetime.fromtimestamp(self.clock.time)
+            current_time = datetime.fromtimestamp(
+                self.clock.time, tz=timezone.utc
+            ).replace(tzinfo=None)
             after = self._recurrency_rule.after(current_time)
             # after can be None, if until or count was set on the rrule
             if after is None:
