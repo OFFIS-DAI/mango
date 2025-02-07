@@ -85,9 +85,9 @@ async def test_schedule_timestamp_task():
     await increase_time_task
 
     for task_no in test_tasks:
-        assert task_no / 10 in results_dict_asyncio.keys(), (
-            f"results_dict_asyncio {results_dict_asyncio}"
-        )
+        assert (
+            task_no / 10 in results_dict_asyncio.keys()
+        ), f"results_dict_asyncio {results_dict_asyncio}"
         assert task_no in results_dict_external.keys()
 
     for simulation_time, real_time in results_dict_external.items():

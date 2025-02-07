@@ -48,9 +48,9 @@ class PingPongAgent(Agent):
                 except asyncio.TimeoutError:
                     assert False, "Timeout occurred while waiting for sending a message"
 
-            assert t.exception() is None and t.result(), (
-                "Sending of at least one message failed"
-            )
+            assert (
+                t.exception() is None and t.result()
+            ), "Sending of at least one message failed"
 
     async def wait_for_pong_replies(self, timeout=1):
         for addr_tuple, fut in self.open_ping_requests.items():
