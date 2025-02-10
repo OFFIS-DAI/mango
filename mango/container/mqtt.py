@@ -88,7 +88,7 @@ class MQTTContainer(Container):
         # dict mapping additionally subscribed topics to a set of aids
         self.additional_subscriptions: dict[str, set[str]] = {}
         # Future for pending sub requests
-        self.pending_sub_request: None | asyncio.Future = None
+        self.pending_sub_request: dict[int, asyncio.Future] = {}
 
     async def start(self):
         self._loop = asyncio.get_event_loop()
@@ -264,8 +264,11 @@ class MQTTContainer(Container):
 
         self.mqtt_client.on_disconnect = on_discon
 
+        def process_sub_request(mid):
+            self.pending_sub_request[mid].set_result(0)
+
         def on_sub(client, userdata, mid, reason_code_list, properties):
-            self._loop.call_soon_threadsafe(self.pending_sub_request.set_result, 0)
+            self._loop.call_soon_threadsafe(process_sub_request, mid)
 
         self.mqtt_client.on_subscribe = on_sub
 
@@ -433,14 +436,17 @@ class MQTTContainer(Container):
             return True
 
         self.additional_subscriptions[topic] = {aid}
-        self.pending_sub_request = asyncio.Future()
-        result, _ = self.mqtt_client.subscribe(topic, qos=qos)
+        future = asyncio.Future()
+        result, mid = self.mqtt_client.subscribe(topic, qos=qos)
 
         if result != paho.MQTT_ERR_SUCCESS:
-            self.pending_sub_request.set_result(False)
+            future.set_result(False)
             return False
 
-        await self.pending_sub_request
+        self.pending_sub_request[mid] = future
+
+        await self.pending_sub_request[mid]
+        del self.pending_sub_request[mid]
         return True
 
     def deregister(self, aid):
