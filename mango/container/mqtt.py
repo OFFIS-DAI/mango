@@ -263,7 +263,7 @@ class MQTTContainer(Container):
                 logger.debug("Successfully disconnected from broker.")
 
         self.mqtt_client.on_disconnect = on_discon
-        
+
         def process_sub_request(mid):
             self.pending_sub_request[mid].set_result(0)
 
@@ -440,9 +440,9 @@ class MQTTContainer(Container):
         result, mid = self.mqtt_client.subscribe(topic, qos=qos)
 
         if result != paho.MQTT_ERR_SUCCESS:
-            future.set_result(False)            
+            future.set_result(False)
             return False
-        
+
         self.pending_sub_request[mid] = future
 
         await self.pending_sub_request[mid]
