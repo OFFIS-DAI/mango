@@ -308,6 +308,16 @@ class RoleContext(AgentDelegates):
         # Setup role
         role.setup()
 
+    def get_role(self, cls: type) -> Role | None:
+        """
+        returns the first role of a given class
+        returns None if no role of this type exists in the current context
+        """
+        for role in self._role_handler.roles:
+            if isinstance(role, cls):
+                return role
+        return None
+
     def remove_role(self, role: Role):
         """Remove a role and call on_stop for clean up
 
