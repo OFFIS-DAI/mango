@@ -480,5 +480,6 @@ class MQTTContainer(Container):
         """
         await super().shutdown()
         # disconnect to broker
-        self.mqtt_client.disconnect()
-        self.mqtt_client.loop_stop()
+        if self.mqtt_client is not None:
+            self.mqtt_client.disconnect()
+            self.mqtt_client.loop_stop()
