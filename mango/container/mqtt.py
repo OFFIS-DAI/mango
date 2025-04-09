@@ -322,15 +322,7 @@ class MQTTContainer(Container):
         topic = meta["topic"]
         logger.debug("Received message with content and meta;%s;%s", content, meta)
         if topic == self.inbox_topic:
-            # General inbox topic, so no receiver is specified by the topic
-            # try to find the receiver from meta
-            receiver_id = meta.get("receiver_id", None)
-            if receiver_id and receiver_id in self._agents.keys():
-                receiver = self._agents[receiver_id]
-                await receiver.inbox.put((priority, content, meta))
-            else:
-                # receiver might exist in mirrored container
-                logger.debug("Receiver ID is unknown;%s", receiver_id)
+            await super()._handle_message(priority=priority, content=content, meta=meta)
         else:
             # no inbox topic. Check who has subscribed the topic.
             receivers = set()
