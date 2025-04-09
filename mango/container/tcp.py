@@ -86,18 +86,22 @@ class TCPConnectionPool:
             self._available_connections[addr_key].empty()
             and self._connection_counts[addr_key] < self._max_connections_per_target
         ):
+            # increase counter only if create_connection did not throw
             self._connection_counts[addr_key] += 1
+            try:
+                _, asyncio_proto = await asyncio.get_running_loop().create_connection(
+                    lambda: protocol,
+                    host,
+                    port,
+                )
+            except Exception:
+                # increase counter only if create_connection did not throw
+                self._connection_counts[addr_key] -= 1
+                raise
+
             await self._put_in_available_connections(
                 addr_key,
-                (
-                    (
-                        await asyncio.get_running_loop().create_connection(
-                            lambda: protocol,
-                            host,
-                            port,
-                        )
-                    )[1]
-                ),
+                asyncio_proto,
             )
 
         # if the queue is empty this will wait until a connection is available again
@@ -290,16 +294,6 @@ class TCPContainer(Container):
 
     def _create_mirror_container(self):
         return tcp_mirror_container_creator
-
-    def as_agent_process(
-        self,
-        agent_creator,
-        mirror_container_creator=tcp_mirror_container_creator,
-    ):
-        return super().as_agent_process(
-            agent_creator=agent_creator,
-            mirror_container_creator=mirror_container_creator,
-        )
 
     async def shutdown(self):
         """

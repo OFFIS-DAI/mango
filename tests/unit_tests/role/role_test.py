@@ -157,3 +157,28 @@ def test_data_container_get():
     assert data_container.cba == 123
     assert data_container.get("abc") == "123"
     assert data_container.get("bca") is None
+
+
+def test_get_role():
+    role_handler = RoleHandler(None)
+    context = RoleContext(role_handler, None, None)
+    # returns None as no role was added yet
+    assert context.get_role(SubRole) is None
+    ex_role = SubRole()
+    ex_role2 = RoleHandlingEvents()
+    ex_role3 = SubRole()
+    context.add_role(ex_role)
+
+    res_role = context.get_role(SubRole)
+    assert res_role == ex_role
+
+    context.add_role(ex_role2)
+    res_role = context.get_role(RoleHandlingEvents)
+    # res_role is the role object of the RoleHandlingEvents
+    assert res_role == ex_role2
+
+    ex_role3 = SubRole()
+    context.add_role(ex_role3)
+    res_role = context.get_role(SubRole)
+    # res_role is the role added first
+    assert res_role == ex_role

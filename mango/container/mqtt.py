@@ -88,7 +88,7 @@ class MQTTContainer(Container):
         # dict mapping additionally subscribed topics to a set of aids
         self.additional_subscriptions: dict[str, set[str]] = {}
         # Future for pending sub requests
-        self.pending_sub_request: None | asyncio.Future = None
+        self.pending_sub_request: dict[int, asyncio.Future] = {}
 
     async def start(self):
         self._loop = asyncio.get_event_loop()
@@ -264,8 +264,11 @@ class MQTTContainer(Container):
 
         self.mqtt_client.on_disconnect = on_discon
 
+        def process_sub_request(mid):
+            self.pending_sub_request[mid].set_result(0)
+
         def on_sub(client, userdata, mid, reason_code_list, properties):
-            self._loop.call_soon_threadsafe(self.pending_sub_request.set_result, 0)
+            self._loop.call_soon_threadsafe(process_sub_request, mid)
 
         self.mqtt_client.on_subscribe = on_sub
 
@@ -319,15 +322,7 @@ class MQTTContainer(Container):
         topic = meta["topic"]
         logger.debug("Received message with content and meta;%s;%s", content, meta)
         if topic == self.inbox_topic:
-            # General inbox topic, so no receiver is specified by the topic
-            # try to find the receiver from meta
-            receiver_id = meta.get("receiver_id", None)
-            if receiver_id and receiver_id in self._agents.keys():
-                receiver = self._agents[receiver_id]
-                await receiver.inbox.put((priority, content, meta))
-            else:
-                # receiver might exist in mirrored container
-                logger.debug("Receiver ID is unknown;%s", receiver_id)
+            await super()._handle_message(priority=priority, content=content, meta=meta)
         else:
             # no inbox topic. Check who has subscribed the topic.
             receivers = set()
@@ -433,14 +428,17 @@ class MQTTContainer(Container):
             return True
 
         self.additional_subscriptions[topic] = {aid}
-        self.pending_sub_request = asyncio.Future()
-        result, _ = self.mqtt_client.subscribe(topic, qos=qos)
+        future = asyncio.Future()
+        result, mid = self.mqtt_client.subscribe(topic, qos=qos)
 
         if result != paho.MQTT_ERR_SUCCESS:
-            self.pending_sub_request.set_result(False)
+            future.set_result(False)
             return False
 
-        await self.pending_sub_request
+        self.pending_sub_request[mid] = future
+
+        await self.pending_sub_request[mid]
+        del self.pending_sub_request[mid]
         return True
 
     def deregister(self, aid):
@@ -474,5 +472,6 @@ class MQTTContainer(Container):
         """
         await super().shutdown()
         # disconnect to broker
-        self.mqtt_client.disconnect()
-        self.mqtt_client.loop_stop()
+        if self.mqtt_client is not None:
+            self.mqtt_client.disconnect()
+            self.mqtt_client.loop_stop()
