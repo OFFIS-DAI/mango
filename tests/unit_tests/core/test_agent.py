@@ -3,7 +3,7 @@ from typing import Any
 
 import pytest
 
-from mango import activate, create_acl, create_tcp_container
+from mango import activate, create_acl, create_acl_with_sender, create_tcp_container
 from mango.agent.core import Agent
 
 
@@ -63,6 +63,27 @@ async def test_send_acl_message():
         await agent.send_message(
             create_acl("", receiver_addr=agent2.addr, sender_addr=agent.addr),
             receiver_addr=agent2.addr,
+        )
+        msg = await agent2.inbox.get()
+        _, content, meta = msg
+        agent2.handle_message(content=content, meta=meta)
+
+    # THEN
+    assert agent2.test_counter == 1
+
+
+@pytest.mark.asyncio
+async def test_send_acl_message_wrapper():
+    # GIVEN
+    c = create_tcp_container(addr=("127.0.0.1", 5555))
+    agent = c.register(MyAgent())
+    agent2 = c.register(MyAgent())
+
+    async with activate(c) as c:
+        await agent.send_message(
+            **create_acl_with_sender(
+                "", receiver_addr=agent2.addr, sender_addr=agent.addr
+            )
         )
         msg = await agent2.inbox.get()
         _, content, meta = msg
