@@ -110,7 +110,7 @@ class AgentDelegates:
         Returns:
             _type_: AgentAddress
         """
-        if self.context is None:
+        if self.context._container is None:
             return None
         return AgentAddress(self.context.addr, self.aid)
 
