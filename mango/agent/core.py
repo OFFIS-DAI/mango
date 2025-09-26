@@ -36,6 +36,7 @@ class TopologyService:
 class AgentContext:
     def __init__(self, container) -> None:
         self._container = container
+        self._services = {}
 
     @property
     def current_timestamp(self) -> float:
@@ -59,6 +60,11 @@ class AgentContext:
         if self._container.running:
             self._container.deregister(aid)
 
+    def service_of_type(self, type: type, default: Any = None) -> Any:
+        if type not in self._services:
+            self._services[type] = default
+        return self._services[type]
+
     async def send_message(
         self,
         content,
@@ -79,7 +85,6 @@ class AgentDelegates:
         self.context: AgentContext = None
         self.scheduler: Scheduler = None
         self._aid = None
-        self._services = {}
 
     def on_start(self):
         """Called when container started in which the agent is contained"""
@@ -365,9 +370,7 @@ class AgentDelegates:
         :return: the service
         :rtype: Any
         """
-        if type not in self._services:
-            self._services[type] = default
-        return self._services[type]
+        return self.context.service_of_type(type, default=default)
 
     def neighbors(self, state: State = State.NORMAL) -> list[AgentAddress]:
         """Return the neighbors of the agent (controlled by the topology api).
@@ -391,6 +394,7 @@ class Agent(ABC, AgentDelegates):
         super().__init__()
 
         self.inbox = asyncio.Queue()
+        self.context = AgentContext(None)
 
     @property
     def observable_tasks(self):
@@ -415,7 +419,7 @@ class Agent(ABC, AgentDelegates):
 
     def _do_register(self, container, aid):
         self._aid = aid
-        self.context = AgentContext(container)
+        self.context._container = container
         self.scheduler = Scheduler(
             suspendable=True, observable=True, clock=container.clock
         )

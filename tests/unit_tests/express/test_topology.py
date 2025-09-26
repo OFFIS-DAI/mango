@@ -3,13 +3,20 @@ from typing import Any
 
 import pytest
 
-from mango import Agent, complete_topology, create_topology, per_node, run_with_tcp
+from mango import Agent, Role, complete_topology, create_topology, per_node, run_with_tcp, agent_composed_of
 
 
 class TopAgent(Agent):
     counter: int = 0
 
     def handle_message(self, content, meta: dict[str, Any]):
+        self.counter += 1
+
+class TopRole(Role):
+    counter: int = 0
+
+    def handle_message(self, content, meta: dict[str, Any]):
+        self.context.neighbors()
         self.counter += 1
 
 
@@ -30,6 +37,25 @@ async def test_run_api_style_agent():
     # THEN
     assert topology.agents[1].counter == 1
     assert topology.agents[2].counter == 1
+
+@pytest.mark.asyncio
+async def test_role_agent_top():
+    # GIVEN
+    topology = complete_topology(3)
+
+    for node in per_node(topology):
+        top_agent_composed = agent_composed_of(TopRole())
+        node.add(top_agent_composed)
+
+    # WHEN
+    async with run_with_tcp(1, *topology.agents):
+        for neighbor in topology.agents[0].neighbors():
+            await topology.agents[0].send_message("hello neighbors", neighbor)
+        await asyncio.sleep(0.1)
+
+    # THEN
+    assert topology.agents[1].roles[0].counter == 1
+    assert topology.agents[2].roles[0].counter == 1
 
 
 @pytest.mark.asyncio
