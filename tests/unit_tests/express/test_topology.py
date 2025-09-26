@@ -3,7 +3,15 @@ from typing import Any
 
 import pytest
 
-from mango import Agent, Role, complete_topology, create_topology, per_node, run_with_tcp, agent_composed_of
+from mango import (
+    Agent,
+    Role,
+    agent_composed_of,
+    complete_topology,
+    create_topology,
+    per_node,
+    run_with_tcp,
+)
 
 
 class TopAgent(Agent):
@@ -11,6 +19,7 @@ class TopAgent(Agent):
 
     def handle_message(self, content, meta: dict[str, Any]):
         self.counter += 1
+
 
 class TopRole(Role):
     counter: int = 0
@@ -37,6 +46,7 @@ async def test_run_api_style_agent():
     # THEN
     assert topology.agents[1].counter == 1
     assert topology.agents[2].counter == 1
+
 
 @pytest.mark.asyncio
 async def test_role_agent_top():
