@@ -3,11 +3,11 @@ from dataclasses import dataclass
 import pytest
 
 from mango import activate, create_acl, create_tcp_container
-from mango.agent.core import Agent, AgentAddress
+from mango.agent.core import Agent, AgentAddress, AgentContext
 
 
 class LooksLikeAgent:
-    context = None
+    context = AgentContext(None)
 
     async def shutdown(self):
         pass

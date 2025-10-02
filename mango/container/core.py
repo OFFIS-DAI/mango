@@ -123,7 +123,7 @@ class Container(ABC):
         :return The agent ID
         """
         aid = self._reserve_aid(suggested_aid)
-        if agent.context:
+        if agent.context._container:
             raise ValueError("Agent is already registered to a container")
         self._agents[aid] = agent
         agent._do_register(self, aid)
