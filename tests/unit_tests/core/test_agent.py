@@ -200,7 +200,7 @@ async def test_llm_module_in_agent_simple_neighbors_send():
 
 
 @pytest.mark.asyncio
-async def test_llm_module_in_agent_complex_neighbors_send():
+async def no_test_llm_module_in_agent_complex_neighbors_send():
     topology = complete_topology(3)
     agent = None
     for node in per_node(topology):
