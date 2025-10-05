@@ -3,7 +3,15 @@ from typing import Any
 
 import pytest
 
-from mango import activate, create_acl, create_tcp_container
+from mango import (
+    activate,
+    complete_topology,
+    create_acl,
+    create_tcp_container,
+    per_node,
+    run_with_tcp,
+)
+from mango.agent import LLMModule
 from mango.agent.core import Agent
 
 
@@ -157,3 +165,56 @@ async def test_agent_with_deadlock_task():
 
     # THEN
     assert len(agent.scheduler._scheduled_tasks) == 0
+
+
+class LLMAgent(Agent):
+    def __init__(self):
+        super().__init__()
+
+        self.llm = LLMModule(self)
+        self.test_counter = 0
+
+    def handle_message(self, content, meta: dict[str, Any]):
+        self.test_counter += 1
+
+
+@pytest.mark.asyncio
+async def test_llm_module_in_agent_simple_neighbors_send():
+    topology = complete_topology(3)
+    agent = None
+    for node in per_node(topology):
+        agent = LLMAgent()
+        node.add(agent)
+
+    async with run_with_tcp(1, *topology.agents, auto_port=True):
+        agent.test_counter = 1
+        print(
+            await agent.llm.invoke(
+                "Retrieve your neighbors. Then send each a message. Use for each a separate tool."
+            )
+        )
+        await asyncio.sleep(1)
+
+    for a in topology.agents:
+        assert a.test_counter == 1
+
+
+@pytest.mark.asyncio
+async def test_llm_module_in_agent_complex_neighbors_send():
+    topology = complete_topology(3)
+    agent = None
+    for node in per_node(topology):
+        agent = LLMAgent()
+        node.add(agent)
+
+    async with run_with_tcp(1, *topology.agents, auto_port=True):
+        agent.test_counter = 1
+        print(
+            await agent.llm.invoke(
+                "Retrieve your neighbors. Send the first agent a message, This message"
+            )
+        )
+        await asyncio.sleep(1)
+
+    for a in topology.agents:
+        assert a.test_counter == 1
