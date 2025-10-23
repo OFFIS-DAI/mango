@@ -72,9 +72,6 @@ class AgentContext:
         sender_id: None | str = None,
         **kwargs,
     ) -> bool:
-        print("Called")
-        print(content)
-        print(receiver_addr)
         """
         See container.send_message(...)
         """
