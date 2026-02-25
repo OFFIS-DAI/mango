@@ -508,3 +508,23 @@ class Role(ABC):
 
     def handle_message(self, content: Any, meta: dict):
         pass
+
+    def on_step(self, env, clock, step_size_s: float) -> None:
+        """Called on every simulation step (only in SimulationWorld).
+
+        :param env: the simulation environment
+        :param clock: the current simulation clock
+        :param step_size_s: seconds advanced in this step
+        """
+
+    def on_global_event(self, event: Any) -> None:
+        """Called when a global event is emitted from the environment.
+
+        :param event: the event object
+        """
+
+    def on_agent_event(self, event: Any) -> None:
+        """Called when a targeted agent event is emitted.
+
+        :param event: the event object
+        """

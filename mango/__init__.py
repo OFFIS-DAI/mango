@@ -1,5 +1,5 @@
 from .messages.message import create_acl, Performatives
-from .agent.core import Agent, AgentAddress
+from .agent.core import Agent, AgentAddress, AgentDescription, ForwardingRule
 from .agent.role import Role, RoleAgent, RoleContext
 from .container.factory import (
     create_tcp as create_tcp_container,
@@ -10,6 +10,7 @@ from .express.api import (
     activate,
     run_with_mqtt,
     run_with_tcp,
+    run_with_simulation,
     agent_composed_of,
     PrintingAgent,
     sender_addr,
@@ -29,4 +30,35 @@ from .express.topology import (
     complete_topology,
     per_node,
     custom_topology,
+)
+from .simulation import (
+    CommunicationSimulation,
+    DelayProviderCommunicationSimulation,
+    MessagePackage,
+    PackageResult,
+    CommunicationSimulationResult,
+    SimpleCommunicationSimulation,
+    Area2D,
+    Behavior,
+    DefaultEnvironment,
+    Environment,
+    Position,
+    Position2D,
+    Space,
+    AgentsRecording,
+    DISCRETE_EVENT,
+    MessageTransaction,
+    SimulationResult,
+    SimulationWorld,
+    WorldRecording,
+    collect_agent_data,
+    collect_data,
+    create_world,
+    discrete_step_until,
+    position_history,
+    record_agent,
+    record_agent_having,
+    record_position,
+    record_world,
+    step_simulation,
 )

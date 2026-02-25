@@ -1,24 +1,44 @@
 ========
-Role-API
+Role API
 ========
-Besides inheriting from the :class:`Agent`-class there is another option to integrate features into an agent: the role API.
-The idea of using roles is to divide the functionality of an agent by responsibility in a structured way. The objective of this API is to increase the reusability and the maintainability of the agents components. To achieve this the role API works with orchestration rather than inheriting to extend the agents features.
+
+Besides subclassing :class:`~mango.Agent` directly, mango provides the *role
+system* as a higher-level way to structure agent behaviour.  A *role*
+encapsulates one responsibility of an agent — for example coalition membership,
+resource monitoring, or a messaging protocol.
+
+Roles promote **reusability**: the same role class can be added to different
+agents in different deployments.  They also promote **loose coupling**: roles
+interact through a shared context and model API rather than direct references.
+
+.. seealso::
+
+    :doc:`agents-container` — agent basics and lifecycle
 
 
-***************
 The RoleContext
-***************
-The role context is the API to the environment of the role.
-It provides functionality to interact with other roles, to send messages to other
-agents or simply to fetch some meta data.
+===============
+
+Every role has access to a :class:`~mango.RoleContext` via ``self.context``.
+The context is the role's window into the agent and its environment:
+
+* Send messages: ``self.context.send_message(...)``
+* Schedule tasks: ``self.context.schedule_periodic_task(...)``
+* Share data with other roles: ``self.context.data`` or
+  ``self.context.get_or_create_model(...)``
+* Subscribe to messages: ``self.context.subscribe_message(...)``
+* Read the current timestamp: ``self.context.current_timestamp``
+
+The context is available from :meth:`~mango.Role.setup` onward (not in
+``__init__``).
 
 
-********
-The Role
-********
-To implement a role you have to extend the abstract class :meth:`mango.Role`. Concrete instances of implementations
-can be assigned to the general :class:`mango.RoleAgent` with :meth:`mango.RoleAgent.add_role`. However, the
-faster way to create an Agent with a set of roles is to use the API :meth:`mango.agent_composed_of`.
+The Role class
+==============
+
+Subclass :class:`~mango.Role` and add instances to a :class:`~mango.RoleAgent`
+with :meth:`~mango.RoleAgent.add_role`, or use
+:func:`~mango.agent_composed_of` as a shortcut:
 
 .. testcode::
 
@@ -27,11 +47,11 @@ faster way to create an Agent with a set of roles is to use the API :meth:`mango
     class MyRole(Role):
         pass
 
-    # first way
+    # long form
     my_role_agent = RoleAgent()
     my_role_agent.add_role(MyRole())
 
-    # second way
+    # short form
     my_composed_agent = agent_composed_of(MyRole())
 
     print(type(my_role_agent.roles[0]))
@@ -42,20 +62,30 @@ faster way to create an Agent with a set of roles is to use the API :meth:`mango
     <class 'MyRole'>
     <class 'MyRole'>
 
+
 Lifecycle
-*********
-The first step in the roles life is the instantiation via ``__init__``.
-This is done by the user itself and can be used to configure the roles behavior.
+---------
 
-The next step is adding the role to a RoleAgent using ``add_role`` or ``agent_composed_of``.
-The role will get notified by this through the method ``setup``. After adding the role the ``RoleContext``
-is available, which represents the environment (container, agent, other roles).
+The role lifecycle mirrors the agent lifecycle, with one extra step:
 
-The next lifecycle hook-in is :meth:`mango.Role.on_start`, which is called when the container in which
-the agent of the role lives is started. After, :meth:`mango.Role.on_ready` is called, when all
-containers of the ``activate`` statement have been started.
+.. list-table::
+   :widths: 20 80
+   :header-rows: 1
 
-When the role or agent got removed, or the container shut down, the hook-method ``on_stop`` will be called, so you can do some cleanup or send last messages before the life ends.
+   * - Hook
+     - When it is called
+   * - ``__init__``
+     - At object creation (before registration).  Configure role parameters
+       here; the context is **not** available yet.
+   * - :meth:`~mango.Role.setup`
+     - When the role is added to an agent.  The context is available from
+       this point on.  Schedule tasks and subscribe to messages here.
+   * - :meth:`~mango.Role.on_start`
+     - When the container starts.
+   * - :meth:`~mango.Role.on_ready`
+     - When all containers have started.  Safe to send messages.
+   * - :meth:`~mango.Role.on_stop`
+     - When the container shuts down or the role is removed.
 
 .. testcode::
 
@@ -89,94 +119,99 @@ When the role or agent got removed, or the container shut down, the hook-method 
     Stop
 
 .. note::
-    After a shutdown or removal a role is **not** supposed to be reused! If you want to deactivate a role temporarily use the methods ``activate`` and ``deactivate`` of the RoleContext.
+    Once a role has been stopped it **must not** be reused.  To temporarily
+    suspend a role use :meth:`~mango.RoleContext.deactivate` /
+    :meth:`~mango.RoleContext.activate` instead.
 
-Sharing Data
-************
-There are two possible ways to share data between the roles.
 
-1. Using the data container in the RoleContext :meth:`mango.RoleContext.data`
-2. Creating explicit models using the model API of the RoleContext :meth:`mango.RoleContext.get_or_create_model`
+Sharing data between roles
+==========================
 
-The first way is pretty straightforward. For example:
+Two patterns are available for roles to share state within the same agent.
+
+**Simple shared container** — attach arbitrary attributes to
+:attr:`~mango.RoleContext.data`:
 
 .. testcode::
 
     from mango import Role, agent_composed_of
 
-    class MyRole(Role):
+    class WriterRole(Role):
         def setup(self):
-            self.context.data.my_item = "hello"
+            self.context.data.shared_value = "hello"
 
-    agent = agent_composed_of(MyRole())
-    print(agent.roles[0].context.data.my_item)
+    class ReaderRole(Role):
+        def setup(self):
+            # readable by any other role in the same agent
+            print(self.context.data.get("shared_value", "not set yet"))
+
+    agent = agent_composed_of(WriterRole(), ReaderRole())
 
 .. testoutput::
 
     hello
 
-The stored entry ``my_item`` can be used in every other role of the same agent now.
-
-The second way needs a bit more preparations. First we need to define a model as python class.
-The class object will be used as key, so every model-type can be stored exactly once.
-
+**Observable model** — create a typed model and subscribe to its changes:
 
 .. testcode::
 
-    class MyModel:
+    from mango import Role, agent_composed_of
+
+    class CounterModel:
         def __init__(self):
-            self.my_item = ""
+            self.count = 0
 
-    class MyRole(Role):
+    class IncrementRole(Role):
         def setup(self):
-            mymodel = self.context.get_or_create_model(MyModel)
-            mymodel.my_item = 'hello'
+            model = self.context.get_or_create_model(CounterModel)
+            model.count += 1
+            self.context.update(model)  # notify subscribers
 
-    agent = agent_composed_of(MyRole())
-    print(agent.roles[0].context.get_or_create_model(MyModel).my_item)
+    class DisplayRole(Role):
+        def setup(self):
+            self.context.subscribe_model(self, CounterModel)
+
+        def on_change_model(self, model):
+            print(f"Count is now {model.count}")
+
+    agent = agent_composed_of(DisplayRole(), IncrementRole())
 
 .. testoutput::
 
-    hello
+    Count is now 1
 
 
-One advantage of this approach is that a model is subscribable using the method :meth:`mango.RoleContext.subscribe_model`.
-To make use of this every time the models changed :meth:`mango.RoleContext.update` has to be called.
+Handling messages
+=================
 
-
-Handle Messages
-***************
-As in a normal agent implementation, roles can handle incoming messages.
-To add a message handler you can use :meth:`mango.RoleContext.subscribe_message`.
-This method expects, besides the role and a handle method, a message condition function.
-The handle method must have exactly two arguments (excl. ``self``) ``content`` and ``meta``.
-The condition function must have exactly one argument ``content``.
-The idea of the condition function is to allow to define a condition filtering incoming messages,
-so you only handle one type of message per handler.
-Furthermore you can define a ``priority`` of the message subscription, this will be used to
-determine the message dispatch order (lower number = earlier execution, default=0).
+Use :meth:`~mango.RoleContext.subscribe_message` to register a handler for a
+specific message type.  The *condition* function filters incoming messages —
+only messages for which it returns ``True`` are forwarded to the handler:
 
 .. testcode::
 
-    from mango import Role
+    import asyncio
+    from mango import Role, agent_composed_of, run_with_tcp
 
     class Ping:
         pass
 
-    class MyRole(Role):
+    class PingRole(Role):
         def setup(self):
-            self.context.subscribe_message(self,
+            self.context.subscribe_message(
+                self,
                 self.handle_ping,
-                lambda content, meta: isinstance(content, Ping)
+                lambda content, meta: isinstance(content, Ping),
             )
 
         def handle_ping(self, content, meta):
-            print('Ping received!')
+            print("Ping received!")
 
     async def show_handle_sub():
-        my_composed_agent = agent_composed_of(MyRole())
-        async with run_with_tcp(1, my_composed_agent) as container:
-            await container.send_message(Ping(), my_composed_agent.addr)
+        my_agent = agent_composed_of(PingRole())
+        async with run_with_tcp(1, my_agent) as container:
+            await container.send_message(Ping(), my_agent.addr)
+            await asyncio.sleep(0.05)
 
     asyncio.run(show_handle_sub())
 
@@ -184,22 +219,44 @@ determine the message dispatch order (lower number = earlier execution, default=
 
     Ping received!
 
-Deactivate/Activate other Roles
-*******************************
+The optional ``priority`` parameter controls dispatch order when multiple
+subscriptions match (lower number = called earlier, default = ``0``).
 
-Sometimes you might want to deactivate the functionality of a whole role, for example when
-you entered a new coalition you don't want to accept new coalition invites. It would of course
-be possible to manage this case with shared data and controlling flags, but this requires a lot
-of additional code and might lead to errors when implementing it. Furthermore, it increases the
-complexity of the implemented roles. To tackle this scenario a native deactivation/activation of
-roles is possible in mango. To deactivate a role the method :meth:`mango.RoleContext.deactivate`
-can be used. To activate it again, use :meth:`RoleContext.activate`. When a role is deactivated
 
-1. it is not possible to handle messages anymore
-2. the role will not get updates on shared models anymore
-3. all scheduled tasks get suspended.
+Deactivating and activating roles
+==================================
 
-When a role activated again all three point are completely reverted.
+Sometimes you want to suspend an entire role temporarily — for example, stop
+accepting coalition invitations while already in one.  Use
+:meth:`~mango.RoleContext.deactivate` / :meth:`~mango.RoleContext.activate`:
+
+When a role is **deactivated**:
+
+1. Incoming messages no longer reach its handlers.
+2. Model change notifications are suppressed.
+3. All scheduled tasks are suspended.
+
+Everything is fully reversed when the role is **activated** again.
+
+.. code-block:: python
+
+    class CoalitionRole(Role):
+        def setup(self):
+            self.context.subscribe_message(self, self.on_invite, ...)
+
+        def on_invite(self, content, meta):
+            # join the coalition and stop accepting new invites
+            self.context.deactivate(self)
+
+        def leave_coalition(self):
+            self.context.activate(self)
 
 .. note::
-    Suspending of tasks might not work immediately, as it intercepts ``__await__``.
+    Task suspension intercepts ``__await__`` and may not take effect
+    immediately if a task is currently executing.
+
+.. seealso::
+
+    :doc:`simulation` — roles also support ``on_step``, ``on_global_event``,
+    and ``on_agent_event`` hooks when running inside a
+    :class:`~mango.SimulationWorld`.

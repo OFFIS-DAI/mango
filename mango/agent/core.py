@@ -7,7 +7,9 @@ Every agent must live in a container. Containers are responsible for making
 
 import asyncio
 import logging
+import uuid
 from abc import ABC
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
@@ -16,6 +18,33 @@ from ..util.clock import Clock
 from ..util.scheduling import ScheduledProcessTask, ScheduledTask, Scheduler
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class AgentDescription:
+    """Metadata describing an agent (name, category, color, unique ID).
+
+    Mirrors the ``AgentDescription`` type in Mango.jl.
+    """
+
+    name: str = ""
+    category: str = "agent"
+    color: str = "gray"
+    uid: str = field(default_factory=lambda: str(uuid.uuid4()))
+
+
+@dataclass
+class ForwardingRule:
+    """Rule for automatic message forwarding.
+
+    When the agent receives a message from *from_addr* it is automatically
+    forwarded to *to_addr*.  If *forward_replies* is ``True``, replies from
+    *to_addr* are forwarded back to *from_addr*.
+    """
+
+    from_addr: AgentAddress
+    to_addr: AgentAddress
+    forward_replies: bool = False
 
 
 class State(Enum):
@@ -85,12 +114,202 @@ class AgentDelegates:
         self.context: AgentContext = None
         self.scheduler: Scheduler = None
         self._aid = None
+        self._description: AgentDescription = AgentDescription()
+        self._forwarding_rules: list[ForwardingRule] = []
+        self._transaction_handlers: dict[str, tuple] = {}
 
     def on_start(self):
         """Called when container started in which the agent is contained"""
 
     def on_ready(self):
         """Called when all container has been started using activate(...)."""
+
+    def on_step(self, env, clock, step_size_s: float) -> None:
+        """Called on every simulation step (only in SimulationWorld).
+
+        :param env: the simulation environment
+        :param clock: the current simulation clock
+        :param step_size_s: seconds advanced in this step
+        """
+
+    def on_global_event(self, event: Any) -> None:
+        """Called when a global event is emitted from the environment.
+
+        Override to react to environment-wide broadcasts.
+
+        :param event: the event object
+        """
+
+    def on_agent_event(self, event: Any) -> None:
+        """Called when a targeted agent event is emitted.
+
+        Override to react to events directed at this specific agent.
+
+        :param event: the event object
+        """
+
+    # ------------------------------------------------------------------
+    # Agent description helpers
+    # ------------------------------------------------------------------
+
+    @property
+    def description(self) -> AgentDescription:
+        """Return the agent's :class:`AgentDescription`."""
+        return self._description
+
+    @property
+    def name(self) -> str:
+        """Human-readable name of this agent."""
+        return self._description.name
+
+    @property
+    def color(self) -> str:
+        """Visual color tag for this agent."""
+        return self._description.color
+
+    @property
+    def category(self) -> str:
+        """Category tag for this agent."""
+        return self._description.category
+
+    @property
+    def uid(self) -> str:
+        """Unique identifier (UUID string) of this agent."""
+        return self._description.uid
+
+    def update_description(
+        self,
+        name: str | None = None,
+        color: str | None = None,
+        category: str | None = None,
+    ) -> None:
+        """Update one or more description fields.
+
+        :param name: new human-readable name
+        :param color: new color tag
+        :param category: new category tag
+        """
+        if name is not None:
+            self._description.name = name
+        if color is not None:
+            self._description.color = color
+        if category is not None:
+            self._description.category = category
+
+    # ------------------------------------------------------------------
+    # Forwarding rules
+    # ------------------------------------------------------------------
+
+    def add_forwarding_rule(
+        self,
+        from_addr: AgentAddress,
+        to_addr: AgentAddress,
+        forward_replies: bool = False,
+    ) -> None:
+        """Add an automatic message-forwarding rule.
+
+        After calling this, every message received from *from_addr* is
+        automatically forwarded to *to_addr*.  When *forward_replies* is
+        ``True``, replies originating from *to_addr* are forwarded back to
+        *from_addr*.
+
+        :param from_addr: source address to match
+        :param to_addr: destination to forward to
+        :param forward_replies: whether replies should be forwarded back
+        """
+        self._forwarding_rules.append(
+            ForwardingRule(from_addr=from_addr, to_addr=to_addr, forward_replies=forward_replies)
+        )
+
+    def delete_forwarding_rule(
+        self,
+        from_addr: AgentAddress,
+        to_addr: AgentAddress | None = None,
+    ) -> None:
+        """Remove previously added forwarding rule(s).
+
+        :param from_addr: source address of the rule to remove
+        :param to_addr: if given, only remove rules that also match this
+            destination; otherwise remove all rules matching *from_addr*
+        """
+        self._forwarding_rules = [
+            r
+            for r in self._forwarding_rules
+            if not (
+                r.from_addr == from_addr
+                and (to_addr is None or r.to_addr == to_addr)
+            )
+        ]
+
+    # ------------------------------------------------------------------
+    # Tracked / reply-to messaging
+    # ------------------------------------------------------------------
+
+    async def send_tracked_message(
+        self,
+        content: Any,
+        receiver_addr: AgentAddress,
+        response_handler=None,
+        **kwargs,
+    ):
+        """Send a message and optionally register a response handler.
+
+        A ``tracking_id`` is attached to the message so that the reply can
+        be matched.  When *response_handler* is provided it will be called as
+        ``response_handler(reply_content, reply_meta)`` when the matching
+        reply arrives.
+
+        :param content: message content
+        :param receiver_addr: target agent address
+        :param response_handler: optional ``(content, meta) -> None`` callback
+        :return: the asyncio.Task for the sent message
+        """
+        tracking_id = str(__import__("uuid").uuid4())
+        if response_handler is not None:
+            self._transaction_handlers[tracking_id] = (response_handler,)
+        return await self.send_message(
+            content,
+            receiver_addr=receiver_addr,
+            tracking_id=tracking_id,
+            **kwargs,
+        )
+
+    async def reply_to(
+        self,
+        content: Any,
+        received_meta: dict,
+        **kwargs,
+    ) -> bool:
+        """Convenience helper to reply to a received message.
+
+        Extracts the sender address from *received_meta* and sends *content*
+        back, preserving any ``tracking_id`` for transaction matching.
+
+        :param content: reply content
+        :param received_meta: the ``meta`` dict from the received message
+        :return: result of :meth:`send_message`
+        """
+        sender_id = received_meta.get("sender_id")
+        sender_addr = received_meta.get("sender_addr")
+        tracking_id = received_meta.get("tracking_id")
+        reply_addr = AgentAddress(protocol_addr=sender_addr, aid=sender_id)
+        extra: dict = {"reply": True}
+        if tracking_id:
+            extra["tracking_id"] = tracking_id
+        extra.update(kwargs)
+        return await self.send_message(content, receiver_addr=reply_addr, **extra)
+
+    def _handle_tracked_reply(self, content: Any, meta: dict) -> bool:
+        """Internal: check if *meta* contains a tracked reply; call handler.
+
+        Returns ``True`` if the message was handled as a tracked reply.
+        """
+        tracking_id = meta.get("tracking_id")
+        if tracking_id and meta.get("reply") and tracking_id in self._transaction_handlers:
+            (handler,) = self._transaction_handlers.pop(tracking_id)
+            handler(content, meta)
+            return True
+        return False
 
     @property
     def current_timestamp(self) -> float:
@@ -126,6 +345,25 @@ class AgentDelegates:
         return await self.context.send_message(
             content, receiver_addr=receiver_addr, sender_id=self.aid, **kwargs
         )
+
+    async def send_messages(
+        self,
+        content,
+        receiver_addrs: list[AgentAddress],
+        **kwargs,
+    ) -> list[bool]:
+        """Send the same content to multiple recipients.
+
+        :param content: message content (sent to every recipient)
+        :param receiver_addrs: list of target :class:`AgentAddress` instances
+        :return: list of send results (one per recipient, in order)
+        """
+        results = []
+        for addr in receiver_addrs:
+            results.append(
+                await self.send_message(content, receiver_addr=addr, **kwargs)
+            )
+        return results
 
     def schedule_instant_message(
         self,
@@ -423,6 +661,9 @@ class Agent(ABC, AgentDelegates):
         self.scheduler = Scheduler(
             suspendable=True, observable=True, clock=container.clock
         )
+        # Populate description aid if not yet set
+        if not self._description.name:
+            self._description.name = aid
         self.on_register()
 
     def _do_start(self):
@@ -462,16 +703,55 @@ class Agent(ABC, AgentDelegates):
                 priority, content, meta = message
                 meta["priority"] = priority
 
-                self.handle_message(content=content, meta=meta)
+                # Check forwarding rules
+                forwarded = self._check_forwarding_rules(content, meta)
+
+                if not forwarded:
+                    # Check tracked reply handlers
+                    if not self._handle_tracked_reply(content, meta):
+                        self.handle_message(content=content, meta=meta)
 
                 # signal to the Queue that the message is handled
                 self.inbox.task_done()
         except Exception:
             logger.exception("The check inbox task of %s failed!", self.aid)
 
+    def _check_forwarding_rules(self, content: Any, meta: dict) -> bool:
+        """Apply forwarding rules; returns True if a rule matched."""
+        sender_id = meta.get("sender_id")
+        sender_addr = meta.get("sender_addr")
+
+        for rule in self._forwarding_rules:
+            # Forward if message comes from the rule's from_addr
+            if rule.from_addr.aid == sender_id and rule.from_addr.protocol_addr == sender_addr:
+                self.schedule_instant_task(
+                    self.send_message(content, receiver_addr=rule.to_addr,
+                                      forwarded=True,
+                                      forwarded_from_id=sender_id,
+                                      forwarded_from_addr=sender_addr)
+                )
+                return True
+            # Forward replies back if forward_replies is enabled
+            if (
+                rule.forward_replies
+                and rule.to_addr.aid == sender_id
+                and rule.to_addr.protocol_addr == sender_addr
+                and meta.get("reply")
+                and meta.get("forwarded_from_id")
+            ):
+                from_id = meta.get("forwarded_from_id")
+                from_addr_str = meta.get("forwarded_from_addr")
+                orig_addr = AgentAddress(protocol_addr=from_addr_str, aid=from_id)
+                self.schedule_instant_task(
+                    self.send_message(content, receiver_addr=orig_addr,
+                                      reply=True,
+                                      tracking_id=meta.get("tracking_id"))
+                )
+                return True
+        return False
+
     def handle_message(self, content, meta: dict[str, Any]):
         """
-
         Has to be implemented by the user.
         This method is called when a message is received at the agents inbox.
         :param content: The deserialized message object
@@ -480,9 +760,14 @@ class Agent(ABC, AgentDelegates):
         """
         raise NotImplementedError
 
+    def on_stop(self):
+        """Can be used as lifecycle callback when the agent is stopped"""
+        pass
+
     async def shutdown(self):
         """Shutdown all tasks that are running
         and deregister from the container"""
+        await self.on_stop()
 
         if not self._stopped.done():
             self._stopped.set_result(True)

@@ -27,6 +27,7 @@ extensions = [
     "sphinx.ext.imgmath",
     "sphinx.ext.viewcode",
     "sphinx_copybutton",
+    "sphinx_design",
 ]
 
 

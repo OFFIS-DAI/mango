@@ -216,6 +216,78 @@ def run_with_mqtt(
     return RunWithMQTTManager(num, agents, broker_addr=broker_addr, codec=codec)
 
 
+class RunWithSimulationManager:
+    """Async context manager that sets up and tears down a :class:`~mango.simulation.world.SimulationWorld`."""
+
+    def __init__(
+        self,
+        *agents: Agent | tuple[Agent, dict],
+        start_time: float = 0.0,
+        communication_sim=None,
+        environment=None,
+    ) -> None:
+        self._agent_tuples = [
+            agent if isinstance(agent, tuple) else (agent, {}) for agent in agents
+        ]
+        self._start_time = start_time
+        self._communication_sim = communication_sim
+        self._environment = environment
+        self._world = None
+
+    async def __aenter__(self):
+        from ..simulation.world import create_world
+
+        self._world = create_world(
+            start_time=self._start_time,
+            communication_sim=self._communication_sim,
+            environment=self._environment,
+        )
+        for agent, params in self._agent_tuples:
+            self._world.register(agent, suggested_aid=params.get("aid"))
+        await self._world.__aenter__()
+        return self._world
+
+    async def __aexit__(self, exc_type, exc, tb):
+        if self._world is not None:
+            await self._world.__aexit__(exc_type, exc, tb)
+
+
+def run_with_simulation(
+    *agents: Agent | tuple[Agent, dict],
+    start_time: float = 0.0,
+    communication_sim=None,
+    environment=None,
+) -> RunWithSimulationManager:
+    """Create and return an async context manager backed by a :class:`~mango.simulation.world.SimulationWorld`.
+
+    Agents are registered in a single simulation world.  Pass a custom
+    *communication_sim* or *environment* to override the defaults.
+
+    .. code-block:: python
+
+        from mango import run_with_simulation, step_simulation
+
+        async with run_with_simulation(MyAgent(), MyAgent()) as world:
+            await step_simulation(world, step_size_s=1.0)
+
+    :param agents: agent instances or ``(agent, {"aid": "preferred_id"})`` tuples
+    :param start_time: initial simulation clock time in seconds (default ``0.0``)
+    :param communication_sim: custom communication simulation; defaults to
+        :class:`~mango.simulation.communication.SimpleCommunicationSimulation`
+        with zero delay and no loss
+    :param environment: custom environment; defaults to
+        :class:`~mango.simulation.environment.DefaultEnvironment`
+    :return: async context manager that yields the :class:`~mango.simulation.world.SimulationWorld`
+    :rtype: RunWithSimulationManager
+    """
+    return RunWithSimulationManager(
+        *agents,
+        start_time=start_time,
+        communication_sim=communication_sim,
+        environment=environment,
+    )
+
+
 class ComposedAgent(RoleAgent):
     pass
 
