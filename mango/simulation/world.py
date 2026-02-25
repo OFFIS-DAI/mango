@@ -28,8 +28,6 @@ Or for a fully automated discrete-event run::
     asyncio.run(run())
 """
 
-from __future__ import annotations
-
 import asyncio
 import bisect
 import logging
@@ -49,15 +47,8 @@ from .environment import DefaultEnvironment, Environment, WorldObserver
 
 logger = logging.getLogger(__name__)
 
-# Sentinel: use discrete-event stepping (step to next scheduled event).
 DISCRETE_EVENT: float = -1.0
-
 AGENT_PREFIX: str = "agent"
-
-
-# ---------------------------------------------------------------------------
-# Recording data structures
-# ---------------------------------------------------------------------------
 
 
 @dataclass
@@ -92,11 +83,6 @@ class MessageTransaction:
     content: Any
 
 
-# ---------------------------------------------------------------------------
-# Simulation result types
-# ---------------------------------------------------------------------------
-
-
 @dataclass
 class SimulationResult:
     """Return value of :func:`step_simulation`."""
@@ -104,11 +90,6 @@ class SimulationResult:
     time_elapsed_s: float
     step_size_s: float
     messages_delivered: int
-
-
-# ---------------------------------------------------------------------------
-# Internal helper: agent-level world observer
-# ---------------------------------------------------------------------------
 
 
 class _AgentDispatchObserver(WorldObserver):
@@ -123,11 +104,6 @@ class _AgentDispatchObserver(WorldObserver):
             if hasattr(agent, "roles"):
                 for role in agent.roles:
                     role.on_global_event(event)
-
-
-# ---------------------------------------------------------------------------
-# SimulationWorld
-# ---------------------------------------------------------------------------
 
 
 class SimulationWorld:
@@ -183,9 +159,6 @@ class SimulationWorld:
         observer = _AgentDispatchObserver(self)
         self.environment.add_observer(observer)
 
-    # ------------------------------------------------------------------
-    # Container interface (used by agents)
-    # ------------------------------------------------------------------
 
     @property
     def name(self) -> str:
@@ -279,10 +252,6 @@ class SimulationWorld:
         )
         return True
 
-    # ------------------------------------------------------------------
-    # Simulation stepping helpers (used by step_simulation)
-    # ------------------------------------------------------------------
-
     def _start_agents(self) -> None:
         """Ensure all agents have been started (internal use)."""
         # Agents are started when registered, but we call on_ready here
@@ -349,10 +318,6 @@ class SimulationWorld:
             return None
         return min(candidates)
 
-    # ------------------------------------------------------------------
-    # Data recording
-    # ------------------------------------------------------------------
-
     def _do_recordings(self) -> None:
         for collector in self._data_collectors:
             collector(self)
@@ -367,9 +332,6 @@ class SimulationWorld:
             self.data_agent_collections[key] = AgentsRecording()
         return self.data_agent_collections[key]
 
-    # ------------------------------------------------------------------
-    # Context-manager support
-    # ------------------------------------------------------------------
 
     async def __aenter__(self) -> "SimulationWorld":
         self._initialize_if_needed()
@@ -390,19 +352,11 @@ class SimulationWorld:
             except Exception:
                 logger.exception("Error shutting down agent '%s'", agent.aid)
 
-    # ------------------------------------------------------------------
-    # __getitem__ for convenient agent access
-    # ------------------------------------------------------------------
 
     def __getitem__(self, key: str | int) -> Agent:
         if isinstance(key, int):
             return list(self._agents.values())[key]
         return self._agents[key]
-
-
-# ---------------------------------------------------------------------------
-# Public factory
-# ---------------------------------------------------------------------------
 
 
 def create_world(
@@ -430,11 +384,6 @@ def create_world(
     clock = ExternalClock(start_time=start_time)
     sim = communication_sim or SimpleCommunicationSimulation()
     return SimulationWorld(clock=clock, communication_sim=sim, environment=environment)
-
-
-# ---------------------------------------------------------------------------
-# Simulation stepping
-# ---------------------------------------------------------------------------
 
 
 async def _wait_for_agents(world: SimulationWorld) -> None:
@@ -558,11 +507,6 @@ async def discrete_step_until(
         results.append(result)
 
     return results
-
-
-# ---------------------------------------------------------------------------
-# Data collection helpers
-# ---------------------------------------------------------------------------
 
 
 def collect_data(
