@@ -28,8 +28,6 @@
 
 **mango** (**m**odul**a**r pytho**n** a**g**ent framew**o**rk) is a Python library for building and simulating multi-agent systems (MAS) on top of `asyncio`. It targets researchers and engineers who need reproducible agent behaviour, structured agent architectures, and controlled experimental conditions — without sacrificing usability for prototyping.
 
----
-
 ## Features
 
 | Feature | Description |
@@ -40,8 +38,6 @@
 | **TCP and MQTT transport** | Agents communicate across process and machine boundaries via TCP sockets or an external MQTT broker |
 | **Discrete-event simulation** | A clock-driven `SimulationWorld` provides deterministic, reproducible runs with configurable communication delay and loss, spatial environments, and structured data recording |
 
----
-
 ## Installation
 
 ```bash
@@ -49,8 +45,6 @@ pip install mango-agents
 ```
 
 Requires Python 3.10 or later.
-
----
 
 ## Quick Start
 
@@ -108,8 +102,6 @@ class PingAgent(Agent):
 ```
 
 `schedule_instant_message` can be used instead of `send_message` to hand off dispatch to the asyncio event loop without an explicit `await`.
-
----
 
 ## Simulation
 
@@ -298,7 +290,6 @@ class MyAgent(Agent):
 | Issue tracker | [github.com/OFFIS-DAI/mango/issues](https://github.com/OFFIS-DAI/mango/issues) |
 | Contact | [mango@offis.de](mailto:mango@offis.de) |
 
----
 
 ## License
 
