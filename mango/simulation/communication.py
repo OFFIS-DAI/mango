@@ -7,8 +7,9 @@ deterministic simulation of message delays and packet loss between agents.
 
 import random
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from typing import Any, Callable
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass

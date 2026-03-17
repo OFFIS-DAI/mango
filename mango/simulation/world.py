@@ -31,8 +31,9 @@ Or for a fully automated discrete-event run::
 import asyncio
 import bisect
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 from mango.agent.core import Agent, AgentAddress
 from mango.messages.codecs import JSON
@@ -133,7 +134,9 @@ class SimulationWorld:
         self.addr: str = "simulation"
         self.running: bool = True
         self.ready: bool = False
-        self.inbox: asyncio.Queue | None = None  # not used but expected by termination util
+        self.inbox: asyncio.Queue | None = (
+            None  # not used but expected by termination util
+        )
 
         # codec is needed by agents that call container.codec; provide a default
         self.codec = JSON()
@@ -158,7 +161,6 @@ class SimulationWorld:
         # Wire environment to agent dispatcher
         observer = _AgentDispatchObserver(self)
         self.environment.add_observer(observer)
-
 
     @property
     def name(self) -> str:
@@ -187,7 +189,9 @@ class SimulationWorld:
         self._agents.pop(aid, None)
 
     def is_aid_available(self, aid: str) -> bool:
-        pattern_clash = aid.startswith(AGENT_PREFIX) and aid[len(AGENT_PREFIX) :].isnumeric()
+        pattern_clash = (
+            aid.startswith(AGENT_PREFIX) and aid[len(AGENT_PREFIX) :].isnumeric()
+        )
         return aid not in self._agents and not pattern_clash
 
     def _reserve_aid(self, suggested_aid: str | None = None) -> str:
@@ -332,7 +336,6 @@ class SimulationWorld:
             self.data_agent_collections[key] = AgentsRecording()
         return self.data_agent_collections[key]
 
-
     async def __aenter__(self) -> "SimulationWorld":
         self._initialize_if_needed()
         # Allow all freshly scheduled tasks (e.g. from on_ready) to start and
@@ -351,7 +354,6 @@ class SimulationWorld:
                 await agent.shutdown()
             except Exception:
                 logger.exception("Error shutting down agent '%s'", agent.aid)
-
 
     def __getitem__(self, key: str | int) -> Agent:
         if isinstance(key, int):

@@ -218,7 +218,9 @@ class AgentDelegates:
         :param forward_replies: whether replies should be forwarded back
         """
         self._forwarding_rules.append(
-            ForwardingRule(from_addr=from_addr, to_addr=to_addr, forward_replies=forward_replies)
+            ForwardingRule(
+                from_addr=from_addr, to_addr=to_addr, forward_replies=forward_replies
+            )
         )
 
     def delete_forwarding_rule(
@@ -236,8 +238,7 @@ class AgentDelegates:
             r
             for r in self._forwarding_rules
             if not (
-                r.from_addr == from_addr
-                and (to_addr is None or r.to_addr == to_addr)
+                r.from_addr == from_addr and (to_addr is None or r.to_addr == to_addr)
             )
         ]
 
@@ -305,7 +306,11 @@ class AgentDelegates:
         Returns ``True`` if the message was handled as a tracked reply.
         """
         tracking_id = meta.get("tracking_id")
-        if tracking_id and meta.get("reply") and tracking_id in self._transaction_handlers:
+        if (
+            tracking_id
+            and meta.get("reply")
+            and tracking_id in self._transaction_handlers
+        ):
             (handler,) = self._transaction_handlers.pop(tracking_id)
             handler(content, meta)
             return True
@@ -723,12 +728,18 @@ class Agent(ABC, AgentDelegates):
 
         for rule in self._forwarding_rules:
             # Forward if message comes from the rule's from_addr
-            if rule.from_addr.aid == sender_id and rule.from_addr.protocol_addr == sender_addr:
+            if (
+                rule.from_addr.aid == sender_id
+                and rule.from_addr.protocol_addr == sender_addr
+            ):
                 self.schedule_instant_task(
-                    self.send_message(content, receiver_addr=rule.to_addr,
-                                      forwarded=True,
-                                      forwarded_from_id=sender_id,
-                                      forwarded_from_addr=sender_addr)
+                    self.send_message(
+                        content,
+                        receiver_addr=rule.to_addr,
+                        forwarded=True,
+                        forwarded_from_id=sender_id,
+                        forwarded_from_addr=sender_addr,
+                    )
                 )
                 return True
             # Forward replies back if forward_replies is enabled
@@ -743,9 +754,12 @@ class Agent(ABC, AgentDelegates):
                 from_addr_str = meta.get("forwarded_from_addr")
                 orig_addr = AgentAddress(protocol_addr=from_addr_str, aid=from_id)
                 self.schedule_instant_task(
-                    self.send_message(content, receiver_addr=orig_addr,
-                                      reply=True,
-                                      tracking_id=meta.get("tracking_id"))
+                    self.send_message(
+                        content,
+                        receiver_addr=orig_addr,
+                        reply=True,
+                        tracking_id=meta.get("tracking_id"),
+                    )
                 )
                 return True
         return False
@@ -762,7 +776,6 @@ class Agent(ABC, AgentDelegates):
 
     def on_stop(self):
         """Can be used as lifecycle callback when the agent is stopped"""
-        pass
 
     async def shutdown(self):
         """Shutdown all tasks that are running

@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import random
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from typing import Any, TYPE_CHECKING
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from mango.util.clock import Clock
@@ -56,7 +56,7 @@ class Space(ABC):
     def has_position(self, agent) -> bool:
         """Return ``True`` if *agent* has a registered position."""
 
-    def initialize(self, agents: list, clock: "Clock") -> None:
+    def initialize(self, agents: list, clock: Clock) -> None:
         """Called once before the first simulation step."""
 
     def install(self, agent, **kwargs) -> None:
@@ -88,7 +88,7 @@ class Area2D(Space):
     def has_position(self, agent) -> bool:
         return agent.aid in self._positions
 
-    def initialize(self, agents: list, clock: "Clock") -> None:
+    def initialize(self, agents: list, clock: Clock) -> None:
         for agent in agents:
             if agent.aid not in self._positions:
                 self._positions[agent.aid] = Position2D(
@@ -114,16 +114,16 @@ class Behavior(ABC):
 
     def on_step(
         self,
-        environment: "Environment",
-        clock: "Clock",
+        environment: Environment,
+        clock: Clock,
         step_size_s: float,
     ) -> None:
         """Called on every simulation step."""
 
     def initialize(
         self,
-        environment: "Environment",
-        clock: "Clock",
+        environment: Environment,
+        clock: Clock,
     ) -> None:
         """Called once before the first simulation step."""
 
@@ -140,7 +140,7 @@ class WorldObserver(ABC):
     """Observer that can receive global events from the environment."""
 
     @abstractmethod
-    def dispatch_global_event(self, clock: "Clock", event: Any) -> None:
+    def dispatch_global_event(self, clock: Clock, event: Any) -> None:
         """Dispatch a global event to observers."""
 
 
@@ -148,7 +148,7 @@ class Environment(ABC):
     """Abstract environment interface."""
 
     @abstractmethod
-    def initialize(self, agents: list, clock: "Clock") -> None:
+    def initialize(self, agents: list, clock: Clock) -> None:
         """Initialize the environment with the given agents."""
 
     @abstractmethod
@@ -156,7 +156,7 @@ class Environment(ABC):
         """Return whether the environment has been initialized."""
 
     @abstractmethod
-    def step(self, clock: "Clock", step_size_s: float) -> None:
+    def step(self, clock: Clock, step_size_s: float) -> None:
         """Step the environment forward by *step_size_s* seconds."""
 
     @abstractmethod
@@ -207,12 +207,12 @@ class DefaultEnvironment(Environment):
     def initialized(self) -> bool:
         return self._initialized
 
-    def initialize(self, agents: list, clock: "Clock") -> None:
+    def initialize(self, agents: list, clock: Clock) -> None:
         self._space.initialize(agents, clock)
         self._behavior.initialize(self, clock)
         self._initialized = True
 
-    def step(self, clock: "Clock", step_size_s: float) -> None:
+    def step(self, clock: Clock, step_size_s: float) -> None:
         self._behavior.on_step(self, clock, step_size_s)
 
     def install(self, agent, agent_id: Any = None, **kwargs) -> None:
