@@ -9,6 +9,13 @@
 </p>
 
 <p align="center">
+  <a href="https://pypi.org/project/mango-agents/">PyPI</a> |
+  <a href="https://mango-agents.readthedocs.io">Read the Docs</a> |
+  <a href="https://github.com/OFFIS-DAI/mango">GitHub</a> |
+  <a href="mailto:mango@offis.de">mango@offis.de</a>
+</p>
+
+<p align="center">
   <a href="https://pypi.org/project/mango-agents/"><img src="https://img.shields.io/pypi/v/mango-agents?color=blue&label=PyPI" alt="PyPI"></a>
   <a href="https://mango-agents.readthedocs.io"><img src="https://img.shields.io/badge/docs-readthedocs-informational" alt="Docs"></a>
   <a href="https://github.com/OFFIS-DAI/mango/actions/workflows/test-mango.yml"><img src="https://github.com/OFFIS-DAI/mango/actions/workflows/test-mango.yml/badge.svg" alt="Tests"></a>
