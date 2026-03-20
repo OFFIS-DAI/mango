@@ -19,20 +19,21 @@ from plotly.subplots import make_subplots
 
 from mango import (
     Agent,
-    Position2D,
-    create_world,
-    step_simulation,
-    SimpleCommunicationSimulation,
-    DefaultEnvironment,
     Area2D,
+    DefaultEnvironment,
+    Position2D,
+    SimpleCommunicationSimulation,
+    create_world,
+    position_history,
     record_agent,
     record_position,
-    position_history,
+    step_simulation,
 )
 
 OUT_DIR = Path(__file__).parent
 
 # ── Message types ─────────────────────────────────────────────────────────────
+
 
 @dataclass
 class NetPowerReport:
@@ -44,11 +45,12 @@ class NetPowerReport:
 @dataclass
 class EVAssignment:
     target: Position2D
-    action: str   # "charge" or "discharge"
+    action: str  # "charge" or "discharge"
     power_kw: float
 
 
 # ── Household ─────────────────────────────────────────────────────────────────
+
 
 class HouseholdAgent(Agent):
     def __init__(self, pv_peak_kw, load_kw, coordinator_addr):
@@ -84,6 +86,7 @@ class HouseholdAgent(Agent):
 
 
 # ── EV ────────────────────────────────────────────────────────────────────────
+
 
 class EVAgent(Agent):
     def __init__(self, capacity_kwh, soc_kwh, max_power_kw, speed):
@@ -125,6 +128,7 @@ class EVAgent(Agent):
 
 
 # ── Coordinator ───────────────────────────────────────────────────────────────
+
 
 class CoordinatorAgent(Agent):
     def __init__(self, ev_addresses):
@@ -198,8 +202,11 @@ async def run_simulation():
         (h5, Position2D(9.0, 5.0)),
     ]
 
-    is_ev = lambda a: isinstance(a, EVAgent)
-    is_hh = lambda a: isinstance(a, HouseholdAgent)
+    def is_ev(a):
+        return isinstance(a, EVAgent)
+
+    def is_hh(a):
+        return isinstance(a, HouseholdAgent)
 
     async with world:
         space = world.environment.space
@@ -209,7 +216,9 @@ async def run_simulation():
         record_agent(world, "soc", lambda a: a.soc_kwh, filter_fn=is_ev)
         record_agent(world, "import", lambda a: a.grid_import_kwh, filter_fn=is_hh)
         record_agent(world, "export", lambda a: a.grid_export_kwh, filter_fn=is_hh)
-        record_agent(world, "self_consumed", lambda a: a.self_consumed_kwh, filter_fn=is_hh)
+        record_agent(
+            world, "self_consumed", lambda a: a.self_consumed_kwh, filter_fn=is_hh
+        )
         record_position(world, filter_fn=is_ev)
 
         for _ in range(24):
@@ -223,8 +232,13 @@ async def run_simulation():
 EV_COLORS = ["royalblue", "crimson", "darkorange"]
 EV_LABELS = ["EV 1", "EV 2", "EV 3"]
 H_COLORS = ["teal", "purple", "sienna", "olivedrab", "steelblue"]
-H_LABELS = ["H1 (6 kW PV)", "H2 (4 kW PV)", "H3 (7 kW PV)",
-             "H4 (5 kW PV)", "H5 (3 kW PV)"]
+H_LABELS = [
+    "H1 (6 kW PV)",
+    "H2 (4 kW PV)",
+    "H3 (7 kW PV)",
+    "H4 (5 kW PV)",
+    "H5 (3 kW PV)",
+]
 H_LABELS_SHORT = ["H1", "H2", "H3", "H4", "H5"]
 
 # Shared layout settings
@@ -241,7 +255,8 @@ def plot_overview(world, household_agents, ev_agents, out_path, *, include_plotl
     hours = list(range(25))
 
     fig = make_subplots(
-        rows=1, cols=2,
+        rows=1,
+        cols=2,
         subplot_titles=[
             "EV Battery State of Charge",
             "Household Net Power (PV − Load)",
@@ -252,15 +267,25 @@ def plot_overview(world, household_agents, ev_agents, out_path, *, include_plotl
     # ── Daylight shading ──────────────────────────────────────────────────────
     for col in (1, 2):
         fig.add_vrect(
-            x0=6, x1=18, fillcolor="gold", opacity=0.12,
-            layer="below", line_width=0, row=1, col=col,
+            x0=6,
+            x1=18,
+            fillcolor="gold",
+            opacity=0.12,
+            layer="below",
+            line_width=0,
+            row=1,
+            col=col,
         )
 
     # ── Battery full reference line ───────────────────────────────────────────
     fig.add_hline(
-        y=40, line_dash="dash", line_color="lightgray",
-        annotation_text="Full (40 kWh)", annotation_position="top right",
-        row=1, col=1,
+        y=40,
+        line_dash="dash",
+        line_color="lightgray",
+        annotation_text="Full (40 kWh)",
+        annotation_position="top right",
+        row=1,
+        col=1,
     )
 
     # ── EV SoC traces ─────────────────────────────────────────────────────────
@@ -268,12 +293,16 @@ def plot_overview(world, household_agents, ev_agents, out_path, *, include_plotl
         soc = soc_data.timeseries[ev.aid]
         fig.add_trace(
             go.Scatter(
-                x=hours[:len(soc)], y=soc,
-                name=label, legendgroup="EVs", legendgrouptitle_text="EVs",
+                x=hours[: len(soc)],
+                y=soc,
+                name=label,
+                legendgroup="EVs",
+                legendgrouptitle_text="EVs",
                 line=dict(color=color, width=2.2),
                 hovertemplate="%{y:.1f} kWh at hour %{x}<extra>" + label + "</extra>",
             ),
-            row=1, col=1,
+            row=1,
+            col=1,
         )
 
     # ── Household net power traces ────────────────────────────────────────────
@@ -285,13 +314,16 @@ def plot_overview(world, household_agents, ev_agents, out_path, *, include_plotl
         net = [(ex[t] - ex[t - 1]) - (imp[t] - imp[t - 1]) for t in range(1, len(imp))]
         fig.add_trace(
             go.Scatter(
-                x=list(range(1, len(net) + 1)), y=net,
-                name=label, legendgroup="Households",
+                x=list(range(1, len(net) + 1)),
+                y=net,
+                name=label,
+                legendgroup="Households",
                 legendgrouptitle_text="Households",
                 line=dict(color=color, width=1.8),
                 hovertemplate="%{y:.2f} kW at hour %{x}<extra>" + label + "</extra>",
             ),
-            row=1, col=2,
+            row=1,
+            col=2,
         )
 
     # ── Layout ────────────────────────────────────────────────────────────────
@@ -320,8 +352,15 @@ def plot_overview(world, household_agents, ev_agents, out_path, *, include_plotl
     print(f"  saved {out_path}")
 
 
-def plot_trajectories(world, household_agents, ev_agents, household_positions, out_path,
-                      *, include_plotlyjs):
+def plot_trajectories(
+    world,
+    household_agents,
+    ev_agents,
+    household_positions,
+    out_path,
+    *,
+    include_plotlyjs,
+):
     """Interactive EV trajectory chart in the 2D grid."""
     pos_data = position_history(world)
 
@@ -330,16 +369,24 @@ def plot_trajectories(world, household_agents, ev_agents, household_positions, o
     # ── Household markers ─────────────────────────────────────────────────────
     hx = [pos.x for _, pos in household_positions]
     hy = [pos.y for _, pos in household_positions]
-    fig.add_trace(go.Scatter(
-        x=hx, y=hy,
-        mode="markers+text",
-        name="Household",
-        marker=dict(symbol="square", size=18, color="dimgray", line=dict(color="white", width=2)),
-        text=H_LABELS_SHORT,
-        textposition="top center",
-        textfont=dict(size=10, color="black"),
-        hovertemplate="%{text}<extra></extra>",
-    ))
+    fig.add_trace(
+        go.Scatter(
+            x=hx,
+            y=hy,
+            mode="markers+text",
+            name="Household",
+            marker=dict(
+                symbol="square",
+                size=18,
+                color="dimgray",
+                line=dict(color="white", width=2),
+            ),
+            text=H_LABELS_SHORT,
+            textposition="top center",
+            textfont=dict(size=10, color="black"),
+            hovertemplate="%{text}<extra></extra>",
+        )
+    )
 
     # ── EV trajectories ───────────────────────────────────────────────────────
     for ev, color, label in zip(ev_agents, EV_COLORS, EV_LABELS):
@@ -349,49 +396,79 @@ def plot_trajectories(world, household_agents, ev_agents, household_positions, o
         hours = list(range(len(track)))
 
         # Path
-        fig.add_trace(go.Scatter(
-            x=xs, y=ys,
-            mode="lines",
-            name=label, legendgroup=label,
-            line=dict(color=color, width=1.8),
-            opacity=0.6,
-            hovertemplate="Hour %{customdata}: (%{x:.2f}, %{y:.2f})<extra>" + label + "</extra>",
-            customdata=hours,
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=xs,
+                y=ys,
+                mode="lines",
+                name=label,
+                legendgroup=label,
+                line=dict(color=color, width=1.8),
+                opacity=0.6,
+                hovertemplate="Hour %{customdata}: (%{x:.2f}, %{y:.2f})<extra>"
+                + label
+                + "</extra>",
+                customdata=hours,
+            )
+        )
         # Start marker
-        fig.add_trace(go.Scatter(
-            x=[xs[0]], y=[ys[0]],
-            mode="markers",
-            name=label + " start",
-            legendgroup=label, showlegend=False,
-            marker=dict(symbol="circle", size=9, color=color,
-                        line=dict(color="white", width=1.5)),
-            hovertemplate="Start: (%{x:.2f}, %{y:.2f})<extra>" + label + "</extra>",
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=[xs[0]],
+                y=[ys[0]],
+                mode="markers",
+                name=label + " start",
+                legendgroup=label,
+                showlegend=False,
+                marker=dict(
+                    symbol="circle",
+                    size=9,
+                    color=color,
+                    line=dict(color="white", width=1.5),
+                ),
+                hovertemplate="Start: (%{x:.2f}, %{y:.2f})<extra>" + label + "</extra>",
+            )
+        )
         # End marker
-        fig.add_trace(go.Scatter(
-            x=[xs[-1]], y=[ys[-1]],
-            mode="markers",
-            name=label + " end",
-            legendgroup=label, showlegend=False,
-            marker=dict(symbol="star", size=14, color=color),
-            hovertemplate="End: (%{x:.2f}, %{y:.2f})<extra>" + label + "</extra>",
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=[xs[-1]],
+                y=[ys[-1]],
+                mode="markers",
+                name=label + " end",
+                legendgroup=label,
+                showlegend=False,
+                marker=dict(symbol="star", size=14, color=color),
+                hovertemplate="End: (%{x:.2f}, %{y:.2f})<extra>" + label + "</extra>",
+            )
+        )
 
     fig.update_layout(
         title=dict(text="EV Trajectories over 24 Hours", font=dict(size=14), x=0.5),
         height=520,
-        xaxis=dict(title_text="x (grid units)", range=[-0.5, 10.5],
-                   dtick=2, **_AXIS_STYLE),
-        yaxis=dict(title_text="y (grid units)", range=[-0.5, 10.5],
-                   dtick=2, scaleanchor="x", scaleratio=1, **_AXIS_STYLE),
+        xaxis=dict(
+            title_text="x (grid units)", range=[-0.5, 10.5], dtick=2, **_AXIS_STYLE
+        ),
+        yaxis=dict(
+            title_text="y (grid units)",
+            range=[-0.5, 10.5],
+            dtick=2,
+            scaleanchor="x",
+            scaleratio=1,
+            **_AXIS_STYLE,
+        ),
         legend=dict(groupclick="toggleitem"),
-        annotations=[dict(
-            text="● start  ★ end",
-            xref="paper", yref="paper",
-            x=0.99, y=0.01, showarrow=False,
-            font=dict(size=10, color="gray"),
-        )],
+        annotations=[
+            dict(
+                text="● start  ★ end",
+                xref="paper",
+                yref="paper",
+                x=0.99,
+                y=0.01,
+                showarrow=False,
+                font=dict(size=10, color="gray"),
+            )
+        ],
         plot_bgcolor="white",
         paper_bgcolor="white",
     )
@@ -415,12 +492,17 @@ if __name__ == "__main__":
     print("Generating interactive Plotly charts …")
     # First figure loads Plotly.js from CDN; subsequent figures reuse it.
     plot_overview(
-        world, h_agents, ev_agents,
+        world,
+        h_agents,
+        ev_agents,
         OUT_DIR / "ev_soc_netpower.html",
         include_plotlyjs="cdn",
     )
     plot_trajectories(
-        world, h_agents, ev_agents, h_positions,
+        world,
+        h_agents,
+        ev_agents,
+        h_positions,
         OUT_DIR / "ev_trajectories.html",
         include_plotlyjs=False,
     )
