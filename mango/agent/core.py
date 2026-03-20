@@ -774,7 +774,7 @@ class Agent(ABC, AgentDelegates):
         """
         raise NotImplementedError
 
-    def on_stop(self):
+    async def on_stop(self):
         """Can be used as lifecycle callback when the agent is stopped"""
 
     async def shutdown(self):
