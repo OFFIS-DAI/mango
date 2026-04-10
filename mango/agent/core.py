@@ -117,6 +117,9 @@ class AgentDelegates:
         self._description: AgentDescription = AgentDescription()
         self._forwarding_rules: list[ForwardingRule] = []
         self._transaction_handlers: dict[str, tuple] = {}
+        self._behavior_message_subs: list[tuple] = []
+        self._behavior_global_event_handlers: list[tuple] = []
+        self._behavior_agent_event_handlers: list[tuple] = []
 
     def on_start(self):
         """Called when container started in which the agent is contained"""
@@ -714,6 +717,17 @@ class Agent(ABC, AgentDelegates):
                 if not forwarded:
                     # Check tracked reply handlers
                     if not self._handle_tracked_reply(content, meta):
+                        for _cond, _handler, _proc in self._behavior_message_subs:
+                            if _cond(content, meta):
+                                if _proc is not None:
+                                    _proc.handle(
+                                        self,
+                                        lambda c, m, h=_handler: h(self, c, m),
+                                        content,
+                                        meta,
+                                    )
+                                else:
+                                    _handler(self, content, meta)
                         self.handle_message(content=content, meta=meta)
 
                 # signal to the Queue that the message is handled

@@ -17,6 +17,7 @@ from .express.api import (
     run_with_mqtt,
     run_with_tcp,
     run_with_simulation,
+    behavior_in,
     agent_composed_of,
     PrintingAgent,
     sender_addr,

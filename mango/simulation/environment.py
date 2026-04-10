@@ -296,9 +296,15 @@ class DefaultEnvironment(Environment):
         agent = self._id_to_agent.get(agent_id)
         if agent is None:
             return
+        for _cond, _handler in agent._behavior_agent_event_handlers:
+            if _cond(event):
+                _handler(agent, event)
         agent.on_agent_event(event)
         if hasattr(agent, "roles"):
             for role in agent.roles:
+                for _cond, _handler in role._behavior_agent_event_handlers:
+                    if _cond(event):
+                        _handler(role, event)
                 role.on_agent_event(event)
 
 

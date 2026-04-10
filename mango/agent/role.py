@@ -603,6 +603,8 @@ class Role(ABC):
         !!Care!! the role context is unknown at this point!
         """
         self._context = None
+        self._behavior_global_event_handlers: list[tuple] = []
+        self._behavior_agent_event_handlers: list[tuple] = []
 
     def _bind(self, context: RoleContext) -> None:
         """Method used internal to set the context, do not override!

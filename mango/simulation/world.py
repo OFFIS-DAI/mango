@@ -101,9 +101,15 @@ class _AgentDispatchObserver(WorldObserver):
 
     def dispatch_global_event(self, clock, event: Any) -> None:
         for agent in self._world._agents.values():
+            for _cond, _handler in agent._behavior_global_event_handlers:
+                if _cond(event):
+                    _handler(agent, event)
             agent.on_global_event(event)
             if hasattr(agent, "roles"):
                 for role in agent.roles:
+                    for _cond, _handler in role._behavior_global_event_handlers:
+                        if _cond(event):
+                            _handler(role, event)
                     role.on_global_event(event)
 
 

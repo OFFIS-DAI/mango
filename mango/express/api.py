@@ -288,6 +288,151 @@ def run_with_simulation(
     )
 
 
+def behavior_in(
+    world,
+    func,
+    *,
+    on_message=None,
+    on_global_event=None,
+    on_agent_event=None,
+    agent_types=(),
+    role_types=(),
+    has_roles=(),
+    match_names=(),
+    match_colors=(),
+    preprocessor=None,
+):
+    """Attach message handlers and event subscriptions to a matched set of agents.
+
+    This is a simulation-only helper that lets you inject behavior into agents
+    without modifying their class definitions.  All matching criteria are
+    optional; if none are given, every agent in *world* is matched.
+
+    The handler *func* is called with the matched agent (or role, when
+    *role_types* is used) as the first argument:
+
+    - ``on_message``: ``func(agent, content, meta)``
+    - ``on_global_event``: ``func(agent, event)``
+    - ``on_agent_event``: ``func(agent, event)``
+
+    When *role_types* is provided the first argument is the matched role
+    instead of the agent.
+
+    :param world: the :class:`~mango.simulation.world.SimulationWorld`
+    :param func: handler callable
+    :param on_message: message type to match (``isinstance`` check), or
+        ``None`` to skip message subscription
+    :param on_global_event: event type to match for global events
+    :param on_agent_event: event type to match for targeted agent events
+    :param agent_types: restrict to agents that are instances of these types
+    :param role_types: attach handler to matching *roles* (first arg is role)
+    :param has_roles: restrict to agents that have at least one of these roles
+    :param match_names: restrict to agents whose ``name`` is in this collection
+    :param match_colors: restrict to agents whose ``color`` is in this collection
+    :param preprocessor: optional
+        :class:`~mango.agent.role.MessagePreprocessor` for message handling
+
+    Example::
+
+        from mango import behavior_in
+
+        behavior_in(
+            world,
+            lambda agent, content, meta: print(agent.aid, content),
+            on_message=str,
+            agent_types=MyAgent,
+        )
+    """
+    if isinstance(agent_types, type):
+        agent_types = (agent_types,)
+    if isinstance(role_types, type):
+        role_types = (role_types,)
+    if isinstance(has_roles, type):
+        has_roles = (has_roles,)
+    if isinstance(match_names, str):
+        match_names = (match_names,)
+    if isinstance(match_colors, str):
+        match_colors = (match_colors,)
+
+    no_filter = (
+        not agent_types and not has_roles and not match_names and not match_colors
+    )
+
+    def _matches_agent(agent):
+        if no_filter:
+            return True
+        if agent_types and isinstance(agent, tuple(agent_types)):
+            return True
+        if has_roles:
+            agent_roles = getattr(agent, "roles", [])
+            if any(isinstance(r, tuple(has_roles)) for r in agent_roles):
+                return True
+        if match_names and agent.name in match_names:
+            return True
+        if match_colors and agent.color in match_colors:
+            return True
+        return False
+
+    for agent in list(world._agents.values()):
+        if not _matches_agent(agent):
+            continue
+
+        if role_types:
+            agent_roles = getattr(agent, "roles", [])
+            for role in agent_roles:
+                if isinstance(role, tuple(role_types)):
+                    _attach_behavior_to_role(
+                        agent,
+                        role,
+                        func,
+                        on_message,
+                        on_global_event,
+                        on_agent_event,
+                        preprocessor,
+                    )
+        else:
+            _attach_behavior_to_agent(
+                agent, func, on_message, on_global_event, on_agent_event, preprocessor
+            )
+
+
+def _attach_behavior_to_agent(
+    agent, func, on_message, on_global_event, on_agent_event, preprocessor
+):
+    if on_message is not None:
+        cond = (lambda t: lambda c, m: isinstance(c, t))(on_message)
+        agent._behavior_message_subs.append((cond, func, preprocessor))
+    if on_global_event is not None:
+        cond = (lambda t: lambda e: isinstance(e, t))(on_global_event)
+        agent._behavior_global_event_handlers.append((cond, func))
+    if on_agent_event is not None:
+        cond = (lambda t: lambda e: isinstance(e, t))(on_agent_event)
+        agent._behavior_agent_event_handlers.append((cond, func))
+
+
+def _attach_behavior_to_role(
+    agent, role, func, on_message, on_global_event, on_agent_event, preprocessor
+):
+    if on_message is not None:
+        if hasattr(agent, "_role_handler"):
+
+            def _method(content, meta, _role=role):
+                func(_role, content, meta)
+
+            agent._role_handler.subscribe_message(
+                role,
+                _method,
+                (lambda t: lambda c, m: isinstance(c, t))(on_message),
+                preprocessor=preprocessor,
+            )
+    if on_global_event is not None:
+        cond = (lambda t: lambda e: isinstance(e, t))(on_global_event)
+        role._behavior_global_event_handlers.append((cond, func))
+    if on_agent_event is not None:
+        cond = (lambda t: lambda e: isinstance(e, t))(on_agent_event)
+        role._behavior_agent_event_handlers.append((cond, func))
+
+
 class ComposedAgent(RoleAgent):
     pass
 

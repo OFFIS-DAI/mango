@@ -741,6 +741,96 @@ When *aid_to_name* is omitted, agent AIDs are used as labels.  When
 *aid_to_color* is omitted, matplotlib's default colour cycle is applied.
 
 
+Declarative behavior with behavior_in
+======================================
+
+:func:`~mango.behavior_in` lets you attach message handlers and event
+subscriptions to a matched set of agents **without modifying their class
+definitions**.  It is simulation-only — it requires a
+:class:`~mango.simulation.world.SimulationWorld`.
+
+.. code-block:: python
+
+    from mango import behavior_in
+
+    # All agents: handler fires for every TypedMessage received
+    behavior_in(
+        world,
+        lambda agent, content, meta: print(agent.aid, content),
+        on_message=TypedMessage,
+    )
+
+    # Only SensorAgent instances: react to a global AlarmEvent
+    behavior_in(
+        world,
+        lambda agent, event: print(f"{agent.aid} triggered"),
+        on_global_event=AlarmEvent,
+        agent_types=SensorAgent,
+    )
+
+    # Only agents whose CoordRole matched: handle an agent event on the role
+    behavior_in(
+        world,
+        lambda role, event: setattr(role, "count", role.count + 1),
+        on_agent_event=UpdateEvent,
+        role_types=CoordRole,
+    )
+
+Matching criteria (all optional, combined with OR logic for agent-level
+filters):
+
++------------------+-------------------------------------------------------------+
+| Keyword          | Matches agents that …                                       |
++==================+=============================================================+
+| ``agent_types``  | are instances of one of the given types                     |
++------------------+-------------------------------------------------------------+
+| ``has_roles``    | have at least one role of the given type(s)                 |
++------------------+-------------------------------------------------------------+
+| ``role_types``   | have a role of one of these types; handler receives the     |
+|                  | role as its first argument                                  |
++------------------+-------------------------------------------------------------+
+| ``match_names``  | have a matching ``name`` in their                           |
+|                  | :class:`~mango.AgentDescription`                            |
++------------------+-------------------------------------------------------------+
+| ``match_colors`` | have a matching ``color`` in their description              |
++------------------+-------------------------------------------------------------+
+
+If no matching criteria are provided, **all agents** in the world are matched.
+
+Handler signatures
+------------------
+
+.. code-block:: python
+
+    # on_message
+    def handler(agent, content, meta): ...
+
+    # on_global_event / on_agent_event
+    def handler(agent, event): ...
+
+    # When role_types is used the first arg is the matched role
+    def handler(role, content_or_event, ...): ...
+
+behavior_in fires **in addition to** the agent's ``handle_message`` override
+and any existing role subscriptions — it does not replace them.
+
+Optional *preprocessor*
+------------------------
+
+Pass a :class:`~mango.MessagePreprocessor` (or
+:class:`~mango.WaitingMessagePreprocessor`) via the *preprocessor* keyword to
+wrap message delivery for the registered handlers:
+
+.. code-block:: python
+
+    behavior_in(
+        world,
+        my_handler,
+        on_message=MyMsg,
+        preprocessor=WaitingMessagePreprocessor(),
+    )
+
+
 API reference
 =============
 
