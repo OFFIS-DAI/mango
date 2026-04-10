@@ -157,23 +157,12 @@ class TestSimpleCommunicationSimulation:
         result = sim.calculate_communication(0.0, [pkg])
         assert result.package_results[0].reached is False
 
-    def test_cache_returns_same_result(self):
-        """Same MessagePackage object yields identical PackageResult."""
-        sim = SimpleCommunicationSimulation()
-        pkg = MessagePackage("a", "b", 0.0, None)
-        r1 = sim.calculate_communication(0.0, [pkg])
-        r2 = sim.calculate_communication(0.0, [pkg])
-        assert r1.package_results[0] is r2.package_results[0]
-
-    def test_different_objects_computed_independently(self):
+    def test_multiple_packages_in_one_call(self):
         sim = SimpleCommunicationSimulation(loss_percent=0.0)
-        pkg1 = MessagePackage("a", "b", 0.0, None)
-        pkg2 = MessagePackage("a", "b", 0.0, None)
-        r1 = sim.calculate_communication(0.0, [pkg1])
-        r2 = sim.calculate_communication(0.0, [pkg2])
-        # Both should reach; they are separate cache entries
-        assert r1.package_results[0].reached is True
-        assert r2.package_results[0].reached is True
+        pkgs = [MessagePackage("a", "b", 0.0, None) for _ in range(3)]
+        result = sim.calculate_communication(0.0, pkgs)
+        assert len(result.package_results) == 3
+        assert all(r.reached for r in result.package_results)
 
     def test_empty_message_list(self):
         sim = SimpleCommunicationSimulation()
@@ -222,17 +211,15 @@ class TestDelayProviderCommunicationSimulation:
         result = sim.calculate_communication(0.0, [pkg])
         assert result.package_results[0].delay_s == 0.0
 
-    def test_cache_determinism(self):
+    def test_provider_called_per_message(self):
         calls = []
         sim = DelayProviderCommunicationSimulation(
-            default_delay_s_provider=lambda: calls.append(1) or float(len(calls))
+            default_delay_s_provider=lambda: calls.append(1) or 0.5
         )
-        pkg = MessagePackage("a", "b", 0.0, None)
-        r1 = sim.calculate_communication(0.0, [pkg])
-        r2 = sim.calculate_communication(0.0, [pkg])
-        # Provider called exactly once; second call uses cache
-        assert len(calls) == 1
-        assert r1.package_results[0] is r2.package_results[0]
+        pkgs = [MessagePackage("a", "b", 0.0, None) for _ in range(3)]
+        result = sim.calculate_communication(0.0, pkgs)
+        assert len(calls) == 3
+        assert all(r.delay_s == 0.5 for r in result.package_results)
 
 
 class TestPosition2D:

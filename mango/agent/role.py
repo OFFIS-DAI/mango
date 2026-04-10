@@ -139,7 +139,7 @@ class WaitingMessagePreprocessor(MessagePreprocessor):
         content, meta = self.process(content, meta)
         self._queue.put_nowait((handler, content, meta))
         if not self._running:
-            asyncio.get_event_loop().create_task(self._drain())
+            asyncio.get_running_loop().create_task(self._drain())
 
     async def _drain(self) -> None:
         self._running = True

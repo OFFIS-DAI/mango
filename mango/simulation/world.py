@@ -560,15 +560,11 @@ def collect_agent_data(
         ))
     """
     recording = world._get_agents_recording(key)
-    time_appended: list[bool] = [False]
 
     def _run(w: SimulationWorld) -> None:
-        time_appended[0] = False
         for agent in w._agents.values():
             collector(w, agent, recording)
-        if not time_appended[0]:
-            recording.time.append(w.clock.time)
-            time_appended[0] = True
+        recording.time.append(w.clock.time)
 
     world._data_collectors.append(_run)
 

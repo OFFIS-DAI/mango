@@ -90,8 +90,6 @@ class SimpleCommunicationSimulation(CommunicationSimulation):
         self.delay_s_directed_edge_dict: dict[tuple[str | None, str], float] = (
             delay_s_directed_edge_dict or {}
         )
-        # Cache keyed by object id to ensure determinism within a step
-        self._message_cache: dict[int, PackageResult] = {}
 
     def calculate_communication(
         self,
@@ -100,17 +98,10 @@ class SimpleCommunicationSimulation(CommunicationSimulation):
     ) -> CommunicationSimulationResult:
         results: list[PackageResult] = []
         for msg in messages:
-            msg_id = id(msg)
-            if msg_id in self._message_cache:
-                results.append(self._message_cache[msg_id])
-                continue
-
             key = (msg.sender_id, msg.receiver_id)
             delay_s = self.delay_s_directed_edge_dict.get(key, self.default_delay_s)
             reached = random.random() >= self.loss_percent
-            result = PackageResult(reached=reached, delay_s=delay_s)
-            self._message_cache[msg_id] = result
-            results.append(result)
+            results.append(PackageResult(reached=reached, delay_s=delay_s))
 
         return CommunicationSimulationResult(package_results=results)
 
@@ -140,8 +131,6 @@ class DelayProviderCommunicationSimulation(CommunicationSimulation):
         self.delay_s_directed_edge_dict: dict[
             tuple[str | None, str], Callable[[], float]
         ] = delay_s_directed_edge_dict or {}
-        # Cache keyed by object id to ensure determinism within a step
-        self._message_cache: dict[int, PackageResult] = {}
 
     def calculate_communication(
         self,
@@ -150,20 +139,13 @@ class DelayProviderCommunicationSimulation(CommunicationSimulation):
     ) -> CommunicationSimulationResult:
         results: list[PackageResult] = []
         for msg in messages:
-            msg_id = id(msg)
-            if msg_id in self._message_cache:
-                results.append(self._message_cache[msg_id])
-                continue
-
             key = (msg.sender_id, msg.receiver_id)
             if key in self.delay_s_directed_edge_dict:
                 delay_s = self.delay_s_directed_edge_dict[key]()
             else:
                 delay_s = self.default_delay_s_provider()
             delay_s = max(0.0, delay_s)
-            result = PackageResult(reached=True, delay_s=delay_s)
-            self._message_cache[msg_id] = result
-            results.append(result)
+            results.append(PackageResult(reached=True, delay_s=delay_s))
 
         return CommunicationSimulationResult(package_results=results)
 
