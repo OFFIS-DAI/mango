@@ -28,7 +28,8 @@ interact through a shared context and event API rather than direct references.
    .. grid-item-card:: Messages
       :shadow: sm
 
-      ``subscribe_message`` with a condition function.
+      ``subscribe_message`` with a condition function and optional
+      ``preprocessor`` for transformation or serialisation.
       ``subscribe_send`` to observe outgoing messages.
 
    .. grid-item-card:: Inter-role events
@@ -325,6 +326,89 @@ without registering a condition:
     ``handle_message`` is **not** called for that message.
 
 
+Message preprocessors
+----------------------
+
+A :class:`~mango.MessagePreprocessor` sits between the inbox and the handler.
+It is registered alongside the handler in :meth:`~mango.RoleContext.subscribe_message`
+and can **transform**, **gate**, or **rate-limit** messages before they reach
+the role.
+
+Implement :meth:`~mango.MessagePreprocessor.handle` and call
+``handler(content, meta)`` inside it to deliver the (optionally transformed)
+message.  Override :meth:`~mango.MessagePreprocessor.process` to rewrite
+content or metadata before passing it on:
+
+.. code-block:: python
+
+    from mango import MessagePreprocessor, Role
+
+    class UpperCasePreprocessor(MessagePreprocessor):
+        """Uppercases any string message before it reaches the handler."""
+
+        def handle(self, role, handler, content, meta):
+            content, meta = self.process(content, meta)
+            handler(content, meta)
+
+        def process(self, content, meta):
+            if isinstance(content, str):
+                content = content.upper()
+            return content, meta
+
+    class GreeterRole(Role):
+        def setup(self):
+            self.context.subscribe_message(
+                self,
+                self.on_greeting,
+                lambda content, meta: isinstance(content, str),
+                preprocessor=UpperCasePreprocessor(),
+            )
+
+        def on_greeting(self, content, meta):
+            print(f"Received: {content}")   # always upper-case
+
+
+``WaitingMessagePreprocessor``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:class:`~mango.WaitingMessagePreprocessor` is a built-in preprocessor that
+**serialises message delivery** — the next message is only dispatched once the
+handler for the current message has returned (or its coroutine completed).
+
+This prevents race conditions when a role's handler performs async work that
+depends on exclusive access to its own state:
+
+.. code-block:: python
+
+    import asyncio
+    from mango import Role, WaitingMessagePreprocessor
+
+    class SafeProcessorRole(Role):
+        """Handles one update at a time, even if messages arrive in bursts."""
+
+        def setup(self):
+            self.context.subscribe_message(
+                self,
+                self.on_update,
+                lambda content, meta: True,
+                preprocessor=WaitingMessagePreprocessor(),
+            )
+
+        async def on_update(self, content, meta):
+            await asyncio.sleep(0.1)       # I/O or heavy computation
+            print(f"Processed: {content}") # always sequential
+
+Without the preprocessor, overlapping messages could interleave the
+``await asyncio.sleep`` calls and make the processing order unpredictable.
+
+.. note::
+
+    :class:`~mango.WaitingMessagePreprocessor` schedules delivery via
+    ``asyncio.get_event_loop().create_task``.  It is designed for use inside
+    running event loops (i.e. inside ``async with`` container blocks or inside
+    a :class:`~mango.SimulationWorld`).
+
+
 Observing outgoing messages
 ---------------------------
 
@@ -577,5 +661,6 @@ scheduling decisions:
 .. seealso::
 
     :doc:`simulation` — roles also support ``on_step``, ``on_global_event``,
-    and ``on_agent_event`` hooks when running inside a
-    :class:`~mango.SimulationWorld`.
+    and ``on_agent_event`` hooks, as well as message preprocessors
+    (:class:`~mango.MessagePreprocessor`, :class:`~mango.WaitingMessagePreprocessor`),
+    when running inside a :class:`~mango.SimulationWorld`.

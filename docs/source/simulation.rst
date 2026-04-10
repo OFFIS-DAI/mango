@@ -258,6 +258,56 @@ For stochastic delays, use :class:`~mango.DelayProviderCommunicationSimulation`:
     )
 
 
+Topology-aware communication simulation
+-----------------------------------------
+
+When your agents form a graph (e.g. a communication network), use
+:func:`~mango.create_distribution_based_com_sim` to derive per-link delays
+from shortest-path distances in that graph.  The delay for a
+``(sender, receiver)`` pair grows with the number of hops between them:
+
+.. code-block:: python
+
+    import networkx as nx
+    from mango import create_distribution_based_com_sim, create_world
+
+    # Linear topology: agent0 — agent1 — agent2
+    g = nx.path_graph(["agent0", "agent1", "agent2"])
+
+    comm = create_distribution_based_com_sim(
+        g,
+        default_delay_per_edge_ms=20.0,   # 20 ms per hop
+        base_delay_per_message_ms=5.0,    # 5 ms fixed overhead
+    )
+    world = create_world(communication_sim=comm)
+
+The node labels in *g* must match the agent AIDs registered in the world.
+:func:`~mango.create_distribution_based_com_sim` returns a
+:class:`~mango.DelayProviderCommunicationSimulation`, so you can combine it
+with a custom ``distribution_provider`` to draw delays from any distribution:
+
+.. code-block:: python
+
+    import random, networkx as nx
+    from mango import create_distribution_based_com_sim
+
+    g = nx.grid_2d_graph(4, 4)  # or any NetworkX graph
+
+    # Gaussian jitter around the mean hop-distance delay
+    sim = create_distribution_based_com_sim(
+        g,
+        default_delay_per_edge_ms=10.0,
+        max_edge_delay_ms=100.0,          # cap at 100 ms regardless of hops
+        distribution_provider=lambda mean_ms: (
+            lambda: max(0.0, random.gauss(mean_ms, mean_ms * 0.1)) / 1000.0
+        ),
+    )
+
+Both directed and undirected graphs are supported.  For directed graphs, only
+the directed edges contribute to the routing — a pair with no path simply
+falls back to the default provider (zero delay).
+
+
 Role-based agents in simulation
 =================================
 
@@ -367,6 +417,145 @@ track agent positions when a spatial environment is active:
     # history.timeseries["agent0"]  →  list of Position2D
 
 
+Spatial environment
+====================
+
+A :class:`~mango.DefaultEnvironment` gives agents a *space* in which they have
+positions and can move relative to each other.  The default space is
+:class:`~mango.Area2D`, a rectangular 2-D arena.
+
+During world initialisation every agent without a pre-assigned position
+receives a random location within the arena.  You can override this by calling
+:meth:`~mango.Area2D.move` before the world starts:
+
+.. testcode::
+
+    import asyncio
+    from mango import Agent, Area2D, DefaultEnvironment, Position2D, create_world, step_simulation
+
+    class Rover(Agent):
+        def on_step(self, env, clock, step_size_s):
+            # Move 1 unit toward the origin on every step
+            env.space.move_toward(self, Position2D(0.0, 0.0), max_step=1.0)
+
+        def handle_message(self, content, meta):
+            pass
+
+    async def run():
+        space = Area2D(width=10.0, height=10.0)
+        env = DefaultEnvironment(space=space)
+        world = create_world(environment=env)
+        rover = world.register(Rover())
+
+        # Place the rover at a known position before the simulation starts
+        space.move(rover, Position2D(3.0, 4.0))
+
+        async with world:
+            await step_simulation(world, step_size_s=1.0)
+
+        pos = space.location(rover)
+        dist = space.distance(rover, rover)    # trivially 0; illustrates the API
+        print(f"Position after one step: ({pos.x:.2f}, {pos.y:.2f})")
+
+    asyncio.run(run())
+
+.. testoutput::
+
+    Position after one step: (2.40, 3.20)
+
+
+Spatial helper methods
+-----------------------
+
+:class:`~mango.Area2D` provides three spatial helpers, all operating on
+registered agents:
+
+.. list-table::
+   :widths: 35 65
+   :header-rows: 1
+
+   * - Method
+     - Description
+   * - ``space.distance(agent_a, agent_b)``
+     - Euclidean distance between two agents' current positions.
+   * - ``space.agents_within(center, radius, candidates)``
+     - Returns all agents from *candidates* within *radius* of *center*
+       (excluding *center* itself and unpositioned agents).
+   * - ``space.move_toward(agent, target, max_step)``
+     - Moves *agent* toward *target* (another agent or a
+       :class:`~mango.Position2D`) by at most *max_step* units.
+
+The standalone :func:`~mango.distance` function works directly on two
+:class:`~mango.Position2D` objects without needing a space:
+
+.. testcode::
+
+    from mango import Position2D, distance
+
+    pa = Position2D(0.0, 0.0)
+    pb = Position2D(3.0, 4.0)
+    print(distance(pa, pb))
+
+.. testoutput::
+
+    5.0
+
+A typical movement loop inside a :class:`~mango.Behavior`:
+
+.. code-block:: python
+
+    from mango import Behavior
+
+    class SwarmBehavior(Behavior):
+        """Move each agent toward the nearest neighbour."""
+
+        def on_step(self, environment, clock, step_size_s):
+            agents = list(environment._id_to_agent.values())
+            space = environment.space
+            for agent in agents:
+                nearby = space.agents_within(agent, radius=5.0, agents=agents)
+                if nearby:
+                    nearest = min(nearby, key=lambda n: space.distance(agent, n))
+                    space.move_toward(agent, nearest, max_step=step_size_s * 2.0)
+
+
+Environment events
+-------------------
+
+The environment can broadcast events to all agents or target a single one:
+
+.. code-block:: python
+
+    # Broadcast to every agent (and all their roles)
+    world.environment.emit_global_event(WeatherChangeEvent(wind=15.0))
+
+    # Deliver to one specific agent by the ID used during install()
+    world.environment.emit_agent_event(TaskAssigned(task_id=42), agent_id="agent0")
+
+Agents receive these events via ``on_global_event`` and ``on_agent_event``
+hooks.  For roles the same hooks are called on every role attached to the
+targeted agent:
+
+.. code-block:: python
+
+    from mango import Agent
+
+    class SensorAgent(Agent):
+        def on_global_event(self, event):
+            print(f"Broadcast event: {event}")
+
+        def on_agent_event(self, event):
+            print(f"Targeted event: {event}")
+
+To use ``emit_agent_event`` you must first install the agent in the
+environment so it can be looked up by ID:
+
+.. code-block:: python
+
+    world.environment.install(my_agent, agent_id=my_agent.aid)
+    world.environment.emit_agent_event("ping", my_agent.aid)
+
+
 Accessing recorded messages
 ============================
 
@@ -426,6 +615,130 @@ human-readable metadata:
 .. testoutput::
 
     Alice blue sensor
+
+
+Visualization
+==============
+
+The :mod:`mango.simulation.visualization` module turns world recordings and
+message logs into matplotlib figures.  It requires ``matplotlib``::
+
+    pip install matplotlib
+
+.. note::
+
+    All visualization functions accept a *write_to* keyword argument.
+    When supplied, the figure is saved to that path instead of being
+    returned.  If not supplied, the figure object is returned and you can
+    show it with ``fig.show()`` or ``plt.show()``.
+
+
+plot_world
+----------
+
+:func:`~mango.plot_world` draws a world-level recording as a line chart:
+
+.. code-block:: python
+
+    import asyncio
+    from mango import (
+        Agent, create_world, step_simulation, record_world, plot_world,
+    )
+
+    class TrafficAgent(Agent):
+        def handle_message(self, content, meta): pass
+
+    async def run():
+        world = create_world()
+        sender = world.register(TrafficAgent())
+        receiver = world.register(TrafficAgent())
+
+        record_world(world, "messages", lambda: len(world.recorded_messages))
+
+        async with world:
+            for _ in range(5):
+                await sender.send_message("ping", receiver.addr)
+                await step_simulation(world, step_size_s=1.0)
+
+        fig = plot_world(world, "messages",
+                         title="Cumulative messages over time",
+                         ylabel="# delivered messages")
+        fig.savefig("traffic.png")
+
+    asyncio.run(run())
+
+
+plot_agents
+-----------
+
+:func:`~mango.plot_agents` plots a per-agent recording with one labelled line
+per agent.  Agent names (set via :meth:`~mango.Agent.update_description`) are
+used as legend labels when available:
+
+.. code-block:: python
+
+    from mango import record_agent, plot_agents
+
+    record_agent(world, "value", lambda a: a.value)
+
+    async with world:
+        await discrete_step_until(world, max_advance_time_s=60.0)
+
+    plot_agents(world, "value",
+                ylabel="Agent value",
+                write_to="values.png")
+
+
+plot_recordings
+---------------
+
+:func:`~mango.plot_recordings` renders **all** recordings (both world-level
+and per-agent) in a single grid figure — ideal for a quick experiment
+overview:
+
+.. code-block:: python
+
+    from mango import record_world, record_agent, plot_recordings
+
+    record_world(world, "clock", lambda: world.clock.time)
+    record_agent(world, "soc", lambda a: a.soc_kwh)
+
+    async with world:
+        await discrete_step_until(world, max_advance_time_s=3600.0)
+
+    # Three recordings side by side, saved to a file
+    plot_recordings(world, write_to="overview.png")
+
+    # With a custom colormap for agent lines
+    plot_recordings(world, colormap="tab10")
+
+
+show_communication_data
+-----------------------
+
+:func:`~mango.show_communication_data` produces a *message-flow timeline*:
+each agent appears as a horizontal lane, and every delivered message is drawn
+as an annotated arrow from the sender lane at send-time to the receiver lane
+at delivery-time.
+
+This is especially useful for debugging delayed or lost messages:
+
+.. code-block:: python
+
+    from mango import show_communication_data
+
+    async with world:
+        await discrete_step_until(world, max_advance_time_s=10.0)
+
+    fig = show_communication_data(
+        world,
+        aid_to_name={"agent0": "Producer", "agent1": "Consumer"},
+        aid_to_color={"agent0": "steelblue", "agent1": "tomato"},
+        write_to="comms.png",
+    )
+
+When *aid_to_name* is omitted, agent AIDs are used as labels.  When
+*aid_to_color* is omitted, matplotlib's default colour cycle is applied.
 
 
 API reference

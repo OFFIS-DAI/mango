@@ -1,12 +1,12 @@
 """
 Environment system for mango's SimulationWorld.
 
-Provides a spatial environment with pluggable space and behavior models,
-mirroring the environment capabilities from Mango.jl.
+Provides a spatial environment with pluggable space and behavior models.
 """
 
 from __future__ import annotations
 
+import math
 import random
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -14,11 +14,6 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from mango.util.clock import Clock
-
-
-# ---------------------------------------------------------------------------
-# Position types
-# ---------------------------------------------------------------------------
 
 
 class Position:
@@ -36,9 +31,18 @@ class Position2D(Position):
         return f"Position2D(x={self.x}, y={self.y})"
 
 
-# ---------------------------------------------------------------------------
-# Space
-# ---------------------------------------------------------------------------
+def distance(pa: Position2D, pb: Position2D) -> float:
+    """Return the Euclidean distance between two :class:`Position2D` points.
+
+    :param pa: first position
+    :param pb: second position
+    :return: Euclidean distance
+
+    Example::
+
+        d = distance(Position2D(0, 0), Position2D(3, 4))  # → 5.0
+    """
+    return math.sqrt((pa.x - pb.x) ** 2 + (pa.y - pb.y) ** 2)
 
 
 class Space(ABC):
@@ -99,10 +103,75 @@ class Area2D(Space):
     def install(self, agent, **kwargs) -> None:
         pass
 
+    def distance(self, agent_a, agent_b) -> float:
+        """Return the Euclidean distance between two agents.
 
-# ---------------------------------------------------------------------------
-# Behavior
-# ---------------------------------------------------------------------------
+        Both agents must have a registered position.
+
+        :param agent_a: first agent
+        :param agent_b: second agent
+        :return: Euclidean distance in space units
+
+        Example::
+
+            d = space.distance(agent1, agent2)
+        """
+        return distance(self.location(agent_a), self.location(agent_b))
+
+    def agents_within(self, center, radius: float, agents: list) -> list:
+        """Return all agents from *agents* within *radius* of *center*.
+
+        *center* itself is excluded from the result.  Only agents that have
+        a registered position are considered.
+
+        :param center: the reference agent
+        :param radius: search radius in space units
+        :param agents: candidate agents to search among
+        :return: list of agents within *radius* of *center*
+
+        Example::
+
+            nearby = space.agents_within(my_agent, 5.0, world._agents.values())
+        """
+        result = []
+        for agent in agents:
+            if agent is center:
+                continue
+            if self.has_position(agent) and self.distance(center, agent) <= radius:
+                result.append(agent)
+        return result
+
+    def move_toward(
+        self,
+        agent,
+        target: Position2D | object,
+        max_step: float,
+    ) -> None:
+        """Move *agent* toward *target* by at most *max_step* units.
+
+        *target* may be either another agent (with a registered position) or
+        a :class:`Position2D` directly.  If the agent is already within
+        *max_step* of the target, it is moved exactly to the target position.
+
+        :param agent: the agent to move
+        :param target: destination agent or :class:`Position2D`
+        :param max_step: maximum distance to travel in one call
+
+        Example::
+
+            space.move_toward(rover, base_station, max_step=1.0)
+        """
+        pa = self.location(agent)
+        pt = self.location(target) if hasattr(target, "aid") else target
+        dist = math.sqrt((pt.x - pa.x) ** 2 + (pt.y - pa.y) ** 2)
+        if dist == 0.0 or dist <= max_step:
+            self._positions[agent.aid] = Position2D(x=pt.x, y=pt.y)
+        else:
+            ratio = max_step / dist
+            self._positions[agent.aid] = Position2D(
+                x=pa.x + (pt.x - pa.x) * ratio,
+                y=pa.y + (pt.y - pa.y) * ratio,
+            )
 
 
 class Behavior(ABC):
@@ -129,11 +198,6 @@ class Behavior(ABC):
 
     def install(self, agent, **kwargs) -> None:
         """Called when an agent is installed in the environment."""
-
-
-# ---------------------------------------------------------------------------
-# Environment
-# ---------------------------------------------------------------------------
 
 
 class WorldObserver(ABC):
@@ -188,10 +252,6 @@ class DefaultEnvironment(Environment):
         self._id_to_agent: dict[Any, Any] = {}
         self._initialized: bool = False
 
-    # ------------------------------------------------------------------
-    # Properties
-    # ------------------------------------------------------------------
-
     @property
     def space(self) -> Space:
         return self._space
@@ -199,10 +259,6 @@ class DefaultEnvironment(Environment):
     @property
     def behavior(self) -> Behavior:
         return self._behavior
-
-    # ------------------------------------------------------------------
-    # Environment interface
-    # ------------------------------------------------------------------
 
     def initialized(self) -> bool:
         return self._initialized
@@ -244,11 +300,6 @@ class DefaultEnvironment(Environment):
         if hasattr(agent, "roles"):
             for role in agent.roles:
                 role.on_agent_event(event)
-
-
-# ---------------------------------------------------------------------------
-# Internal helpers
-# ---------------------------------------------------------------------------
 
 
 class _NoBehavior(Behavior):

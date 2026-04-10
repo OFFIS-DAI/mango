@@ -24,3 +24,11 @@ Environment
    :members:
    :undoc-members:
    :show-inheritance:
+
+Visualization
+-------------
+
+.. automodule:: mango.simulation.visualization
+   :members:
+   :undoc-members:
+   :show-inheritance:

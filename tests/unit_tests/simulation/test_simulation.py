@@ -1,14 +1,3 @@
-"""
-Tests for the simulation module:
-  - mango/simulation/communication.py
-  - mango/simulation/environment.py
-  - mango/simulation/world.py
-  - run_with_simulation / RunWithSimulationManager in mango/express/api.py
-  - Agent hooks: on_step, on_global_event, on_agent_event
-  - Agent helpers: update_description, add/delete_forwarding_rule,
-                   send_tracked_message, reply_to, _handle_tracked_reply
-"""
-
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -50,10 +39,6 @@ from mango.simulation.world import (
     collect_data,
 )
 
-# ---------------------------------------------------------------------------
-# Minimal agent helpers
-# ---------------------------------------------------------------------------
-
 
 class SimpleAgent(Agent):
     def __init__(self):
@@ -90,11 +75,6 @@ class ReplyAgent(Agent):
     def handle_message(self, content, meta: dict):
         self.messages.append((content, meta))
         self.schedule_instant_task(self.reply_to("pong", meta))
-
-
-# ---------------------------------------------------------------------------
-# Communication simulation tests
-# ---------------------------------------------------------------------------
 
 
 class TestPackageResult:
@@ -253,11 +233,6 @@ class TestDelayProviderCommunicationSimulation:
         # Provider called exactly once; second call uses cache
         assert len(calls) == 1
         assert r1.package_results[0] is r2.package_results[0]
-
-
-# ---------------------------------------------------------------------------
-# Environment tests
-# ---------------------------------------------------------------------------
 
 
 class TestPosition2D:
@@ -420,11 +395,6 @@ class TestDefaultEnvironment:
         assert called == [5.0]
 
 
-# ---------------------------------------------------------------------------
-# SimulationWorld / create_world tests
-# ---------------------------------------------------------------------------
-
-
 class TestCreateWorld:
     def test_default_world(self):
         world = create_world()
@@ -555,11 +525,6 @@ class TestSimulationWorldGetItem:
         world = create_world()
         with pytest.raises(IndexError):
             _ = world[99]
-
-
-# ---------------------------------------------------------------------------
-# Async world tests
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -744,11 +709,6 @@ async def test_shutdown_sets_running_false():
     assert world.running is False
 
 
-# ---------------------------------------------------------------------------
-# Recording / data collection tests
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.asyncio
 async def test_record_world():
     world = create_world()
@@ -891,11 +851,6 @@ async def test_record_position_with_filter():
     assert normal.aid not in history.timeseries
 
 
-# ---------------------------------------------------------------------------
-# Global / agent event tests
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.asyncio
 async def test_global_event_dispatched_to_all_agents():
     world = create_world()
@@ -924,11 +879,6 @@ async def test_agent_event_dispatched_to_target_only():
 
     assert "targeted" in a1.agent_events
     assert a2.agent_events == []
-
-
-# ---------------------------------------------------------------------------
-# Role hooks
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -1004,11 +954,6 @@ async def test_role_on_agent_event_called():
     assert "role_event" in role.events
 
 
-# ---------------------------------------------------------------------------
-# AgentDescription / update_description
-# ---------------------------------------------------------------------------
-
-
 def test_agent_description_defaults():
     desc = AgentDescription()
     assert desc.name == ""
@@ -1063,11 +1008,6 @@ def test_update_description_none_fields_unchanged():
     agent.update_description(name="Dave")
     agent.update_description()  # all None – nothing changes
     assert agent.name == "Dave"
-
-
-# ---------------------------------------------------------------------------
-# ForwardingRule / add_forwarding_rule / delete_forwarding_rule
-# ---------------------------------------------------------------------------
 
 
 def test_forwarding_rule_defaults():
@@ -1130,11 +1070,6 @@ def test_delete_forwarding_rule_nonexistent_is_noop():
     addr_a = AgentAddress("sim", "a")
     addr_b = AgentAddress("sim", "b")
     agent.delete_forwarding_rule(addr_a, addr_b)  # no rules at all – must not raise
-
-
-# ---------------------------------------------------------------------------
-# send_tracked_message / reply_to / _handle_tracked_reply
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -1234,11 +1169,6 @@ def test_handle_tracked_reply_calls_handler_and_removes():
     assert result is True
     assert called == ["reply_content"]
     assert tid not in agent._transaction_handlers
-
-
-# ---------------------------------------------------------------------------
-# run_with_simulation (express API)
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio

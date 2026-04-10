@@ -1,15 +1,17 @@
 """
 Communication simulation for mango's SimulationWorld.
 
-Mirrors the communication simulation capabilities from Mango.jl, allowing
-deterministic simulation of message delays and packet loss between agents.
+Provides deterministic simulation of message delays and packet loss between agents.
 """
 
 import random
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    import networkx as nx
 
 
 @dataclass
@@ -164,3 +166,82 @@ class DelayProviderCommunicationSimulation(CommunicationSimulation):
             results.append(result)
 
         return CommunicationSimulationResult(package_results=results)
+
+
+def create_distribution_based_com_sim(
+    aid_graph: "nx.Graph",
+    default_delay_per_edge_ms: float = 10.0,
+    base_delay_per_message_ms: float = 0.0,
+    max_edge_delay_ms: float | None = None,
+    distribution_provider: Callable[[float], Callable[[], float]] | None = None,
+) -> DelayProviderCommunicationSimulation:
+    """Create a topology-aware communication simulation.
+
+    Delays are derived from shortest-path distances in *aid_graph*.  Each
+    node in the graph must be an agent AID (string).  The delay for a
+    ``(sender, receiver)`` pair is::
+
+        mean_delay_ms = base_delay_per_message_ms
+                        + shortest_path_length * default_delay_per_edge_ms
+
+    capped at *max_edge_delay_ms* when provided.  A *distribution_provider*
+    maps a mean delay (in ms) to a zero-argument callable that samples the
+    actual delay (in seconds).  The default provider returns the mean value
+    deterministically.
+
+    :param aid_graph: a ``networkx.Graph`` (or DiGraph) whose nodes are
+        agent AID strings
+    :param default_delay_per_edge_ms: additional delay per hop (ms)
+    :param base_delay_per_message_ms: fixed base delay for every message (ms)
+    :param max_edge_delay_ms: optional cap on the total mean delay (ms)
+    :param distribution_provider: ``(mean_ms: float) -> () -> float``
+        factory; each call returns a provider that samples a delay in **seconds**.
+        Defaults to a constant provider (no randomness).
+    :return: a configured :class:`DelayProviderCommunicationSimulation`
+
+    Example::
+
+        import networkx as nx
+        import random
+
+        g = nx.path_graph(["a0", "a1", "a2"])
+        # Gaussian delays, mean grows with graph distance
+        sim = create_distribution_based_com_sim(
+            g,
+            default_delay_per_edge_ms=20.0,
+            distribution_provider=lambda mean_ms: (
+                lambda: max(0.0, random.gauss(mean_ms, mean_ms * 0.1)) / 1000.0
+            ),
+        )
+    """
+    try:
+        import networkx as nx
+    except ImportError as exc:
+        raise ImportError(
+            "networkx is required for create_distribution_based_com_sim"
+        ) from exc
+
+    if distribution_provider is None:
+
+        def distribution_provider(mean_ms: float) -> Callable[[], float]:  # type: ignore[misc]
+            delay_s = mean_ms / 1000.0
+
+            def _constant() -> float:
+                return delay_s
+
+            return _constant
+
+    edge_providers: dict[tuple[str | None, str], Callable[[], float]] = {}
+
+    for source, lengths in nx.all_pairs_shortest_path_length(aid_graph):
+        for target, hops in lengths.items():
+            if source == target:
+                continue
+            mean_ms = base_delay_per_message_ms + hops * default_delay_per_edge_ms
+            if max_edge_delay_ms is not None:
+                mean_ms = min(mean_ms, max_edge_delay_ms)
+            edge_providers[(str(source), str(target))] = distribution_provider(mean_ms)
+
+    return DelayProviderCommunicationSimulation(
+        delay_s_directed_edge_dict=edge_providers,
+    )
