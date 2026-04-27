@@ -1,5 +1,13 @@
 from .messages.message import create_acl, Performatives
-from .agent.core import Agent, AgentAddress, AgentDescription, ForwardingRule
+from .agent.core import (
+    Agent,
+    AgentAddress,
+    AgentDescription,
+    ForwardingRule,
+    State,
+    TopologyNeighbor,
+    TopologyService,
+)
 from .agent.role import (
     MessagePreprocessor,
     Role,
@@ -32,11 +40,27 @@ from .messages.codecs import (
     SerializationError,
 )
 from .express.topology import (
+    AgentNode,
     Topology,
-    create_topology,
+    assign_agents,
+    auto_assign,
+    broadcast_to_neighbors,
     complete_topology,
-    per_node,
+    connect_topologies,
+    create_topology,
     custom_topology,
+    cycle_topology,
+    graph_topology,
+    mark_as_connector,
+    modify_topology,
+    per_node,
+    star_topology,
+    topology_characteristic,
+    topology_connection_types,
+    topology_connectors,
+    topology_neighbors,
+    topology_node_id,
+    topology_to_aid_graph,
 )
 from .simulation import (
     CommunicationSimulation,

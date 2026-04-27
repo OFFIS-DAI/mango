@@ -48,18 +48,121 @@ class ForwardingRule:
 
 
 class State(Enum):
-    NORMAL = 0  # normal neighbor
-    INACTIVE = (
-        1  # neighbor link exists but link is not active (could be activated/used)
-    )
-    BROKEN = 2  # neighbor link exists but link is not usable (can not be activated)
+    NORMAL = 0
+    INACTIVE = 1
+    BROKEN = 2
+    UNKNOWN = 3
+    EXT_CONNECTION = 4
+
+
+class TopologyNeighbor:
+    """A neighbor in the topology graph.
+
+    Addresses are resolved lazily so that topologies can be built before
+    agents are registered in a container.
+
+    :param agent: the neighbor agent (address resolved at access time)
+    :param description: the agent's :class:`AgentDescription`
+    :param characteristic: an optional label for the agent's role in its node
+        (e.g. ``"leader"``); empty string means no characteristic
+    """
+
+    def __init__(
+        self,
+        agent: Any,
+        description: "AgentDescription",
+        characteristic: str = "",
+    ) -> None:
+        self._agent = agent
+        self.description = description
+        self.characteristic = characteristic
+
+    @property
+    def address(self) -> "AgentAddress":
+        """The neighbor's current :class:`AgentAddress` (resolved lazily)."""
+        return self._agent.addr
 
 
 class TopologyService:
-    state_to_neighbors: dict[State, list] = dict()
+    """Stores neighborhood data injected by the topology system.
 
-    def neighbors(self, state: State = State.NORMAL):
-        return [f() for f in self.state_to_neighbors.get(state, [])]
+    An instance is attached to each agent via
+    :meth:`~mango.agent.core.AgentDelegates.service_of_type`.
+    """
+
+    def __init__(self) -> None:
+        self._tid_to_state_to_neighbors: dict[
+            str, dict[State, list[TopologyNeighbor]]
+        ] = {}
+        self._tid_to_node_id: dict[str, int] = {}
+        self._tid_to_characteristic: dict[str, str] = {}
+        self._tid_to_connectors: dict[str, list[tuple[str, TopologyNeighbor]]] = {}
+        self._marked_connector_for: list[str] = []
+
+    def neighbors(
+        self,
+        state: State = State.NORMAL,
+        *,
+        tid: str = "default",
+        has_characteristic: str | None = None,
+        include_connectors: tuple[str, ...] | list[str] = (),
+        match_func: Any = None,
+    ) -> list["AgentAddress"]:
+        """Return addresses of neighbors in topology *tid* with edge *state*.
+
+        :param state: only return neighbors reachable via edges in this state
+        :param tid: topology identifier
+        :param has_characteristic: if given, only neighbors with this characteristic
+        :param include_connectors: also include connectors of these connection types
+        :param match_func: optional predicate ``(AgentDescription) -> bool``
+        """
+        state_map = self._tid_to_state_to_neighbors.get(tid, {})
+        result: list[AgentAddress] = []
+        for n in state_map.get(state, []):
+            if (
+                has_characteristic is not None
+                and n.characteristic != has_characteristic
+            ):
+                continue
+            if match_func is not None and not match_func(n.description):
+                continue
+            result.append(n.address)
+        for conn_type, n in self._tid_to_connectors.get(tid, []):
+            if conn_type in include_connectors:
+                if match_func is None or match_func(n.description):
+                    result.append(n.address)
+        return result
+
+    def node_id(self, tid: str = "default") -> int:
+        """Return the node ID this agent occupies in topology *tid*."""
+        if tid not in self._tid_to_node_id:
+            raise KeyError(f"No node ID registered for topology '{tid}'")
+        return self._tid_to_node_id[tid]
+
+    def characteristic(self, tid: str = "default") -> str:
+        """Return this agent's characteristic label in topology *tid*."""
+        return self._tid_to_characteristic.get(tid, "")
+
+    def connectors(
+        self,
+        tid: str = "default",
+        *,
+        include_connectors: tuple[str, ...] | list[str] = (),
+        match_func: Any = None,
+    ) -> list["AgentAddress"]:
+        """Return addresses of connector agents for topology *tid*."""
+        result: list[AgentAddress] = []
+        for conn_type, n in self._tid_to_connectors.get(tid, []):
+            if include_connectors and conn_type not in include_connectors:
+                continue
+            if match_func is not None and not match_func(n.description):
+                continue
+            result.append(n.address)
+        return result
+
+    def connection_types(self, tid: str = "default") -> list[str]:
+        """Return the connection type labels for connectors in topology *tid*."""
+        return [ct for ct, _ in self._tid_to_connectors.get(tid, [])]
 
 
 class AgentContext:
@@ -618,13 +721,32 @@ class AgentDelegates:
         """
         return self.context.service_of_type(type, default=default)
 
-    def neighbors(self, state: State = State.NORMAL) -> list[AgentAddress]:
-        """Return the neighbors of the agent (controlled by the topology api).
+    def neighbors(
+        self,
+        state: State = State.NORMAL,
+        *,
+        tid: str = "default",
+        has_characteristic: str | None = None,
+        include_connectors: tuple | list = (),
+        match_func=None,
+    ) -> list[AgentAddress]:
+        """Return neighbor addresses from the topology.
 
-        :return: the list of agent addresses filtered by state
-        :rtype: list[AgentAddress]
+        :param state: filter by edge state (default :attr:`~mango.State.NORMAL`)
+        :param tid: topology identifier (default ``"default"``)
+        :param has_characteristic: only include neighbors with this characteristic
+        :param include_connectors: also include connector agents of these types
+        :param match_func: optional ``(AgentDescription) -> bool`` predicate
+        :return: list of :class:`~mango.AgentAddress`
         """
-        return self.service_of_type(TopologyService).neighbors(state)
+        svc = self.service_of_type(TopologyService, TopologyService())
+        return svc.neighbors(
+            state,
+            tid=tid,
+            has_characteristic=has_characteristic,
+            include_connectors=include_connectors,
+            match_func=match_func,
+        )
 
 
 class Agent(ABC, AgentDelegates):
