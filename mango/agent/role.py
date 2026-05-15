@@ -189,6 +189,12 @@ class RoleHandler:
         self._role_event_type_to_handler = {}
         self._scheduler = scheduler
         self._data = DataContainer()
+        # Back-reference to the owning :class:`RoleAgent`.  Set by
+        # ``RoleAgent.__init__`` so role-level helpers like
+        # :meth:`RoleContext.gather` can reach the agent-level
+        # gather/transaction machinery without an indirection through
+        # the agent context.
+        self._agent: Agent | None = None
 
     def get_or_create_model(self, cls):
         """Creates or return (when already created) a central role model.
@@ -352,8 +358,22 @@ class RoleHandler:
         else:
             self._send_msg_subs[role] = [method]
 
-    def emit_event(self, event: Any, event_source: Any = None):
-        subs = self._role_event_type_to_handler[type(event)]
+    def emit_event(self, event: Any, event_source: Any = None, *, strict: bool = False):
+        """Dispatch *event* to every subscribed handler on this agent.
+
+        :param strict: when True, raise :class:`KeyError` if no role is
+            subscribed to ``type(event)``.  Default is False — events
+            without subscribers are silently dropped, matching the
+            fire-and-forget semantics callers expect from a
+            notification API and removing the ``try/except KeyError``
+            guard pattern that otherwise wraps every ``emit_event``
+            call site.
+        """
+        subs = self._role_event_type_to_handler.get(type(event))
+        if subs is None:
+            if strict:
+                raise KeyError(type(event))
+            return
         for _, method in subs:
             method(event, event_source)
 
@@ -491,15 +511,18 @@ class RoleContext(AgentDelegates):
             **kwargs,
         )
 
-    def emit_event(self, event: Any, event_source: Any = None):
+    def emit_event(self, event: Any, event_source: Any = None, *, strict: bool = False):
         """Emit an custom event to other roles.
 
         :param event: the event
         :type event: Any
         :param event_source: emitter of the event (mostly the emitting role), defaults to None
         :type event_source: Any, optional
+        :param strict: when True, raise :class:`KeyError` if no role
+            is subscribed to ``type(event)``.  Default False — see
+            :meth:`RoleHandler.emit_event` for the rationale.
         """
-        self._role_handler.emit_event(event, event_source)
+        self._role_handler.emit_event(event, event_source, strict=strict)
 
     def subscribe_event(self, role: Role, event_type: Any, handler_method: Callable):
         """Subscribe to specific event types. The listener will be evaluated based
@@ -517,6 +540,199 @@ class RoleContext(AgentDelegates):
 
     def activate(self, role) -> None:
         self._role_handler.activate(role)
+
+    # ------------------------------------------------------------------
+    # Topology link-health queries (see mango.express.health)
+    # ------------------------------------------------------------------
+
+    def neighbour_score(self, neighbour_addr, *, tid: str = "default") -> float | None:
+        """Return the current edge health for one neighbour, or ``None``
+        when the topology does not have ``edge_health`` enabled."""
+        agent = self._role_handler._agent
+        if agent is None:
+            return None
+        from mango.agent.core import TopologyService
+
+        svc = agent.service_of_type(TopologyService, None)
+        if svc is None:
+            return None
+        health = svc.health_runtime(tid)
+        if health is None:
+            return None
+        now = agent.scheduler.clock.time if agent.scheduler else 0.0
+        return health.score(agent.addr, neighbour_addr, now)
+
+    def live_neighbours(
+        self,
+        tid: str = "default",
+        *,
+        threshold: float | None = None,
+    ):
+        """Return the subset of ``topology_neighbors(tid=tid)`` whose
+        edge health is at or above *threshold*.
+
+        Falls back to the full neighbour list when the topology has no
+        ``edge_health`` configured — callers can use this method
+        unconditionally without having to branch on whether tracking is
+        enabled.
+        """
+        agent = self._role_handler._agent
+        if agent is None:
+            return []
+        from mango.agent.core import State, TopologyService
+
+        svc = agent.service_of_type(TopologyService, None)
+        if svc is None:
+            return []
+        all_neighbours = svc.neighbors(state=State.NORMAL, tid=tid)
+        health = svc.health_runtime(tid)
+        if health is None:
+            return all_neighbours
+        now = agent.scheduler.clock.time if agent.scheduler else 0.0
+        my_addr = agent.addr
+        return [
+            n
+            for n in all_neighbours
+            if health.is_live(my_addr, n, now, threshold=threshold)
+        ]
+
+    def open_conversation(
+        self,
+        *,
+        state: dict | None = None,
+        timeout: float | None = None,
+    ):
+        """Open a fresh multi-hop conversation as the initiator.
+
+        Returns an async context manager whose body yields a
+        :class:`~mango.agent.conversation.Conversation`.  A new id is
+        generated; pass it (or use :meth:`Conversation.send`) so other
+        agents can route their messages back.
+
+        The optional *timeout* is enforced via the agent's scheduler
+        clock so behaviour is identical under :class:`AsyncioClock`
+        (real time) and :class:`ExternalClock` (simulation).
+        """
+        import uuid as _uuid
+
+        from mango.agent.conversation import Conversation
+
+        return _ConversationContext(
+            role_context=self,
+            conv=Conversation(
+                owner=self,
+                conversation_id=str(_uuid.uuid4()),
+                state=state,
+                timeout=timeout,
+            ),
+        )
+
+    def join_conversation(
+        self,
+        meta: dict,
+        *,
+        state: dict | None = None,
+        timeout: float | None = None,
+    ):
+        """Join an existing conversation as a non-initiator.
+
+        Reads the conversation id from ``meta`` (the same dict passed
+        to ``@on_message`` handlers) and registers a local handle so
+        subsequent messages tagged with that id route here too.  Use
+        when a role wants to process a multi-message exchange from the
+        responder side — typical for gossip forwarders.
+        """
+        from mango.agent.conversation import CONVERSATION_ID_KEY, Conversation
+
+        conv_id = meta.get(CONVERSATION_ID_KEY)
+        if not conv_id:
+            raise ValueError(
+                "join_conversation requires a meta dict carrying "
+                f"{CONVERSATION_ID_KEY!r}"
+            )
+        return _ConversationContext(
+            role_context=self,
+            conv=Conversation(
+                owner=self,
+                conversation_id=conv_id,
+                state=state,
+                timeout=timeout,
+            ),
+        )
+
+    async def gather(
+        self,
+        content: Any,
+        receivers,
+        *,
+        reply_type: type | tuple[type, ...] | None = None,
+        timeout: float = 5.0,
+        min_fraction: float = 1.0,
+    ) -> dict["AgentAddress", Any]:
+        """Send *content* to every address in *receivers* and collect replies.
+
+        Returns a dict mapping the responding agent's
+        :class:`AgentAddress` to the reply content.  Senders are
+        expected to use :meth:`AgentDelegates.reply_to` (or otherwise
+        echo ``tracking_id`` with ``reply=True``) — every legacy
+        request/response pair in mango already follows that convention,
+        so existing responder roles work unchanged.
+
+        :param receivers: iterable of :class:`AgentAddress` targets.
+        :param reply_type: optional class/tuple — replies not matching
+            this type are silently dropped (filters out tracking-id
+            collisions with unrelated traffic).
+        :param timeout: hard wallclock cap; if no quorum is reached by
+            then, returns whatever replies have arrived so far.
+        :param min_fraction: between 0 and 1.  When :math:`\\geq` this
+            fraction of receivers have replied, the call returns
+            without waiting further.  Defaults to 1.0 — wait for all,
+            time out otherwise.
+        """
+        import uuid as _uuid
+
+        agent = self._role_handler._agent
+        if agent is None:
+            raise RuntimeError(
+                "RoleContext.gather requires a RoleAgent — the role's "
+                "context is not bound to an agent yet."
+            )
+        receivers = list(receivers)
+        n = len(receivers)
+        if n == 0:
+            return {}
+        expected = max(1, int(round(min_fraction * n)))
+
+        tracking_id = str(_uuid.uuid4())
+        collector = agent.open_gather(
+            tracking_id, expected=expected, reply_type=reply_type
+        )
+        # Timeout must follow mango's simulation clock — not wall time
+        # — so ``gather`` behaves identically under ``AsyncioClock``
+        # (real-time) and ``ExternalClock`` (simulation).  ``wait_for``
+        # uses ``loop.time()`` and would block real seconds in sim mode.
+        try:
+            for addr in receivers:
+                await self.send_message(
+                    content,
+                    receiver_addr=addr,
+                    tracking_id=tracking_id,
+                )
+            clock = agent.scheduler.clock
+            done_fut = asyncio.ensure_future(collector.wait())
+            timeout_fut = asyncio.ensure_future(clock.sleep(timeout))
+            try:
+                await asyncio.wait(
+                    {done_fut, timeout_fut},
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+            finally:
+                for fut in (done_fut, timeout_fut):
+                    if not fut.done():
+                        fut.cancel()
+        finally:
+            agent.close_gather(tracking_id)
+        return dict(collector.responses)
 
     def on_start(self):
         self._role_handler.on_start()
@@ -539,6 +755,7 @@ class RoleAgent(Agent):
         """
         super().__init__()
         self._role_handler = RoleHandler(None)
+        self._role_handler._agent = self
         self._role_context = RoleContext(self._role_handler, self.aid, self.inbox)
 
     def on_start(self):
@@ -612,6 +829,12 @@ class Role(ABC):
         :param context: the role context
         """
         self._context = context
+        # Apply class-level @on_message / @on_event / @periodic
+        # decorators before user-defined ``setup`` runs, so the explicit
+        # setup body can override or extend the declarative wiring.
+        from mango.agent.decorators import apply_dispatch
+
+        apply_dispatch(self)
 
     @property
     def context(self) -> RoleContext:
@@ -666,3 +889,53 @@ class Role(ABC):
 
         :param event: the event object
         """
+
+
+class _ConversationContext:
+    """Async context manager returned by ``RoleContext.open_conversation`` /
+    ``RoleContext.join_conversation``.
+
+    Owns the lifecycle of one :class:`~mango.agent.conversation.Conversation`:
+    registers it with the agent on ``__aenter__``, schedules an
+    optional clock-aware timeout, and unregisters on ``__aexit__``.
+    Splitting the context manager out keeps ``Conversation`` itself
+    free of mango-agent references and easy to unit-test.
+    """
+
+    def __init__(self, *, role_context: "RoleContext", conv) -> None:
+        self._role_context = role_context
+        self._conv = conv
+        self._timeout_future = None
+
+    async def __aenter__(self):
+        agent = self._role_context._role_handler._agent
+        if agent is None:
+            raise RuntimeError(
+                "Conversation requires a bound RoleAgent — the role's "
+                "context is not attached yet."
+            )
+        agent.open_conversation(self._conv)
+        if self._conv._timeout is not None:
+            # Use the agent's scheduler clock so timeouts respect
+            # simulation time when running under an ExternalClock.
+            clock = agent.scheduler.clock if agent.scheduler else None
+            if clock is not None:
+                self._timeout_future = asyncio.ensure_future(
+                    self._fire_after(clock, self._conv._timeout)
+                )
+        return self._conv
+
+    async def __aexit__(self, exc_type, exc, tb):
+        if self._timeout_future is not None and not self._timeout_future.done():
+            self._timeout_future.cancel()
+        agent = self._role_context._role_handler._agent
+        if agent is not None:
+            agent.close_conversation(self._conv)
+        return False
+
+    async def _fire_after(self, clock, delay: float) -> None:
+        try:
+            await clock.sleep(delay)
+        except asyncio.CancelledError:
+            return
+        self._conv._fire_timeout()
