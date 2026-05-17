@@ -191,12 +191,12 @@ class TopologyService:
 class _GatherCollector:
     """Aggregates multi-reply tracked responses for :meth:`Agent.open_gather`.
 
-    The collector exposes a single :meth:`wait` coroutine that resolves
-    when either *expected* replies have arrived or :meth:`finish` has
-    been called explicitly (used by :meth:`RoleContext.gather` to
-    implement the timeout / quorum policy).  Replies are stored under
-    the responding agent's :class:`AgentAddress` so the caller can
-    match each response to its source.
+    Replies are stored under the responding agent's
+    :class:`AgentAddress` so the caller can match each response to its
+    source.  :meth:`wait` resolves once *expected* distinct replies
+    have arrived, or when :meth:`finish` is called explicitly (which
+    :meth:`RoleContext.gather` uses to honour the timeout / quorum
+    policy).
     """
 
     def __init__(
@@ -208,36 +208,28 @@ class _GatherCollector:
         self._expected = max(0, int(expected))
         self._reply_type = reply_type
         self.responses: dict[AgentAddress, Any] = {}
-        # Lazily created so the collector can be constructed before a
-        # running event loop is required (Agent.open_gather runs in
-        # whichever context the caller is in).
-        self._done: asyncio.Event | None = None
-
-    def _event(self) -> asyncio.Event:
-        if self._done is None:
-            self._done = asyncio.Event()
-        return self._done
+        self._done = asyncio.Event()
 
     def on_reply(self, content: Any, meta: dict) -> None:
         if self._reply_type is not None and not isinstance(content, self._reply_type):
             return
-        sender_id = meta.get("sender_id")
-        sender_addr = meta.get("sender_addr")
-        addr = AgentAddress(protocol_addr=sender_addr, aid=sender_id)
+        addr = AgentAddress(
+            protocol_addr=meta.get("sender_addr"), aid=meta.get("sender_id")
+        )
         # First reply per sender wins — late duplicates (e.g. retries)
         # are dropped so the caller sees a stable mapping.
         if addr in self.responses:
             return
         self.responses[addr] = content
         if self._expected and len(self.responses) >= self._expected:
-            self._event().set()
+            self._done.set()
 
     def finish(self) -> None:
         """Force the collector to resolve (used on timeout / quorum hit)."""
-        self._event().set()
+        self._done.set()
 
     async def wait(self) -> None:
-        await self._event().wait()
+        await self._done.wait()
 
 
 class AgentContext:
@@ -1037,12 +1029,10 @@ class Agent(ABC, AgentDelegates):
                     # ``@on_message`` handler sees a freshly-nudged
                     # neighbour score should it read one.
                     self._nudge_topology_health(meta)
-                    # Route to any open conversation that matches the
-                    # message's conversation_id.  Doesn't suppress
-                    # normal handler dispatch — a role can still react
-                    # to the message through ``@on_message`` AND join
-                    # the conversation; the routing simply ensures the
-                    # async-iterator pulls the message too.
+                    # Push to any matching open conversation in addition
+                    # to (not instead of) normal dispatch — a role can
+                    # react via ``@on_message`` and pull from the
+                    # conversation iterator on the same message.
                     self._route_to_conversation(content, meta)
                     if not self._handle_tracked_reply(content, meta):
                         for _cond, _handler, _proc in self._behavior_message_subs:

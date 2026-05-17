@@ -596,6 +596,22 @@ class RoleContext(AgentDelegates):
             if health.is_live(my_addr, n, now, threshold=threshold)
         ]
 
+    def _bound_agent(self, operation: str):
+        """Return the owning :class:`RoleAgent`, or raise a clear error.
+
+        Conversation- and gather-style helpers need access to the
+        agent's scheduler clock and message-routing tables; this
+        wrapper produces a uniform error when a role is used before
+        its agent attaches.
+        """
+        agent = self._role_handler._agent
+        if agent is None:
+            raise RuntimeError(
+                f"{operation} requires a bound RoleAgent — the role's "
+                "context is not attached yet."
+            )
+        return agent
+
     def open_conversation(
         self,
         *,
@@ -606,25 +622,17 @@ class RoleContext(AgentDelegates):
 
         Returns an async context manager whose body yields a
         :class:`~mango.agent.conversation.Conversation`.  A new id is
-        generated; pass it (or use :meth:`Conversation.send`) so other
-        agents can route their messages back.
+        generated; other agents reply by echoing it (every call to
+        :meth:`Conversation.send` carries it automatically).
 
         The optional *timeout* is enforced via the agent's scheduler
         clock so behaviour is identical under :class:`AsyncioClock`
         (real time) and :class:`ExternalClock` (simulation).
         """
-        import uuid as _uuid
+        import uuid
 
-        from mango.agent.conversation import Conversation
-
-        return _ConversationContext(
-            role_context=self,
-            conv=Conversation(
-                owner=self,
-                conversation_id=str(_uuid.uuid4()),
-                state=state,
-                timeout=timeout,
-            ),
+        return self._make_conversation(
+            conversation_id=str(uuid.uuid4()), state=state, timeout=timeout
         )
 
     def join_conversation(
@@ -636,13 +644,13 @@ class RoleContext(AgentDelegates):
     ):
         """Join an existing conversation as a non-initiator.
 
-        Reads the conversation id from ``meta`` (the same dict passed
-        to ``@on_message`` handlers) and registers a local handle so
-        subsequent messages tagged with that id route here too.  Use
-        when a role wants to process a multi-message exchange from the
-        responder side — typical for gossip forwarders.
+        Reads the id from ``meta`` (the dict passed to ``@on_message``
+        handlers) and registers a local handle so subsequent messages
+        tagged with that id route here too.  Typical use: a gossip
+        forwarder processes a multi-message exchange from the
+        responder side.
         """
-        from mango.agent.conversation import CONVERSATION_ID_KEY, Conversation
+        from mango.agent.conversation import CONVERSATION_ID_KEY
 
         conv_id = meta.get(CONVERSATION_ID_KEY)
         if not conv_id:
@@ -650,11 +658,24 @@ class RoleContext(AgentDelegates):
                 "join_conversation requires a meta dict carrying "
                 f"{CONVERSATION_ID_KEY!r}"
             )
+        return self._make_conversation(
+            conversation_id=conv_id, state=state, timeout=timeout
+        )
+
+    def _make_conversation(
+        self,
+        *,
+        conversation_id: str,
+        state: dict | None,
+        timeout: float | None,
+    ) -> "_ConversationContext":
+        from mango.agent.conversation import Conversation
+
         return _ConversationContext(
             role_context=self,
             conv=Conversation(
                 owner=self,
-                conversation_id=conv_id,
+                conversation_id=conversation_id,
                 state=state,
                 timeout=timeout,
             ),
@@ -671,65 +692,50 @@ class RoleContext(AgentDelegates):
     ) -> dict["AgentAddress", Any]:
         """Send *content* to every address in *receivers* and collect replies.
 
-        Returns a dict mapping the responding agent's
-        :class:`AgentAddress` to the reply content.  Senders are
+        Returns a dict mapping each responding agent's
+        :class:`AgentAddress` to its reply content.  Responders are
         expected to use :meth:`AgentDelegates.reply_to` (or otherwise
-        echo ``tracking_id`` with ``reply=True``) — every legacy
-        request/response pair in mango already follows that convention,
-        so existing responder roles work unchanged.
+        echo ``tracking_id`` with ``reply=True``) — every existing
+        request/response pair in mango follows that convention, so
+        responder roles work unchanged.
 
         :param receivers: iterable of :class:`AgentAddress` targets.
-        :param reply_type: optional class/tuple — replies not matching
-            this type are silently dropped (filters out tracking-id
-            collisions with unrelated traffic).
-        :param timeout: hard wallclock cap; if no quorum is reached by
-            then, returns whatever replies have arrived so far.
-        :param min_fraction: between 0 and 1.  When :math:`\\geq` this
-            fraction of receivers have replied, the call returns
-            without waiting further.  Defaults to 1.0 — wait for all,
-            time out otherwise.
+        :param reply_type: optional class/tuple — replies of any other
+            type are silently dropped, filtering out tracking-id
+            collisions with unrelated traffic.
+        :param timeout: cap on how long to wait, measured on the
+            agent's scheduler clock.  When it elapses, returns
+            whatever replies have arrived so far.
+        :param min_fraction: between 0 and 1.  Returns as soon as
+            ``ceil(min_fraction * len(receivers))`` replies have
+            arrived.  Defaults to 1.0 — wait for all, time out
+            otherwise.
         """
-        import uuid as _uuid
+        import uuid
 
-        agent = self._role_handler._agent
-        if agent is None:
-            raise RuntimeError(
-                "RoleContext.gather requires a RoleAgent — the role's "
-                "context is not bound to an agent yet."
-            )
+        agent = self._bound_agent("RoleContext.gather")
         receivers = list(receivers)
-        n = len(receivers)
-        if n == 0:
+        if not receivers:
             return {}
-        expected = max(1, int(round(min_fraction * n)))
+        expected = max(1, int(round(min_fraction * len(receivers))))
 
-        tracking_id = str(_uuid.uuid4())
+        tracking_id = str(uuid.uuid4())
         collector = agent.open_gather(
             tracking_id, expected=expected, reply_type=reply_type
         )
-        # Timeout must follow mango's simulation clock — not wall time
-        # — so ``gather`` behaves identically under ``AsyncioClock``
-        # (real-time) and ``ExternalClock`` (simulation).  ``wait_for``
-        # uses ``loop.time()`` and would block real seconds in sim mode.
         try:
             for addr in receivers:
                 await self.send_message(
-                    content,
-                    receiver_addr=addr,
-                    tracking_id=tracking_id,
+                    content, receiver_addr=addr, tracking_id=tracking_id
                 )
-            clock = agent.scheduler.clock
-            done_fut = asyncio.ensure_future(collector.wait())
-            timeout_fut = asyncio.ensure_future(clock.sleep(timeout))
-            try:
-                await asyncio.wait(
-                    {done_fut, timeout_fut},
-                    return_when=asyncio.FIRST_COMPLETED,
-                )
-            finally:
-                for fut in (done_fut, timeout_fut):
-                    if not fut.done():
-                        fut.cancel()
+            # Timeout follows the agent's scheduler clock so behaviour
+            # is identical under AsyncioClock (real time) and
+            # ExternalClock (simulation).  asyncio.wait_for would block
+            # real seconds in sim mode.
+            await _race_first_completed(
+                collector.wait(),
+                agent.scheduler.clock.sleep(timeout),
+            )
         finally:
             agent.close_gather(tracking_id)
         return dict(collector.responses)
@@ -891,51 +897,68 @@ class Role(ABC):
         """
 
 
+async def _race_first_completed(*awaitables) -> None:
+    """Run *awaitables* concurrently; return when the first finishes,
+    cancelling the rest.  Used by gather and the conversation timeout
+    to race a "we're done" signal against a clock-aware timer.
+    """
+    tasks = [asyncio.ensure_future(a) for a in awaitables]
+    try:
+        await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+    finally:
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+
+
 class _ConversationContext:
-    """Async context manager returned by ``RoleContext.open_conversation`` /
-    ``RoleContext.join_conversation``.
+    """Async context manager returned by ``RoleContext.open_conversation``
+    and ``RoleContext.join_conversation``.
 
     Owns the lifecycle of one :class:`~mango.agent.conversation.Conversation`:
-    registers it with the agent on ``__aenter__``, schedules an
-    optional clock-aware timeout, and unregisters on ``__aexit__``.
-    Splitting the context manager out keeps ``Conversation`` itself
-    free of mango-agent references and easy to unit-test.
+
+    * ``__aenter__`` registers the conversation with the agent so
+      inbound messages route to it, and schedules the optional
+      clock-aware timeout.
+    * ``__aexit__`` unregisters the conversation and cancels the
+      timeout future.
+
+    Keeping the context manager separate from :class:`Conversation`
+    itself leaves the data class free of mango-agent references and
+    easy to unit-test.
     """
 
     def __init__(self, *, role_context: "RoleContext", conv) -> None:
         self._role_context = role_context
         self._conv = conv
-        self._timeout_future = None
+        self._timeout_task: asyncio.Task | None = None
 
     async def __aenter__(self):
-        agent = self._role_context._role_handler._agent
-        if agent is None:
-            raise RuntimeError(
-                "Conversation requires a bound RoleAgent — the role's "
-                "context is not attached yet."
-            )
+        agent = self._role_context._bound_agent("Conversation")
         agent.open_conversation(self._conv)
-        if self._conv._timeout is not None:
-            # Use the agent's scheduler clock so timeouts respect
-            # simulation time when running under an ExternalClock.
-            clock = agent.scheduler.clock if agent.scheduler else None
-            if clock is not None:
-                self._timeout_future = asyncio.ensure_future(
-                    self._fire_after(clock, self._conv._timeout)
-                )
+        # Schedule the timeout on the agent's scheduler clock so it
+        # respects simulation time under an ExternalClock.
+        timeout = self._conv._timeout
+        clock = agent.scheduler.clock if agent.scheduler else None
+        if timeout is not None and clock is not None:
+            self._timeout_task = asyncio.ensure_future(
+                self._cancel_after(clock, timeout)
+            )
         return self._conv
 
     async def __aexit__(self, exc_type, exc, tb):
-        if self._timeout_future is not None and not self._timeout_future.done():
-            self._timeout_future.cancel()
+        if self._timeout_task is not None and not self._timeout_task.done():
+            self._timeout_task.cancel()
         agent = self._role_context._role_handler._agent
         if agent is not None:
             agent.close_conversation(self._conv)
         return False
 
-    async def _fire_after(self, clock, delay: float) -> None:
+    async def _cancel_after(self, clock, delay: float) -> None:
         try:
             await clock.sleep(delay)
         except asyncio.CancelledError:
             return
-        self._conv._fire_timeout()
+        # Timeout == abrupt close: anything still queued is dropped,
+        # but conv.state remains readable after the context exits.
+        self._conv.cancel()
