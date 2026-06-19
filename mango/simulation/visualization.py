@@ -72,7 +72,7 @@ def plot_world(
     kwargs: dict[str, Any] = {}
     if color is not None:
         kwargs["color"] = color
-    ax.plot(rec.time, rec.timeseries, **kwargs)
+    ax.plot(rec.time, rec.timeseries, drawstyle="steps-post", **kwargs)
     ax.set_title(title or recording_key)
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
@@ -131,7 +131,7 @@ def plot_agents(
             else (color if color else default_cycle[i % len(default_cycle)])
         )
         label = _agent_label(world, aid)
-        ax.plot(t, values, label=label, color=c)
+        ax.plot(t, values, label=label, color=c, drawstyle="steps-post")
 
     ax.set_title(title or recording_key)
     ax.set_xlabel(xlabel)
@@ -194,13 +194,14 @@ def plot_recordings(
         ax = axes_flat[i]
         if key in world.data_collections:
             rec = world.data_collections[key]
-            ax.plot(rec.time, rec.timeseries)
+            ax.plot(rec.time, rec.timeseries, drawstyle="steps-post")
         else:
             rec = world.data_agent_collections[key]
             if colormap:
                 import matplotlib.cm as cm
 
-                cmap = cm.get_cmap(colormap, max(len(rec.timeseries), 1))
+                #cmap = cm.get_cmap(colormap, max(len(rec.timeseries), 1))
+                cmap = plt.colormaps[colormap].resampled(max(len(rec.timeseries), 1))
                 color_list = [cmap(j) for j in range(len(rec.timeseries))]
             else:
                 color_list = cycle
@@ -208,7 +209,7 @@ def plot_recordings(
             for j, (aid, values) in enumerate(rec.timeseries.items()):
                 t = rec.time[: len(values)]
                 c = color_list[j % len(color_list)]
-                ax.plot(t, values, label=_agent_label(world, aid), color=c)
+                ax.plot(t, values, label=_agent_label(world, aid), color=c, drawstyle="steps-post")
             ax.legend(fontsize="x-small")
 
         ax.set_title(key)
