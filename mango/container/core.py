@@ -363,7 +363,15 @@ class Container(ABC):
             futs.append(agent.shutdown())
         await asyncio.gather(*futs)
 
+        if self._registry is not None:
+            for aid in list(self._agents.keys()):
+                self._registry.on_agent_deregistered(self, aid)
+
+        # this also deregisters agents living in subprocesses, if any
         await self._container_process_manager.shutdown()
+
+        if self._registry is not None:
+            self._registry.on_container_removed(self)
 
         # cancel check inbox task
         if self._check_inbox_task is not None:

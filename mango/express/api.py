@@ -24,6 +24,7 @@ class ContainerActivationManager:
         self._ui = ui
         self._ui_host = ui_host
         self._ui_port = ui_port
+        self._registry = None
 
     async def __aenter__(self):
         await asyncio.gather(*[c.start() for c in self._containers])
@@ -32,16 +33,18 @@ class ContainerActivationManager:
         if self._ui:
             from ..ui import TopologyRegistry
 
-            registry = TopologyRegistry()
+            self._registry = TopologyRegistry()
             for container in self._containers:
-                registry.register(container)
-            await registry.start_server(host=self._ui_host, port=self._ui_port)
+                self._registry.register(container)
+            await self._registry.start_server(host=self._ui_host, port=self._ui_port)
         if len(self._containers) == 1:
             return self._containers[0]
         return self._containers
 
     async def __aexit__(self, exc_type, exc, tb):
         await asyncio.gather(*[c.shutdown() for c in self._containers])
+        if self._registry is not None:
+            await self._registry.stop_server()
 
 
 class RunWithContainer(ABC):

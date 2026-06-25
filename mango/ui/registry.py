@@ -1,7 +1,7 @@
 import asyncio
 import json
 import logging
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +41,8 @@ class TopologyRegistry:
         self._agents: dict[str, AgentInfo] = {}
         self._connections: list[ConnectionInfo] = []
         self._ws_clients: set = set()
+        self._uvicorn_server = None
+        self._server_task = None
 
     def register(self, container) -> None:
         """Register a container with this registry."""
@@ -57,6 +59,15 @@ class TopologyRegistry:
                 self._agents[f"{addr_str}:{aid}"] = AgentInfo(
                     aid=aid, container_addr=addr_str
                 )
+        # agents living in subprocesses (see Container.as_agent_process) have
+        # no Agent object in this process to check `_visible` on, so they are
+        # always treated as visible. This is a one-time backfill, so subprocess
+        # agents created after this call (i.e. inside an active `activate(ui=True)`
+        # block) won't be picked up either.
+        for aid in container._container_process_manager.aids:
+            self._agents[f"{addr_str}:{aid}"] = AgentInfo(
+                aid=aid, container_addr=addr_str
+            )
 
     def add_connection(
         self,
@@ -118,6 +129,12 @@ class TopologyRegistry:
         self._agents.pop(f"{addr_str}:{aid}", None)
         self._broadcast()
 
+    def on_container_removed(self, container) -> None:
+        addr_str = str(container.addr)
+        self._containers.pop(addr_str, None)
+        self._container_refs.pop(addr_str, None)
+        self._broadcast()
+
     # ------------------------------------------------------------------
     # WebSocket / server
     # ------------------------------------------------------------------
@@ -139,9 +156,18 @@ class TopologyRegistry:
 
         app = create_app(self)
         config = uvicorn.Config(app, host=host, port=port, log_level="warning")
-        server = uvicorn.Server(config)
-        asyncio.ensure_future(server.serve())
+        self._uvicorn_server = uvicorn.Server(config)
+        self._server_task = asyncio.ensure_future(self._uvicorn_server.serve())
         logger.info("Topology UI available at http://%s:%d", host, port)
+
+    async def stop_server(self) -> None:
+        """Stop the UI server started via `start_server`, if any."""
+        if self._uvicorn_server is None:
+            return
+        self._uvicorn_server.should_exit = True
+        await self._server_task
+        self._uvicorn_server = None
+        self._server_task = None
 
     async def _connect_client(self, ws) -> None:
         self._ws_clients.add(ws)
