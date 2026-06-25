@@ -384,15 +384,17 @@ class AgentDelegates:
 class Agent(ABC, AgentDelegates):
     """Base class for all agents."""
 
-    def __init__(
-        self,
-    ):
+    def __init__(self, visible: bool = True):
         """
         Initialize an agent
+
+        :param visible: whether this agent is reported to a TopologyRegistry,
+            defaults to True
         """
 
         super().__init__()
 
+        self._visible = visible
         self.inbox = asyncio.Queue()
         self.context = AgentContext(None)
 

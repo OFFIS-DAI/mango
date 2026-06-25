@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <title>mango — topology</title>
+  <script src="https://unpkg.com/graphology@0.25.4/dist/graphology.umd.min.js"></script>
+  <script src="https://unpkg.com/sigma@2.4.0/build/sigma.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0a0e17;
+      --surface:   #0d1117;
+      --surface2:  #161b22;
+      --border:    #21262d;
+      --text:      #c9d1d9;
+      --muted:     #8b949e;
+      --accent:    #58a6ff;
+      --green:     #3fb950;
+      --red:       #f85149;
+      --yellow:    #d29922;
+    }
+
+    body {
+      font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Header ───────────────────────────────────────── */
+    #header {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      padding: 0 20px;
+      height: 50px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    #logo {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 4px;
+    }
+
+    .sep { width: 1px; height: 18px; background: var(--border); }
+
+    .pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 10px;
+      border-radius: 20px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    #dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--border);
+      transition: background .3s, box-shadow .3s;
+    }
+    #dot.live  { background: var(--green); box-shadow: 0 0 7px var(--green); }
+    #dot.dead  { background: var(--red); }
+
+    #stats {
+      display: flex;
+      gap: 18px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .stat b { color: var(--text); font-weight: 600; }
+
+    #legend {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .leg { display: flex; align-items: center; gap: 6px; }
+    .leg-line { width: 20px; height: 2px; border-radius: 1px; }
+
+    /* ── Canvas ───────────────────────────────────────── */
+    #sigma-wrap {
+      flex: 1;
+      position: relative;
+      background: var(--bg);
+    }
+
+    #sigma-canvas {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* ── Controls ─────────────────────────────────────── */
+    #controls {
+      position: absolute;
+      bottom: 18px;
+      right: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .ctrl-btn {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 13px;
+      width: 34px; height: 34px;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background .15s;
+    }
+    .ctrl-btn:hover { background: var(--border); }
+
+    /* ── Tooltip ──────────────────────────────────────── */
+    #tooltip {
+      position: fixed;
+      display: none;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 12px;
+      line-height: 1.7;
+      pointer-events: none;
+      z-index: 200;
+      min-width: 180px;
+      box-shadow: 0 6px 24px rgba(0,0,0,.5);
+    }
+    .tt-title { font-weight: 700; color: var(--text); margin-bottom: 4px; font-size: 13px; }
+    .tt-row   { color: var(--muted); }
+    .tt-row span { color: var(--text); }
+
+    /* ── Empty state ──────────────────────────────────── */
+    #empty {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 13px;
+      pointer-events: none;
+    }
+    #empty svg { opacity: .3; }
+    #empty.hidden { display: none; }
+  </style>
+</head>
+<body>
+
+<div id="header">
+  <div id="logo">mango</div>
+  <div class="sep"></div>
+  <div class="pill">
+    <div id="dot"></div>
+    <span id="status-text">connecting…</span>
+  </div>
+  <div id="stats">
+    <div class="stat"><b id="n-containers">0</b> containers</div>
+    <div class="stat"><b id="n-agents">0</b> agents</div>
+    <div class="stat"><b id="n-connections">0</b> connections</div>
+  </div>
+  <div id="legend">
+    <div class="leg"><div class="leg-line" style="background:#4a90d9"></div>tcp</div>
+    <div class="leg"><div class="leg-line" style="background:#f5a623"></div>mqtt</div>
+    <div class="leg"><div class="leg-line" style="background:#7ed321"></div>internal</div>
+    <div class="leg"><div class="leg-line" style="background:var(--border)"></div>member</div>
+  </div>
+</div>
+
+<div id="sigma-wrap">
+  <div id="sigma-canvas"></div>
+
+  <div id="empty">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <circle cx="12" cy="12" r="10"/><circle cx="8" cy="10" r="1.5" fill="currentColor"/>
+      <circle cx="16" cy="10" r="1.5" fill="currentColor"/>
+      <path d="M8 14s1.5 2 4 2 4-2 4-2" stroke-linecap="round"/>
+    </svg>
+    <span>Waiting for topology data…</span>
+  </div>
+
+  <div id="controls">
+    <button class="ctrl-btn" id="btn-fit"   title="Fit view (F)">⊡</button>
+    <button class="ctrl-btn" id="btn-zoomin"  title="Zoom in (+)">+</button>
+    <button class="ctrl-btn" id="btn-zoomout" title="Zoom out (-)">−</button>
+  </div>
+</div>
+
+<div id="tooltip"></div>
+
+<script>
+  // ── Constants ────────────────────────────────────────────────────────────────
+
+  const CONN_COLORS = {
+    tcp:      '#4a90d9',
+    mqtt:     '#f5a623',
+    internal: '#7ed321',
+  };
+
+  const STATUS_COLORS = {
+    active: '#3fb950',
+    error:  '#f85149',
+    idle:   '#d29922',
+  };
+
+  // ── State ────────────────────────────────────────────────────────────────────
+
+  let sigma  = null;
+  let graph  = null;
+
+  // ── Layout ───────────────────────────────────────────────────────────────────
+
+  function layout(data) {
+    const pos     = {};
+    const cCount  = data.containers.length;
+    const SPREAD  = 5;   // horizontal gap between containers
+    const RADIUS  = 2.2; // agent orbit radius
+
+    data.containers.forEach((c, ci) => {
+      const cx = (ci - (cCount - 1) / 2) * SPREAD;
+      pos['c:' + c.addr] = { x: cx, y: 0 };
+
+      const mine = data.agents.filter(a => a.container_addr === c.addr);
+      const n    = mine.length;
+
+      mine.forEach((a, ai) => {
+        // fan below the container (-120° to -60°, centered at -90°)
+        const angle = n === 1
+          ? -Math.PI / 2
+          : -Math.PI / 2 + ((ai / (n - 1)) - 0.5) * Math.PI * 1.1;
+
+        pos['a:' + a.container_addr + ':' + a.aid] = {
+          x: cx + RADIUS * Math.cos(angle),
+          y: RADIUS * Math.sin(angle) - 1,
+        };
+      });
+    });
+
+    return pos;
+  }
+
+  // ── Build graphology graph ───────────────────────────────────────────────────
+
+  function buildGraph(data) {
+    const g   = new graphology.MultiGraph();
+    const pos = layout(data);
+
+    // container nodes — larger, accent border
+    data.containers.forEach(c => {
+      const id = 'c:' + c.addr;
+      const p  = pos[id] || { x: 0, y: 0 };
+      g.addNode(id, {
+        label:       c.name,
+        x: p.x, y: p.y,
+        size:        20,
+        color:       '#1f2937',
+        borderColor: '#388bfd',
+        kind:        'container',
+        raw:         c,
+      });
+    });
+
+    // agent nodes + thin membership edges
+    data.agents.forEach(a => {
+      const id = 'a:' + a.container_addr + ':' + a.aid;
+      const p  = pos[id] || { x: 0, y: -2 };
+      const sc = STATUS_COLORS[a.status] || '#8b949e';
+
+      g.addNode(id, {
+        label: a.aid,
+        x: p.x, y: p.y,
+        size:  13,
+        color: sc,
+        kind:  'agent',
+        raw:   a,
+      });
+
+      // membership edge
+      if (g.hasNode('c:' + a.container_addr)) {
+        g.addEdge('c:' + a.container_addr, id, {
+          color:  '#21262d',
+          size:   1,
+          type:   'line',
+          label:  '',
+          kind:   'member',
+        });
+      }
+    });
+
+    // declared connection edges
+    data.connections.forEach(c => {
+      const color = CONN_COLORS[c.conn_type] || '#8b949e';
+      const src   = 'a:' + c.source_addr + ':' + c.source_aid;
+      const tgt   = 'a:' + c.target_addr + ':' + c.target_aid;
+
+      if (!g.hasNode(src) || !g.hasNode(tgt)) return;
+
+      g.addEdge(src, tgt, {
+        color, size: 2.5,
+        type:  'arrow',
+        label: c.conn_type,
+        kind:  'connection',
+      });
+
+      if (c.direction === 'bi') {
+        g.addEdge(tgt, src, {
+          color, size: 2.5,
+          type:  'arrow',
+          label: '',
+          kind:  'connection',
+        });
+      }
+    });
+
+    return g;
+  }
+
+  // ── Renderer ─────────────────────────────────────────────────────────────────
+
+  function initSigma(g) {
+    if (sigma) { sigma.kill(); sigma = null; }
+
+    sigma = new Sigma(g, document.getElementById('sigma-canvas'), {
+      renderEdgeLabels:  true,
+      defaultEdgeType:   'arrow',
+      labelColor:        { color: '#c9d1d9' },
+      labelSize:         13,
+      labelWeight:       '600',
+      labelRenderedSizeThreshold: 6,
+      edgeLabelColor:    { color: '#8b949e' },
+      edgeLabelSize:     10,
+      defaultNodeColor:  '#21262d',
+      defaultEdgeColor:  '#30363d',
+      minCameraRatio:    0.05,
+      maxCameraRatio:    20,
+    });
+
+    // ── Tooltip ──────────────────────────────────────────────────────────────
+
+    const ttEl = document.getElementById('tooltip');
+
+    sigma.on('enterNode', ({ node }) => {
+      const d = g.getNodeAttributes(node);
+      const r = d.raw || {};
+      let html = '';
+
+      if (d.kind === 'container') {
+        html = `<div class="tt-title">📦 ${d.label}</div>
+                <div class="tt-row">addr <span>${r.addr || ''}</span></div>`;
+      } else {
+        const sc = STATUS_COLORS[r.status] || '#8b949e';
+        html = `<div class="tt-title">● ${d.label}</div>
+                <div class="tt-row">container <span>${r.container_addr || ''}</span></div>
+                <div class="tt-row">status <span style="color:${sc}">${r.status || 'unknown'}</span></div>`;
+      }
+
+      ttEl.innerHTML = html;
+      ttEl.style.display = 'block';
+    });
+
+    sigma.on('leaveNode', () => { ttEl.style.display = 'none'; });
+
+    sigma.getMouseCaptor().on('mousemove', e => {
+      ttEl.style.left = (e.x + 16) + 'px';
+      ttEl.style.top  = (e.y + 16) + 'px';
+    });
+
+    fitView();
+  }
+
+  // ── Fit / zoom ────────────────────────────────────────────────────────────────
+
+  function fitView() {
+    if (!sigma || !graph || !graph.order) return;
+
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    graph.forEachNode((_, { x, y }) => {
+      if (x < minX) minX = x; if (y < minY) minY = y;
+      if (x > maxX) maxX = x; if (y > maxY) maxY = y;
+    });
+
+    const cx     = (minX + maxX) / 2;
+    const cy     = (minY + maxY) / 2;
+    const rangeX = Math.max(maxX - minX, 1);
+    const rangeY = Math.max(maxY - minY, 1);
+
+    const wrap  = document.getElementById('sigma-wrap');
+    const wW    = wrap.clientWidth;
+    const wH    = wrap.clientHeight;
+
+    // sigma camera ratio: graph-units per pixel. Lower = more zoomed in.
+    const ratio = Math.max(rangeX / wW, rangeY / wH) * 1.5;
+
+    sigma.getCamera().animate(
+      { x: cx, y: cy, ratio, angle: 0 },
+      { duration: 400 }
+    );
+  }
+
+  // ── Controls ──────────────────────────────────────────────────────────────────
+
+  document.getElementById('btn-fit').addEventListener('click', fitView);
+  document.getElementById('btn-zoomin').addEventListener('click', () => {
+    sigma && sigma.getCamera().animatedZoom({ factor: 1.5, duration: 200 });
+  });
+  document.getElementById('btn-zoomout').addEventListener('click', () => {
+    sigma && sigma.getCamera().animatedUnzoom({ factor: 1.5, duration: 200 });
+  });
+
+  document.addEventListener('keydown', e => {
+    if (!sigma) return;
+    if (e.key === 'f' || e.key === 'F') fitView();
+    if (e.key === '+' || e.key === '=') sigma.getCamera().animatedZoom({ factor: 1.5, duration: 200 });
+    if (e.key === '-')                   sigma.getCamera().animatedUnzoom({ factor: 1.5, duration: 200 });
+  });
+
+  // ── Render ────────────────────────────────────────────────────────────────────
+
+  function render(data) {
+    document.getElementById('n-containers').textContent = data.containers.length;
+    document.getElementById('n-agents').textContent     = data.agents.length;
+    document.getElementById('n-connections').textContent = data.connections.length;
+
+    const hasData = data.containers.length > 0 || data.agents.length > 0;
+    document.getElementById('empty').classList.toggle('hidden', hasData);
+
+    graph = buildGraph(data);
+    initSigma(graph);
+  }
+
+  // ── WebSocket ─────────────────────────────────────────────────────────────────
+
+  const dot  = document.getElementById('dot');
+  const stxt = document.getElementById('status-text');
+
+  function connect() {
+    const ws = new WebSocket('ws://' + location.host + '/ws');
+
+    ws.onopen = () => {
+      dot.className = 'live';
+      stxt.textContent = 'live';
+    };
+    ws.onclose = () => {
+      dot.className = 'dead';
+      stxt.textContent = 'reconnecting…';
+      setTimeout(connect, 2000);
+    };
+    ws.onerror = () => { dot.className = 'dead'; };
+    ws.onmessage = e => render(JSON.parse(e.data));
+  }
+
+  connect();
+</script>
+</body>
+</html>

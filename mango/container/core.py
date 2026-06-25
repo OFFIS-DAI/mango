@@ -59,6 +59,8 @@ class Container(ABC):
         self._kwargs = kwargs
         self._mirror_data = mirror_data
 
+        self._registry = None  # set by TopologyRegistry.register(container)
+
         # multiprocessing
         if self._mirror_data is not None:
             self._container_process_manager = MirrorContainerProcessManager(
@@ -133,6 +135,10 @@ class Container(ABC):
 
         if self.ready:
             agent.on_ready()
+
+        if self._registry is not None and getattr(agent, "_visible", True):
+            self._registry.on_agent_registered(self, agent, aid)
+
         return agent
 
     def _get_aid(self, agent):
@@ -148,6 +154,8 @@ class Container(ABC):
         :param aid:
         :return:
         """
+        if self._registry is not None:
+            self._registry.on_agent_deregistered(self, aid)
         del self._agents[aid]
 
     @abstractmethod

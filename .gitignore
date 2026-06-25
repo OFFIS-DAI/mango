@@ -106,3 +106,7 @@ docs/source/_build
 
 # Git
 *.orig
+
+# Claude stuff
+.claude/
+
