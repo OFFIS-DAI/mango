@@ -13,13 +13,29 @@ logger = logging.getLogger(__name__)
 
 
 class ContainerActivationManager:
-    def __init__(self, containers: list[Container]) -> None:
+    def __init__(
+        self,
+        containers: list[Container],
+        ui: bool = False,
+        ui_host: str = "localhost",
+        ui_port: int = 8000,
+    ) -> None:
         self._containers = containers
+        self._ui = ui
+        self._ui_host = ui_host
+        self._ui_port = ui_port
 
     async def __aenter__(self):
         await asyncio.gather(*[c.start() for c in self._containers])
         for container in self._containers:
             container.on_ready()
+        if self._ui:
+            from ..ui import TopologyRegistry
+
+            registry = TopologyRegistry()
+            for container in self._containers:
+                registry.register(container)
+            await registry.start_server(host=self._ui_host, port=self._ui_port)
         if len(self._containers) == 1:
             return self._containers[0]
         return self._containers
@@ -132,7 +148,12 @@ class RunWithMQTTManager(RunWithContainer):
                 await container.subscribe_for_agent(aid=actual_agent.aid, topic=topic)
 
 
-def activate(*containers: Container) -> ContainerActivationManager:
+def activate(
+    *containers: Container,
+    ui: bool = False,
+    ui_host: str = "localhost",
+    ui_port: int = 8000,
+) -> ContainerActivationManager:
     """
     Create and return an async activation context manager.
     This can be used with the `async with` syntax to run code while the container(s) are active.
@@ -151,12 +172,23 @@ def activate(*containers: Container) -> ContainerActivationManager:
         async with activate(container_list) as container_list:
             # do your stuff
 
+        # With the topology UI enabled (requires the `ui` extra)
+        async with activate(container_a, container_b, ui=True) as (container_a, container_b):
+            container_a.registry.add_connection(agent_one.addr, agent_two.addr)
+
+    :param ui: if True, start the topology UI web server once the containers
+        are running, and register all of them with it. Access the registry
+        afterwards via `container.registry` (e.g. to call `add_connection`).
+    :param ui_host: host the UI server binds to, defaults to "localhost"
+    :param ui_port: port the UI server binds to, defaults to 8000
     :return: The context manager to be used as described
     :rtype: ContainerActivationManager
     """
     if isinstance(containers[0], list):
         containers = containers[0]
-    return ContainerActivationManager(list(containers))
+    return ContainerActivationManager(
+        list(containers), ui=ui, ui_host=ui_host, ui_port=ui_port
+    )
 
 
 def run_with_tcp(

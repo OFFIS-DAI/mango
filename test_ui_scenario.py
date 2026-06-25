@@ -11,7 +11,6 @@ import sys
 sys.path.insert(0, "/home/b2k/Desktop/Season2/mango")
 
 from mango import Agent, create_tcp_container, activate, addr
-from mango.ui import TopologyRegistry
 
 
 class SensorAgent(Agent):
@@ -53,27 +52,21 @@ async def main():
     container_a.register(processor, suggested_aid="processor")
     container_b.register(monitor,   suggested_aid="monitor")
 
-    # set up registry — must happen after agents are registered
-    # so the backfill in register() picks them up
-    registry = TopologyRegistry()
-    registry.register(container_a)
-    registry.register(container_b)
+    # ui=True spins up the topology UI server and registers every container
+    # passed to activate() with it once they're running
+    async with activate(container_a, container_b, ui=True) as (container_a, container_b):
+        # any container's `.registry` is the same shared TopologyRegistry instance
+        container_a.registry.add_connection(sensor.addr,    processor.addr, conn_type="internal", direction="uni")
+        container_a.registry.add_connection(processor.addr, monitor.addr,   conn_type="tcp",      direction="uni")
+        container_a.registry.add_connection(monitor.addr,   sensor.addr,    conn_type="tcp",      direction="bi")
 
-    # declare connections
-    registry.add_connection(sensor.addr,    processor.addr, conn_type="internal", direction="uni")
-    registry.add_connection(processor.addr, monitor.addr,   conn_type="tcp",      direction="uni")
-    registry.add_connection(monitor.addr,   sensor.addr,    conn_type="tcp",      direction="bi")
-
-    async with activate(container_a, container_b):
-        # start UI server inside the running loop
-        await registry.start_server(host="localhost", port=8000)
         print("Topology UI: http://localhost:8000")
         print("Press Ctrl+C to stop.\n")
 
         # run health checks every 3 seconds
         while True:
             await asyncio.sleep(3)
-            await registry.check_health()
+            await container_a.registry.check_health()
 
 
 if __name__ == "__main__":

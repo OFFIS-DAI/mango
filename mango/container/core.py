@@ -71,6 +71,11 @@ class Container(ABC):
                 self, mp_method
             )
 
+    @property
+    def registry(self):
+        """The TopologyRegistry this container reports to, if any (see `activate(ui=True)`)."""
+        return self._registry
+
     def _all_aids(self):
         all_aids = list(self._agents.keys()) + self._container_process_manager.aids
 
