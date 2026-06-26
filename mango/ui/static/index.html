@@ -3,8 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <title>mango — topology</title>
-  <script src="https://unpkg.com/graphology@0.25.4/dist/graphology.umd.min.js"></script>
-  <script src="https://unpkg.com/sigma@2.4.0/build/sigma.min.js"></script>
+  <script src="https://unpkg.com/cytoscape@3.30.0/dist/cytoscape.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -226,33 +225,33 @@
 
   // ── State ────────────────────────────────────────────────────────────────────
 
-  let sigma  = null;
-  let graph  = null;
+  let cy = null;
 
   // ── Layout ───────────────────────────────────────────────────────────────────
 
   function layout(data) {
-    const pos     = {};
-    const cCount  = data.containers.length;
-    const SPREAD  = 5;   // horizontal gap between containers
-    const RADIUS  = 2.2; // agent orbit radius
+    const pos    = {};
+    const cCount = data.containers.length;
+    const SPREAD = 5;
+    const RADIUS = 2.2;
+    const SCALE  = 80;  // graph units → cytoscape pixel coords
 
     data.containers.forEach((c, ci) => {
       const cx = (ci - (cCount - 1) / 2) * SPREAD;
-      pos['c:' + c.addr] = { x: cx, y: 0 };
+      pos['c:' + c.addr] = { x: cx * SCALE, y: 0 };
 
       const mine = data.agents.filter(a => a.container_addr === c.addr);
       const n    = mine.length;
 
       mine.forEach((a, ai) => {
-        // fan below the container (-120° to -60°, centered at -90°)
         const angle = n === 1
           ? -Math.PI / 2
           : -Math.PI / 2 + ((ai / (n - 1)) - 0.5) * Math.PI * 1.1;
 
+        // cytoscape y increases downward, so negate the math-y to place agents below containers
         pos['a:' + a.container_addr + ':' + a.aid] = {
-          x: cx + RADIUS * Math.cos(angle),
-          y: RADIUS * Math.sin(angle) - 1,
+          x:  (cx + RADIUS * Math.cos(angle)) * SCALE,
+          y: -(RADIUS * Math.sin(angle) - 1)  * SCALE,
         };
       });
     });
@@ -260,109 +259,134 @@
     return pos;
   }
 
-  // ── Build graphology graph ───────────────────────────────────────────────────
+  // ── Build cytoscape elements ─────────────────────────────────────────────────
 
-  function buildGraph(data) {
-    const g   = new graphology.MultiGraph();
-    const pos = layout(data);
+  function buildElements(data) {
+    const pos  = layout(data);
+    const eles = [];
 
-    // container nodes — larger, accent border
     data.containers.forEach(c => {
       const id = 'c:' + c.addr;
-      const p  = pos[id] || { x: 0, y: 0 };
-      g.addNode(id, {
-        label:       c.name,
-        x: p.x, y: p.y,
-        size:        20,
-        color:       '#1f2937',
-        borderColor: '#388bfd',
-        kind:        'container',
-        raw:         c,
-      });
+      eles.push({ data: { id, label: c.name, kind: 'container', raw: c },
+                  position: pos[id] || { x: 0, y: 0 } });
     });
 
-    // agent nodes + thin membership edges
     data.agents.forEach(a => {
       const id = 'a:' + a.container_addr + ':' + a.aid;
-      const p  = pos[id] || { x: 0, y: -2 };
       const sc = STATUS_COLORS[a.status] || '#8b949e';
+      eles.push({ data: { id, label: a.aid, kind: 'agent', color: sc, raw: a },
+                  position: pos[id] || { x: 0, y: 100 } });
 
-      g.addNode(id, {
-        label: a.aid,
-        x: p.x, y: p.y,
-        size:  13,
-        color: sc,
-        kind:  'agent',
-        raw:   a,
-      });
-
-      // membership edge
-      if (g.hasNode('c:' + a.container_addr)) {
-        g.addEdge('c:' + a.container_addr, id, {
-          color:  '#21262d',
-          size:   1,
-          type:   'line',
-          label:  '',
+      if (data.containers.find(c => c.addr === a.container_addr)) {
+        eles.push({ data: {
+          id:     'em:' + a.container_addr + ':' + a.aid,
+          source: 'c:' + a.container_addr,
+          target: id,
           kind:   'member',
-        });
+        }});
       }
     });
 
-    // declared connection edges
-    data.connections.forEach(c => {
+    data.connections.forEach((c, i) => {
       const color = CONN_COLORS[c.conn_type] || '#8b949e';
       const src   = 'a:' + c.source_addr + ':' + c.source_aid;
       const tgt   = 'a:' + c.target_addr + ':' + c.target_aid;
 
-      if (!g.hasNode(src) || !g.hasNode(tgt)) return;
-
-      g.addEdge(src, tgt, {
-        color, size: 2.5,
-        type:  'arrow',
-        label: c.conn_type,
-        kind:  'connection',
-      });
+      eles.push({ data: { id: 'ec:' + i, source: src, target: tgt,
+                          kind: 'connection', color, label: c.conn_type }});
 
       if (c.direction === 'bi') {
-        g.addEdge(tgt, src, {
-          color, size: 2.5,
-          type:  'arrow',
-          label: '',
-          kind:  'connection',
-        });
+        eles.push({ data: { id: 'ec:bi:' + i, source: tgt, target: src,
+                            kind: 'connection', color, label: '' }});
       }
     });
 
-    return g;
+    return eles;
   }
 
   // ── Renderer ─────────────────────────────────────────────────────────────────
 
-  function initSigma(g) {
-    if (sigma) { sigma.kill(); sigma = null; }
-
-    sigma = new Sigma(g, document.getElementById('sigma-canvas'), {
-      renderEdgeLabels:  true,
-      defaultEdgeType:   'arrow',
-      labelColor:        { color: '#c9d1d9' },
-      labelSize:         13,
-      labelWeight:       '600',
-      labelRenderedSizeThreshold: 6,
-      edgeLabelColor:    { color: '#8b949e' },
-      edgeLabelSize:     10,
-      defaultNodeColor:  '#21262d',
-      defaultEdgeColor:  '#30363d',
-      minCameraRatio:    0.05,
-      maxCameraRatio:    20,
+  function initCy(eles) {
+    cy = cytoscape({
+      container: document.getElementById('sigma-canvas'),
+      elements:  eles,
+      layout:    { name: 'preset' },
+      style: [
+        {
+          selector: 'node[kind = "container"]',
+          style: {
+            'width':            40,
+            'height':           40,
+            'background-color': '#1f2937',
+            'border-color':     '#388bfd',
+            'border-width':     2,
+            'label':            'data(label)',
+            'color':            '#c9d1d9',
+            'font-size':        13,
+            'font-family':      'SF Mono, Fira Code, Cascadia Code, monospace',
+            'font-weight':      600,
+            'text-valign':      'bottom',
+            'text-margin-y':    8,
+          },
+        },
+        {
+          selector: 'node[kind = "agent"]',
+          style: {
+            'width':            26,
+            'height':           26,
+            'background-color': 'data(color)',
+            'label':            'data(label)',
+            'color':            '#c9d1d9',
+            'font-size':        11,
+            'font-family':      'SF Mono, Fira Code, Cascadia Code, monospace',
+            'font-weight':      600,
+            'text-valign':      'bottom',
+            'text-margin-y':    6,
+          },
+        },
+        {
+          selector: 'edge',
+          style: {
+            'line-color':              'data(color)',
+            'width':                   2.5,
+            'target-arrow-color':      'data(color)',
+            'target-arrow-shape':      'triangle',
+            'curve-style':             'bezier',
+            'label':                   'data(label)',
+            'font-size':               10,
+            'color':                   '#8b949e',
+            'font-family':             'SF Mono, Fira Code, Cascadia Code, monospace',
+            'text-rotation':           'autorotate',
+            'text-background-color':   '#0a0e17',
+            'text-background-opacity': 0.8,
+            'text-background-padding': '2px',
+          },
+        },
+        {
+          selector: 'edge[kind = "member"]',
+          style: {
+            'target-arrow-shape': 'none',
+            'line-style':         'dashed',
+            'line-color':         '#21262d',
+            'width':              1,
+          },
+        },
+      ],
+      userZoomingEnabled:  true,
+      userPanningEnabled:  true,
+      boxSelectionEnabled: false,
+      autounselectify:     true,
+      minZoom:             0.1,
+      maxZoom:             10,
     });
 
     // ── Tooltip ──────────────────────────────────────────────────────────────
 
     const ttEl = document.getElementById('tooltip');
 
-    sigma.on('enterNode', ({ node }) => {
-      const d = g.getNodeAttributes(node);
-      const r = d.raw || {};
+    cy.on('mouseover', 'node', e => {
+      const d  = e.target.data();
+      const r  = d.raw || {};
       let html = '';
 
       if (d.kind === 'container') {
@@ -375,15 +399,17 @@
                 <div class="tt-row">status <span style="color:${sc}">${r.status || 'unknown'}</span></div>`;
       }
 
-      ttEl.innerHTML = html;
+      ttEl.innerHTML     = html;
       ttEl.style.display = 'block';
     });
 
-    sigma.on('leaveNode', () => { ttEl.style.display = 'none'; });
+    cy.on('mouseout', 'node', () => { ttEl.style.display = 'none'; });
 
-    sigma.getMouseCaptor().on('mousemove', e => {
-      ttEl.style.left = (e.x + 16) + 'px';
-      ttEl.style.top  = (e.y + 16) + 'px';
+    document.getElementById('sigma-canvas').addEventListener('mousemove', e => {
+      if (ttEl.style.display === 'block') {
+        ttEl.style.left = (e.clientX + 16) + 'px';
+        ttEl.style.top  = (e.clientY + 16) + 'px';
+      }
     });
 
     fitView();
@@ -392,61 +418,46 @@
   // ── Fit / zoom ────────────────────────────────────────────────────────────────
 
   function fitView() {
-    if (!sigma || !graph || !graph.order) return;
-
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    graph.forEachNode((_, { x, y }) => {
-      if (x < minX) minX = x; if (y < minY) minY = y;
-      if (x > maxX) maxX = x; if (y > maxY) maxY = y;
-    });
-
-    const cx     = (minX + maxX) / 2;
-    const cy     = (minY + maxY) / 2;
-    const rangeX = Math.max(maxX - minX, 1);
-    const rangeY = Math.max(maxY - minY, 1);
-
-    const wrap  = document.getElementById('sigma-wrap');
-    const wW    = wrap.clientWidth;
-    const wH    = wrap.clientHeight;
-
-    // sigma camera ratio: graph-units per pixel. Lower = more zoomed in.
-    const ratio = Math.max(rangeX / wW, rangeY / wH) * 1.5;
-
-    sigma.getCamera().animate(
-      { x: cx, y: cy, ratio, angle: 0 },
-      { duration: 400 }
-    );
+    if (!cy) return;
+    cy.animate({ fit: { eles: cy.elements(), padding: 60 } }, { duration: 400 });
   }
 
   // ── Controls ──────────────────────────────────────────────────────────────────
 
   document.getElementById('btn-fit').addEventListener('click', fitView);
   document.getElementById('btn-zoomin').addEventListener('click', () => {
-    sigma && sigma.getCamera().animatedZoom({ factor: 1.5, duration: 200 });
+    cy && cy.animate({ zoom: cy.zoom() * 1.5 }, { duration: 200 });
   });
   document.getElementById('btn-zoomout').addEventListener('click', () => {
-    sigma && sigma.getCamera().animatedUnzoom({ factor: 1.5, duration: 200 });
+    cy && cy.animate({ zoom: cy.zoom() / 1.5 }, { duration: 200 });
   });
 
   document.addEventListener('keydown', e => {
-    if (!sigma) return;
+    if (!cy) return;
     if (e.key === 'f' || e.key === 'F') fitView();
-    if (e.key === '+' || e.key === '=') sigma.getCamera().animatedZoom({ factor: 1.5, duration: 200 });
-    if (e.key === '-')                   sigma.getCamera().animatedUnzoom({ factor: 1.5, duration: 200 });
+    if (e.key === '+' || e.key === '=') cy.animate({ zoom: cy.zoom() * 1.5 }, { duration: 200 });
+    if (e.key === '-')                   cy.animate({ zoom: cy.zoom() / 1.5 }, { duration: 200 });
   });
 
   // ── Render ────────────────────────────────────────────────────────────────────
 
   function render(data) {
-    document.getElementById('n-containers').textContent = data.containers.length;
-    document.getElementById('n-agents').textContent     = data.agents.length;
+    document.getElementById('n-containers').textContent  = data.containers.length;
+    document.getElementById('n-agents').textContent      = data.agents.length;
     document.getElementById('n-connections').textContent = data.connections.length;
 
     const hasData = data.containers.length > 0 || data.agents.length > 0;
     document.getElementById('empty').classList.toggle('hidden', hasData);
 
-    graph = buildGraph(data);
-    initSigma(graph);
+    const eles = buildElements(data);
+
+    if (!cy) {
+      initCy(eles);
+    } else {
+      cy.elements().remove();
+      cy.add(eles);
+      fitView();
+    }
   }
 
   // ── WebSocket ─────────────────────────────────────────────────────────────────
@@ -458,11 +469,11 @@
     const ws = new WebSocket('ws://' + location.host + '/ws');
 
     ws.onopen = () => {
-      dot.className = 'live';
+      dot.className    = 'live';
       stxt.textContent = 'live';
     };
     ws.onclose = () => {
-      dot.className = 'dead';
+      dot.className    = 'dead';
       stxt.textContent = 'reconnecting…';
       setTimeout(connect, 2000);
     };
