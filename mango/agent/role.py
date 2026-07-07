@@ -562,6 +562,31 @@ class RoleContext(AgentDelegates):
         now = agent.scheduler.clock.time if agent.scheduler else 0.0
         return health.score(agent.addr, neighbour_addr, now)
 
+    def neighbour_scores(self, tid: str = "default") -> dict:
+        """Return ``{neighbour_addr: score}`` for every neighbour in *tid*.
+
+        Empty when the agent is unbound or the topology has no
+        ``edge_health`` configured.  Complements :meth:`neighbour_score`
+        (single neighbour) and :meth:`live_neighbours` (threshold filter).
+        """
+        agent = self._role_handler._agent
+        if agent is None:
+            return {}
+        from mango.agent.core import State, TopologyService
+
+        svc = agent.service_of_type(TopologyService, None)
+        if svc is None:
+            return {}
+        health = svc.health_runtime(tid)
+        if health is None:
+            return {}
+        now = agent.scheduler.clock.time if agent.scheduler else 0.0
+        my_addr = agent.addr
+        return {
+            n: health.score(my_addr, n, now)
+            for n in svc.neighbors(state=State.NORMAL, tid=tid)
+        }
+
     def live_neighbours(
         self,
         tid: str = "default",
@@ -632,7 +657,10 @@ class RoleContext(AgentDelegates):
         import uuid
 
         return self._make_conversation(
-            conversation_id=str(uuid.uuid4()), state=state, timeout=timeout
+            conversation_id=str(uuid.uuid4()),
+            state=state,
+            timeout=timeout,
+            is_join=False,
         )
 
     def join_conversation(
@@ -659,7 +687,7 @@ class RoleContext(AgentDelegates):
                 f"{CONVERSATION_ID_KEY!r}"
             )
         return self._make_conversation(
-            conversation_id=conv_id, state=state, timeout=timeout
+            conversation_id=conv_id, state=state, timeout=timeout, is_join=True
         )
 
     def _make_conversation(
@@ -668,6 +696,7 @@ class RoleContext(AgentDelegates):
         conversation_id: str,
         state: dict | None,
         timeout: float | None,
+        is_join: bool,
     ) -> "_ConversationContext":
         from mango.agent.conversation import Conversation
 
@@ -679,6 +708,7 @@ class RoleContext(AgentDelegates):
                 state=state,
                 timeout=timeout,
             ),
+            is_join=is_join,
         )
 
     async def gather(
@@ -711,13 +741,14 @@ class RoleContext(AgentDelegates):
             arrived.  Defaults to 1.0 — wait for all, time out
             otherwise.
         """
+        import math
         import uuid
 
         agent = self._bound_agent("RoleContext.gather")
         receivers = list(receivers)
         if not receivers:
             return {}
-        expected = max(1, int(round(min_fraction * len(receivers))))
+        expected = max(1, math.ceil(min_fraction * len(receivers)))
 
         tracking_id = str(uuid.uuid4())
         collector = agent.open_gather(
@@ -837,7 +868,7 @@ class Role(ABC):
         self._context = context
         # Apply class-level @on_message / @on_event / @periodic
         # decorators before user-defined ``setup`` runs, so the explicit
-        # setup body can override or extend the declarative wiring.
+        # setup body can add to (not remove from) the declarative wiring.
         from mango.agent.decorators import apply_dispatch
 
         apply_dispatch(self)
@@ -928,19 +959,32 @@ class _ConversationContext:
     easy to unit-test.
     """
 
-    def __init__(self, *, role_context: "RoleContext", conv) -> None:
+    def __init__(
+        self, *, role_context: "RoleContext", conv, is_join: bool = False
+    ) -> None:
         self._role_context = role_context
         self._conv = conv
+        self._is_join = is_join
         self._timeout_task: asyncio.Task | None = None
 
     async def __aenter__(self):
         agent = self._role_context._bound_agent("Conversation")
-        agent.open_conversation(self._conv)
+        reused = False
+        if self._is_join:
+            # Reuse an already-open handle (shared refcount) so a re-firing
+            # handler does not collide on the same id.
+            registered = agent.join_conversation(self._conv)
+            reused = registered is not self._conv
+            self._conv = registered
+        else:
+            agent.open_conversation(self._conv)
         # Schedule the timeout on the agent's scheduler clock so it
-        # respects simulation time under an ExternalClock.
+        # respects simulation time under an ExternalClock.  A join that
+        # merely reused an existing handle does not arm its own timeout —
+        # the original owner's timeout governs the shared conversation.
         timeout = self._conv._timeout
         clock = agent.scheduler.clock if agent.scheduler else None
-        if timeout is not None and clock is not None:
+        if not reused and timeout is not None and clock is not None:
             self._timeout_task = asyncio.ensure_future(
                 self._cancel_after(clock, timeout)
             )

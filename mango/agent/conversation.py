@@ -108,6 +108,14 @@ class Conversation:
         if self._cancelled:
             return
         self._cancelled = True
+        # Drain anything already queued so a consumer blocked inside
+        # ``queue.get()`` receives the sentinel next, not a stale message —
+        # honouring the "drops queued messages" contract even mid-await.
+        while not self._queue.empty():
+            try:
+                self._queue.get_nowait()
+            except asyncio.QueueEmpty:
+                break
         self._queue.put_nowait((self._END, None))
 
     async def send(self, receiver_addr, content: Any, **kwargs) -> bool:

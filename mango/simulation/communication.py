@@ -84,12 +84,14 @@ class SimpleCommunicationSimulation(CommunicationSimulation):
         loss_percent: float = 0.0,
         default_delay_s: float = 0.0,
         delay_s_directed_edge_dict: dict[tuple[str | None, str], float] | None = None,
+        rng: random.Random | None = None,
     ):
         self.loss_percent = loss_percent
         self.default_delay_s = default_delay_s
         self.delay_s_directed_edge_dict: dict[tuple[str | None, str], float] = (
             delay_s_directed_edge_dict or {}
         )
+        self._rng = rng or random
 
     def calculate_communication(
         self,
@@ -100,7 +102,7 @@ class SimpleCommunicationSimulation(CommunicationSimulation):
         for msg in messages:
             key = (msg.sender_id, msg.receiver_id)
             delay_s = self.delay_s_directed_edge_dict.get(key, self.default_delay_s)
-            reached = random.random() >= self.loss_percent
+            reached = self._rng.random() >= self.loss_percent
             results.append(PackageResult(reached=reached, delay_s=delay_s))
 
         return CommunicationSimulationResult(package_results=results)

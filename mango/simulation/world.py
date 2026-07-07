@@ -188,6 +188,10 @@ class SimulationWorld:
             raise ValueError("Agent is already registered to a container")
         self._agents[aid] = agent
         agent._do_register(self, aid)
+
+        install = getattr(self.environment, "install", None)
+        if callable(install):
+            install(agent, agent_id=aid)
         logger.debug("Registered agent '%s' with world", aid)
         if self.running:
             agent._do_start()

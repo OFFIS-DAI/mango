@@ -112,7 +112,8 @@ class Topology:
         :param agents: zero or more agents to place at this node
         :return: integer node ID
         """
-        node_id = max(self._graph.nodes, default=-1) + 1
+        int_labels = [n for n in self._graph.nodes if isinstance(n, int)]
+        node_id = (max(int_labels) + 1) if int_labels else 0
         self._graph.add_node(node_id, **{AGENT_NODE_KEY: AgentNode(list(agents))})
         return node_id
 
@@ -257,9 +258,7 @@ class Topology:
                     self_neighbor = TopologyNeighbor(
                         agent=agent, description=agent.description
                     )
-                    existing = {
-                        (ct, n.description.uid) for ct, n in self._connectors
-                    }
+                    existing = {(ct, n.description.uid) for ct, n in self._connectors}
                     if (conn_type, agent.description.uid) not in existing:
                         self._connectors.append((conn_type, self_neighbor))
 
@@ -501,10 +500,14 @@ def connect_topologies(
     :param directed: if ``True`` only ``topology_one → topology_two``
         (default ``False``)
     """
-    topology_one._connections.append((connection_type, topology_two))
+    link_one = (connection_type, topology_two)
+    if link_one not in topology_one._connections:
+        topology_one._connections.append(link_one)
     topology_one._build_and_inject()
     if not directed:
-        topology_two._connections.append((connection_type, topology_one))
+        link_two = (connection_type, topology_one)
+        if link_two not in topology_two._connections:
+            topology_two._connections.append(link_two)
         topology_two._build_and_inject()
 
 
@@ -613,14 +616,12 @@ def topology_to_aid_graph(topology: Topology) -> nx.Graph:
         # Use with create_distribution_based_com_sim for topology-aware delays
     """
     g: nx.Graph = nx.Graph()
-    aid_to_node: dict[str, int] = {}
 
     # Add one vertex per agent
     for node_id in topology.graph.nodes:
         agent_node: AgentNode = topology.graph.nodes[node_id][AGENT_NODE_KEY]
         for agent in agent_node.agents:
             g.add_node(agent.aid, agent=agent)
-            aid_to_node[agent.aid] = node_id
 
     # Same-node agents are fully connected (NORMAL)
     for node_id in topology.graph.nodes:

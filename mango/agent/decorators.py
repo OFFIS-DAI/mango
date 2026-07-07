@@ -9,8 +9,10 @@ hand-written boilerplate and into class-level metadata:
 
 A role that uses these decorators does not need to implement
 ``setup()`` at all unless it has other initialisation logic.  When
-``setup()`` is implemented, the decorator wiring runs first (so the
-explicit ``setup`` body can override or extend it).
+``setup()`` is implemented, the decorator wiring runs first; the
+explicit ``setup`` body can then *add* further subscriptions.  There is
+no unsubscribe, so ``setup`` extends the declarative wiring — it cannot
+remove or replace it.
 
 The decorators are pure annotations: they stash configuration on the
 decorated method via the attribute name :data:`_MANGO_DISPATCH_META`.
@@ -44,7 +46,7 @@ Example::
 
 from __future__ import annotations
 
-import asyncio
+import inspect
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -125,10 +127,18 @@ def on_event(event_type: type) -> Callable:
     """Subscribe the decorated method to a co-located event type.
 
     The handler is called as ``handler(self, event, source)`` and runs
-    synchronously inside :meth:`RoleContext.emit_event`.
+    synchronously inside :meth:`RoleContext.emit_event`.  Async handlers
+    are rejected: ``emit_event`` does not await, so an ``async def`` would
+    silently never run.
     """
 
     def decorator(method: Callable) -> Callable:
+        if inspect.iscoroutinefunction(method):
+            raise TypeError(
+                f"@on_event must decorate a synchronous method; "
+                f"{method.__qualname__} is a coroutine (emit_event does not "
+                f"await handlers)"
+            )
         meta = _get_or_create_meta(method)
         meta.event_subs.append({"event_type": event_type})
         return method
@@ -155,7 +165,7 @@ def periodic(
     """
 
     def decorator(method: Callable) -> Callable:
-        if not asyncio.iscoroutinefunction(method):
+        if not inspect.iscoroutinefunction(method):
             raise TypeError(
                 f"@periodic must decorate an async coroutine function; "
                 f"{method.__qualname__} is not a coroutine"
@@ -236,7 +246,7 @@ def apply_dispatch(role: Any) -> None:
                 def condition(content, _meta, _mtype=mtype, _w=where, _r=role):
                     return isinstance(content, _mtype) and _w(_r, content, _meta)
 
-            if asyncio.iscoroutinefunction(method):
+            if inspect.iscoroutinefunction(method):
                 callback = _bind_async(method, role)
             else:
                 callback = _bind_sync(method, role)

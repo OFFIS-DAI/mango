@@ -188,6 +188,20 @@ class TopologyService:
         return self._tid_to_health.get(tid)
 
 
+def _addr_from_meta(meta: dict) -> AgentAddress:
+    """Build an :class:`AgentAddress` from a received ``meta``.
+
+    The JSON codec decodes a ``(host, port)`` protocol address back into a
+    *list*, which is unhashable and never compares equal to the tuple form
+    kept internally.  Normalise it to a tuple so the result is usable as a
+    dict key and equality-comparable against topology neighbour addresses.
+    """
+    protocol_addr = meta.get("sender_addr")
+    if isinstance(protocol_addr, list):
+        protocol_addr = tuple(protocol_addr)
+    return AgentAddress(protocol_addr=protocol_addr, aid=meta.get("sender_id"))
+
+
 class _GatherCollector:
     """Aggregates multi-reply tracked responses for :meth:`Agent.open_gather`.
 
@@ -213,9 +227,7 @@ class _GatherCollector:
     def on_reply(self, content: Any, meta: dict) -> None:
         if self._reply_type is not None and not isinstance(content, self._reply_type):
             return
-        addr = AgentAddress(
-            protocol_addr=meta.get("sender_addr"), aid=meta.get("sender_id")
-        )
+        addr = _addr_from_meta(meta)
         # First reply per sender wins — late duplicates (e.g. retries)
         # are dropped so the caller sees a stable mapping.
         if addr in self.responses:
@@ -298,6 +310,11 @@ class AgentDelegates:
         # carries a matching id are routed to the conversation's
         # async-iterator queue.
         self._conversations: dict[str, Conversation] = {}
+        # Reference count per open conversation id so multiple
+        # ``join_conversation`` contexts on the same id (e.g. an
+        # ``@on_message`` handler that re-fires while an earlier join is
+        # still open) share one handle instead of colliding.
+        self._conversation_refs: dict[str, int] = {}
         self._behavior_message_subs: list[tuple] = []
         self._behavior_global_event_handlers: list[tuple] = []
         self._behavior_agent_event_handlers: list[tuple] = []
@@ -526,18 +543,51 @@ class AgentDelegates:
         conv._on_inbound(content, meta)
 
     def open_conversation(self, conv: Conversation) -> None:
-        """Register *conv* so inbound messages with its id are routed
-        to it.  Used internally by ``RoleContext.open_conversation``;
-        end users should not need to call this directly."""
+        """Register *conv* as the initiator of a fresh conversation.
+
+        Used internally by ``RoleContext.open_conversation``; end users
+        should not need to call this directly.  Raises if the id is already
+        open — the initiator generates a unique id, so a collision here is a
+        genuine programming error.
+        """
         if conv.conversation_id in self._conversations:
             raise ValueError(
                 f"conversation {conv.conversation_id!r} already open on {self.aid}"
             )
         self._conversations[conv.conversation_id] = conv
+        self._conversation_refs[conv.conversation_id] = 1
+
+    def join_conversation(self, conv: Conversation) -> Conversation:
+        """Register a *join* on a possibly-already-open conversation.
+
+        Returns the handle to actually use: the existing one when the id is
+        already open (incrementing its reference count), otherwise *conv*.
+        This lets an ``@on_message`` handler that re-fires while an earlier
+        join is still open share a single handle instead of raising.
+        """
+        cid = conv.conversation_id
+        existing = self._conversations.get(cid)
+        if existing is not None:
+            self._conversation_refs[cid] += 1
+            return existing
+        self._conversations[cid] = conv
+        self._conversation_refs[cid] = 1
+        return conv
 
     def close_conversation(self, conv: Conversation) -> None:
-        """Unregister *conv*.  Called when the context manager exits."""
-        self._conversations.pop(conv.conversation_id, None)
+        """Release one reference to *conv*; unregister at zero.
+
+        Called when a conversation context manager exits.
+        """
+        cid = conv.conversation_id
+        refs = self._conversation_refs.get(cid)
+        if refs is None:
+            return
+        if refs <= 1:
+            self._conversations.pop(cid, None)
+            self._conversation_refs.pop(cid, None)
+        else:
+            self._conversation_refs[cid] = refs - 1
 
     def _nudge_topology_health(self, meta: dict) -> None:
         """Multiplicatively recover edge scores on every received message.
@@ -552,10 +602,9 @@ class AgentDelegates:
         if svc is None or not svc._tid_to_health:
             return
         sender_id = meta.get("sender_id")
-        sender_addr = meta.get("sender_addr")
         if not sender_id:
             return
-        peer_addr = AgentAddress(protocol_addr=sender_addr, aid=sender_id)
+        peer_addr = _addr_from_meta(meta)
         scheduler = getattr(self, "scheduler", None)
         if scheduler is None or scheduler.clock is None:
             return
@@ -1118,6 +1167,14 @@ class Agent(ABC, AgentDelegates):
         """Shutdown all tasks that are running
         and deregister from the container"""
         await self.on_stop()
+
+        # Backstop: cancel any conversations still open (e.g. one opened
+        # with timeout=None whose peer never replied) so their iterators
+        # unblock and the registry does not leak past agent lifetime.
+        for conv in list(self._conversations.values()):
+            conv.cancel()
+        self._conversations.clear()
+        self._conversation_refs.clear()
 
         if not self._stopped.done():
             self._stopped.set_result(True)
