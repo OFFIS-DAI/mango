@@ -1,65 +1,68 @@
 ====================
-Agents and container
+Agents and Container
 ====================
 
-***************
-mango container
-***************
+.. _container-docs:
 
-In mango, agents live in a ``container``. The container is responsible for everything network related of the agent.
-This includes in particular sending and receiving of messages, but also message distribution to the correct agent or
-serialization and deserialization of messages.
-Container also help to to speed up message exchange between agents that run on the same physical hardware,
-as data that is exchanged between such agents will not have to be sent through the network.
+Container
+=========
 
-In mango, a container is created using factory methods:
+In mango, every agent lives inside a *container*.  The container owns the
+network layer: it sends and receives messages, routes them to the correct
+agent, and handles serialisation/deserialisation with the chosen codec.
+When two agents share the same container their messages stay in-process
+(no network round-trip), which speeds up local communication significantly.
 
-* :meth:`mango.create_tcp_container`
-* :meth:`mango.create_mqtt_container`
-* :meth:`mango.create_ec_container`
+Container types
+---------------
 
-Most of the time, the tcp container should be the default choice if you wanna create simulations, which run in real time using
-a simple but fast network protocol.
+mango ships three container types, each suited to a different deployment
+scenario:
 
-.. code-block:: python3
+.. list-table::
+   :widths: 20 30 50
+   :header-rows: 1
 
-    def create_tcp_container(
-        addr: str | tuple[str, int],
-        codec: Codec = None,
-        clock: Clock = None,
-        copy_internal_messages: bool = False,
-        auto_port=False,
-        **kwargs: dict[str, Any],
-    ) -> Container:
+   * - Type
+     - Factory
+     - When to use
+   * - **TCP**
+     - :meth:`~mango.create_tcp_container`
+     - Default choice.  Fast, point-to-point TCP sockets for local and
+       distributed simulations.
+   * - **MQTT**
+     - :meth:`~mango.create_mqtt_container`
+     - When a message broker is already present (e.g. IoT deployments) or
+       when you need topic-based pub/sub routing.
+   * - **External Coupling**
+     - :meth:`~mango.create_ec_container`
+     - Co-simulation scenarios where an external tool (e.g. a power-flow
+       solver) drives the time loop and injects messages.
 
-The factory methods are asyncio-free, meaning most of the time you can create containers without a running asyncio loop.
-
-A simple container, that uses plain tcp for message exchange can be created as follows:
+All factory methods are *synchronous* — you can create containers before
+starting the asyncio event loop.  The default codec is JSON (see
+:doc:`codecs` for details).  You can supply a custom :class:`~mango.ExternalClock`
+to decouple simulation time from wall time (see :doc:`scheduling`).
 
 .. testcode::
 
     import asyncio
     from mango import create_tcp_container
 
-    def get_simple_container():
-        container = create_tcp_container(addr=('127.0.0.1', 5555))
-        return container
-
-    print(get_simple_container().addr)
+    container = create_tcp_container(addr=('127.0.0.1', 5555))
+    print(container.addr)
 
 .. testoutput::
 
     ('127.0.0.1', 5555)
 
-The container type depends totally on the factory method you invoke. Every supported type has its own class backing
-the functionality.
+Starting and stopping
+---------------------
 
-The default codec is JSON (see section :doc:`codecs` for more information). It is also possible to
-define the clock that an agents scheduler should use (see page :doc:`scheduling`).
-
-Note, that container creation is different from container starting. Before you can work with a container
-you will want to register Agents, and then start (or activate) the container. This shall be done using an
-asynchronous context manager, which we provide by invoking :meth:`mango.activate`.
+Container creation is separate from container *starting*.  Before a container
+can exchange messages its network server must be started.  Use the
+:meth:`~mango.activate` context manager — it starts all containers, runs your
+code, and shuts everything down on exit (even on exceptions):
 
 .. testcode::
 
@@ -70,76 +73,94 @@ asynchronous context manager, which we provide by invoking :meth:`mango.activate
         container = create_tcp_container(addr=('127.0.0.1', 5555))
 
         async with activate(container) as c:
-            print("The container is activated now!")
-            await asyncio.sleep(0.1) # activate the container for 0.1 seconds, most of the time you want to include e.g. a condition to await
-        print("The container is automatically shut down, even on exceptions!")
+            print("Container is running!")
+            await asyncio.sleep(0)
+        print("Container shut down automatically.")
 
     asyncio.run(start_container())
 
 .. testoutput::
 
-    The container is activated now!
-    The container is automatically shut down, even on exceptions!
+    Container is running!
+    Container shut down automatically.
 
-At the end of its lifetime, a ``container`` the container will shutdown. This will be done by the context manager, so no need for the
-user to worry about it. This will also shutdown all agents that are still running in this container and cancel running tasks.
+.. note::
+    Shutdown also cancels all running agent tasks and calls
+    :meth:`~mango.Agent.on_stop` on every registered agent.
 
-***************
-mango agents
-***************
-mango agents can be implemented by inheriting from the abstract class :meth:`mango.Agent`.
-This class provides basic functionality such as to scheduling convenience methods or to constantly check the inbox for incoming messages.
-Every agent can live in exactly one container, to register an agent the method :meth:`mango.Container.register` can be used. This method will assign
-the agent a generated agent id (aid) and enables the agent scheduling feature.
 
-However, it is possible to suggest an aid by setting the parameter ``suggested_aid`` of :meth:`mango.Container.register` to your aid wish.
-The aid is granted if there is no other agent with this id, and if the aid doesn't interfere with the default aid pattern, otherwise
-the generated aid will be used. To check if the aid is available beforehand, you can use ``container.is_aid_available``.
+.. _agent-docs:
 
-Note that, custom agents that inherit from the ``Agent`` class have to call ``super().__init__()__`` on initialization.
+Agents
+======
+
+Agents are created by subclassing :class:`~mango.Agent`.  Every subclass
+**must** call ``super().__init__()`` in its constructor.
+
+An agent is registered with a container via :meth:`~mango.Container.register`.
+Registration assigns the agent its *agent ID* (``aid``) and enables
+scheduling.  You can suggest a preferred AID with ``suggested_aid``; if the
+name conflicts with an existing agent or with the default ``agentN`` pattern
+the framework generates one automatically.
 
 .. testcode::
 
     from mango import Agent, create_tcp_container
+    import asyncio
 
     class MyAgent(Agent):
         pass
 
-    async def create_and_register_agent():
+    async def create_and_register():
         container = create_tcp_container(addr=('127.0.0.1', 5555))
-
-        agent = container.register(MyAgent(), suggested_aid="CustomAgent")
+        agent = container.register(MyAgent(), suggested_aid="my_agent")
         return agent
 
-    print(asyncio.run(create_and_register_agent()).aid)
+    print(asyncio.run(create_and_register()).aid)
 
 .. testoutput::
 
-    CustomAgent
+    my_agent
 
-Further there are some important lifecycle methods you often want to implement:
+Lifecycle callbacks
+-------------------
 
-* :meth:`mango.Agent.on_ready`
-   * Called when all containers have been activated during the activate call, which started the container the agent is registered in.
-   * At this point all relevant containers have been started and the agent is already registered. This is the correct method for starting to send messages, even to other containers.
-* :meth:`mango.Agent.on_register`
-   * Called when the Agent just has been registered.
-   * At this point the scheduler is initialized and the agent address is known, but no communication can happen yet.
-* :meth:`mango.Agent.on_start`
-   * Called when the container of the agent has been started during activation.
-   * At this point internal communication is possible and depending on your setup external communication could be done too.
+Implement these methods to hook into the agent's lifecycle:
 
-Besides the lifecycle, one of the main functions implemented in Agents are message exchange function. For this part read :doc:`/message exchange`.
+.. list-table::
+   :widths: 25 75
+   :header-rows: 1
 
-*********************************
-Express setup of mango simulation
-*********************************
+   * - Method
+     - When it is called
+   * - :meth:`~mango.Agent.on_register`
+     - Immediately after the agent is registered.  The scheduler and agent
+       address are available; no messages can be sent yet.
+   * - :meth:`~mango.Agent.on_start`
+     - When the container is started (inside :meth:`~mango.activate`).
+       Internal messages are possible; external messages depend on setup.
+   * - :meth:`~mango.Agent.on_ready`
+     - After **all** containers passed to :meth:`~mango.activate` have
+       started.  This is the right place to send the first messages.
+   * - :meth:`~mango.Agent.on_stop`
+     - When the container shuts down or the agent is deregistered.
+       Use it for cleanup and final messages.
 
-It is not necessary to create the container all by yourself, as you often want to just distribute some agents evenly to a number of containers. This can be done
-with an asynchronous context manager created by :meth:`mango.run_with_tcp` (:meth:`mango.run_with_mqtt` for MQTT protocol). This method just expects the number of containers
-you want to start and the agents, which shall run in these containers.
+For handling incoming messages override :meth:`~mango.Agent.handle_message`.
+See :doc:`message exchange` for the full messaging API.
 
-With this method sending a message to an agent in another container looks like this:
+
+.. _express-setup:
+
+Express setup
+=============
+
+The :func:`~mango.run_with_tcp` (and :func:`~mango.run_with_mqtt`) helpers
+wrap container creation, agent registration, activation, and shutdown into a
+single context manager.  Agents are distributed evenly across the requested
+number of containers.
+
+Pass plain agent instances or ``(agent, {"aid": "preferred_id"})`` tuples:
 
 .. testcode::
 
@@ -151,7 +172,6 @@ With this method sending a message to an agent in another container looks like t
         single_agent = PrintingAgent()
 
         async with run_with_tcp(2, agent_tuple, single_agent) as cl:
-            # cl is the list of containers, which are created internally
             await agent_tuple[0].send_message("Hello, print me!", single_agent.addr)
             await asyncio.sleep(0.1)
 
@@ -161,32 +181,56 @@ With this method sending a message to an agent in another container looks like t
 
     Received: Hello, print me! with {'sender_id': 'MyAgent', 'sender_addr': ['127.0.0.1', 5555], 'receiver_id': 'agent0', 'network_protocol': 'tcp', 'priority': 0}
 
-***************
-agent process
-***************
-To improve multicore utilization, mango provides a way to distribute agents to processes. For this, it is necessary to create and
-register the agent in a slightly different way.
+.. seealso::
 
-.. code-block:: python3
+    :func:`~mango.run_with_simulation` for the equivalent helper for the
+    :doc:`simulation world <simulation>`.
 
+
+.. _agent-process:
+
+Agent processes
+===============
+
+Python's GIL limits true parallelism within a single process.  For
+CPU-intensive tasks mango lets you run individual agents in a dedicated
+subprocess, coordinated automatically through a *mirror container*.
+
+.. code-block:: python
+
+    # Register an agent in a new subprocess
     process_handle = await main_container.as_agent_process(
-        agent_creator=lambda sub_container: sub_container.register(MyAgent(), suggested_aid=f"process_agent1")
+        agent_creator=lambda sub_container: sub_container.register(
+            MyAgent(), suggested_aid="process_agent"
+        )
     )
 
-The ``process_handle`` is awaitable and will finish exactly when the process is fully set up. Further, it contains the pid ``process_handle.pid``.
+    # Wait until the subprocess is ready
+    await process_handle
+    print(f"Agent running in PID {process_handle.pid}")
 
-Note that after the creation, the agent lives in a mirror container in another process. Therefore, it is not possible to interact
-with the agent directly from the main process. If you want to interact with the agent after the creation, it is possible to
-dispatch a task in the agent process using :meth:`mango.container.core.Container.dispatch_to_agent_process`.
+The agent in the subprocess communicates with other agents exactly like any
+other mango agent — through the normal messaging API.
 
-.. code-block:: python3
+.. note::
+    Once an agent is running in a subprocess you cannot access it directly
+    from the main process.  Use
+    :meth:`~mango.container.core.Container.dispatch_to_agent_process` to
+    schedule a function inside the subprocess:
 
-    main_container.dispatch_to_agent_process(
-        pid,
-        your_function, # will be called with the mirror container + varargs as arguments
-        ... # varargs, additional arguments you want to pass to your_function
-    )
+    .. code-block:: python
 
-To also be able to use this feature when setting up agents without a running asyncio loop, you can use the :meth:`mango.container.core.Container.as_agent_process_lazy` function.
-This function does not have a return value and therefore does not enable access to the process handle.
-When the container is activated (and thus, an asyncio context exists), the mirror containers are created.
+        await main_container.dispatch_to_agent_process(
+            process_handle.pid,
+            my_function,   # called as my_function(sub_container, *args)
+            *args,
+        )
+
+If you need to set up process agents before an asyncio loop is available,
+use :meth:`~mango.container.core.Container.as_agent_process_lazy` (no
+process handle is returned; the subprocess is created when
+:meth:`~mango.activate` is called).
+
+.. seealso::
+
+    :doc:`scheduling` — clock types and the scheduling API

@@ -2,105 +2,145 @@
 Scheduling and Clock
 ====================
 
-When implementing agents including proactive behavior there are some typical types of tasks you might want to create. For example it might be desired to let the agent check every minute whether some resources are available, or often you just want to execute a task at a specified time. To help achieving this kind of goals mango exposes the scheduling API.
+Agents in mango can be *reactive* (responding to messages) or *proactive*
+(initiating actions on a schedule).  The scheduling API lets you express
+both simple one-shot tasks and complex recurrence patterns.
 
-The core of this API is the scheduler, which is part of every agent. To schedule a task its necessary to create a ScheduledTask (resp. an object of a subclass). In mango the following tasks are available:
+Every agent owns a *scheduler*.  To schedule work you call one of the
+convenience methods on the agent (e.g. :meth:`~mango.Agent.schedule_periodic_task`)
+or create a :class:`~mango.util.scheduling.ScheduledTask` subclass directly.
 
-.. list-table:: Available ScheduledTasks
-   :widths: 30 70
+Available task types
+--------------------
+
+.. list-table::
+   :widths: 35 65
    :header-rows: 1
 
-   * - Class
+   * - Class / convenience method
      - Description
-   * - InstantScheduledTask
-     - Executes the coroutine without delay
-   * - TimestampScheduledTask
-     - Executes the coroutine at a specified datetime
-   * - PeriodicScheduledTask
-     - Executes a coroutine periodically with a static delay between the cycles
-   * - RecurrentScheduledTask
-     - Executes a coroutine according to a dynamic repetition scheme provided by a `rrule`
-   * - ConditionalScheduledTask
-     - Executes the coroutine when a specified condition evaluates to True
-   * - AwaitingTask
-     - Execute a given coroutine after another given coroutine has been awaited
-   * - RecurrentScheduledTask
-     - Will get executed periodically with a specified delay
+   * - ``InstantScheduledTask`` / ``schedule_instant_task``
+     - Runs the coroutine on the next event-loop iteration (no delay).
+   * - ``TimestampScheduledTask`` / ``schedule_timestamp_task``
+     - Runs the coroutine at the specified clock timestamp.
+   * - ``PeriodicScheduledTask`` / ``schedule_periodic_task``
+     - Runs a coroutine function repeatedly with a fixed delay between cycles.
+   * - ``RecurrentScheduledTask`` / ``schedule_recurrent_task``
+     - Runs a coroutine according to a dynamic schedule provided by a
+       `dateutil rrule <https://dateutil.readthedocs.io/en/stable/rrule.html>`_.
+   * - ``ConditionalScheduledTask`` / ``schedule_conditional_task``
+     - Runs the coroutine as soon as a condition function returns ``True``.
+   * - ``AwaitingTask`` / ``schedule_awaiting_task``
+     - Awaits one coroutine, then runs another.
 
+For every regular task type there is a matching *process* variant (e.g.
+``PeriodicScheduledProcessTask``) that dispatches work to a subprocess — see
+`Dispatching tasks to other processes`_ below.
 
+Basic example
+-------------
 
-Furthermore there are convenience methods to get rid of the class imports when using these types of tasks.
+.. testcode::
+
+    import asyncio
+    from mango import Agent, run_with_tcp
+
+    class ScheduleAgent(Agent):
+        def on_ready(self):
+            self.schedule_periodic_task(self.say_hello, delay=0.05)
+
+        async def say_hello(self):
+            print("Hello!")
+
+    async def run():
+        async with run_with_tcp(1, ScheduleAgent()) as container:
+            await asyncio.sleep(0.12)  # let three cycles run
+
+    asyncio.run(run())
+
+.. testoutput::
+
+    Hello!
+    Hello!
+    Hello!
+
+Suspendable tasks
+-----------------
+
+Every task can be *suspended* and *resumed* by passing a ``src`` identifier
+when scheduling it.  This is particularly useful for the role system
+(see :doc:`role-api`) where an entire role can be put on hold.
 
 .. code-block:: python
 
-  from mango import Agent
+    class MyAgent(Agent):
+        def on_ready(self):
+            self.schedule_periodic_task(
+                self.do_work, delay=1.0, src="worker"
+            )
 
-  class ScheduleAgent(Agent):
-      def schedule(self, other_addr):
-          self.schedule_instant_message(
-              "Hello world!"
-              other_addr
-          )
+        def pause(self):
+            self.scheduler.suspend("worker")
 
+        def resume(self):
+            self.scheduler.resume("worker")
 
-When using the scheduling another feature becomes available: suspendable tasks.
-This makes it possible to pause and resume all tasks started with the scheduling API.
-Using this it is necessary to specify an identifier when starting the task (using ``src=your_identifier``).
-To suspend a task you can call ``scheduler.suspend(your_identifier)``, to resume them just call the
-counterpart ``scheduler.resume(your_identifier)``. The scheduler is part of the agent and accessible
-via ``self._scheduler``.
+        async def do_work(self):
+            ...
 
 
-*******************************
-Dispatch Tasks to other Process
-*******************************
+Dispatching tasks to other processes
+-------------------------------------
 
-As asyncio does not provide real parallelism to utilize multiple cores and agents may have tasks,
-which need a lot computational power, the need to dispatch certain tasks to other processes appear.
-Handling inter process communication manually is quite exhausting and having multiple process pools
-across different roles or agents leads to inefficient resource allocations. As a result mango offers
-a way to dispatch tasks, based on coroutine-functions, to other processes, managed by the framework.
+asyncio provides concurrency but not parallelism — CPU-bound work blocks the
+event loop.  mango lets you offload heavy computation to a managed worker
+process pool.
 
-Analogues to the normal API there are two different ways, first you create a ScheduledProcessTask
-and call ``schedule_process_task``, second you invoke the convnience methods with "process" in the name.
-These methods exists on any Agent, the RoleContext and the Scheduler.
-In mango the following process tasks are available:
+Use the ``_process_`` variants of the scheduling convenience methods:
 
-.. list-table:: Available ProcessTasks
-   :widths: 30 70
+.. code-block:: python
+
+    class HeavyAgent(Agent):
+        def on_ready(self):
+            self.schedule_periodic_process_task(
+                self.crunch_numbers, delay=1.0
+            )
+
+        async def crunch_numbers(self):
+            # runs in a worker process
+            return sum(range(10_000_000))
+
+The available process task types mirror the regular task types:
+
+.. list-table::
+   :widths: 35 65
    :header-rows: 1
 
    * - Class
      - Description
-   * - ScheduledProcessTask
-     - Marks a ScheduledTask as process compatible
-   * - TimestampScheduledProcessTask
-     - Timestamp based one-shot task
-   * - AwaitingProcessTask
-     - Await a coroutine, then execute another
-   * - InstantScheduledProcessTask
-     - One-shot task, which will get executed instantly
-   * - PeriodicScheduledProcessTask
-     - Executes a coroutine periodically with a static delay between the cycles
-   * - RecurrentScheduledProcessTask
-     - Will get executed periodically with a specified delay
-   * - ConditionalProcessTask
-     - Will get executed as soon as the given condition is fulfilled
+   * - ``InstantScheduledProcessTask``
+     - One-shot task run immediately in a subprocess.
+   * - ``TimestampScheduledProcessTask``
+     - One-shot task run at a given timestamp in a subprocess.
+   * - ``PeriodicScheduledProcessTask``
+     - Periodic task run in a subprocess.
+   * - ``RecurrentScheduledProcessTask``
+     - Recurrent task run in a subprocess.
+   * - ``ConditionalProcessTask``
+     - Condition-based task run in a subprocess.
+   * - ``AwaitingProcessTask``
+     - Await a coroutine, then run another in a subprocess.
+
 
 .. _ClockDocs:
 
-*******************************
 Using an external clock
-*******************************
-Usually, the scheduler will schedule the tasks of a mango agent based on the real time.
-This is the default behaviour of the scheduler.
-However, in some contexts it is necessary to schedule the agent based on an external clock,
-e. g. in simulations that run faster than real-time.
-In mango, this is possible by defining the ``Clock`` of a container, which will be used by the
-scheduler of all agents within this container.
-The default clock is the ``AsyncioClock``, which works as a real-time clock. An alternative clock
-is the ``ExternalClock``. Time of this clock has to be set by an external process. That way you can
-control how fast or slow time passes within your agent system:
+------------------------
+
+By default the scheduler uses :class:`~mango.AsyncioClock`, which ties
+simulation time to wall-clock time.  Switch to :class:`~mango.ExternalClock`
+when you need to control time externally — for example in a simulation that
+runs faster (or slower) than real time.
 
 .. testcode::
 
@@ -113,12 +153,14 @@ control how fast or slow time passes within your agent system:
             self.receiver_addr = receiver_addr
 
         def on_ready(self):
-          self.schedule_timestamp_task(coroutine=self.send_hello_world(self.receiver_addr),
-                                      timestamp=self.current_timestamp + 0.5)
+            self.schedule_timestamp_task(
+                coroutine=self.send_hello_world(self.receiver_addr),
+                timestamp=self.current_timestamp + 0.5,
+            )
 
         async def send_hello_world(self, receiver_addr):
             await self.send_message(receiver_addr=self.receiver_addr,
-                                               content='Hello World')
+                                    content='Hello World')
 
 
     class Receiver(Agent):
@@ -139,33 +181,7 @@ control how fast or slow time passes within your agent system:
         caller = c.register(Caller(receiver.addr))
 
         async with activate(c):
-          await receiver.wait_for_reply
-
-    asyncio.run(main())
-
-.. testoutput::
-
-  Received a message with the following content Hello World.
-
-This code will terminate after 0.5 seconds.
-If you change the clock to an ``ExternalClock`` in the example above,
-the program won't terminate as the time of the clock is not proceeded by an external process.
-If you comment in the ExternalClock and change your main() as follows, the program will terminate after one second:
-
-.. testcode::
-
-    async def main():
-
-        clock = ExternalClock(start_time=1000)
-        addr = ('127.0.0.1', 5555)
-        c = create_tcp_container(addr=addr, clock=clock)
-        receiver = c.register(Receiver())
-        caller = c.register(Caller(receiver.addr))
-
-        async with activate(c):
-          await asyncio.sleep(1)
-          clock.set_time(clock.time + 0.5)
-          await receiver.wait_for_reply
+            await receiver.wait_for_reply
 
     asyncio.run(main())
 
@@ -173,49 +189,91 @@ If you comment in the ExternalClock and change your main() as follows, the progr
 
     Received a message with the following content Hello World.
 
-*******************************
-Using a distributed clock
-*******************************
-To distribute simulations, mango provides a distributed clock, which is implemented with by two Agents:
-1. DistributedClockAgent: this agent needs to be present in every participating container
-2. DistributedClockManager: this agent shall exist exactly once
-
-The clock is distributed by an DistributedClockManager Agent on the managing container, which listens to the current time.
-
-1. In the other container DistributedClockAgent's are running, which listen to messages from the ClockManager.
-2. The ClockAgent sets the received time on the clock of its container with `set_time` and responds with its `get_next_activity()` after making sure that all tasks which are due at the current timestamp are finished.
-3. The ClockManager only acts after all connected Containers have finished and have sent their next timestamp as response.
-4. The response is then added as a Future on the manager, which makes sure, that the managers `get_next_activity()` shows the next action needed to run on all containers.
-
-Caution: it is needed, that all agents are connected before starting the manager
-
-In the following a simple example is shown.
+This terminates after roughly 0.5 seconds.  If you switch to
+``ExternalClock`` and never call ``set_time`` the program would hang —
+the task is waiting for a timestamp that never arrives:
 
 .. testcode::
 
-  import asyncio
-  from mango import DistributedClockAgent, DistributedClockManager, create_tcp_container, activate, ExternalClock
+    async def main():
+        clock = ExternalClock(start_time=1000)
+        addr = ('127.0.0.1', 5555)
+        c = create_tcp_container(addr=addr, clock=clock)
+        receiver = c.register(Receiver())
+        caller = c.register(Caller(receiver.addr))
 
-  async def main():
-    container_man = create_tcp_container(("127.0.0.1", 1555), clock=ExternalClock())
-    container_ag = create_tcp_container(("127.0.0.1", 1556), clock=ExternalClock())
+        async with activate(c):
+            await asyncio.sleep(1)
+            clock.set_time(clock.time + 0.5)  # advance the clock manually
+            await receiver.wait_for_reply
 
-    clock_agent = container_ag.register(DistributedClockAgent())
-    clock_manager = container_man.register(DistributedClockManager(
-      receiver_clock_addresses=[clock_agent.addr]
-    ))
+    asyncio.run(main())
 
-    async with activate(container_man, container_ag) as cl:
-        # increasing the time
-        container_man.clock.set_time(100)
-        # first distribute the time - then wait for the agent to finish
-        next_event = await clock_manager.distribute_time()
-        # here no second distribute to wait for retrieval is needed
-        # the clock_manager distributed the time to the other container
-        assert container_ag.clock.time == 100
-        print("Time has been distributed!")
+.. testoutput::
 
-  asyncio.run(main())
+    Received a message with the following content Hello World.
+
+.. note::
+    When using :class:`~mango.SimulationWorld` the clock is managed
+    automatically by :func:`~mango.step_simulation`.  You do not need to
+    call ``set_time`` yourself.  See :doc:`simulation` for details.
+
+
+Using a distributed clock
+--------------------------
+
+For simulations that span *multiple* containers mango provides a distributed
+clock, implemented as two agents:
+
+* :class:`~mango.DistributedClockManager` — runs once on the managing
+  container; decides when to advance time.
+* :class:`~mango.DistributedClockAgent` — runs in every participating
+  container; synchronises the local :class:`~mango.ExternalClock` with the
+  manager.
+
+The protocol works as follows:
+
+1. The manager calls ``distribute_time()`` to broadcast a new timestamp.
+2. Each ``DistributedClockAgent`` calls ``set_time`` on its container's clock
+   and waits for all local tasks that are due to finish.
+3. Each agent replies with its ``get_next_activity()`` timestamp.
+4. The manager collects all replies and only proceeds after every container
+   has responded, ensuring a consistent global time step.
+
+.. warning::
+    All agents must be connected to the manager **before** the first call to
+    ``distribute_time()``.
+
+.. testcode::
+
+    import asyncio
+    from mango import (
+        DistributedClockAgent, DistributedClockManager,
+        create_tcp_container, activate, ExternalClock,
+    )
+
+    async def main():
+        container_man = create_tcp_container(("127.0.0.1", 1555), clock=ExternalClock())
+        container_ag  = create_tcp_container(("127.0.0.1", 1556), clock=ExternalClock())
+
+        clock_agent   = container_ag.register(DistributedClockAgent())
+        clock_manager = container_man.register(DistributedClockManager(
+            receiver_clock_addresses=[clock_agent.addr]
+        ))
+
+        async with activate(container_man, container_ag):
+            container_man.clock.set_time(100)
+            await clock_manager.distribute_time()
+            assert container_ag.clock.time == 100
+            print("Time has been distributed!")
+
+    asyncio.run(main())
+
 .. testoutput::
 
     Time has been distributed!
+
+.. seealso::
+
+    :doc:`simulation` — ``SimulationWorld`` manages time automatically for
+    single-process simulations.

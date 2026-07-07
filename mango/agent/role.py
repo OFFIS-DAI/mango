@@ -33,11 +33,122 @@ Furthermore there are two lifecycle methods to know about:
 """
 
 import asyncio
-from abc import ABC
+from abc import ABC, abstractmethod
 from collections.abc import Callable
 from typing import Any
 
 from mango.agent.core import Agent, AgentAddress, AgentDelegates
+
+
+class MessagePreprocessor(ABC):
+    """Abstract base for message preprocessors in the role system.
+
+    A preprocessor intercepts messages before they reach a role's handler,
+    allowing transformation or rate-limiting.  Pass an instance to
+    :meth:`RoleContext.subscribe_message` via the *preprocessor* keyword.
+
+    Subclasses must implement :meth:`handle`.  Override :meth:`process` to
+    transform the message content/meta before delivery.
+
+    Example::
+
+        class LoggingPreprocessor(MessagePreprocessor):
+            def handle(self, role, handler, content, meta):
+                print(f"[{role}] received: {content}")
+                handler(content, meta)
+
+        class MyRole(Role):
+            def setup(self):
+                self.context.subscribe_message(
+                    self, self.on_msg, lambda c, m: True,
+                    preprocessor=LoggingPreprocessor(),
+                )
+
+            def on_msg(self, content, meta):
+                ...
+    """
+
+    def init(self, role_or_agent: Any) -> None:
+        """Called once when the preprocessor is registered.
+
+        :param role_or_agent: the role (or agent) that owns the subscription
+        """
+
+    @abstractmethod
+    def handle(
+        self,
+        role_or_agent: Any,
+        handler: Callable,
+        content: Any,
+        meta: dict,
+    ) -> None:
+        """Intercept a message.  Must call *handler(content, meta)* to deliver.
+
+        :param role_or_agent: the subscribing role or agent
+        :param handler: the original message handler
+        :param content: message content
+        :param meta: message metadata
+        """
+
+    def process(self, content: Any, meta: dict) -> tuple[Any, dict]:
+        """Transform message before delivery.  Default: identity.
+
+        :param content: message content
+        :param meta: message metadata
+        :return: transformed ``(content, meta)`` tuple
+        """
+        return content, meta
+
+
+class WaitingMessagePreprocessor(MessagePreprocessor):
+    """Prevents concurrent message handling for a role.
+
+    Messages are queued and dispatched one at a time.  The next message is
+    only delivered after the handler for the current one has returned (or its
+    coroutine completed).  This avoids race conditions when a role's handler
+    is async or triggers further messages.
+
+    Example::
+
+        class MyRole(Role):
+            def setup(self):
+                self.context.subscribe_message(
+                    self, self.on_data, lambda c, m: True,
+                    preprocessor=WaitingMessagePreprocessor(),
+                )
+
+            async def on_data(self, content, meta):
+                await asyncio.sleep(0.1)   # safe – next msg waits
+                ...
+    """
+
+    def __init__(self) -> None:
+        self._queue: asyncio.Queue = asyncio.Queue()
+        self._running: bool = False
+
+    def init(self, role_or_agent: Any) -> None:
+        pass
+
+    def handle(
+        self,
+        role_or_agent: Any,
+        handler: Callable,
+        content: Any,
+        meta: dict,
+    ) -> None:
+        content, meta = self.process(content, meta)
+        self._queue.put_nowait((handler, content, meta))
+        if not self._running:
+            self._running = True
+            asyncio.get_running_loop().create_task(self._drain())
+
+    async def _drain(self) -> None:
+        while not self._queue.empty():
+            handler, content, meta = self._queue.get_nowait()
+            result = handler(content, meta)
+            if asyncio.iscoroutine(result):
+                await result
+        self._running = False
 
 
 class DataContainer:
@@ -178,20 +289,26 @@ class RoleHandler:
 
         .. code-block:: python
 
-            for role, message_condition, method, _ in self._message_subs:
+            for role, message_condition, method, _, preprocessor in self._message_subs:
                 if self._is_role_active(role) and message_condition(content, meta):
-                    method(content, meta)
+                    if preprocessor:
+                        preprocessor.handle(role, method, content, meta)
+                    else:
+                        method(content, meta)
 
         :param content: content
         :param meta: meta
         """
         handle_message_found = False
-        for role, message_condition, method, _ in self._message_subs:
+        for role, message_condition, method, _, preprocessor in self._message_subs:
             # do not execute handle_message twice if role has subscription as well
             if method.__name__ == "handle_message":
                 handle_message_found = True
             if self._is_role_active(role) and message_condition(content, meta):
-                method(content, meta)
+                if preprocessor is not None:
+                    preprocessor.handle(role, method, content, meta)
+                else:
+                    method(content, meta)
         if not handle_message_found:
             for role in self.roles:
                 role.handle_message(content, meta)
@@ -206,20 +323,28 @@ class RoleHandler:
                         **kwargs,
                     )
 
-    def subscribe_message(self, role, method, message_condition, priority=0):
+    def subscribe_message(
+        self,
+        role,
+        method,
+        message_condition,
+        priority=0,
+        preprocessor: "MessagePreprocessor | None" = None,
+    ):
+        if preprocessor is not None:
+            preprocessor.init(role)
+        entry = (role, message_condition, method, priority, preprocessor)
         if len(self._message_subs) == 0:
-            self._message_subs.append((role, message_condition, method, priority))
+            self._message_subs.append(entry)
             return
 
         for i in range(len(self._message_subs)):
-            _, _, _, other_prio = self._message_subs[i]
+            _, _, _, other_prio, _ = self._message_subs[i]
             if priority < other_prio:
-                self._message_subs.insert(
-                    i, (role, message_condition, method, priority)
-                )
+                self._message_subs.insert(i, entry)
                 break
             elif i == len(self._message_subs) - 1:
-                self._message_subs.append((role, message_condition, method, priority))
+                self._message_subs.append(entry)
 
     def subscribe_send(self, role: Role, method: Callable):
         if role in self._send_msg_subs:
@@ -289,9 +414,20 @@ class RoleContext(AgentDelegates):
     def subscribe_model(self, role, role_model_type):
         self._role_handler.subscribe(role, role_model_type)
 
-    def subscribe_message(self, role, method, message_condition, priority=0):
+    def subscribe_message(
+        self,
+        role,
+        method,
+        message_condition,
+        priority=0,
+        preprocessor: "MessagePreprocessor | None" = None,
+    ):
         self._role_handler.subscribe_message(
-            role, method, message_condition, priority=priority
+            role,
+            method,
+            message_condition,
+            priority=priority,
+            preprocessor=preprocessor,
         )
 
     def subscribe_send(self, role, method):
@@ -467,6 +603,8 @@ class Role(ABC):
         !!Care!! the role context is unknown at this point!
         """
         self._context = None
+        self._behavior_global_event_handlers: list[tuple] = []
+        self._behavior_agent_event_handlers: list[tuple] = []
 
     def _bind(self, context: RoleContext) -> None:
         """Method used internal to set the context, do not override!
@@ -508,3 +646,23 @@ class Role(ABC):
 
     def handle_message(self, content: Any, meta: dict):
         pass
+
+    def on_step(self, env, clock, step_size_s: float) -> None:
+        """Called on every simulation step (only in SimulationWorld).
+
+        :param env: the simulation environment
+        :param clock: the current simulation clock
+        :param step_size_s: seconds advanced in this step
+        """
+
+    def on_global_event(self, event: Any) -> None:
+        """Called when a global event is emitted from the environment.
+
+        :param event: the event object
+        """
+
+    def on_agent_event(self, event: Any) -> None:
+        """Called when a targeted agent event is emitted.
+
+        :param event: the event object
+        """

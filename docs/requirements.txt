@@ -3,3 +3,4 @@ pika
 pyzmq
 furo>=2024.8.6
 sphinx-copybutton
+sphinx-design

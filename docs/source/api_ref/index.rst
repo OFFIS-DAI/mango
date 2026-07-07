@@ -40,3 +40,4 @@ By subpackages
    mango.container
    mango.messages
    mango.util
+   mango.simulation
