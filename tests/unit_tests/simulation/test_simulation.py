@@ -13,6 +13,7 @@ from mango import (
     DefaultEnvironment,
     DelayProviderCommunicationSimulation,
     ForwardingRule,
+    NoSpace,
     Position2D,
     SimpleCommunicationSimulation,
     create_world,
@@ -294,10 +295,34 @@ class TestArea2D:
         space.install(agent)  # should not raise
 
 
+class TestNoSpace:
+    def test_has_position_always_false(self):
+        space = NoSpace()
+        agent = MagicMock()
+        agent.aid = "agent0"
+        assert space.has_position(agent) is False
+
+    def test_move_raises(self):
+        space = NoSpace()
+        with pytest.raises(RuntimeError):
+            space.move(MagicMock(), Position2D(0.0, 0.0))
+
+    def test_location_raises(self):
+        space = NoSpace()
+        with pytest.raises(RuntimeError):
+            space.location(MagicMock())
+
+    def test_initialize_and_install_are_noops(self):
+        space = NoSpace()
+        agent = MagicMock()
+        space.initialize([agent], MagicMock())
+        space.install(agent)
+
+
 class TestDefaultEnvironment:
     def test_default_space_and_behavior(self):
         env = DefaultEnvironment()
-        assert isinstance(env.space, Area2D)
+        assert isinstance(env.space, NoSpace)
         assert env.initialized() is False
 
     def test_custom_space(self):
@@ -809,7 +834,7 @@ async def test_record_agent_having():
 
 @pytest.mark.asyncio
 async def test_record_position_and_position_history():
-    world = create_world()
+    world = create_world(environment=DefaultEnvironment(space=Area2D()))
     a = world.register(SimpleAgent())
     record_position(world)
     async with world:
@@ -826,7 +851,7 @@ async def test_record_position_with_filter():
     class SpecialAgent(SimpleAgent):
         pass
 
-    world = create_world()
+    world = create_world(environment=DefaultEnvironment(space=Area2D()))
     normal = world.register(SimpleAgent())
     special = world.register(SpecialAgent())
     record_position(world, filter_fn=lambda a: isinstance(a, SpecialAgent))

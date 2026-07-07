@@ -80,6 +80,7 @@ from .simulation import (
     Behavior,
     DefaultEnvironment,
     Environment,
+    NoSpace,
     Position,
     Position2D,
     Space,

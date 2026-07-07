@@ -34,7 +34,7 @@ class AgentNode:
 
     def __init__(self, agents: list[Agent] | None = None) -> None:
         self.agents: list[Agent] = [] if agents is None else list(agents)
-        self.characteristics: dict[str, str] = {}
+        self.characteristics: dict[int, str] = {}
 
     def add(self, *agents: Agent) -> None:
         """Add one or more agents to this node."""
@@ -42,11 +42,10 @@ class AgentNode:
 
     def set_characteristic(self, agent: Agent, characteristic: str) -> None:
         """Assign a *characteristic* label to *agent* within this node."""
-        self.characteristics[agent.aid if agent.aid else id(agent)] = characteristic
+        self.characteristics[id(agent)] = characteristic
 
     def _characteristic_for(self, agent: Agent) -> str:
-        key = agent.aid if agent.aid else id(agent)
-        return self.characteristics.get(key, "")
+        return self.characteristics.get(id(agent), "")
 
 
 class Topology:
@@ -239,7 +238,7 @@ class Topology:
                             )
                         )
 
-                svc = agent.service_of_type(TopologyService, TopologyService())
+                svc = agent.service_of_type(TopologyService)
                 svc._tid_to_state_to_neighbors[self._tid] = my_state_map
                 svc._tid_to_node_id[self._tid] = node_id
                 svc._tid_to_characteristic[self._tid] = agent_node._characteristic_for(
@@ -258,8 +257,10 @@ class Topology:
                     self_neighbor = TopologyNeighbor(
                         agent=agent, description=agent.description
                     )
-                    existing_uids = {n.description.uid for _, n in self._connectors}
-                    if agent.description.uid not in existing_uids:
+                    existing = {
+                        (ct, n.description.uid) for ct, n in self._connectors
+                    }
+                    if (conn_type, agent.description.uid) not in existing:
                         self._connectors.append((conn_type, self_neighbor))
 
                 # Resolve cross-topology connectors for this agent
@@ -475,7 +476,7 @@ def mark_as_connector(agent: Agent, connector_type: str = "default") -> None:
     :param agent: the agent to mark
     :param connector_type: connection type label (default ``"default"``)
     """
-    svc = agent.service_of_type(TopologyService, TopologyService())
+    svc = agent.service_of_type(TopologyService)
     if connector_type not in svc._marked_connector_for:
         svc._marked_connector_for.append(connector_type)
 
@@ -694,8 +695,8 @@ def _get_service(agent_or_role: Any) -> TopologyService:
     if role_ctx is not None:
         agent_ctx = role_ctx.context
         if agent_ctx is not None:
-            return agent_ctx.service_of_type(TopologyService, TopologyService())
-    return agent_or_role.service_of_type(TopologyService, TopologyService())
+            return agent_ctx.service_of_type(TopologyService)
+    return agent_or_role.service_of_type(TopologyService)
 
 
 def _get_agent(agent_or_role: Any) -> Any:
