@@ -231,9 +231,7 @@ class Topology:
                     self_neighbor = TopologyNeighbor(
                         agent=agent, description=agent.description
                     )
-                    existing = {
-                        (ct, n.description.uid) for ct, n in self._connectors
-                    }
+                    existing = {(ct, n.description.uid) for ct, n in self._connectors}
                     if (conn_type, agent.description.uid) not in existing:
                         self._connectors.append((conn_type, self_neighbor))
 

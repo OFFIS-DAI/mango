@@ -245,9 +245,7 @@ async def test_plot_recordings_colormap_hidden_axes_and_write_to(tmp_path):
         await step_simulation(world, step_size_s=1.0)
 
     out = tmp_path / "grid.png"
-    fig = plot_recordings(
-        world, figsize=(12, 8), colormap="viridis", write_to=str(out)
-    )
+    fig = plot_recordings(world, figsize=(12, 8), colormap="viridis", write_to=str(out))
     assert fig is not None
     assert out.exists()
 
