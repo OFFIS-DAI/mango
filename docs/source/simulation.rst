@@ -420,13 +420,14 @@ track agent positions when a spatial environment is active:
 Spatial environment
 ====================
 
-A :class:`~mango.DefaultEnvironment` gives agents a *space* in which they have
-positions and can move relative to each other.  The default space is
-:class:`~mango.Area2D`, a rectangular 2-D arena.
+A :class:`~mango.DefaultEnvironment` can give agents a *space* in which they
+have positions and can move relative to each other.  The default space is
+:class:`~mango.NoSpace`, which has no positioning at all; pass an
+:class:`~mango.Area2D` explicitly to get a rectangular 2-D arena.
 
-During world initialisation every agent without a pre-assigned position
-receives a random location within the arena.  You can override this by calling
-:meth:`~mango.Area2D.move` before the world starts:
+With an :class:`~mango.Area2D`, during world initialisation every agent without
+a pre-assigned position receives a random location within the arena.  You can
+override this by calling :meth:`~mango.Area2D.move` before the world starts:
 
 .. testcode::
 

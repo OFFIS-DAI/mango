@@ -12,6 +12,7 @@ from .environment import (
     Behavior,
     DefaultEnvironment,
     Environment,
+    NoSpace,
     Position,
     Position2D,
     Space,

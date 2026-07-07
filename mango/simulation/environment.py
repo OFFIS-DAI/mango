@@ -174,6 +174,36 @@ class Area2D(Space):
             )
 
 
+class NoSpace(Space):
+    """A space without spatial positioning.
+
+    Use this when agents do not need positions.  Every agent reports no
+    position, and attempts to :meth:`move` or :meth:`location` raise a
+    :class:`RuntimeError`.  This is the default space for
+    :class:`DefaultEnvironment`.
+
+    Example::
+
+        env = DefaultEnvironment()          # uses NoSpace by default
+        env = DefaultEnvironment(space=NoSpace())
+    """
+
+    def move(self, agent, position: Position) -> None:
+        raise RuntimeError(
+            "NoSpace has no spatial positioning; use a space such as Area2D "
+            "to move agents."
+        )
+
+    def location(self, agent) -> Position:
+        raise RuntimeError(
+            "NoSpace has no spatial positioning; use a space such as Area2D "
+            "to locate agents."
+        )
+
+    def has_position(self, agent) -> bool:
+        return False
+
+
 class Behavior(ABC):
     """Abstract environment behavior.
 
@@ -246,7 +276,7 @@ class DefaultEnvironment(Environment):
         space: Space | None = None,
         behavior: Behavior | None = None,
     ):
-        self._space: Space = space or Area2D()
+        self._space: Space = space or NoSpace()
         self._behavior: Behavior = behavior or _NoBehavior()
         self._observers: list[WorldObserver] = []
         self._id_to_agent: dict[Any, Any] = {}

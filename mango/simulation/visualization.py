@@ -124,7 +124,7 @@ def plot_agents(
     default_cycle = plt.rcParams["axes.prop_cycle"].by_key()["color"]
 
     for i, (aid, values) in enumerate(rec.timeseries.items()):
-        t = rec.time[: len(values)]
+        t = rec.agent_time.get(aid, rec.time[: len(values)])
         c = (
             colors[i % len(colors)]
             if colors
@@ -198,15 +198,13 @@ def plot_recordings(
         else:
             rec = world.data_agent_collections[key]
             if colormap:
-                import matplotlib.cm as cm
-
-                cmap = cm.get_cmap(colormap, max(len(rec.timeseries), 1))
+                cmap = plt.get_cmap(colormap, max(len(rec.timeseries), 1))
                 color_list = [cmap(j) for j in range(len(rec.timeseries))]
             else:
                 color_list = cycle
 
             for j, (aid, values) in enumerate(rec.timeseries.items()):
-                t = rec.time[: len(values)]
+                t = rec.agent_time.get(aid, rec.time[: len(values)])
                 c = color_list[j % len(color_list)]
                 ax.plot(t, values, label=_agent_label(world, aid), color=c)
             ax.legend(fontsize="x-small")

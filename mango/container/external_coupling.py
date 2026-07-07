@@ -76,7 +76,7 @@ class ExternalSchedulingContainer(Container):
             **kwargs,
         )
 
-        self.current_start_time_of_step = time.time()
+        self.current_start_time_of_step = time.perf_counter()
         self._new_internal_message: bool = False
         self.message_buffer = []
 
@@ -128,7 +128,9 @@ class ExternalSchedulingContainer(Container):
         # store message in the buffer, which will be emptied in step
         self.message_buffer.append(
             ExternalAgentMessage(
-                time=time.time() - self.current_start_time_of_step + self.clock.time,
+                time=time.perf_counter()
+                - self.current_start_time_of_step
+                + self.clock.time,
                 receiver=addr.protocol_addr,
                 message=encoded_msg,
             )
@@ -143,7 +145,7 @@ class ExternalSchedulingContainer(Container):
                 "There are messages in the message buffer to be sent, at the start when step was called."
             )
 
-        self.current_start_time_of_step = time.time()
+        self.current_start_time_of_step = time.perf_counter()
 
         self.clock.set_time(simulation_time)
 
@@ -170,7 +172,7 @@ class ExternalSchedulingContainer(Container):
                 # if there have
                 break
         # now all agents in this container should be done
-        end_time = time.time()
+        end_time = time.perf_counter()
 
         messages_this_step, self.message_buffer = self.message_buffer, []
 

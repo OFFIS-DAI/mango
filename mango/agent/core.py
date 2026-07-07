@@ -194,7 +194,7 @@ class AgentContext:
 
     def service_of_type(self, type: type, default: Any = None) -> Any:
         if type not in self._services:
-            self._services[type] = default
+            self._services[type] = type() if default is None else default
         return self._services[type]
 
     async def send_message(
@@ -371,7 +371,7 @@ class AgentDelegates:
         :param response_handler: optional ``(content, meta) -> None`` callback
         :return: the asyncio.Task for the sent message
         """
-        tracking_id = str(__import__("uuid").uuid4())
+        tracking_id = str(uuid.uuid4())
         if response_handler is not None:
             self._transaction_handlers[tracking_id] = (response_handler,)
         return await self.send_message(
@@ -710,11 +710,16 @@ class AgentDelegates:
         await self.scheduler.tasks_complete(timeout=timeout)
 
     def service_of_type(self, type: type, default: Any = None) -> Any:
-        """Return the service of the type ``type`` or set the default as service and return it.
+        """Return the service registered for ``type``, creating it if absent.
+
+        If no service of ``type`` is registered yet, *default* is registered
+        and returned; when *default* is ``None`` a new ``type()`` instance is
+        created instead.
 
         :param type: the type of the service
         :type type: type
-        :param default: the default if applicable
+        :param default: the value to register if none exists; ``None`` creates
+            a ``type()`` instance
         :type default: Any (optional)
         :return: the service
         :rtype: Any
@@ -739,7 +744,7 @@ class AgentDelegates:
         :param match_func: optional ``(AgentDescription) -> bool`` predicate
         :return: list of :class:`~mango.AgentAddress`
         """
-        svc = self.service_of_type(TopologyService, TopologyService())
+        svc = self.service_of_type(TopologyService)
         return svc.neighbors(
             state,
             tid=tid,

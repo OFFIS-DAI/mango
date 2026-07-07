@@ -66,9 +66,9 @@ class SimpleCommunicationSimulation(CommunicationSimulation):
     """Default communication simulation with configurable loss and delay.
 
     Per-link delays can be set via ``delay_s_directed_edge_dict`` using
-    ``(sender_id, receiver_id)`` tuples as keys.  A message cache ensures
-    deterministic results when the same package is evaluated more than once
-    within a step.
+    ``(sender_id, receiver_id)`` tuples as keys.  Message loss is drawn
+    independently per package from ``loss_percent``; each package is
+    evaluated exactly once by the world, so no result cache is kept.
 
     Example::
 

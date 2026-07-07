@@ -65,11 +65,15 @@ class AgentsRecording:
     """Per-agent time-series recording.
 
     ``timeseries`` maps each agent AID to a list of recorded values.
-    ``time`` holds the elapsed simulation seconds at each snapshot (shared
-    across all agents).
+    ``agent_time`` maps each agent AID to the elapsed simulation seconds at
+    which each of that agent's values was recorded; it stays aligned with
+    ``timeseries`` even when agents are recorded sparsely (e.g. registered
+    mid-simulation or gated by a filter). ``time`` holds every step's
+    timestamp as a shared axis for agents recorded on every step.
     """
 
     timeseries: dict[str, list[Any]] = field(default_factory=dict)
+    agent_time: dict[str, list[float]] = field(default_factory=dict)
     time: list[float] = field(default_factory=list)
 
 
@@ -317,7 +321,7 @@ class SimulationWorld:
         # Next message arrival
         if self._pending_messages:
             next_msg_arrival = self._pending_messages[0][0]
-            candidates.append(next_msg_arrival - self.clock.time)
+            candidates.append(max(0.0, next_msg_arrival - self.clock.time))
 
         # Next task wakeup
         next_task = self.clock.get_next_activity()
@@ -332,15 +336,25 @@ class SimulationWorld:
         for collector in self._data_collectors:
             collector(self)
 
-    def _get_world_recording(self, key: str) -> WorldRecording:
-        if key not in self.data_collections:
-            self.data_collections[key] = WorldRecording()
-        return self.data_collections[key]
+    def _new_world_recording(self, key: str) -> WorldRecording:
+        if key in self.data_collections:
+            raise ValueError(
+                f"A recording is already registered for key '{key}'; "
+                "use a distinct key per recording."
+            )
+        recording = WorldRecording()
+        self.data_collections[key] = recording
+        return recording
 
-    def _get_agents_recording(self, key: str) -> AgentsRecording:
-        if key not in self.data_agent_collections:
-            self.data_agent_collections[key] = AgentsRecording()
-        return self.data_agent_collections[key]
+    def _new_agents_recording(self, key: str) -> AgentsRecording:
+        if key in self.data_agent_collections:
+            raise ValueError(
+                f"A recording is already registered for key '{key}'; "
+                "use a distinct key per recording."
+            )
+        recording = AgentsRecording()
+        self.data_agent_collections[key] = recording
+        return recording
 
     async def __aenter__(self) -> "SimulationWorld":
         self._initialize_if_needed()
@@ -534,7 +548,7 @@ def collect_data(
             rec.time.append(w.clock.time),
         ))
     """
-    recording = world._get_world_recording(key)
+    recording = world._new_world_recording(key)
 
     def _run(w: SimulationWorld) -> None:
         collector(w, recording)
@@ -559,7 +573,7 @@ def collect_agent_data(
             rec.timeseries.setdefault(a.aid, []).append(a.some_state),
         ))
     """
-    recording = world._get_agents_recording(key)
+    recording = world._new_agents_recording(key)
 
     def _run(w: SimulationWorld) -> None:
         for agent in w._agents.values():
@@ -583,7 +597,7 @@ def record_world(
 
         record_world(world, "agent_count", lambda: len(world._agents))
     """
-    recording = world._get_world_recording(key)
+    recording = world._new_world_recording(key)
 
     def _run(w: SimulationWorld) -> None:
         recording.timeseries.append(recorder())
@@ -614,12 +628,13 @@ def record_agent(
     :param filter_fn: optional ``(agent) -> bool`` predicate; ``None`` records
         all registered agents
     """
-    recording = world._get_agents_recording(key)
+    recording = world._new_agents_recording(key)
 
     def _run(w: SimulationWorld) -> None:
         for agent in w._agents.values():
             if filter_fn is None or filter_fn(agent):
                 recording.timeseries.setdefault(agent.aid, []).append(recorder(agent))
+                recording.agent_time.setdefault(agent.aid, []).append(w.clock.time)
         recording.time.append(w.clock.time)
 
     world._data_collectors.append(_run)
@@ -646,7 +661,7 @@ def record_agent_having(
 
         record_agent_having(world, "energy", EnergyRole, lambda a: a.roles[0].energy)
     """
-    recording = world._get_agents_recording(key)
+    recording = world._new_agents_recording(key)
 
     def _run(w: SimulationWorld) -> None:
         for agent in w._agents.values():
@@ -654,6 +669,7 @@ def record_agent_having(
                 isinstance(r, role_type) for r in agent.roles
             ):
                 recording.timeseries.setdefault(agent.aid, []).append(recorder(agent))
+                recording.agent_time.setdefault(agent.aid, []).append(w.clock.time)
         recording.time.append(w.clock.time)
 
     world._data_collectors.append(_run)
@@ -679,7 +695,7 @@ def record_position(
         history = position_history(world)
         # history.timeseries["agent0"]  -> list of Position2D
     """
-    recording = world._get_agents_recording(key)
+    recording = world._new_agents_recording(key)
 
     def _run(w: SimulationWorld) -> None:
         space = w.environment.space
@@ -689,6 +705,7 @@ def record_position(
                     recording.timeseries.setdefault(agent.aid, []).append(
                         space.location(agent)
                     )
+                    recording.agent_time.setdefault(agent.aid, []).append(w.clock.time)
         recording.time.append(w.clock.time)
 
     world._data_collectors.append(_run)
@@ -704,4 +721,4 @@ def position_history(
     :param key: recording key (default ``"positions"``)
     :return: the recording
     """
-    return world._get_agents_recording(key)
+    return world.data_agent_collections.get(key, AgentsRecording())
