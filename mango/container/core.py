@@ -112,13 +112,14 @@ class Container(ABC):
         self._aid_counter += 1
         return aid
 
-    def register(self, agent: Agent, suggested_aid: str = None):
+    def register(self, agent: Agent, suggested_aid: str = None, **kwargs):
         """
         Register *agent* and return the agent id
 
         :param agent: The agent instance
         :param suggested_aid: (Optional) suggested aid, if the aid is already taken, a generated aid is used.
             Using the generated aid-style ("agentX") is not allowed.
+        :param kwargs: additional keyword arguments passed to :meth:`on_register`
 
         :return The agent ID
         """
@@ -127,6 +128,7 @@ class Container(ABC):
             raise ValueError("Agent is already registered to a container")
         self._agents[aid] = agent
         agent._do_register(self, aid)
+        self.on_register(agent, aid, **kwargs)
         logger.debug("Successfully registered agent;%s", aid)
         if self.running:
             agent._do_start()
@@ -134,6 +136,9 @@ class Container(ABC):
         if self.ready:
             agent.on_ready()
         return agent
+
+    def on_register(self, agent: Agent, aid: str, **kwargs) -> None:
+        """Hook called after *agent* is registered, before it is started."""
 
     def _get_aid(self, agent):
         for aid, a in self._agents.items():

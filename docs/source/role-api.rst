@@ -511,6 +511,120 @@ the event — useful when multiple roles can emit the same event type.
 
 ----
 
+Declarative dispatch with decorators
+====================================
+
+The subscription and scheduling calls above (:meth:`~mango.RoleContext.subscribe_message`,
+:meth:`~mango.RoleContext.subscribe_event`, periodic tasks) can all be written
+declaratively by decorating the handler method directly.  A role that uses the
+decorators often needs no ``setup`` at all — the wiring is read from the class
+at bind time:
+
+.. list-table::
+   :widths: 26 74
+   :header-rows: 1
+
+   * - Decorator
+     - Replaces
+   * - :func:`~mango.on_message`
+     - a :meth:`~mango.RoleContext.subscribe_message` call.
+   * - :func:`~mango.on_event`
+     - a :meth:`~mango.RoleContext.subscribe_event` call.
+   * - :func:`~mango.periodic`
+     - a periodic ``schedule_periodic_task`` call.
+
+.. code-block:: python
+
+    from mango import Role, on_message, on_event, periodic, sender_addr
+
+    class Worker(Role):
+        @on_message(Task)
+        async def on_task(self, content, meta):
+            await self.context.reply_to(Result(...), meta)
+
+        @on_event(ConfigChanged)
+        def on_config(self, event, source):
+            self.config = event.config
+
+        @periodic(every=1.0)
+        async def heartbeat(self):
+            await self.context.send_message(Beat(), self.leader)
+
+The equivalent hand-written ``setup`` would register three callbacks; the
+decorated form keeps each handler next to its trigger and removes the
+boilerplate.
+
+on_message
+----------
+
+:func:`~mango.on_message` delivers messages where
+``isinstance(content, message_type)`` is true.  The handler is called as
+``handler(self, content, meta)``.  **Async handlers are supported directly** —
+they are scheduled as instant tasks automatically (no manual coroutine shim).
+
+Two keyword options refine the subscription:
+
+* ``where`` — an extra predicate ``where(self, content, meta) -> bool``.  It
+  receives ``self``, so it can read role state instead of capturing it in a
+  class-time closure.
+* ``priority`` — dispatch order when several handlers match (lower runs first,
+  default ``0``), mirroring :meth:`~mango.RoleContext.subscribe_message`.
+
+.. code-block:: python
+
+    class Router(Role):
+        @on_message(Packet, where=lambda self, c, m: c.ttl > 0, priority=0)
+        async def forward(self, content, meta):
+            ...
+
+.. note::
+
+   Each async ``@on_message`` invocation runs as an independent task, so
+   handlers for different messages may run concurrently and out of order.  If a
+   handler mutates role state and must not interleave, register it the
+   imperative way with a
+   :class:`~mango.WaitingMessagePreprocessor` (see `Message preprocessors`_).
+
+on_event
+--------
+
+:func:`~mango.on_event` subscribes to a co-located inter-role event (see
+`Inter-role events`_).  The handler is ``handler(self, event, source)``
+and runs **synchronously** inside :meth:`~mango.RoleContext.emit_event`, so it
+must be a plain (non-async) method — decorating an ``async def`` raises a
+``TypeError`` at class-definition time rather than silently never running.
+
+periodic
+--------
+
+:func:`~mango.periodic` schedules an async method to run on a fixed period.
+``every`` is either a number of seconds or the *name* of an instance attribute
+read at attach time (handy for per-instance periods).  The optional ``only_if``
+predicate gates each firing:
+
+.. code-block:: python
+
+    class Poller(Role):
+        poll_period_s = 0.5
+
+        @periodic(every="poll_period_s", only_if=lambda self: self.is_leader)
+        async def poll(self):
+            await self.context.gather(Ping(), self.peers)
+
+When ``only_if(self)`` is false the scheduled task still fires but returns
+early, replacing the ``if not leader: return`` guard by hand.
+
+.. tip::
+
+   Decorators and ``setup`` compose: decorator wiring is applied **before**
+   ``setup`` runs, so ``setup`` can add further subscriptions.  There is no
+   unsubscribe — ``setup`` extends the declarative wiring, it cannot remove it.
+   Stacking decorators on one method (e.g. two ``@on_message``) is supported,
+   and decorated handlers on a base ``Role`` are inherited by subclasses.
+
+
+----
+
 Deactivating and activating roles
 ==================================
 

@@ -1,4 +1,5 @@
 from .messages.message import create_acl, Performatives
+from .agent.conversation import Conversation
 from .agent.core import (
     Agent,
     AgentAddress,

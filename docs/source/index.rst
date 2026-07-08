@@ -69,7 +69,14 @@ Features
 
       **Role system**
       ^^^
-      Compose agent behaviour from small, reusable ``Role`` classes with shared state and event subscriptions.
+      Compose agent behaviour from small, reusable ``Role`` classes with shared state and event subscriptions — wired declaratively with ``@on_message``, ``@on_event``, and ``@periodic``.
+
+   .. grid-item-card::
+      :shadow: sm
+
+      **Transactional messaging**
+      ^^^
+      Multi-reply ``gather`` with quorum and timeout, and multi-hop conversations for gossip, auctions, and negotiation — clock-aware in real time and simulation.
 
    .. grid-item-card::
       :shadow: sm
@@ -227,6 +234,7 @@ Where to go next
 
    agents-container
    message exchange
+   transactions
    role-api
    scheduling
    topology

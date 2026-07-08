@@ -279,3 +279,38 @@ async def test_gather_filters_by_reply_type():
     (reply,) = caller_role.responses.values()
     assert isinstance(reply, _Reply)
     assert reply.value == 1.0
+
+
+@pytest.mark.asyncio
+async def test_role_send_tracked_message_response_handler_fires():
+    """A role's ``send_tracked_message`` must register its response handler
+    on the *agent* (whose inbox matches replies), not on the RoleContext's
+    own inherited registry — a handler registered there never fires."""
+
+    class _TrackedCaller(Role):
+        def __init__(self, peer):
+            super().__init__()
+            self.peer = peer
+            self.reply = None
+
+        async def run(self):
+            got_reply = asyncio.get_event_loop().create_future()
+            await self.context.send_tracked_message(
+                _Ask(topic="x"),
+                self.peer,
+                response_handler=lambda content, meta: got_reply.set_result(content),
+            )
+            self.reply = await asyncio.wait_for(got_reply, timeout=2.0)
+
+    container = create_tcp_container(addr=("127.0.0.1", 5591))
+    responder = container.register(RoleAgent())
+    responder.add_role(_Responder(value=7.0))
+
+    caller = container.register(RoleAgent())
+    caller_role = _TrackedCaller(responder.addr)
+    caller.add_role(caller_role)
+
+    async with activate([container]):
+        await caller_role.run()
+
+    assert caller_role.reply == _Reply(value=7.0)

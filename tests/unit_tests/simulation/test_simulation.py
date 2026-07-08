@@ -504,7 +504,7 @@ class TestSimulationWorldRegister:
         world = create_world()
         a = world.register(SimpleAgent())
         world.deregister(a.aid)
-        assert a.aid not in world._agents
+        assert a.aid not in world.agents
         await world.shutdown()
 
     def test_deregister_nonexistent_is_noop(self):
@@ -672,16 +672,16 @@ async def test_message_unknown_receiver_dropped():
     world.register(SimpleAgent())  # just to have an agent
     # Manually inject a message with unknown receiver
     async with world:
-        await world._deliver_messages_due.__func__(world, 999.0) if False else None  # noqa: this branch is tested via direct queue
         # Insert directly into pending with bogus receiver
         import bisect
 
-        world._pending_messages.clear()
+        container = world.container
+        container._pending_messages.clear()
         bisect.insort(
-            world._pending_messages,
+            container._pending_messages,
             (0.0, 0, 0.0, "msg", {"receiver_id": "ghost", "sender_id": None}),
         )
-        delivered = await world._deliver_messages_due(10.0)
+        delivered = await container._deliver_messages_due(10.0)
     assert delivered == 0  # dropped, not counted
 
 
@@ -725,7 +725,7 @@ async def test_shutdown_sets_running_false():
 async def test_record_world():
     world = create_world()
     world.register(SimpleAgent())
-    record_world(world, "agent_count", lambda: len(world._agents))
+    record_world(world, "agent_count", lambda: len(world.agents))
     async with world:
         await step_simulation(world, step_size_s=1.0)
         await step_simulation(world, step_size_s=1.0)

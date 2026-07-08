@@ -294,6 +294,33 @@ The full filter set is shared by :meth:`~mango.Agent.neighbors` and
     )
 
 
+Broadcasting to neighbours
+==========================
+
+Sending to every neighbour is common enough to have its own helper.
+:func:`~mango.broadcast_to_neighbors` resolves the neighbour set (with the same
+filters as :func:`~mango.topology_neighbors`) and awaits a ``send_message`` to
+each, returning the addresses it reached:
+
+.. code-block:: python
+
+    from mango import Role, broadcast_to_neighbors
+
+    class GossipRole(Role):
+        async def on_ready(self):
+            await broadcast_to_neighbors(self, Rumor("hello"))
+
+        async def relay(self, rumor):
+            # only push to leaders on the "overlay" topology
+            await broadcast_to_neighbors(
+                self, rumor, tid="overlay", has_characteristic="leader"
+            )
+
+Any extra keyword arguments are forwarded to ``send_message`` (e.g.
+``tracking_id``), and ``include_connectors`` extends the broadcast across a
+topology link.
+
+
 Link states
 ============
 
@@ -391,6 +418,83 @@ reach both, pass ``include_connectors`` to
 
 Pass ``directed=True`` to :func:`~mango.connect_topologies` for a one-way link
 (``region_a`` reaches ``region_b`` but not vice versa).
+
+
+Tracking link health
+====================
+
+Gossip and peer-to-peer protocols often need to know whether a neighbour is
+still responsive, so a sender can route around silent peers.  Enable
+*continuous link-health tracking* by passing an :class:`~mango.EdgeHealth`
+config to :func:`~mango.create_topology` (or a :class:`~mango.Topology`
+directly).  Every agent in the topology then gets an automatic hook that:
+
+* **decays** each neighbour's score over time (``decay_per_s`` per second of
+  silence), and
+* **recovers** it on every message received from that neighbour
+  (``score += (1 - score) * recovery_rate``).
+
+.. code-block:: python
+
+    from mango import create_topology, EdgeHealth
+
+    with create_topology(
+        tid="grid",
+        edge_health=EdgeHealth(
+            decay_per_s=0.125,        # lose ~1/8 of the score per silent second
+            recovery_rate=0.6,        # rebuild 60 % of the gap on each message
+            liveness_threshold=0.5,   # "live" at or above this score
+        ),
+    ) as topology:
+        ...
+
+.. list-table::
+   :widths: 26 14 60
+   :header-rows: 1
+
+   * - Field
+     - Default
+     - Meaning
+   * - ``decay_per_s``
+     - ``0.125``
+     - Score lost per second of silence.
+   * - ``recovery_rate``
+     - ``0.6``
+     - Fraction of the missing score rebuilt per received message ``(0, 1]``.
+   * - ``initial``
+     - ``1.0``
+     - Starting score for a never-contacted neighbour (optimistic).
+   * - ``liveness_threshold``
+     - ``0.5``
+     - Default cutoff for :meth:`~mango.RoleContext.live_neighbours`.
+
+From a role, query health through the context.  These are no-ops-with-fallback
+when the topology has **no** ``edge_health`` configured, so a role can call them
+unconditionally:
+
+.. code-block:: python
+
+    class GossipRole(Role):
+        async def push(self, payload):
+            # neighbours at or above the liveness threshold (or all of them,
+            # if this topology has no health tracking)
+            for addr in self.context.live_neighbours(tid="grid"):
+                await self.context.send_message(payload, addr)
+
+        def report(self):
+            scores = self.context.neighbour_scores(tid="grid")  # {addr: score}
+            one = self.context.neighbour_score(some_addr, tid="grid")
+
+* :meth:`~mango.RoleContext.live_neighbours` — the neighbours at or above the
+  threshold (override per call with ``threshold=``).
+* :meth:`~mango.RoleContext.neighbour_scores` — a ``{AgentAddress: score}`` map
+  for all neighbours.
+* :meth:`~mango.RoleContext.neighbour_score` — the score for one neighbour, or
+  ``None`` when tracking is off.
+
+All scores are read on the agent's scheduler clock, so decay behaves
+identically in real time and under a simulation
+:class:`~mango.util.clock.ExternalClock`.
 
 
 Exporting to an agent-level graph
