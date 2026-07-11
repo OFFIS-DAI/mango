@@ -170,6 +170,10 @@ class SimulationWorld:
     def communication_sim(self) -> CommunicationSimulation:
         return self._container.communication_sim
 
+    @communication_sim.setter
+    def communication_sim(self, value: CommunicationSimulation) -> None:
+        self._container.communication_sim = value
+
     @property
     def addr(self) -> str:
         return self._container.addr
