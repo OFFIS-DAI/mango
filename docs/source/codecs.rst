@@ -1,34 +1,52 @@
-=======
+======
 Codecs
-=======
+======
 
-Most of the codec related code is taken and adapted from aiomas:
-https://gitlab.com/sscherfke/aiomas/
+A *codec* translates Python objects into a wire format that can be sent over
+the network and reconstructed on the receiving end.  Every container uses
+exactly one codec for all its messages.
 
-Codecs enable the container to encode and decode known data types to send them as messages.
-Mango already contains two codecs: A json serializer that can (recursively) handle any json serializable object and a protobuf codec
-that will wrap an object into a generic protobuf message. Other codecs can be implemented by inheriting
-from the ``Codec`` base class and implementing its ``encode`` and ``decode`` methods.
-Codecs will only handle types explicitely known to them.
-New known types can be added to a codec with the ``add_serializer`` method.
-This method expects a type together with a serialization method and a deserialization method that translate the object into a format
-the codec can handle (for example a json-serializable string for the json codec).
+mango ships two built-in codecs:
+
+.. list-table::
+   :widths: 20 80
+   :header-rows: 1
+
+   * - Codec
+     - Notes
+   * - :class:`~mango.JSON`
+     - Default.  Extends Python's ``json`` module with a type-registry so
+       custom classes survive the round-trip.  Zero extra dependencies.
+   * - :class:`~mango.PROTOBUF`
+     - Uses Google Protocol Buffers.  Requires the ``protobuf`` package.
+       Suitable for bandwidth-constrained or schema-first deployments.
+
+You can also write your own codec by subclassing ``Codec`` and implementing
+``encode`` and ``decode``.
 
 .. warning::
-    When using the json codec certain types can not be exactly serialized and deserialized between containers.
-    One example are ``tuple`` and classes derived from it like ``namedtuple``. The core of the json codec uses
-    pythons json encoder [1] for any type that this encoder can handle by itself. Tuples are translated to
-    json arrays without any further information by this encoder. Consequently, a receiving container will only
-    see a json array and deserialize it to a python list.
+    The JSON codec cannot round-trip every Python type faithfully.  In
+    particular, **tuples** (and ``namedtuple``) are decoded back as ``list``
+    because JSON has no distinct array type.  Encode tuples manually or use a
+    custom serialiser if you need to preserve the type.
 
-    [1]: https://docs.python.org/3/library/json.html#json.JSONEncoder
 
-Quickstart
-###########
+JSON codec
+==========
 
-**general use**
+Most of the codec code is adapted from
+`aiomas <https://gitlab.com/sscherfke/aiomas/>`_.
 
-Consider a simple example class we wish to encode as json:
+The JSON codec can handle any JSON-serialisable primitive (strings, numbers,
+booleans, lists, dicts) out of the box.  To send custom class instances you
+register a *serialiser* — a pair of (encode, decode) functions — with
+:meth:`~mango.JSON.add_serializer`.
+
+Manual serialiser
+-----------------
+
+Implement ``__asdict__``, ``__fromdict__``, and ``__serializer__`` on your
+class:
 
 .. testcode::
 
@@ -52,18 +70,16 @@ Consider a simple example class we wish to encode as json:
         def __serializer__(cls):
             return (cls, cls.__asdict__, cls.__fromdict__)
 
-
-If we try to encode an object of ``MyClass`` without adding a serializer we get an SerializationError:
+Without registering a serialiser, encoding an unknown type raises
+:class:`~mango.SerializationError`:
 
 .. testcode::
 
     from mango import JSON, SerializationError
 
     codec = JSON()
-
-    my_object = MyClass("abc", 123)
     try:
-        encoded = codec.encode(my_object)
+        codec.encode(MyClass("abc", 123))
     except SerializationError as e:
         print(e)
 
@@ -71,7 +87,7 @@ If we try to encode an object of ``MyClass`` without adding a serializer we get 
 
     No serializer found for type "<class 'MyClass'>"
 
-We have to make the type known to the codec to use it:
+Register the serialiser once per codec instance:
 
 .. testcode::
 
@@ -79,8 +95,7 @@ We have to make the type known to the codec to use it:
     codec.add_serializer(*MyClass.__serializer__())
 
     my_object = MyClass("abc", 123)
-    encoded = codec.encode(my_object)
-    decoded = codec.decode(encoded)
+    decoded = codec.decode(codec.encode(my_object))
 
     print(my_object.x, my_object.y)
     print(decoded.x, decoded.y)
@@ -90,60 +105,51 @@ We have to make the type known to the codec to use it:
     abc 123
     abc 123
 
-The codec distinguishes different types for decoding by assigning a type id (32 bit integer) to the type.
-The type id can either be automatically generated (like above) or explicitely set when adding the serializer.
-Note that if you set a type_id yourself you need to ensure that the decoding container associated the same id
-with the desired type.
+Type IDs
+--------
+
+The codec assigns each registered type a 32-bit integer *type ID* so the
+receiver knows how to decode a message.  By default the ID is generated
+automatically.  If both ends must agree on an ID (e.g. when ID generation
+order may differ), set it explicitly:
 
 .. testcode::
 
     codec = JSON()
     codec.add_serializer(*MyClass.__serializer__(), type_id=4711)
 
-    my_object = MyClass("abc", 123)
-    encoded = codec.encode(my_object)
-    decoded = codec.decode(encoded)
-
-    print(my_object.x, my_object.y)
+    decoded = codec.decode(codec.encode(MyClass("abc", 123)))
     print(decoded.x, decoded.y)
 
 .. testoutput::
 
     abc 123
-    abc 123
 
-All that is left to do now is to pass our codec to the container. This is done during container creation in the ``create_container`` method.
+Pass your configured codec to the container factory:
 
 .. testcode::
 
-    from mango import Agent, create_tcp_container, activate
     import asyncio
+    from mango import Agent, create_tcp_container, activate
 
     class SimpleReceivingAgent(Agent):
-        def __init__(self):
-            super().__init__()
-
         def handle_message(self, content, meta):
             if isinstance(content, MyClass):
                 print(content.x)
                 print(content.y)
 
-
     async def main():
         codec = JSON()
         codec.add_serializer(*MyClass.__serializer__())
 
-        # codecs can be passed directly to the container
-        # if no codec is passed a new instance of JSON() is created
-        sending_container = create_tcp_container(addr=("127.0.0.1", 5556), codec=codec)
+        sending_container   = create_tcp_container(addr=("127.0.0.1", 5556), codec=codec)
         receiving_container = create_tcp_container(addr=("127.0.0.1", 5555), codec=codec)
         receiving_agent = receiving_container.register(SimpleReceivingAgent())
 
         async with activate(sending_container, receiving_container):
-            # agents can now directly pass content of type MyClass to each other
-            my_object = MyClass("abc", 123)
             await sending_container.send_message(
-                content=my_object, receiver_addr=receiving_agent.addr
+                content=MyClass("abc", 123),
+                receiver_addr=receiving_agent.addr,
             )
             await asyncio.sleep(0.1)
 
@@ -154,11 +160,12 @@ All that is left to do now is to pass our codec to the container. This is done d
     abc
     123
 
-**@json_serializable decorator**
+``@json_serializable`` decorator
+---------------------------------
 
-In the above example we explicitely defined methods to (de)serialize our class. For simple classes, especially data classes,
-we can achieve the same result (for json codecs) via the :meth:`mango.json_serializable`` decorator. This creates the ``__asdict__``,
-``__fromdict__`` and ``__serializer__`` functions in the class:
+For simple classes (especially dataclasses) the
+:func:`~mango.json_serializable` decorator generates the ``__asdict__``,
+``__fromdict__``, and ``__serializer__`` methods automatically:
 
 .. testcode::
 
@@ -174,35 +181,64 @@ we can achieve the same result (for json codecs) via the :meth:`mango.json_seria
     codec = JSON()
     codec.add_serializer(*DecoratorData.__serializer__())
 
-    my_data = DecoratorData(1,2,3)
-    encoded = codec.encode(my_data)
-    decoded = codec.decode(encoded)
-
-    print(my_data.x, my_data.y, my_data.z)
+    decoded = codec.decode(codec.encode(DecoratorData(1, 2, 3)))
     print(decoded.x, decoded.y, decoded.z)
 
 .. testoutput::
 
     1 2 3
-    1 2 3
 
 
-fast json
-##########
-Besides the normal full features json codec, which is able to serialize and deserialize messages under preservation of the type information, mango
-provides the `codecs.FastJson` codec. This codec usese `msgspec` and does not provide any type safety. Therefore are also no custom serializer.
+FastJSON codec
+==============
+
+:class:`~mango.messages.codecs.FastJson` is a lightweight alternative to the
+full JSON codec.  It uses `msgspec <https://jcristharif.com/msgspec/>`_ for
+serialisation and is noticeably faster, but it **does not** support a type
+registry.  All messages are encoded and decoded as plain dicts — no custom
+class round-trips.  Use it when speed matters and you only pass primitive
+values or dicts as message content.
+
+.. code-block:: python
+
+    from mango.messages.codecs import FastJson
+    from mango import create_tcp_container
+
+    container = create_tcp_container(addr=("127.0.0.1", 5555), codec=FastJson())
 
 
-proto codec and ACLMessage
-##########################
+Protobuf codec
+==============
 
-Serialization methods for the proto codec are expected to encode the object into a protobuf message object with the ``SerializeToString``
-method.
-The codec then wraps the message into a generic message wrapper, containing the serialized
-protobuf message object and a type id.
-This is necessary because in general the original type of a protobuf message can not be infered
-from its serialized form.
+The :class:`~mango.PROTOBUF` codec wraps each protobuf message in a generic
+envelope that carries the type ID alongside the serialised bytes.  This is
+necessary because the original type of a protobuf message cannot be inferred
+from its serialised form alone.
 
-The ``ACLMessage`` class is encouraged to be used for fipa compliant agent communication. For ease of use it gets specially handled in
-the protobuf codec: Its content field may contain any proto object known to the codec and gets encoded with the associated type id just
-like a non-ACL message would be encoded into the generic message wrapper.
+Register a serialiser by providing an encode function (returns a protobuf
+message with ``SerializeToString``) and a decode function:
+
+.. code-block:: python
+
+    from mango import PROTOBUF
+    import my_proto_pb2
+
+    codec = PROTOBUF()
+    codec.add_serializer(
+        my_proto_pb2.MyMessage,
+        lambda obj: obj,                             # already a proto message
+        lambda data: my_proto_pb2.MyMessage.FromString(data),
+    )
+
+ACLMessage
+----------
+
+:class:`~mango.create_acl` creates FIPA-compliant
+:class:`~mango.messages.message.ACLMessage` objects.  The protobuf codec
+gives special treatment to ``ACLMessage``: the ``content`` field can hold any
+protobuf message known to the codec and is encoded with its associated type ID,
+just like a top-level message.
+
+.. seealso::
+
+    :doc:`message exchange` — sending and receiving messages

@@ -11,7 +11,7 @@ copyright = "2024, mango team"
 author = "mango team"
 
 # The full version, including alpha/beta/rc tags
-version = release = "2.1.5"
+version = release = "2.2.0"
 
 
 # -- General configuration ---------------------------------------------------
@@ -27,6 +27,7 @@ extensions = [
     "sphinx.ext.imgmath",
     "sphinx.ext.viewcode",
     "sphinx_copybutton",
+    "sphinx_design",
 ]
 
 

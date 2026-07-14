@@ -1,175 +1,335 @@
 <p align="center">
-
-![logo](docs/source/_static/Logo_mango_ohne_sub.svg#gh-light-mode-only)
-![logo](docs/source/_static/Logo_mango_ohne_sub_white.svg#gh-dark-mode-only)
-
+  <img src="docs/source/_static/Logo_mango_ohne_sub.svg#gh-light-mode-only" alt="mango" width="320"/>
+  <img src="docs/source/_static/Logo_mango_ohne_sub_white.svg#gh-dark-mode-only" alt="mango" width="320"/>
 </p>
 
-[PyPi](https://pypi.org/project/mango-agents/) | [Read the Docs](https://mango-agents.readthedocs.io)
-| [Github](https://github.com/OFFIS-DAI/mango) | [mail](mailto:mango@offis.de)
+<p align="center">
+  <b>Modular Python Agent Framework</b><br>
+  <i>A lightweight, asyncio-based library for research and development of multi-agent systems</i>
+</p>
 
-![lifecycle](https://img.shields.io/badge/lifecycle-maturing-blue.svg)
-[![MIT License](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/OFFIS-DAI/mango/blob/development/LICENSE)
-[![Test mango-python](https://github.com/OFFIS-DAI/mango/actions/workflows/test-mango.yml/badge.svg)](https://github.com/OFFIS-DAI/mango/actions/workflows/test-mango.yml)
-[![codecov](https://codecov.io/gh/OFFIS-DAI/mango/graph/badge.svg?token=6KVKBICGYG)](https://codecov.io/gh/OFFIS-DAI/mango)
+<p align="center">
+  <a href="https://pypi.org/project/mango-agents/">PyPI</a> |
+  <a href="https://mango-agents.readthedocs.io">Read the Docs</a> |
+  <a href="https://github.com/OFFIS-DAI/mango">GitHub</a> |
+  <a href="mailto:mango@offis.de">mango@offis.de</a>
+</p>
 
+<p align="center">
+  <a href="https://pypi.org/project/mango-agents/"><img src="https://img.shields.io/pypi/v/mango-agents?color=blue&label=PyPI" alt="PyPI"></a>
+  <a href="https://mango-agents.readthedocs.io"><img src="https://img.shields.io/badge/docs-readthedocs-informational" alt="Docs"></a>
+  <a href="https://github.com/OFFIS-DAI/mango/actions/workflows/test-mango.yml"><img src="https://github.com/OFFIS-DAI/mango/actions/workflows/test-mango.yml/badge.svg" alt="Tests"></a>
+  <a href="https://codecov.io/gh/OFFIS-DAI/mango"><img src="https://codecov.io/gh/OFFIS-DAI/mango/graph/badge.svg?token=6KVKBICGYG" alt="Coverage"></a>
+  <a href="https://github.com/OFFIS-DAI/mango/blob/development/LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License"></a>
+  <img src="https://img.shields.io/badge/lifecycle-maturing-blue.svg" alt="Lifecycle">
+</p>
 
+---
 
-mango (**m**odul**a**r pytho**n** a**g**ent framew**o**rk) is a python library for multi-agent systems (MAS).
-It is written on top of asyncio and is released under the MIT license.
+**mango** (**m**odul**a**r pytho**n** a**g**ent framew**o**rk) is a Python library for building and simulating multi-agent systems (MAS) on top of `asyncio`. It targets researchers and engineers who need reproducible agent behaviour, structured agent architectures, and controlled experimental conditions — without sacrificing usability for prototyping.
 
-mango allows the user to create simple agents with little effort and in the same time offers options
-to structure agents with complex behaviour.
+---
 
-The main features of mango are:
- - Container mechanism to speedup local message exchange
- - Message definition based on the FIPA ACL standard
- - Structuring complex agents with loose coupling and agent roles
- - Built-in codecs: JSON and protobuf
- - Supports communication between agents directly via TCP or via an external MQTT broker
+## Features
 
-A detailed documentation for this project can be found at [mango-agents.readthedocs.io](https://mango-agents.readthedocs.io)
+| Feature | Description |
+|---|---|
+| **Container-based messaging** | Agents are co-located in containers that short-circuit local message exchange without serialisation overhead |
+| **FIPA ACL message format** | Standardised message envelope with built-in JSON and protobuf codecs |
+| **Role decomposition** | Complex agent behaviour is factored into loosely coupled, independently testable role objects |
+| **TCP and MQTT transport** | Agents communicate across process and machine boundaries via TCP sockets or an external MQTT broker |
+| **Discrete-event simulation** | A clock-driven `SimulationWorld` provides deterministic, reproducible runs with configurable communication delay and loss, spatial environments, and structured data recording |
+
+---
 
 ## Installation
 
-For installation of mango you may use
-[virtualenv](https://virtualenv.pypa.io/en/latest/#) which can create isolated Python environments for different projects.
-
-Once you have created a virtual environment you can just run [pip](https://pip.pypa.io/en/stable/) to install it:
-
-    $ pip install mango-agents
-
-## Getting started
-
-### Creating an agent
-
-In our first example, we create a very simple agent that simply prints the content of
-all messages it receives:
-
-```python
-
-    from mango import Agent
-
-    class RepeatingAgent(Agent):
-
-        def __init__(self):
-            super().__init__()
-            print(f"Creating a RepeatingAgent. At this point self.addr={self.addr}")
-
-        def handle_message(self, content, meta):
-            # This method defines what the agent will do with incoming messages.
-            print(f"Received a message with the following content: {content}!")
-
-        def on_register(self):
-            print(f"The agent has been registered to a container: {self.addr}!")
-
-        def on_ready(self):
-            print("All containers have been activated!")
-
-```
-Agents must be a subclass of `mango.Agent`. Agent's are notified when they are registered `mango.Agent.on_register`
-and when the container(s) has been activated `mango.Agent.on_ready`. Consequenty, most agent features (like scheduling,
-sending internal messages, the agent address) are available after registration, and only after `mango.Agent.on_ready` has
-been called, all features are available (sending external messages).
-
-
-### Creating a container
-
-
-Agents live in containers, so we need to know how to create a mango container.
-The container is responsible for message exchange between agents.
-
-```python
-
-    from mango import create_tcp_container
-
-    # Containers have to be created using a factory method
-    # Other container types are available through create_mqtt_container and create_ec_container
-    container = create_tcp_container(addr=('127.0.0.1', 5555))
+```bash
+pip install mango-agents
 ```
 
+Requires Python 3.10 or later.
 
-This is how a tcp container is created. While container creation, it is possible to set the codec, the address information (depending on the type) and the clock (see read the docs `Scheduling`).
+---
 
-### Running your first agent within a container
+## Quick Start
 
+Every agent is a subclass of `Agent`. Incoming messages are handled by `handle_message`; two lifecycle hooks signal when the agent has joined its container (`on_register`) and when all containers are active and external messaging is safe (`on_ready`).
 
-The container and the contained agents need `asyncio` (see `asyncio docs <https://docs.python.org/3.10/library/asyncio.html>`_) to work, therefore we need write a coroutine
-function and execute it using `asyncio.run`.
-
-The following script will create a RepeatingAgent, register it, and let it run within a container for 50ms and then shutdown the container:
-
+The following complete script creates two agents, starts them in a shared container, sends a message from one to the other, and shuts everything down cleanly:
 
 ```python
-
-    import asyncio
-    from mango import create_tcp_container, Agent, activate
-
-    class RepeatingAgent(Agent):
-        def __init__(self):
-            super().__init__()
-            print(f"Creating a RepeatingAgent. At this point self.addr={self.addr}")
-
-        def handle_message(self, content, meta):
-            print(f"Received a message with the following content: {content}!")
-
-        def on_register(self):
-            print(f"The agent has been registered to a container: {self.addr}!")
-
-        def on_ready(self):
-            print("All containers have been activated!")
+import asyncio
+from mango import Agent, create_tcp_container, activate
 
 
-    async def run_container_and_agent(addr, duration):
-        first_container = create_tcp_container(addr=addr)
-        first_agent = first_container.register(RepeatingAgent())
+class ReportingAgent(Agent):
+    def on_ready(self):
+        print(f"{self.aid}: ready")
 
-        async with activate(first_container) as container:
-            await asyncio.sleep(duration)
+    def handle_message(self, content, meta):
+        print(f"{self.aid}: received '{content}' from {meta['sender_id']}")
 
-    asyncio.run(run_container_and_agent(addr=('127.0.0.1', 5555), duration=0.05))
 
+async def main():
+    # All agents on a single host share one container.
+    container = create_tcp_container(addr=("127.0.0.1", 5555))
+
+    sender   = container.register(ReportingAgent())
+    receiver = container.register(ReportingAgent())
+
+    async with activate(container):
+        await sender.send_message("Hello!", receiver.addr)
+        await asyncio.sleep(0.1)  # allow time for message processing
+
+
+asyncio.run(main())
+# agent0: ready
+# agent1: ready
+# agent1: received 'Hello!' from agent0
 ```
-In this example no messages are sent, nor does the Agent do anything, but the call order of the hook-in functions is clearly visible.
-The function `mango.activate` will start the container and shut it down after the
-code in its scope has been execute (here, after the sleep).
 
-### Creating a proactive Agent
+`activate` starts the container and guarantees a clean shutdown when its block exits, even if an exception is raised.
 
-Let's implement another agent that is able to send a hello world message
-to another agent:
+### Proactive behavior
+
+Agents are not limited to reacting to messages. `schedule_periodic_task` registers a coroutine that is called repeatedly at a fixed interval — useful for polling, broadcasting, or any time-driven behavior:
 
 ```python
+class SensorAgent(Agent):
+    def __init__(self, target_addr):
+        super().__init__()
+        self.target_addr = target_addr
 
-    import asyncio
-    from mango import Agent
+    def on_ready(self):
+        # Broadcast a reading every 5 seconds of (simulated) time.
+        self.schedule_periodic_task(self._broadcast, delay=5.0)
 
-    class HelloWorldAgent(Agent):
-        async def greet(self, other_addr):
-            await self.send_message("Hello world!", other_addr)
-
-        def handle_message(self, content, meta):
-            print(f"Received a message with the following content: {content}")
-
-    async def run_container_and_agent(addr, duration):
-        first_container = create_tcp_container(addr=addr)
-        first_hello_agent = first_container.register(HelloWorldAgent())
-        second_hello_agent = first_container.register(HelloWorldAgent())
-
-        async with activate(first_container) as container:
-            await first_hello_agent.greet(second_hello_agent.addr)
-
-    asyncio.run(run_container_and_agent(addr=('127.0.0.1', 5555), duration=0.05))
-
+    async def _broadcast(self):
+        await self.send_message("temperature: 22.5 C", self.target_addr)
 ```
 
-If you do not want to await sending the message, and just let asyncio/mango schedule it, you can use `mango.Agent.schedule_instant_message` instead of
-`mango.Agent.send_message`.
+---
 
-## Support
-- Documentation: [mango-agents.readthedocs.io](https://mango-agents.readthedocs.io)
-- E-mail: [mango@offis.de](mailto:mango@offis.de)
+## Simulation
+
+Running agents over a real network introduces timing variability that makes experiments hard to reproduce. The `SimulationWorld` eliminates this by replacing the network layer with a controlled, clock-driven execution model: time advances only when the simulation explicitly steps forward, there are no open sockets, and every run with the same inputs produces the same outputs.
+
+```
+┌──────────────────────────────────────────────────────┐
+│                    SimulationWorld                   │
+│                                                      │
+│  ExternalClock ──► step_simulation()                 │
+│                           |                          │
+│         ┌─────────────────┼─────────────────┐        │
+│         v                 v                 v        │
+│     on_step()     message delivery    environment    │
+│    (all agents)  (delay / loss model)   .step()      │
+└──────────────────────────────────────────────────────┘
+```
+
+Each step proceeds in order:
+
+1. All agents receive `on_step(env, clock, step_size_s)`.
+2. The environment behavior advances by `step_size_s`.
+3. The internal clock is set to the new time, waking any sleeping scheduled tasks.
+4. A convergence loop delivers all messages whose simulated arrival time has passed and waits for agents to settle between deliveries.
+
+### Complete example
+
+The following self-contained script runs two agents for 60 simulated seconds and records how many readings the monitor received over time:
+
+```python
+import asyncio
+from mango import Agent, create_world, discrete_step_until, record_agent
+
+
+class SensorAgent(Agent):
+    """Periodically sends a reading to a monitor agent."""
+
+    def __init__(self):
+        super().__init__()
+        self.monitor_addr = None   # set after both agents are registered
+        self.readings_sent = 0
+
+    def on_ready(self):
+        self.schedule_periodic_task(self._broadcast, delay=10.0)
+
+    async def _broadcast(self):
+        await self.send_message(f"reading {self.readings_sent}", self.monitor_addr)
+        self.readings_sent += 1
+
+
+class MonitorAgent(Agent):
+    """Counts incoming readings."""
+
+    def __init__(self):
+        super().__init__()
+        self.received = 0
+
+    def handle_message(self, content, meta):
+        self.received += 1
+        print(f"  t={self.current_timestamp:.0f} s  monitor received: {content}")
+
+
+async def run():
+    world  = create_world(start_time=0.0)
+    sensor = world.register(SensorAgent())
+    monitor = world.register(MonitorAgent())
+
+    # Set the target address before on_ready is called (inside async with).
+    sensor.monitor_addr = monitor.addr
+
+    # Record the running count of received messages after every step.
+    record_agent(world, "received", lambda a: a.received,
+                 filter_fn=lambda a: isinstance(a, MonitorAgent))
+
+    async with world:
+        await discrete_step_until(world, max_advance_time_s=60.0)
+
+    print(f"\nTotal readings received: {monitor.received}")
+    # world.data_agent_collections["received"].timeseries holds the full time series.
+
+
+asyncio.run(run())
+#   t=10 s  monitor received: reading 0
+#   t=20 s  monitor received: reading 1
+#   t=30 s  monitor received: reading 2
+#   t=40 s  monitor received: reading 3
+#   t=50 s  monitor received: reading 4
+#   t=60 s  monitor received: reading 5
+#
+# Total readings received: 6
+```
+
+`discrete_step_until` automatically determines each step size as the time until the next scheduled event — a message arrival or a task wakeup — and stops when no further events remain within the time budget.
+
+For experiment designs that require fixed, uniform time increments, call `step_simulation` directly:
+
+```python
+from mango import step_simulation
+
+async with world:
+    for _ in range(10):
+        result = await step_simulation(world, step_size_s=1.0)
+        print(f"t = {world.clock.time:.1f} s    messages delivered: {result.messages_delivered}")
+```
+
+### Communication modelling
+
+By default, messages are delivered instantly with no loss. `SimpleCommunicationSimulation` adds configurable one-way latency and independent packet loss, with optional per-link overrides:
+
+```python
+from mango import create_world, SimpleCommunicationSimulation
+
+world = create_world(
+    start_time=0.0,
+    communication_sim=SimpleCommunicationSimulation(
+        default_delay_s=0.1,            # baseline one-way latency
+        loss_percent=0.01,              # independent loss probability per message
+        delay_s_directed_edge_dict={
+            ("agent0", "agent1"): 0.5,  # directed per-link override
+        },
+    ),
+)
+```
+
+For delays drawn from a distribution at runtime, use `DelayProviderCommunicationSimulation`:
+
+```python
+import random
+from mango import create_world, DelayProviderCommunicationSimulation
+
+world = create_world(
+    start_time=0.0,
+    communication_sim=DelayProviderCommunicationSimulation(
+        default_delay_s_provider=lambda: random.gauss(0.1, 0.01),
+    ),
+)
+```
+
+Custom communication models are implemented by subclassing `CommunicationSimulation` and overriding `calculate_communication`.
+
+### Spatial environments
+
+Agents can be embedded in a continuous 2-D area. Agents without a pre-assigned position are placed uniformly at random within the area during initialisation, and their positions can be recorded as a time series:
+
+```python
+from mango import (
+    create_world, Area2D, DefaultEnvironment,
+    record_position, position_history, discrete_step_until,
+)
+
+env   = DefaultEnvironment(space=Area2D(width=100.0, height=100.0))
+world = create_world(start_time=0.0, environment=env)
+
+# ... register agents ...
+record_position(world)
+
+async with world:
+    await discrete_step_until(world, max_advance_time_s=10.0)
+
+history = position_history(world)
+# history.timeseries["agent0"]  ->  [Position2D(x=..., y=...), ...]
+# history.time                  ->  [0.0, 5.0, 10.0, ...]
+```
+
+Custom spaces and environment behaviors are implemented by subclassing `Space` and `Behavior` respectively.
+
+### Data recording
+
+`record_world` and `record_agent` capture any scalar as a time series after every simulation step, without modifying agent code. Results are plain Python lists compatible with numpy, pandas, and matplotlib:
+
+```python
+from mango import create_world, record_world, record_agent
+
+world = create_world(start_time=0.0)
+# ... register agents ...
+
+# World-level: total messages delivered so far
+record_world(world, "msg_count", lambda: len(world.recorded_messages))
+
+# Per-agent: an arbitrary attribute
+record_agent(world, "energy_kwh", lambda a: a.energy_kwh)
+
+async with world:
+    await discrete_step_until(world, max_advance_time_s=3600.0)
+
+world.data_collections["msg_count"].timeseries          # list of scalars
+world.data_agent_collections["energy_kwh"].timeseries   # dict[aid -> list]
+world.data_agent_collections["energy_kwh"].time         # shared time axis
+```
+
+All exchanged messages are also logged automatically in `world.recorded_messages` as `MessageTransaction` objects, each carrying sender, receiver, send time, and arrival time.
+
+### Agent hooks for simulation
+
+Any `Agent` or `Role` subclass may override these methods to participate in the simulation lifecycle:
+
+```python
+class MyAgent(Agent):
+    def on_step(self, env, clock, step_size_s: float):
+        """Invoked at the start of every simulation step, before the clock advances."""
+
+    def on_global_event(self, event):
+        """Invoked when the environment broadcasts an event to all agents."""
+
+    def on_agent_event(self, event):
+        """Invoked when the environment targets this specific agent."""
+```
+
+---
+
+## Documentation & Support
+
+| Resource | Link |
+|---|---|
+| Full documentation | [mango-agents.readthedocs.io](https://mango-agents.readthedocs.io) |
+| Issue tracker | [github.com/OFFIS-DAI/mango/issues](https://github.com/OFFIS-DAI/mango/issues) |
+| Contact | [mango@offis.de](mailto:mango@offis.de) |
+
+---
 
 ## License
 
-Distributed under the MIT license.
+Distributed under the [MIT License](https://github.com/OFFIS-DAI/mango/blob/development/LICENSE).

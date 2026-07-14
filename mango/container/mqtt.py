@@ -252,7 +252,8 @@ class MQTTContainer(Container):
             if reason_code != 0:
                 logger.info("Connection attempt to broker failed")
             else:
-                logger.debug("Successfully reconnected to broker.")
+                logger.info("Successfully reconnected to broker.")
+                client.subscribe(self.inbox_topic, qos=2)
 
         self.mqtt_client.on_connect = on_con
 
@@ -265,7 +266,9 @@ class MQTTContainer(Container):
         self.mqtt_client.on_disconnect = on_discon
 
         def process_sub_request(mid):
-            self.pending_sub_request[mid].set_result(0)
+            fut = self.pending_sub_request.get(mid)
+            if fut is not None:
+                fut.set_result(0)
 
         def on_sub(client, userdata, mid, reason_code_list, properties):
             self._loop.call_soon_threadsafe(process_sub_request, mid)
@@ -287,7 +290,12 @@ class MQTTContainer(Container):
             # update meta dict
             meta.update(message_meta)
             # put information to inbox
-            self._loop.call_soon_threadsafe(self.inbox.put_nowait, (0, content, meta))
+            if self.inbox is None:
+                logger.warning("Inbox is not set yet")
+            else:
+                self._loop.call_soon_threadsafe(
+                    self.inbox.put_nowait, (0, content, meta)
+                )
 
         self.mqtt_client.on_message = on_message
         self.mqtt_client.enable_logger(logger)
@@ -389,14 +397,14 @@ class MQTTContainer(Container):
             message = content
             if not hasattr(content, "split_content_and_meta"):
                 message = MangoMessage(content, meta)
-            return self._send_external_message(
+            return await self._send_external_message(
                 topic=receiver_addr.protocol_addr,
                 message=message,
                 qos=actual_mqtt_kwargs.get("qos", 0),
                 retain=actual_mqtt_kwargs.get("retain", False),
             )
 
-    def _send_external_message(
+    async def _send_external_message(
         self, *, topic: str, message, qos: int = 0, retain: bool = False
     ) -> bool:
         """
@@ -410,7 +418,11 @@ class MQTTContainer(Container):
         encoded_message = self.codec.encode(message)
         logger.debug("Sending message;%s;%s", message, topic)
         msg_info = self.mqtt_client.publish(topic, encoded_message, qos, retain)
-        return msg_info.is_published()
+        try:
+            return msg_info.is_published()
+        except RuntimeError as e:
+            logger.error("Could not send external mqtt message: %s", e)
+            return False
 
     async def subscribe_for_agent(self, *, aid: str, topic: str, qos: int = 2) -> bool:
         """

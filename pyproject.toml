@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mango-agents"
-version = "2.1.5"
+version = "2.2.0"
 authors = [
   { name="mango Team", email="mango@offis.de" },
 ]
@@ -39,7 +39,8 @@ test = [
     "pytest",
     "pytest-cov",
     "pytest-asyncio",
-    "pre-commit"
+    "pre-commit",
+    "matplotlib"
 ]
 
 [project.urls]
