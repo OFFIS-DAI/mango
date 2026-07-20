@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <title>mango — topology</title>
+  <script src="https://unpkg.com/cytoscape@3.30.0/dist/cytoscape.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0a0e17;
+      --surface:   #0d1117;
+      --surface2:  #161b22;
+      --border:    #21262d;
+      --text:      #c9d1d9;
+      --muted:     #8b949e;
+      --accent:    #58a6ff;
+      --green:     #3fb950;
+      --red:       #f85149;
+      --yellow:    #d29922;
+    }
+
+    body {
+      font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Header ───────────────────────────────────────── */
+    #header {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      padding: 0 20px;
+      height: 50px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    #logo {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 4px;
+    }
+
+    .sep { width: 1px; height: 18px; background: var(--border); }
+
+    .pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 10px;
+      border-radius: 20px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    #dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--border);
+      transition: background .3s, box-shadow .3s;
+    }
+    #dot.live  { background: var(--green); box-shadow: 0 0 7px var(--green); }
+    #dot.dead  { background: var(--red); }
+
+    #stats {
+      display: flex;
+      gap: 18px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .stat b { color: var(--text); font-weight: 600; }
+
+    #legend {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .leg { display: flex; align-items: center; gap: 6px; }
+    .leg-line { width: 20px; height: 2px; border-radius: 1px; }
+
+    /* ── Canvas ───────────────────────────────────────── */
+    #sigma-wrap {
+      flex: 1;
+      position: relative;
+      background: var(--bg);
+    }
+
+    #sigma-canvas {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* ── Controls ─────────────────────────────────────── */
+    #controls {
+      position: absolute;
+      bottom: 18px;
+      right: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .ctrl-btn {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 13px;
+      width: 34px; height: 34px;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background .15s;
+    }
+    .ctrl-btn:hover { background: var(--border); }
+
+    /* ── Tooltip ──────────────────────────────────────── */
+    #tooltip {
+      position: fixed;
+      display: none;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 12px;
+      line-height: 1.7;
+      pointer-events: none;
+      z-index: 200;
+      min-width: 180px;
+      box-shadow: 0 6px 24px rgba(0,0,0,.5);
+    }
+    .tt-title { font-weight: 700; color: var(--text); margin-bottom: 4px; font-size: 13px; }
+    .tt-row   { color: var(--muted); }
+    .tt-row span { color: var(--text); }
+
+    /* ── Empty state ──────────────────────────────────── */
+    #empty {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 13px;
+      pointer-events: none;
+    }
+    #empty svg { opacity: .3; }
+    #empty.hidden { display: none; }
+  </style>
+</head>
+<body>
+
+<div id="header">
+  <div id="logo">mango</div>
+  <div class="sep"></div>
+  <div class="pill">
+    <div id="dot"></div>
+    <span id="status-text">connecting…</span>
+  </div>
+  <div id="stats">
+    <div class="stat"><b id="n-containers">0</b> containers</div>
+    <div class="stat"><b id="n-agents">0</b> agents</div>
+    <div class="stat"><b id="n-connections">0</b> connections</div>
+  </div>
+  <div id="legend">
+    <div class="leg"><div class="leg-line" style="background:#4a90d9"></div>tcp</div>
+    <div class="leg"><div class="leg-line" style="background:#f5a623"></div>mqtt</div>
+    <div class="leg"><div class="leg-line" style="background:#7ed321"></div>internal</div>
+    <div class="leg"><div class="leg-line" style="background:var(--border)"></div>member</div>
+  </div>
+</div>
+
+<div id="sigma-wrap">
+  <div id="sigma-canvas"></div>
+
+  <div id="empty">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <circle cx="12" cy="12" r="10"/><circle cx="8" cy="10" r="1.5" fill="currentColor"/>
+      <circle cx="16" cy="10" r="1.5" fill="currentColor"/>
+      <path d="M8 14s1.5 2 4 2 4-2 4-2" stroke-linecap="round"/>
+    </svg>
+    <span>Waiting for topology data…</span>
+  </div>
+
+  <div id="controls">
+    <button class="ctrl-btn" id="btn-fit"   title="Fit view (F)">⊡</button>
+    <button class="ctrl-btn" id="btn-zoomin"  title="Zoom in (+)">+</button>
+    <button class="ctrl-btn" id="btn-zoomout" title="Zoom out (-)">−</button>
+  </div>
+</div>
+
+<div id="tooltip"></div>
+
+<script>
+  // ── Constants ────────────────────────────────────────────────────────────────
+
+  const CONN_COLORS = {
+    tcp:      '#4a90d9',
+    mqtt:     '#f5a623',
+    internal: '#7ed321',
+  };
+
+  const STATUS_COLORS = {
+    active: '#3fb950',
+    error:  '#f85149',
+    idle:   '#d29922',
+  };
+
+  // ── State ────────────────────────────────────────────────────────────────────
+
+  let cy = null;
+
+  // ── Layout ───────────────────────────────────────────────────────────────────
+
+  function layout(data) {
+    const pos    = {};
+    const cCount = data.containers.length;
+    const SPREAD = 5;
+    const RADIUS = 2.2;
+    const SCALE  = 80;  // graph units → cytoscape pixel coords
+
+    data.containers.forEach((c, ci) => {
+      const cx = (ci - (cCount - 1) / 2) * SPREAD;
+      pos['c:' + c.addr] = { x: cx * SCALE, y: 0 };
+
+      const mine = data.agents.filter(a => a.container_addr === c.addr);
+      const n    = mine.length;
+
+      mine.forEach((a, ai) => {
+        const angle = n === 1
+          ? -Math.PI / 2
+          : -Math.PI / 2 + ((ai / (n - 1)) - 0.5) * Math.PI * 1.1;
+
+        // cytoscape y increases downward, so negate the math-y to place agents below containers
+        pos['a:' + a.container_addr + ':' + a.aid] = {
+          x:  (cx + RADIUS * Math.cos(angle)) * SCALE,
+          y: -(RADIUS * Math.sin(angle) - 1)  * SCALE,
+        };
+      });
+    });
+
+    return pos;
+  }
+
+  // ── Build cytoscape elements ─────────────────────────────────────────────────
+
+  function buildElements(data) {
+    const pos  = layout(data);
+    const eles = [];
+
+    data.containers.forEach(c => {
+      const id = 'c:' + c.addr;
+      eles.push({ data: { id, label: c.name, kind: 'container', raw: c },
+                  position: pos[id] || { x: 0, y: 0 } });
+    });
+
+    data.agents.forEach(a => {
+      const id = 'a:' + a.container_addr + ':' + a.aid;
+      const sc = STATUS_COLORS[a.status] || '#8b949e';
+      eles.push({ data: { id, label: a.aid, kind: 'agent', color: sc, raw: a },
+                  position: pos[id] || { x: 0, y: 100 } });
+
+      if (data.containers.find(c => c.addr === a.container_addr)) {
+        eles.push({ data: {
+          id:     'em:' + a.container_addr + ':' + a.aid,
+          source: 'c:' + a.container_addr,
+          target: id,
+          kind:   'member',
+        }});
+      }
+    });
+
+    data.connections.forEach((c, i) => {
+      const color = CONN_COLORS[c.conn_type] || '#8b949e';
+      const src   = 'a:' + c.source_addr + ':' + c.source_aid;
+      const tgt   = 'a:' + c.target_addr + ':' + c.target_aid;
+
+      eles.push({ data: { id: 'ec:' + i, source: src, target: tgt,
+                          kind: 'connection', color, label: c.conn_type }});
+
+      if (c.direction === 'bi') {
+        eles.push({ data: { id: 'ec:bi:' + i, source: tgt, target: src,
+                            kind: 'connection', color, label: '' }});
+      }
+    });
+
+    return eles;
+  }
+
+  // ── Renderer ─────────────────────────────────────────────────────────────────
+
+  function initCy(eles) {
+    cy = cytoscape({
+      container: document.getElementById('sigma-canvas'),
+      elements:  eles,
+      layout:    { name: 'preset' },
+      style: [
+        {
+          selector: 'node[kind = "container"]',
+          style: {
+            'width':            40,
+            'height':           40,
+            'background-color': '#1f2937',
+            'border-color':     '#388bfd',
+            'border-width':     2,
+            'label':            'data(label)',
+            'color':            '#c9d1d9',
+            'font-size':        13,
+            'font-family':      'SF Mono, Fira Code, Cascadia Code, monospace',
+            'font-weight':      600,
+            'text-valign':      'bottom',
+            'text-margin-y':    8,
+          },
+        },
+        {
+          selector: 'node[kind = "agent"]',
+          style: {
+            'width':            26,
+            'height':           26,
+            'background-color': 'data(color)',
+            'label':            'data(label)',
+            'color':            '#c9d1d9',
+            'font-size':        11,
+            'font-family':      'SF Mono, Fira Code, Cascadia Code, monospace',
+            'font-weight':      600,
+            'text-valign':      'bottom',
+            'text-margin-y':    6,
+          },
+        },
+        {
+          selector: 'edge',
+          style: {
+            'line-color':              'data(color)',
+            'width':                   2.5,
+            'target-arrow-color':      'data(color)',
+            'target-arrow-shape':      'triangle',
+            'curve-style':             'bezier',
+            'label':                   'data(label)',
+            'font-size':               10,
+            'color':                   '#8b949e',
+            'font-family':             'SF Mono, Fira Code, Cascadia Code, monospace',
+            'text-rotation':           'autorotate',
+            'text-background-color':   '#0a0e17',
+            'text-background-opacity': 0.8,
+            'text-background-padding': '2px',
+          },
+        },
+        {
+          selector: 'edge[kind = "member"]',
+          style: {
+            'target-arrow-shape': 'none',
+            'line-style':         'dashed',
+            'line-color':         '#21262d',
+            'width':              1,
+          },
+        },
+      ],
+      userZoomingEnabled:  true,
+      userPanningEnabled:  true,
+      boxSelectionEnabled: false,
+      autounselectify:     true,
+      minZoom:             0.1,
+      maxZoom:             10,
+    });
+
+    // ── Tooltip ──────────────────────────────────────────────────────────────
+
+    const ttEl = document.getElementById('tooltip');
+
+    cy.on('mouseover', 'node', e => {
+      const d  = e.target.data();
+      const r  = d.raw || {};
+      let html = '';
+
+      if (d.kind === 'container') {
+        html = `<div class="tt-title">📦 ${d.label}</div>
+                <div class="tt-row">addr <span>${r.addr || ''}</span></div>`;
+      } else {
+        const sc = STATUS_COLORS[r.status] || '#8b949e';
+        html = `<div class="tt-title">● ${d.label}</div>
+                <div class="tt-row">container <span>${r.container_addr || ''}</span></div>
+                <div class="tt-row">status <span style="color:${sc}">${r.status || 'unknown'}</span></div>`;
+      }
+
+      ttEl.innerHTML     = html;
+      ttEl.style.display = 'block';
+    });
+
+    cy.on('mouseout', 'node', () => { ttEl.style.display = 'none'; });
+
+    document.getElementById('sigma-canvas').addEventListener('mousemove', e => {
+      if (ttEl.style.display === 'block') {
+        ttEl.style.left = (e.clientX + 16) + 'px';
+        ttEl.style.top  = (e.clientY + 16) + 'px';
+      }
+    });
+
+    fitView();
+  }
+
+  // ── Fit / zoom ────────────────────────────────────────────────────────────────
+
+  function fitView() {
+    if (!cy) return;
+    cy.animate({ fit: { eles: cy.elements(), padding: 60 } }, { duration: 400 });
+  }
+
+  // ── Controls ──────────────────────────────────────────────────────────────────
+
+  document.getElementById('btn-fit').addEventListener('click', fitView);
+  document.getElementById('btn-zoomin').addEventListener('click', () => {
+    cy && cy.animate({ zoom: cy.zoom() * 1.5 }, { duration: 200 });
+  });
+  document.getElementById('btn-zoomout').addEventListener('click', () => {
+    cy && cy.animate({ zoom: cy.zoom() / 1.5 }, { duration: 200 });
+  });
+
+  document.addEventListener('keydown', e => {
+    if (!cy) return;
+    if (e.key === 'f' || e.key === 'F') fitView();
+    if (e.key === '+' || e.key === '=') cy.animate({ zoom: cy.zoom() * 1.5 }, { duration: 200 });
+    if (e.key === '-')                   cy.animate({ zoom: cy.zoom() / 1.5 }, { duration: 200 });
+  });
+
+  // ── Render ────────────────────────────────────────────────────────────────────
+
+  function render(data) {
+    document.getElementById('n-containers').textContent  = data.containers.length;
+    document.getElementById('n-agents').textContent      = data.agents.length;
+    document.getElementById('n-connections').textContent = data.connections.length;
+
+    const hasData = data.containers.length > 0 || data.agents.length > 0;
+    document.getElementById('empty').classList.toggle('hidden', hasData);
+
+    const eles = buildElements(data);
+
+    if (!cy) {
+      initCy(eles);
+    } else {
+      cy.elements().remove();
+      cy.add(eles);
+      fitView();
+    }
+  }
+
+  // ── WebSocket ─────────────────────────────────────────────────────────────────
+
+  const dot  = document.getElementById('dot');
+  const stxt = document.getElementById('status-text');
+
+  function connect() {
+    const ws = new WebSocket('ws://' + location.host + '/ws');
+
+    ws.onopen = () => {
+      dot.className    = 'live';
+      stxt.textContent = 'live';
+    };
+    ws.onclose = () => {
+      dot.className    = 'dead';
+      stxt.textContent = 'reconnecting…';
+      setTimeout(connect, 2000);
+    };
+    ws.onerror = () => { dot.className = 'dead'; };
+    ws.onmessage = e => render(JSON.parse(e.data));
+  }
+
+  connect();
+</script>
+</body>
+</html>

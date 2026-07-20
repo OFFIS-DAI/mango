@@ -591,6 +591,13 @@ class MainContainerProcessManager(BaseContainerProcessManager):
 
     async def shutdown(self):
         if self._active:
+            if self._container._registry is not None:
+                for aids in self._pid_to_aids.values():
+                    for aid in aids:
+                        self._container._registry.on_agent_deregistered(
+                            self._container, aid
+                        )
+
             # send a signal to all sub processes to terminate their message feed in's
             self._terminate_sub_processes.set()
 

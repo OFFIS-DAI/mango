@@ -153,6 +153,27 @@ async def test_run_api_style_agent_with_aid_mqtt():
 
 
 @pytest.mark.asyncio
+async def test_activate_with_ui():
+    pytest.importorskip("fastapi")
+    pytest.importorskip("uvicorn")
+
+    c = create_tcp_container(addr=("127.0.0.1", 15791))
+
+    async with activate(c, ui=True, ui_port=15792) as c:
+        c.register(MyAgent(), suggested_aid="ui_agent")
+        registry = c.registry
+        assert registry is not None
+        assert f"{c.addr}:ui_agent" in registry._agents
+        assert registry._uvicorn_server is not None
+
+    # exiting the context must stop the UI server and clear the topology
+    assert registry._uvicorn_server is None
+    assert registry._server_task is None
+    assert registry._agents == {}
+    assert registry._containers == {}
+
+
+@pytest.mark.asyncio
 async def test_deactivate_suspendable():
     container = create_tcp_container("127.0.0.1:5555")
     ping_pong_agent = agent_composed_of(PingPongRole(), register_in=container)
