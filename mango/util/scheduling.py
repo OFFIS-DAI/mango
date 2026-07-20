@@ -58,8 +58,13 @@ class Suspendable:
     Wraps a coroutine, intercepting __await__ to add the functionality of suspending.
     """
 
-    def __init__(self, coro, ext_contr_event=None, kill_event=None):
+    def __init__(self, coro, ext_contr_event=None, kill_event=None, notify_task=None):
         self._coro = coro
+        # Optional owning ScheduledTask; when set, the wrapper marks it
+        # "sleeping" whenever the coroutine parks on a pending future so that
+        # simulation termination detection treats request/reply drivers (which
+        # await replies rather than the clock) as idle instead of deadlocking.
+        self._notify_task = notify_task
 
         self._kill_event = kill_event
         if ext_contr_event is not None:
@@ -94,11 +99,24 @@ class Suspendable:
                 return err.value
             else:
                 send = iter_send
+            # Parked on a pending future (awaiting a reply/message rather than
+            # progressing) -> mark the owning task sleeping for the duration of
+            # the suspension. Idempotent, so it nests safely with clock sleeps.
+            parked = (
+                self._notify_task is not None
+                and isinstance(signal, asyncio.Future)
+                and not signal.done()
+            )
+            if parked:
+                self._notify_task.notify_sleeping()
             try:
                 # pass signal via yielding it
                 message = yield signal
             except BaseException as err:
                 send, message = iter_throw, err
+            finally:
+                if parked:
+                    self._notify_task.notify_running()
 
     def suspend(self):
         """
@@ -158,11 +176,14 @@ class ScheduledTask:
             self._is_done = asyncio.Future()
 
     def notify_sleeping(self):
-        if self._is_observable:
+        # Idempotent so it composes with Suspendable's per-await notifications
+        # (a clock-sleep already marks the task sleeping before the wrapper
+        # also sees the yielded sleep future).
+        if self._is_observable and not self._is_sleeping.done():
             self._is_sleeping.set_result(True)
 
     def notify_running(self):
-        if self._is_observable:
+        if self._is_observable and self._is_sleeping.done():
             self._is_sleeping = asyncio.Future()
 
     @abstractmethod
@@ -521,7 +542,7 @@ class Scheduler:
         """
         l_task = None
         if self.suspendable:
-            coro = Suspendable(task.run())
+            coro = Suspendable(task.run(), notify_task=task)
             l_task = asyncio.ensure_future(coro)
         else:
             coro = task.run()

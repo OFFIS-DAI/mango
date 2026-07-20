@@ -341,7 +341,7 @@ def show_communication_data(
 
 def _agent_label(world: SimulationWorld, aid: str) -> str:
     """Return display label for an agent: name if set, else AID."""
-    agent = world._agents.get(aid)
+    agent = world.agents.get(aid)
     if agent is not None and agent.name:
         return f"{agent.name} ({aid})"
     return aid

@@ -1,9 +1,14 @@
 """
-SimulationWorld – a self-contained simulation container for mango.
+SimulationWorld – a self-contained simulation world for mango.
 
 Mirrors the ``World`` type from Mango.jl.  Agents registered in a
 SimulationWorld share an :class:`~mango.util.clock.ExternalClock` and can
 be stepped forward in discrete or fixed-size time increments.
+
+The world is a facade: agent registration and message transport are
+handled by a :class:`~mango.simulation.container.SimulationContainer`
+subcomponent, while the world drives the simulation loop, the
+environment, and the recording infrastructure.
 
 Typical usage::
 
@@ -12,8 +17,8 @@ Typical usage::
         agent = world.register(MyAgent())
 
         async with world:
-            await step_simulation(world, step_size_s=1.0)
-            await step_simulation(world, step_size_s=1.0)
+            await world.step(step_size_s=1.0)
+            await world.step(step_size_s=1.0)
 
     asyncio.run(run())
 
@@ -23,74 +28,70 @@ Or for a fully automated discrete-event run::
         world = create_world(start_time=0.0)
         agent = world.register(MyAgent())
         async with world:
-            await discrete_step_until(world, max_advance_time_s=60.0)
+            await world.step_until(max_advance_time_s=60.0)
 
     asyncio.run(run())
+
+The module-level :func:`step_simulation` and :func:`discrete_step_until`
+are thin aliases for :meth:`SimulationWorld.step` and
+:meth:`SimulationWorld.step_until`.
 """
 
 import asyncio
-import bisect
 import logging
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from mango.agent.core import Agent, AgentAddress
-from mango.messages.codecs import JSON
+from mango.messages.codecs import Codec
 from mango.util.clock import ExternalClock
 
-from .communication import (
-    CommunicationSimulation,
-    MessagePackage,
-    SimpleCommunicationSimulation,
-)
+from .communication import CommunicationSimulation, SimpleCommunicationSimulation
+from .container import MessageTransaction, SimulationContainer
 from .environment import DefaultEnvironment, Environment, WorldObserver
+from .recording import (
+    AgentsRecording,
+    WorldRecording,
+    collect_agent_data,
+    collect_data,
+    position_history,
+    record_agent,
+    record_agent_having,
+    record_position,
+    record_world,
+)
 
 logger = logging.getLogger(__name__)
 
 DISCRETE_EVENT: float = -1.0
 AGENT_PREFIX: str = "agent"
 
-
-@dataclass
-class WorldRecording:
-    """Time-series recording of world-level data."""
-
-    timeseries: list[Any] = field(default_factory=list)
-    time: list[float] = field(default_factory=list)
-
-
-@dataclass
-class AgentsRecording:
-    """Per-agent time-series recording.
-
-    ``timeseries`` maps each agent AID to a list of recorded values.
-    ``agent_time`` maps each agent AID to the elapsed simulation seconds at
-    which each of that agent's values was recorded; it stays aligned with
-    ``timeseries`` even when agents are recorded sparsely (e.g. registered
-    mid-simulation or gated by a filter). ``time`` holds every step's
-    timestamp as a shared axis for agents recorded on every step.
-    """
-
-    timeseries: dict[str, list[Any]] = field(default_factory=dict)
-    agent_time: dict[str, list[float]] = field(default_factory=dict)
-    time: list[float] = field(default_factory=list)
-
-
-@dataclass
-class MessageTransaction:
-    """Records a message that was delivered during the simulation."""
-
-    sender_id: str | None
-    receiver_id: str
-    sent_time: float
-    arriving_time: float
-    content: Any
+__all__ = [
+    "AGENT_PREFIX",
+    "AgentsRecording",
+    "DISCRETE_EVENT",
+    "MessageTransaction",
+    "SimulationContainer",
+    "SimulationResult",
+    "SimulationWorld",
+    "WorldRecording",
+    "collect_agent_data",
+    "collect_data",
+    "create_world",
+    "discrete_step_until",
+    "position_history",
+    "record_agent",
+    "record_agent_having",
+    "record_position",
+    "record_world",
+    "step_simulation",
+]
 
 
 @dataclass
 class SimulationResult:
-    """Return value of :func:`step_simulation`."""
+    """Return value of :meth:`SimulationWorld.step`."""
 
     time_elapsed_s: float
     step_size_s: float
@@ -104,7 +105,7 @@ class _AgentDispatchObserver(WorldObserver):
         self._world = world
 
     def dispatch_global_event(self, clock, event: Any) -> None:
-        for agent in self._world._agents.values():
+        for agent in self._world.agents.values():
             for _cond, _handler in agent._behavior_global_event_handlers:
                 if _cond(event):
                     _handler(agent, event)
@@ -118,14 +119,16 @@ class _AgentDispatchObserver(WorldObserver):
 
 
 class SimulationWorld:
-    """A local, clock-driven simulation container.
+    """A local, clock-driven simulation world.
 
     Do not instantiate directly; use :func:`create_world` instead.
 
-    The world acts as the *container* that agents register against.  It
-    satisfies the minimal container interface expected by mango's
-    :func:`~mango.util.termination_detection.tasks_complete_or_sleeping`
-    helper (``inbox``, ``_agents``).
+    The world is a facade over a
+    :class:`~mango.simulation.container.SimulationContainer` (which agents
+    register against and which handles message transport), the
+    :class:`~mango.simulation.environment.Environment`, and the recording
+    infrastructure.  Stepping the simulation is done via :meth:`step` and
+    :meth:`step_until`.
     """
 
     def __init__(
@@ -134,84 +137,98 @@ class SimulationWorld:
         communication_sim: CommunicationSimulation,
         environment: Environment | None = None,
     ):
-        self.clock: ExternalClock = clock
-        self.communication_sim: CommunicationSimulation = communication_sim
         self.environment: Environment = environment or DefaultEnvironment()
-
-        # Container-like state
-        self._agents: dict[str, Agent] = {}
-        self._aid_counter: int = 0
-        self.addr: str = "simulation"
-        self.running: bool = True
-        self.ready: bool = False
-        self.inbox: asyncio.Queue | None = (
-            None  # not used but expected by termination util
+        self._container = SimulationContainer(
+            clock=clock,
+            communication_sim=communication_sim,
+            on_agent_registered=self._install_in_environment,
         )
-
-        # codec is needed by agents that call container.codec; provide a default
-        self.codec = JSON()
-
-        # Pending message queue: sorted list of (delivery_time, seq, sent_time, content, meta)
-        # seq is a monotonically increasing tie-breaker so bisect.insort never
-        # needs to compare content or meta (which may not be orderable).
-        self._pending_messages: list[tuple[float, int, float, Any, dict]] = []
-        self._msg_seq: int = 0
 
         # Recording infrastructure
         self.data_collections: dict[str, WorldRecording] = {}
         self.data_agent_collections: dict[str, AgentsRecording] = {}
         self._data_collectors: list[Callable] = []
 
-        # Transaction log
-        self.recorded_messages: list[MessageTransaction] = []
-
-        # Internal state
         self._initialized: bool = False
 
         # Wire environment to agent dispatcher
-        observer = _AgentDispatchObserver(self)
-        self.environment.add_observer(observer)
+        self.environment.add_observer(_AgentDispatchObserver(self))
+
+    # ------------------------------------------------------------------
+    # Container facade
+    # ------------------------------------------------------------------
+
+    @property
+    def container(self) -> SimulationContainer:
+        return self._container
+
+    @property
+    def clock(self) -> ExternalClock:
+        return self._container.clock
+
+    @property
+    def communication_sim(self) -> CommunicationSimulation:
+        return self._container.communication_sim
+
+    @communication_sim.setter
+    def communication_sim(self, value: CommunicationSimulation) -> None:
+        self._container.communication_sim = value
+
+    @property
+    def addr(self) -> str:
+        return self._container.addr
 
     @property
     def name(self) -> str:
-        return self.addr
+        return self._container.name
 
-    def register(self, agent: Agent, suggested_aid: str | None = None) -> Agent:
+    @property
+    def codec(self) -> Codec:
+        return self._container.codec
+
+    @property
+    def agents(self) -> dict[str, Agent]:
+        return self._container._agents
+
+    @property
+    def running(self) -> bool:
+        return self._container.running
+
+    @running.setter
+    def running(self, value: bool) -> None:
+        self._container.running = value
+
+    @property
+    def ready(self) -> bool:
+        return self._container.ready
+
+    @property
+    def recorded_messages(self) -> list[MessageTransaction]:
+        return self._container.recorded_messages
+
+    @recorded_messages.setter
+    def recorded_messages(self, value: list[MessageTransaction]) -> None:
+        self._container.recorded_messages = value
+
+    def register(
+        self, agent: Agent, suggested_aid: str | None = None, **install_kwargs
+    ) -> Agent:
         """Register *agent* with the world and return it.
 
         :param agent: agent instance to register
         :param suggested_aid: optional preferred agent ID
+        :param install_kwargs: forwarded to the environment's ``install`` hook
         :return: the registered agent (same object)
         """
-        aid = self._reserve_aid(suggested_aid)
-        if agent.context._container:
-            raise ValueError("Agent is already registered to a container")
-        self._agents[aid] = agent
-        agent._do_register(self, aid)
-        logger.debug("Registered agent '%s' with world", aid)
-        if self.running:
-            agent._do_start()
-        if self.ready:
-            agent.on_ready()
-        return agent
+        return self._container.register(
+            agent, suggested_aid=suggested_aid, **install_kwargs
+        )
 
     def deregister(self, aid: str) -> None:
-        self._agents.pop(aid, None)
+        self._container.deregister(aid)
 
     def is_aid_available(self, aid: str) -> bool:
-        pattern_clash = (
-            aid.startswith(AGENT_PREFIX) and aid[len(AGENT_PREFIX) :].isnumeric()
-        )
-        return aid not in self._agents and not pattern_clash
-
-    def _reserve_aid(self, suggested_aid: str | None = None) -> str:
-        if suggested_aid is not None and self.is_aid_available(suggested_aid):
-            return suggested_aid
-        while True:
-            aid = f"{AGENT_PREFIX}{self._aid_counter}"
-            self._aid_counter += 1
-            if aid not in self._agents:
-                return aid
+        return self._container.is_aid_available(aid)
 
     async def send_message(
         self,
@@ -224,119 +241,31 @@ class SimulationWorld:
 
         Messages are queued with a delivery time determined by the
         communication simulation.  They are delivered during the next call
-        to :func:`step_simulation`.
+        to :meth:`step`.
         """
-        meta: dict[str, Any] = {
-            "sender_id": sender_id,
-            "sender_addr": self.addr,
-            "receiver_id": receiver_addr.aid,
-            "receiver_addr": self.addr,
-            "network_protocol": "simulation",
-        }
-        meta.update(kwargs)
-
-        sent_time = self.clock.time
-        package = MessagePackage(
-            sender_id=sender_id,
-            receiver_id=receiver_addr.aid,
-            sent_time=sent_time,
-            content=(content, meta),
+        return await self._container.send_message(
+            content, receiver_addr=receiver_addr, sender_id=sender_id, **kwargs
         )
-        result = self.communication_sim.calculate_communication(
-            current_time=sent_time,
-            messages=[package],
-        ).package_results[0]
 
-        if not result.reached:
-            logger.debug(
-                "Message from %s to %s dropped (loss simulation)",
-                sender_id,
-                receiver_addr.aid,
-            )
-            return False
+    async def shutdown(self) -> None:
+        """Shut down all agents."""
+        await self._container.shutdown()
 
-        delivery_time = sent_time + result.delay_s
-        # Keep list sorted by delivery_time; seq breaks ties without comparing
-        # content or meta (which may not be orderable).
-        seq = self._msg_seq
-        self._msg_seq += 1
-        bisect.insort(
-            self._pending_messages,
-            (delivery_time, seq, sent_time, content, meta),
-        )
-        return True
+    def __getitem__(self, key: str | int) -> Agent:
+        if isinstance(key, int):
+            return list(self.agents.values())[key]
+        return self.agents[key]
 
-    def _start_agents(self) -> None:
-        """Ensure all agents have been started (internal use)."""
-        # Agents are started when registered, but we call on_ready here
-        self.ready = True
-        for agent in self._agents.values():
-            agent.on_ready()
+    def _install_in_environment(self, agent: Agent, aid: str, **install_kwargs) -> None:
+        install = getattr(self.environment, "install", None)
+        if callable(install):
+            install(agent, agent_id=aid, **install_kwargs)
 
-    def _initialize_if_needed(self) -> None:
-        if not self._initialized:
-            self._start_agents()  # call on_ready on all agents
-            self.environment.initialize(list(self._agents.values()), self.clock)
-            self._initialized = True
-            self._do_recordings()
+    # ------------------------------------------------------------------
+    # Recording
+    # ------------------------------------------------------------------
 
-    async def _deliver_messages_due(self, up_to_time: float) -> int:
-        """Deliver all pending messages with delivery_time <= up_to_time.
-
-        Returns the number of messages delivered.
-        """
-        delivered = 0
-        remaining: list[tuple[float, int, float, Any, dict]] = []
-
-        for delivery_time, seq, sent_time, content, meta in self._pending_messages:
-            if delivery_time <= up_to_time:
-                receiver_id = meta.get("receiver_id")
-                agent = self._agents.get(receiver_id)
-                if agent is not None:
-                    await agent.inbox.put((0, content, meta))
-                    self.recorded_messages.append(
-                        MessageTransaction(
-                            sender_id=meta.get("sender_id"),
-                            receiver_id=receiver_id,
-                            sent_time=sent_time,
-                            arriving_time=delivery_time,
-                            content=content,
-                        )
-                    )
-                    delivered += 1
-                else:
-                    logger.warning(
-                        "Unknown receiver '%s'; dropping message", receiver_id
-                    )
-            else:
-                remaining.append((delivery_time, seq, sent_time, content, meta))
-
-        self._pending_messages = remaining
-        return delivered
-
-    def _determine_next_step_size(self) -> float | None:
-        """Return seconds to the next scheduled event, or None if none."""
-        candidates: list[float] = []
-
-        # Next message arrival
-        if self._pending_messages:
-            next_msg_arrival = self._pending_messages[0][0]
-            candidates.append(max(0.0, next_msg_arrival - self.clock.time))
-
-        # Next task wakeup
-        next_task = self.clock.get_next_activity()
-        if next_task is not None:
-            candidates.append(max(0.0, next_task - self.clock.time))
-
-        if not candidates:
-            return None
-        return min(candidates)
-
-    def _do_recordings(self) -> None:
-        for collector in self._data_collectors:
-            collector(self)
-
-    def _new_world_recording(self, key: str) -> WorldRecording:
+    def new_world_recording(self, key: str) -> WorldRecording:
         if key in self.data_collections:
             raise ValueError(
                 f"A recording is already registered for key '{key}'; "
@@ -346,7 +275,7 @@ class SimulationWorld:
         self.data_collections[key] = recording
         return recording
 
-    def _new_agents_recording(self, key: str) -> AgentsRecording:
+    def new_agents_recording(self, key: str) -> AgentsRecording:
         if key in self.data_agent_collections:
             raise ValueError(
                 f"A recording is already registered for key '{key}'; "
@@ -356,29 +285,149 @@ class SimulationWorld:
         self.data_agent_collections[key] = recording
         return recording
 
+    def add_data_collector(
+        self, collector: Callable[["SimulationWorld"], None]
+    ) -> None:
+        self._data_collectors.append(collector)
+
+    def _do_recordings(self) -> None:
+        for collector in self._data_collectors:
+            collector(self)
+
+    # ------------------------------------------------------------------
+    # Simulation loop
+    # ------------------------------------------------------------------
+
+    def _initialize_if_needed(self) -> None:
+        if not self._initialized:
+            self._container.on_ready()
+            self.environment.initialize(list(self.agents.values()), self.clock)
+            self._initialized = True
+            self._do_recordings()
+
+    async def _wait_for_agents(self) -> None:
+        """Wait until all agent tasks are complete or sleeping."""
+        from mango.util.termination_detection import tasks_complete_or_sleeping
+
+        await tasks_complete_or_sleeping(self._container)
+
+    async def step(
+        self,
+        step_size_s: float = DISCRETE_EVENT,
+        max_advance_time_s: float = -1.0,
+    ) -> SimulationResult | None:
+        """Advance the simulation by *step_size_s* seconds.
+
+        When *step_size_s* is ``DISCRETE_EVENT`` (the default), the step size
+        is determined automatically as the time until the next scheduled
+        event (message arrival or agent task wakeup).
+
+        :param step_size_s: step size in seconds, or ``DISCRETE_EVENT``
+        :param max_advance_time_s: abort if the determined discrete step would
+            exceed this value; ``-1`` means no limit
+        :return: :class:`SimulationResult`, or ``None`` if there is nothing to do
+
+        Example::
+
+            result = await world.step(step_size_s=1.0)
+            result = await world.step()  # discrete-event
+        """
+        self._initialize_if_needed()
+
+        # Allow freshly scheduled tasks (e.g. from on_ready / on_start) to reach
+        # their first sleeping or done point.  This is necessary so that periodic
+        # tasks register their first wakeup with the ExternalClock before we
+        # determine the discrete step size.
+        await self._wait_for_agents()
+
+        actual_step = step_size_s
+
+        if actual_step == DISCRETE_EVENT:
+            actual_step = self._container._determine_next_step_size()
+            if actual_step is None:
+                return None
+            if max_advance_time_s >= 0 and actual_step > max_advance_time_s:
+                return None
+
+        new_time = self.clock.time + actual_step
+
+        # ---- call on_step hooks ----
+        for agent in list(self.agents.values()):
+            agent.on_step(self.environment, self.clock, actual_step)
+            if hasattr(agent, "roles"):
+                for role in agent.roles:
+                    role.on_step(self.environment, self.clock, actual_step)
+
+        # ---- step environment ----
+        self.environment.step(self.clock, actual_step)
+
+        # ---- advance clock (wakes up sleeping tasks) ----
+        self.clock.set_time(new_time)
+
+        # ---- convergence loop: process messages and tasks ----
+        total_delivered = 0
+        state_changed = True
+        while state_changed:
+            # Wait for agents to settle
+            await self._wait_for_agents()
+
+            # Deliver messages whose delivery_time has now arrived
+            delivered = await self._container._deliver_messages_due(new_time)
+            total_delivered += delivered
+            state_changed = delivered > 0
+
+            # Yield control so delivered messages are processed
+            if state_changed:
+                await asyncio.sleep(0)
+
+        self._do_recordings()
+
+        return SimulationResult(
+            time_elapsed_s=actual_step,
+            step_size_s=actual_step,
+            messages_delivered=total_delivered,
+        )
+
+    async def step_until(self, max_advance_time_s: float) -> list[SimulationResult]:
+        """Run a discrete-event simulation until *max_advance_time_s* has elapsed.
+
+        The simulation stops when the world clock has advanced by
+        *max_advance_time_s* from its current position, or when there are no
+        more events to process.
+
+        :param max_advance_time_s: maximum total time to simulate in seconds
+        :return: list of :class:`SimulationResult` from each step
+
+        Example::
+
+            results = await world.step_until(max_advance_time_s=3600.0)
+        """
+        self._initialize_if_needed()
+        start_time = self.clock.time
+        max_time = start_time + max_advance_time_s
+        results: list[SimulationResult] = []
+
+        while self.clock.time < max_time:
+            remaining = max_time - self.clock.time
+            result = await self.step(
+                step_size_s=DISCRETE_EVENT,
+                max_advance_time_s=remaining,
+            )
+            if result is None:
+                break
+            results.append(result)
+
+        return results
+
     async def __aenter__(self) -> "SimulationWorld":
         self._initialize_if_needed()
         # Allow all freshly scheduled tasks (e.g. from on_ready) to start and
         # reach their first sleeping/done point before the caller proceeds.
-        await _wait_for_agents(self)
+        await self._wait_for_agents()
         return self
 
     async def __aexit__(self, *_) -> None:
         await self.shutdown()
-
-    async def shutdown(self) -> None:
-        """Shut down all agents."""
-        self.running = False
-        for agent in list(self._agents.values()):
-            try:
-                await agent.shutdown()
-            except Exception:
-                logger.exception("Error shutting down agent '%s'", agent.aid)
-
-    def __getitem__(self, key: str | int) -> Agent:
-        if isinstance(key, int):
-            return list(self._agents.values())[key]
-        return self._agents[key]
 
 
 def create_world(
@@ -408,89 +457,14 @@ def create_world(
     return SimulationWorld(clock=clock, communication_sim=sim, environment=environment)
 
 
-async def _wait_for_agents(world: SimulationWorld) -> None:
-    """Wait until all agent tasks are complete or sleeping."""
-    from mango.util.termination_detection import tasks_complete_or_sleeping
-
-    await tasks_complete_or_sleeping(world)
-
-
 async def step_simulation(
     world: SimulationWorld,
     step_size_s: float = DISCRETE_EVENT,
     max_advance_time_s: float = -1.0,
 ) -> SimulationResult | None:
-    """Advance the simulation by *step_size_s* seconds.
-
-    When *step_size_s* is ``DISCRETE_EVENT`` (the default), the step size is
-    determined automatically as the time until the next scheduled event
-    (message arrival or agent task wakeup).
-
-    :param world: the simulation world to step
-    :param step_size_s: step size in seconds, or ``DISCRETE_EVENT``
-    :param max_advance_time_s: abort if the determined discrete step would
-        exceed this value; ``-1`` means no limit
-    :return: :class:`SimulationResult`, or ``None`` if there is nothing to do
-
-    Example::
-
-        result = await step_simulation(world, step_size_s=1.0)
-        result = await step_simulation(world)  # discrete-event
-    """
-    world._initialize_if_needed()
-
-    # Allow freshly scheduled tasks (e.g. from on_ready / on_start) to reach
-    # their first sleeping or done point.  This is necessary so that periodic
-    # tasks register their first wakeup with the ExternalClock before we
-    # determine the discrete step size.
-    await _wait_for_agents(world)
-
-    actual_step = step_size_s
-
-    if actual_step == DISCRETE_EVENT:
-        actual_step = world._determine_next_step_size()
-        if actual_step is None:
-            return None
-        if max_advance_time_s >= 0 and actual_step > max_advance_time_s:
-            return None
-
-    new_time = world.clock.time + actual_step
-
-    # ---- call on_step hooks ----
-    for agent in list(world._agents.values()):
-        agent.on_step(world.environment, world.clock, actual_step)
-        if hasattr(agent, "roles"):
-            for role in agent.roles:
-                role.on_step(world.environment, world.clock, actual_step)
-
-    # ---- step environment ----
-    world.environment.step(world.clock, actual_step)
-
-    # ---- advance clock (wakes up sleeping tasks) ----
-    world.clock.set_time(new_time)
-
-    # ---- convergence loop: process messages and tasks ----
-    total_delivered = 0
-    state_changed = True
-    while state_changed:
-        # Wait for agents to settle
-        await _wait_for_agents(world)
-
-        # Deliver messages whose delivery_time has now arrived
-        delivered = await world._deliver_messages_due(new_time)
-        total_delivered += delivered
-        state_changed = delivered > 0
-
-        # Yield control so delivered messages are processed
-        if state_changed:
-            await asyncio.sleep(0)
-
-    world._do_recordings()
-
-    return SimulationResult(
-        time_elapsed_s=actual_step,
-        step_size_s=actual_step,
-        messages_delivered=total_delivered,
+    """Alias for :meth:`SimulationWorld.step` (which is preferred)."""
+    return await world.step(
+        step_size_s=step_size_s, max_advance_time_s=max_advance_time_s
     )
 
 
@@ -498,227 +472,5 @@ async def discrete_step_until(
     world: SimulationWorld,
     max_advance_time_s: float,
 ) -> list[SimulationResult]:
-    """Run a discrete-event simulation until *max_advance_time_s* has elapsed.
-
-    The simulation stops when the world clock has advanced by
-    *max_advance_time_s* from its current position, or when there are no
-    more events to process.
-
-    :param world: the simulation world
-    :param max_advance_time_s: maximum total time to simulate in seconds
-    :return: list of :class:`SimulationResult` from each step
-
-    Example::
-
-        results = await discrete_step_until(world, max_advance_time_s=3600.0)
-    """
-    world._initialize_if_needed()
-    start_time = world.clock.time
-    max_time = start_time + max_advance_time_s
-    results: list[SimulationResult] = []
-
-    while world.clock.time < max_time:
-        remaining = max_time - world.clock.time
-        result = await step_simulation(
-            world,
-            step_size_s=DISCRETE_EVENT,
-            max_advance_time_s=remaining,
-        )
-        if result is None:
-            break
-        results.append(result)
-
-    return results
-
-
-def collect_data(
-    world: SimulationWorld,
-    key: str,
-    collector: Callable[["SimulationWorld", WorldRecording], None],
-) -> None:
-    """Register a world-level data collector.
-
-    *collector* is called after every simulation step with the world and the
-    :class:`WorldRecording` identified by *key*.
-
-    Example::
-
-        collect_data(world, "total_msgs", lambda w, rec: (
-            rec.timeseries.append(len(w.recorded_messages)),
-            rec.time.append(w.clock.time),
-        ))
-    """
-    recording = world._new_world_recording(key)
-
-    def _run(w: SimulationWorld) -> None:
-        collector(w, recording)
-
-    world._data_collectors.append(_run)
-
-
-def collect_agent_data(
-    world: SimulationWorld,
-    key: str,
-    collector: Callable[["SimulationWorld", Agent, AgentsRecording], None],
-) -> None:
-    """Register an agent-level data collector.
-
-    *collector* is called for every agent after every simulation step with
-    the world, the agent, and the :class:`AgentsRecording` for *key*.  A
-    shared ``time`` entry is appended once per step.
-
-    Example::
-
-        collect_agent_data(world, "state", lambda w, a, rec: (
-            rec.timeseries.setdefault(a.aid, []).append(a.some_state),
-        ))
-    """
-    recording = world._new_agents_recording(key)
-
-    def _run(w: SimulationWorld) -> None:
-        for agent in w._agents.values():
-            collector(w, agent, recording)
-        recording.time.append(w.clock.time)
-
-    world._data_collectors.append(_run)
-
-
-def record_world(
-    world: SimulationWorld,
-    key: str,
-    recorder: Callable[[], Any],
-) -> None:
-    """Record a world-level scalar after every step.
-
-    *recorder* is a zero-argument callable whose return value is appended to
-    the recording's ``timeseries``.
-
-    Example::
-
-        record_world(world, "agent_count", lambda: len(world._agents))
-    """
-    recording = world._new_world_recording(key)
-
-    def _run(w: SimulationWorld) -> None:
-        recording.timeseries.append(recorder())
-        recording.time.append(w.clock.time)
-
-    world._data_collectors.append(_run)
-
-
-def record_agent(
-    world: SimulationWorld,
-    key: str,
-    recorder: Callable[[Agent], Any],
-    filter_fn: Callable[[Agent], bool] | None = None,
-) -> None:
-    """Record a per-agent scalar after every step.
-
-    *recorder* receives each agent and returns the value to store.  An
-    optional *filter_fn* restricts recording to a subset of agents — pass
-    an ``isinstance``-based predicate to record only agents of a particular
-    type::
-
-        record_agent(world, "soc", lambda a: a.soc_kwh,
-                     filter_fn=lambda a: isinstance(a, EVAgent))
-
-    :param world: the simulation world
-    :param key: recording key
-    :param recorder: ``(agent) -> value`` callable
-    :param filter_fn: optional ``(agent) -> bool`` predicate; ``None`` records
-        all registered agents
-    """
-    recording = world._new_agents_recording(key)
-
-    def _run(w: SimulationWorld) -> None:
-        for agent in w._agents.values():
-            if filter_fn is None or filter_fn(agent):
-                recording.timeseries.setdefault(agent.aid, []).append(recorder(agent))
-                recording.agent_time.setdefault(agent.aid, []).append(w.clock.time)
-        recording.time.append(w.clock.time)
-
-    world._data_collectors.append(_run)
-
-
-def record_agent_having(
-    world: SimulationWorld,
-    key: str,
-    role_type: type,
-    recorder: Callable[[Agent], Any],
-) -> None:
-    """Record a per-agent scalar for agents that carry a specific role type.
-
-    Only agents that have at least one role that is an instance of
-    *role_type* are included in the recording.  *recorder* receives the
-    agent and returns the value to store.
-
-    :param world: the simulation world
-    :param key: recording key
-    :param role_type: only record agents that have a role of this type
-    :param recorder: ``(agent) -> value`` callable
-
-    Example::
-
-        record_agent_having(world, "energy", EnergyRole, lambda a: a.roles[0].energy)
-    """
-    recording = world._new_agents_recording(key)
-
-    def _run(w: SimulationWorld) -> None:
-        for agent in w._agents.values():
-            if hasattr(agent, "roles") and any(
-                isinstance(r, role_type) for r in agent.roles
-            ):
-                recording.timeseries.setdefault(agent.aid, []).append(recorder(agent))
-                recording.agent_time.setdefault(agent.aid, []).append(w.clock.time)
-        recording.time.append(w.clock.time)
-
-    world._data_collectors.append(_run)
-
-
-def record_position(
-    world: SimulationWorld,
-    key: str = "positions",
-    filter_fn: Callable[[Agent], bool] | None = None,
-) -> None:
-    """Record the spatial position of every agent after each step.
-
-    Only agents that have a position in the world's space are recorded.
-    An optional *filter_fn* restricts recording to a subset of agents.
-
-    :param world: the simulation world
-    :param key: recording key (default ``"positions"``)
-    :param filter_fn: ``(agent) -> bool`` predicate; ``None`` means all agents
-
-    Example::
-
-        record_position(world)
-        history = position_history(world)
-        # history.timeseries["agent0"]  -> list of Position2D
-    """
-    recording = world._new_agents_recording(key)
-
-    def _run(w: SimulationWorld) -> None:
-        space = w.environment.space
-        for agent in w._agents.values():
-            if space.has_position(agent):
-                if filter_fn is None or filter_fn(agent):
-                    recording.timeseries.setdefault(agent.aid, []).append(
-                        space.location(agent)
-                    )
-                    recording.agent_time.setdefault(agent.aid, []).append(w.clock.time)
-        recording.time.append(w.clock.time)
-
-    world._data_collectors.append(_run)
-
-
-def position_history(
-    world: SimulationWorld,
-    key: str = "positions",
-) -> AgentsRecording:
-    """Return the :class:`AgentsRecording` populated by :func:`record_position`.
-
-    :param world: the simulation world
-    :param key: recording key (default ``"positions"``)
-    :return: the recording
-    """
-    return world.data_agent_collections.get(key, AgentsRecording())
+    """Alias for :meth:`SimulationWorld.step_until` (which is preferred)."""
+    return await world.step_until(max_advance_time_s)

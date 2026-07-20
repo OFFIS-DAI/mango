@@ -373,7 +373,7 @@ def behavior_in(
             return True
         return False
 
-    for agent in list(world._agents.values()):
+    for agent in list(world.agents.values()):
         if not _matches_agent(agent):
             continue
 

@@ -5,17 +5,26 @@ Every agent must live in a container. Containers are responsible for making
  connections to other agents.
 """
 
+from __future__ import annotations
+
 import asyncio
 import logging
+import math
 import uuid
 from abc import ABC
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ..messages.message import AgentAddress
 from ..util.clock import Clock
 from ..util.scheduling import ScheduledProcessTask, ScheduledTask, Scheduler
+from .conversation import CONVERSATION_ID_KEY, Conversation, _ConversationContext
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+
+    from mango.express.health import TopologyHealth
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +79,7 @@ class TopologyNeighbor:
     def __init__(
         self,
         agent: Any,
-        description: "AgentDescription",
+        description: AgentDescription,
         characteristic: str = "",
     ) -> None:
         self._agent = agent
@@ -78,7 +87,7 @@ class TopologyNeighbor:
         self.characteristic = characteristic
 
     @property
-    def address(self) -> "AgentAddress":
+    def address(self) -> AgentAddress:
         """The neighbor's current :class:`AgentAddress` (resolved lazily)."""
         return self._agent.addr
 
@@ -98,6 +107,12 @@ class TopologyService:
         self._tid_to_characteristic: dict[str, str] = {}
         self._tid_to_connectors: dict[str, list[tuple[str, TopologyNeighbor]]] = {}
         self._marked_connector_for: list[str] = []
+        # Optional :class:`TopologyHealth` instance per topology — see
+        # :mod:`mango.express.health`.  Populated by ``Topology.inject``
+        # for every topology that was configured with ``edge_health``.
+        # The same instance is shared across every agent in the
+        # topology (it stores scores for all directed edges).
+        self._tid_to_health: dict[str, TopologyHealth] = {}
 
     def neighbors(
         self,
@@ -107,7 +122,7 @@ class TopologyService:
         has_characteristic: str | None = None,
         include_connectors: tuple[str, ...] | list[str] = (),
         match_func: Any = None,
-    ) -> list["AgentAddress"]:
+    ) -> list[AgentAddress]:
         """Return addresses of neighbors in topology *tid* with edge *state*.
 
         :param state: only return neighbors reachable via edges in this state
@@ -149,7 +164,7 @@ class TopologyService:
         *,
         include_connectors: tuple[str, ...] | list[str] = (),
         match_func: Any = None,
-    ) -> list["AgentAddress"]:
+    ) -> list[AgentAddress]:
         """Return addresses of connector agents for topology *tid*."""
         result: list[AgentAddress] = []
         for conn_type, n in self._tid_to_connectors.get(tid, []):
@@ -163,6 +178,87 @@ class TopologyService:
     def connection_types(self, tid: str = "default") -> list[str]:
         """Return the connection type labels for connectors in topology *tid*."""
         return [ct for ct, _ in self._tid_to_connectors.get(tid, [])]
+
+    # ------------------------------------------------------------------
+    # Edge-health queries (see mango.express.health)
+    # ------------------------------------------------------------------
+    def has_health(self, tid: str = "default") -> bool:
+        """True when topology *tid* has continuous link-health enabled."""
+        return tid in self._tid_to_health
+
+    def health_runtime(self, tid: str = "default") -> TopologyHealth | None:
+        """Return the :class:`TopologyHealth` runtime for *tid*, or None."""
+        return self._tid_to_health.get(tid)
+
+
+def _addr_from_meta(meta: dict) -> AgentAddress:
+    """Build an :class:`AgentAddress` from a received ``meta``.
+
+    The JSON codec decodes a ``(host, port)`` protocol address back into a
+    *list*, which is unhashable and never compares equal to the tuple form
+    kept internally.  Normalise it to a tuple so the result is usable as a
+    dict key and equality-comparable against topology neighbour addresses.
+    """
+    protocol_addr = meta.get("sender_addr")
+    if isinstance(protocol_addr, list):
+        protocol_addr = tuple(protocol_addr)
+    return AgentAddress(protocol_addr=protocol_addr, aid=meta.get("sender_id"))
+
+
+async def _race_first_completed(*awaitables) -> None:
+    """Run *awaitables* concurrently; return when the first finishes,
+    cancelling the rest.  Used by :meth:`AgentDelegates.gather` to race
+    the collector's "we're done" signal against a clock-aware timer.
+    """
+    tasks = [asyncio.ensure_future(a) for a in awaitables]
+    try:
+        await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+    finally:
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+
+
+class _GatherCollector:
+    """Aggregates multi-reply tracked responses for :meth:`AgentDelegates.open_gather`.
+
+    Replies are stored under the responding agent's
+    :class:`AgentAddress` so the caller can match each response to its
+    source.  :meth:`wait` resolves once *expected* distinct replies
+    have arrived, or when :meth:`finish` is called explicitly (which
+    :meth:`AgentDelegates.gather` uses to honour the timeout / quorum
+    policy).
+    """
+
+    def __init__(
+        self,
+        *,
+        expected: int,
+        reply_type: type | tuple[type, ...] | None = None,
+    ) -> None:
+        self._expected = max(0, int(expected))
+        self._reply_type = reply_type
+        self.responses: dict[AgentAddress, Any] = {}
+        self._done = asyncio.Event()
+
+    def on_reply(self, content: Any, meta: dict) -> None:
+        if self._reply_type is not None and not isinstance(content, self._reply_type):
+            return
+        addr = _addr_from_meta(meta)
+        # First reply per sender wins — late duplicates (e.g. retries)
+        # are dropped so the caller sees a stable mapping.
+        if addr in self.responses:
+            return
+        self.responses[addr] = content
+        if self._expected and len(self.responses) >= self._expected:
+            self._done.set()
+
+    def finish(self) -> None:
+        """Force the collector to resolve (used on timeout / quorum hit)."""
+        self._done.set()
+
+    async def wait(self) -> None:
+        await self._done.wait()
 
 
 class AgentContext:
@@ -220,6 +316,18 @@ class AgentDelegates:
         self._description: AgentDescription = AgentDescription()
         self._forwarding_rules: list[ForwardingRule] = []
         self._transaction_handlers: dict[str, tuple] = {}
+        # Multi-shot reply collectors keyed by tracking_id.  Used by
+        # :meth:`gather` (and any caller of :meth:`open_gather`) to
+        # aggregate replies from many receivers under a single id
+        # without consuming the entry on the first reply.  See
+        # :meth:`_handle_tracked_reply`.
+        self._gather_collectors: dict[str, _GatherCollector] = {}
+        # Open conversation handles keyed by conversation_id (see
+        # :mod:`mango.agent.conversation`).  Several handles may be open
+        # for the same id (e.g. an ``@on_message`` handler that re-fires
+        # while an earlier join is still open) — every matching inbound
+        # message is fanned out to all of them.
+        self._conversations: dict[str, list[Conversation]] = {}
         self._behavior_message_subs: list[tuple] = []
         self._behavior_global_event_handlers: list[tuple] = []
         self._behavior_agent_event_handlers: list[tuple] = []
@@ -348,6 +456,17 @@ class AgentDelegates:
             )
         ]
 
+    def _bound_agent(self, operation: str) -> Agent:
+        """Return the agent whose registries and scheduler serve *operation*.
+
+        Identity on an agent itself; delegating contexts (e.g.
+        ``RoleContext``) override this to return their owning agent —
+        message routing consults the *agent's* registries, so tracked
+        handlers, gather collectors and conversations must be
+        registered there, not on the delegate.
+        """
+        return self
+
     # ------------------------------------------------------------------
     # Tracked / reply-to messaging
     # ------------------------------------------------------------------
@@ -373,7 +492,8 @@ class AgentDelegates:
         """
         tracking_id = str(uuid.uuid4())
         if response_handler is not None:
-            self._transaction_handlers[tracking_id] = (response_handler,)
+            agent = self._bound_agent("send_tracked_message")
+            agent._transaction_handlers[tracking_id] = (response_handler,)
         return await self.send_message(
             content,
             receiver_addr=receiver_addr,
@@ -390,7 +510,8 @@ class AgentDelegates:
         """Convenience helper to reply to a received message.
 
         Extracts the sender address from *received_meta* and sends *content*
-        back, preserving any ``tracking_id`` for transaction matching.
+        back, preserving any ``tracking_id`` for transaction matching and any
+        ``conversation_id`` so the reply routes into an open conversation.
 
         :param content: reply content
         :param received_meta: the ``meta`` dict from the received message
@@ -399,10 +520,13 @@ class AgentDelegates:
         sender_id = received_meta.get("sender_id")
         sender_addr = received_meta.get("sender_addr")
         tracking_id = received_meta.get("tracking_id")
+        conversation_id = received_meta.get(CONVERSATION_ID_KEY)
         reply_addr = AgentAddress(protocol_addr=sender_addr, aid=sender_id)
         extra: dict = {"reply": True}
         if tracking_id:
             extra["tracking_id"] = tracking_id
+        if conversation_id:
+            extra[CONVERSATION_ID_KEY] = conversation_id
         extra.update(kwargs)
         return await self.send_message(content, receiver_addr=reply_addr, **extra)
 
@@ -410,17 +534,252 @@ class AgentDelegates:
         """Internal: check if *meta* contains a tracked reply; call handler.
 
         Returns ``True`` if the message was handled as a tracked reply.
+        Two flavours are supported:
+
+        * Single-shot ``_transaction_handlers`` entries (created by
+          :meth:`send_tracked_message`).  Popped on first matching
+          reply.
+        * Multi-shot ``_gather_collectors`` entries (created by
+          :meth:`open_gather`).  Not popped — every matching reply
+          is delivered to the collector until the caller closes it.
         """
         tracking_id = meta.get("tracking_id")
-        if (
-            tracking_id
-            and meta.get("reply")
-            and tracking_id in self._transaction_handlers
-        ):
+        if not tracking_id or not meta.get("reply"):
+            return False
+        if tracking_id in self._transaction_handlers:
             (handler,) = self._transaction_handlers.pop(tracking_id)
             handler(content, meta)
             return True
+        collector = self._gather_collectors.get(tracking_id)
+        if collector is not None:
+            collector.on_reply(content, meta)
+            return True
         return False
+
+    def _route_to_conversation(self, content: Any, meta: dict) -> None:
+        """Deliver *content*/*meta* to every open conversation handle whose
+        id matches ``meta[CONVERSATION_ID_KEY]``.  No-op when the message
+        has no conversation id or no matching handle exists.
+        """
+        conv_id = meta.get(CONVERSATION_ID_KEY)
+        if not conv_id:
+            return
+        for conv in list(self._conversations.get(conv_id, ())):
+            conv._on_inbound(content, meta)
+
+    def _register_conversation(self, conv: Conversation) -> None:
+        """Register a conversation handle for inbound routing.
+
+        Called by the conversation context manager on entry; several
+        handles may share one id — messages fan out to all of them.
+        """
+        self._conversations.setdefault(conv.conversation_id, []).append(conv)
+
+    def _unregister_conversation(self, conv: Conversation) -> None:
+        """Remove one previously registered handle.  Idempotent."""
+        handles = self._conversations.get(conv.conversation_id)
+        if handles is None:
+            return
+        try:
+            handles.remove(conv)
+        except ValueError:
+            pass
+        if not handles:
+            self._conversations.pop(conv.conversation_id, None)
+
+    def _nudge_topology_health(self, meta: dict) -> None:
+        """Multiplicatively recover edge scores on every received message.
+
+        Called once per inbox dequeue (before role-level dispatch).  No-op
+        unless this agent participates in at least one topology that
+        was created with ``edge_health=...``.  All clock reads go
+        through the agent's scheduler so the decay model is identical
+        under real-time and simulation clocks.
+        """
+        svc = self.service_of_type(TopologyService, None)
+        if svc is None or not svc._tid_to_health:
+            return
+        sender_id = meta.get("sender_id")
+        if not sender_id:
+            return
+        peer_addr = _addr_from_meta(meta)
+        scheduler = getattr(self, "scheduler", None)
+        if scheduler is None or scheduler.clock is None:
+            return
+        now = scheduler.clock.time
+        my_addr = self.addr
+        for tid, health in svc._tid_to_health.items():
+            # Only nudge if the sender is actually a neighbour of this
+            # agent in that topology — keeps unrelated traffic
+            # (cross-topology messages, broadcast lists) from inflating
+            # scores for non-neighbours.
+            if any(
+                n.address == peer_addr
+                for ns in svc._tid_to_state_to_neighbors.get(tid, {}).values()
+                for n in ns
+            ):
+                health.nudge(my_addr, peer_addr, now)
+
+    def open_gather(
+        self,
+        tracking_id: str,
+        *,
+        expected: int,
+        reply_type: type | tuple[type, ...] | None = None,
+    ) -> _GatherCollector:
+        """Register a multi-reply collector for *tracking_id*.
+
+        Returns an opaque collector handle; the caller awaits
+        :meth:`_GatherCollector.wait` and must call
+        :meth:`close_gather` (or use :meth:`gather`, which
+        does both) to release the registration.
+
+        :param expected: number of replies that satisfies the collector
+            without waiting for the timeout.  Used by ``gather`` to
+            return as soon as every recipient has answered.
+        :param reply_type: when set, only replies whose ``content`` is
+            an instance of *reply_type* are accepted; everything else
+            is dropped silently.  Filters out tracking-id collisions
+            with unrelated reply traffic.
+        """
+        collectors = self._bound_agent("open_gather")._gather_collectors
+        if tracking_id in collectors:
+            raise ValueError(
+                f"gather collector already open for tracking_id={tracking_id!r}"
+            )
+        collector = _GatherCollector(expected=expected, reply_type=reply_type)
+        collectors[tracking_id] = collector
+        return collector
+
+    def close_gather(self, tracking_id: str) -> None:
+        """Release a previously opened gather collector."""
+        self._bound_agent("close_gather")._gather_collectors.pop(tracking_id, None)
+
+    async def gather(
+        self,
+        content: Any,
+        receivers: Iterable[AgentAddress],
+        *,
+        reply_type: type | tuple[type, ...] | None = None,
+        timeout: float = 5.0,
+        min_fraction: float = 1.0,
+    ) -> dict[AgentAddress, Any]:
+        """Send *content* to every address in *receivers* and collect replies.
+
+        Returns a dict mapping each responding agent's
+        :class:`AgentAddress` to its reply content.  Responders are
+        expected to use :meth:`reply_to` (or otherwise echo
+        ``tracking_id`` with ``reply=True``) — every existing
+        request/response pair in mango follows that convention, so
+        responders work unchanged.
+
+        :param receivers: iterable of :class:`AgentAddress` targets.
+        :param reply_type: optional class/tuple — replies of any other
+            type are silently dropped, filtering out tracking-id
+            collisions with unrelated traffic.
+        :param timeout: cap on how long to wait, measured on the
+            agent's scheduler clock.  When it elapses, returns
+            whatever replies have arrived so far.
+        :param min_fraction: between 0 and 1.  Returns as soon as
+            ``ceil(min_fraction * len(receivers))`` replies have
+            arrived.  Defaults to 1.0 — wait for all, time out
+            otherwise.
+        """
+        agent = self._bound_agent("gather")
+        receivers = list(receivers)
+        if not receivers:
+            return {}
+        expected = max(1, math.ceil(min_fraction * len(receivers)))
+
+        tracking_id = str(uuid.uuid4())
+        collector = agent.open_gather(
+            tracking_id, expected=expected, reply_type=reply_type
+        )
+        try:
+            for addr in receivers:
+                await self.send_message(
+                    content, receiver_addr=addr, tracking_id=tracking_id
+                )
+            # Timeout follows the agent's scheduler clock so behaviour
+            # is identical under AsyncioClock (real time) and
+            # ExternalClock (simulation).  asyncio.wait_for would block
+            # real seconds in sim mode.
+            await _race_first_completed(
+                collector.wait(),
+                agent.scheduler.clock.sleep(timeout),
+            )
+        finally:
+            agent.close_gather(tracking_id)
+        return dict(collector.responses)
+
+    def open_conversation(
+        self,
+        *,
+        state: dict | None = None,
+        timeout: float | None = None,
+    ) -> _ConversationContext:
+        """Open a fresh multi-hop conversation as the initiator.
+
+        Returns an async context manager whose body yields a
+        :class:`~mango.agent.conversation.Conversation`.  A new id is
+        generated; other agents reply by echoing it (every call to
+        :meth:`Conversation.send` and every :meth:`reply_to` carries it
+        automatically).
+
+        The optional *timeout* is enforced via the agent's scheduler
+        clock so behaviour is identical under :class:`AsyncioClock`
+        (real time) and :class:`ExternalClock` (simulation).  Unlike
+        :meth:`gather`, it defaults to ``None`` — conversations are
+        long-lived by design, so no arbitrary deadline is imposed.
+        """
+        return self._make_conversation(
+            conversation_id=str(uuid.uuid4()), state=state, timeout=timeout
+        )
+
+    def join_conversation(
+        self,
+        meta: dict,
+        *,
+        state: dict | None = None,
+        timeout: float | None = None,
+    ) -> _ConversationContext:
+        """Join an existing conversation as a non-initiator.
+
+        Reads the id from *meta* (the dict passed to message handlers)
+        and registers a local handle so subsequent messages tagged with
+        that id route here too.  Typical use: a gossip forwarder
+        processes a multi-message exchange from the responder side.
+
+        Every join owns an independent handle with its own *state* and
+        *timeout*; when several handles for the same id are open on one
+        agent, each inbound message is delivered to all of them.
+        """
+        conv_id = meta.get(CONVERSATION_ID_KEY)
+        if not conv_id:
+            raise ValueError(
+                "join_conversation requires a meta dict carrying "
+                f"{CONVERSATION_ID_KEY!r}"
+            )
+        return self._make_conversation(
+            conversation_id=conv_id, state=state, timeout=timeout
+        )
+
+    def _make_conversation(
+        self,
+        *,
+        conversation_id: str,
+        state: dict | None,
+        timeout: float | None,
+    ) -> _ConversationContext:
+        return _ConversationContext(
+            owner=self,
+            conv=Conversation(
+                owner=self,
+                conversation_id=conversation_id,
+                state=state,
+                timeout=timeout,
+            ),
+        )
 
     @property
     def current_timestamp(self) -> float:
@@ -843,6 +1202,17 @@ class Agent(ABC, AgentDelegates):
 
                 if not forwarded:
                     # Check tracked reply handlers
+                    # Update topology link-health (if any topology this
+                    # agent belongs to has ``edge_health`` enabled).
+                    # Done before user-defined dispatch so the role's
+                    # ``@on_message`` handler sees a freshly-nudged
+                    # neighbour score should it read one.
+                    self._nudge_topology_health(meta)
+                    # Push to any matching open conversation in addition
+                    # to (not instead of) normal dispatch — a role can
+                    # react via ``@on_message`` and pull from the
+                    # conversation iterator on the same message.
+                    self._route_to_conversation(content, meta)
                     if not self._handle_tracked_reply(content, meta):
                         for _cond, _handler, _proc in self._behavior_message_subs:
                             if _cond(content, meta):
@@ -922,6 +1292,14 @@ class Agent(ABC, AgentDelegates):
         """Shutdown all tasks that are running
         and deregister from the container"""
         await self.on_stop()
+
+        # Backstop: cancel any conversations still open (e.g. one opened
+        # with timeout=None whose peer never replied) so their iterators
+        # unblock and the registry does not leak past agent lifetime.
+        for handles in list(self._conversations.values()):
+            for conv in list(handles):
+                conv.cancel()
+        self._conversations.clear()
 
         if not self._stopped.done():
             self._stopped.set_result(True)

@@ -25,21 +25,26 @@ from .visualization import (
     plot_world,
     show_communication_data,
 )
-from .world import (
-    AgentsRecording,
-    DISCRETE_EVENT,
+from .container import (
     MessageTransaction,
-    SimulationResult,
-    SimulationWorld,
+    SimulationContainer,
+)
+from .recording import (
+    AgentsRecording,
     WorldRecording,
     collect_agent_data,
     collect_data,
-    create_world,
-    discrete_step_until,
     position_history,
     record_agent,
     record_agent_having,
     record_position,
     record_world,
+)
+from .world import (
+    DISCRETE_EVENT,
+    SimulationResult,
+    SimulationWorld,
+    create_world,
+    discrete_step_until,
     step_simulation,
 )

@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import logging
 import os
 import warnings
@@ -119,7 +120,7 @@ def create_agent_process_environment(
         )
         message_pipe.close()
         event_pipe.close()
-        if asyncio.iscoroutinefunction(agent_creator):
+        if inspect.iscoroutinefunction(agent_creator):
             await agent_creator(container)
         else:
             agent_creator(container)

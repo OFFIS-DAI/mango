@@ -189,6 +189,12 @@ class RoleHandler:
         self._role_event_type_to_handler = {}
         self._scheduler = scheduler
         self._data = DataContainer()
+        # Back-reference to the owning :class:`RoleAgent`.  Set by
+        # ``RoleAgent.__init__`` so role-level helpers like
+        # :meth:`RoleContext.gather` can reach the agent-level
+        # gather/transaction machinery without an indirection through
+        # the agent context.
+        self._agent: Agent | None = None
 
     def get_or_create_model(self, cls):
         """Creates or return (when already created) a central role model.
@@ -352,8 +358,22 @@ class RoleHandler:
         else:
             self._send_msg_subs[role] = [method]
 
-    def emit_event(self, event: Any, event_source: Any = None):
-        subs = self._role_event_type_to_handler[type(event)]
+    def emit_event(self, event: Any, event_source: Any = None, *, strict: bool = False):
+        """Dispatch *event* to every subscribed handler on this agent.
+
+        :param strict: when True, raise :class:`KeyError` if no role is
+            subscribed to ``type(event)``.  Default is False — events
+            without subscribers are silently dropped, matching the
+            fire-and-forget semantics callers expect from a
+            notification API and removing the ``try/except KeyError``
+            guard pattern that otherwise wraps every ``emit_event``
+            call site.
+        """
+        subs = self._role_event_type_to_handler.get(type(event))
+        if subs is None:
+            if strict:
+                raise KeyError(type(event))
+            return
         for _, method in subs:
             method(event, event_source)
 
@@ -491,15 +511,18 @@ class RoleContext(AgentDelegates):
             **kwargs,
         )
 
-    def emit_event(self, event: Any, event_source: Any = None):
+    def emit_event(self, event: Any, event_source: Any = None, *, strict: bool = False):
         """Emit an custom event to other roles.
 
         :param event: the event
         :type event: Any
         :param event_source: emitter of the event (mostly the emitting role), defaults to None
         :type event_source: Any, optional
+        :param strict: when True, raise :class:`KeyError` if no role
+            is subscribed to ``type(event)``.  Default False — see
+            :meth:`RoleHandler.emit_event` for the rationale.
         """
-        self._role_handler.emit_event(event, event_source)
+        self._role_handler.emit_event(event, event_source, strict=strict)
 
     def subscribe_event(self, role: Role, event_type: Any, handler_method: Callable):
         """Subscribe to specific event types. The listener will be evaluated based
@@ -517,6 +540,102 @@ class RoleContext(AgentDelegates):
 
     def activate(self, role) -> None:
         self._role_handler.activate(role)
+
+    # ------------------------------------------------------------------
+    # Topology link-health queries (see mango.express.health)
+    # ------------------------------------------------------------------
+
+    def neighbour_score(self, neighbour_addr, *, tid: str = "default") -> float | None:
+        """Return the current edge health for one neighbour, or ``None``
+        when the topology does not have ``edge_health`` enabled."""
+        agent = self._role_handler._agent
+        if agent is None:
+            return None
+        from mango.agent.core import TopologyService
+
+        svc = agent.service_of_type(TopologyService, None)
+        if svc is None:
+            return None
+        health = svc.health_runtime(tid)
+        if health is None:
+            return None
+        now = agent.scheduler.clock.time if agent.scheduler else 0.0
+        return health.score(agent.addr, neighbour_addr, now)
+
+    def neighbour_scores(self, tid: str = "default") -> dict:
+        """Return ``{neighbour_addr: score}`` for every neighbour in *tid*.
+
+        Empty when the agent is unbound or the topology has no
+        ``edge_health`` configured.  Complements :meth:`neighbour_score`
+        (single neighbour) and :meth:`live_neighbours` (threshold filter).
+        """
+        agent = self._role_handler._agent
+        if agent is None:
+            return {}
+        from mango.agent.core import State, TopologyService
+
+        svc = agent.service_of_type(TopologyService, None)
+        if svc is None:
+            return {}
+        health = svc.health_runtime(tid)
+        if health is None:
+            return {}
+        now = agent.scheduler.clock.time if agent.scheduler else 0.0
+        my_addr = agent.addr
+        return {
+            n: health.score(my_addr, n, now)
+            for n in svc.neighbors(state=State.NORMAL, tid=tid)
+        }
+
+    def live_neighbours(
+        self,
+        tid: str = "default",
+        *,
+        threshold: float | None = None,
+    ):
+        """Return the subset of ``topology_neighbors(tid=tid)`` whose
+        edge health is at or above *threshold*.
+
+        Falls back to the full neighbour list when the topology has no
+        ``edge_health`` configured — callers can use this method
+        unconditionally without having to branch on whether tracking is
+        enabled.
+        """
+        agent = self._role_handler._agent
+        if agent is None:
+            return []
+        from mango.agent.core import State, TopologyService
+
+        svc = agent.service_of_type(TopologyService, None)
+        if svc is None:
+            return []
+        all_neighbours = svc.neighbors(state=State.NORMAL, tid=tid)
+        health = svc.health_runtime(tid)
+        if health is None:
+            return all_neighbours
+        now = agent.scheduler.clock.time if agent.scheduler else 0.0
+        my_addr = agent.addr
+        return [
+            n
+            for n in all_neighbours
+            if health.is_live(my_addr, n, now, threshold=threshold)
+        ]
+
+    def _bound_agent(self, operation: str):
+        """Return the owning :class:`RoleAgent`, or raise a clear error.
+
+        Conversation- and gather-style helpers need access to the
+        agent's scheduler clock and message-routing tables; this
+        override produces a uniform error when a role is used before
+        its agent attaches.
+        """
+        agent = self._role_handler._agent
+        if agent is None:
+            raise RuntimeError(
+                f"{operation} requires a bound RoleAgent — the role's "
+                "context is not attached yet."
+            )
+        return agent
 
     def on_start(self):
         self._role_handler.on_start()
@@ -539,6 +658,7 @@ class RoleAgent(Agent):
         """
         super().__init__()
         self._role_handler = RoleHandler(None)
+        self._role_handler._agent = self
         self._role_context = RoleContext(self._role_handler, self.aid, self.inbox)
 
     def on_start(self):
@@ -612,6 +732,12 @@ class Role(ABC):
         :param context: the role context
         """
         self._context = context
+        # Apply class-level @on_message / @on_event / @periodic
+        # decorators before user-defined ``setup`` runs, so the explicit
+        # setup body can add to (not remove from) the declarative wiring.
+        from mango.agent.decorators import apply_dispatch
+
+        apply_dispatch(self)
 
     @property
     def context(self) -> RoleContext:
