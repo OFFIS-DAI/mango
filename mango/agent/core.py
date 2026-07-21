@@ -18,7 +18,12 @@ from typing import TYPE_CHECKING, Any
 
 from ..messages.message import AgentAddress
 from ..util.clock import Clock
-from ..util.scheduling import ScheduledProcessTask, ScheduledTask, Scheduler
+from ..util.scheduling import (
+    ScheduledProcessTask,
+    ScheduledTask,
+    Scheduler,
+    sleeping_wait,
+)
 from .conversation import CONVERSATION_ID_KEY, Conversation, _ConversationContext
 
 if TYPE_CHECKING:
@@ -704,10 +709,13 @@ class AgentDelegates:
             # is identical under AsyncioClock (real time) and
             # ExternalClock (simulation).  asyncio.wait_for would block
             # real seconds in sim mode.
-            await _race_first_completed(
-                collector.wait(),
-                agent.scheduler.clock.sleep(timeout),
-            )
+            # Both racers resolve externally (reply message / clock step),
+            # so the wait counts as sleeping for stepped simulations.
+            with sleeping_wait():
+                await _race_first_completed(
+                    collector.wait(),
+                    agent.scheduler.clock.sleep(timeout),
+                )
         finally:
             agent.close_gather(tracking_id)
         return dict(collector.responses)

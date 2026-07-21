@@ -55,6 +55,8 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING, Any
 
+from mango.util.scheduling import sleeping_wait
+
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
@@ -198,7 +200,11 @@ class Conversation:
         # cancel() is abrupt: anything still on the queue is dropped.
         if self._cancelled:
             raise StopAsyncIteration
-        content, meta = await self._queue.get()
+        # Only an inbound message (or converge/cancel/timeout) feeds the
+        # queue, so a parked iterator counts as sleeping for stepped
+        # simulations — the message can only arrive in a later step.
+        with sleeping_wait():
+            content, meta = await self._queue.get()
         if content is self._END:
             # Re-enqueue the sentinel so every other consumer — blocked
             # concurrently or arriving later — terminates as well.

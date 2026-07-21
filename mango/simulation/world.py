@@ -46,6 +46,7 @@ from typing import Any
 from mango.agent.core import Agent, AgentAddress
 from mango.messages.codecs import Codec
 from mango.util.clock import ExternalClock
+from mango.util.termination_detection import tasks_complete_or_sleeping
 
 from .communication import CommunicationSimulation, SimpleCommunicationSimulation
 from .container import MessageTransaction, SimulationContainer
@@ -306,9 +307,6 @@ class SimulationWorld:
             self._do_recordings()
 
     async def _wait_for_agents(self) -> None:
-        """Wait until all agent tasks are complete or sleeping."""
-        from mango.util.termination_detection import tasks_complete_or_sleeping
-
         await tasks_complete_or_sleeping(self._container)
 
     async def step(

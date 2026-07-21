@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -1250,3 +1251,84 @@ async def test_discrete_step_until_via_run_with_simulation():
     assert world.clock.time <= 3.0
     assert len(results) >= 1
     assert agent.ticks >= 1
+
+
+@pytest.mark.asyncio
+async def test_gather_from_scheduled_task_does_not_deadlock_step():
+    # Regression: a gather awaiting replies inside a scheduled task must count
+    # as sleeping for termination detection — otherwise world.step() hangs,
+    # since the replies can only be delivered after detection returns.
+    world = create_world()
+
+    class GatherAgent(Agent):
+        def __init__(self):
+            super().__init__()
+            self.peer = None
+            self.responses = None
+
+        def handle_message(self, content, meta):
+            pass
+
+        def on_ready(self):
+            self.schedule_instant_task(self.run_gather())
+
+        async def run_gather(self):
+            self.responses = await self.gather(
+                "ping", receivers=[self.peer], timeout=30.0
+            )
+
+    gatherer = world.register(GatherAgent())
+    responder = world.register(ReplyAgent())
+    gatherer.peer = responder.addr
+
+    async def drive():
+        # world entry/exit also run termination detection, so the timeout
+        # must span the whole world lifecycle to catch a deadlock anywhere
+        async with world:
+            for _ in range(4):
+                await step_simulation(world, step_size_s=1.0)
+                if gatherer.responses is not None:
+                    break
+
+    await asyncio.wait_for(drive(), timeout=10)
+    assert gatherer.responses == {responder.addr: "pong"}
+
+
+@pytest.mark.asyncio
+async def test_conversation_from_scheduled_task_does_not_deadlock_step():
+    # Regression: a conversation iterator parked on its queue inside a
+    # scheduled task must count as sleeping for termination detection.
+    world = create_world()
+
+    class InitiatorAgent(Agent):
+        def __init__(self):
+            super().__init__()
+            self.peer = None
+            self.received = None
+
+        def handle_message(self, content, meta):
+            pass
+
+        def on_ready(self):
+            self.schedule_instant_task(self.run_conversation())
+
+        async def run_conversation(self):
+            async with self.open_conversation(timeout=30.0) as conv:
+                await conv.send(self.peer, "ping")
+                async for content, _ in conv:
+                    self.received = content
+                    conv.converge()
+
+    initiator = world.register(InitiatorAgent())
+    responder = world.register(ReplyAgent())
+    initiator.peer = responder.addr
+
+    async def drive():
+        async with world:
+            for _ in range(4):
+                await step_simulation(world, step_size_s=1.0)
+                if initiator.received is not None:
+                    break
+
+    await asyncio.wait_for(drive(), timeout=10)
+    assert initiator.received == "pong"

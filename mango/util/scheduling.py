@@ -7,6 +7,8 @@ import concurrent.futures
 import logging
 from abc import abstractmethod
 from asyncio import Future
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from multiprocessing import Manager
@@ -53,18 +55,46 @@ class ScheduledProcessControl:
         self.run_task_event.clear()
 
 
+_current_scheduled_task: ContextVar["ScheduledTask | None"] = ContextVar(
+    "_current_scheduled_task", default=None
+)
+
+
+@contextmanager
+def sleeping_wait():
+    """Mark the current scheduled task as sleeping for the duration of a wait
+    that only an external event can resolve (an incoming message, a clock
+    step). Stepped-simulation termination detection treats sleeping tasks as
+    idle; without this scope it would wait for the task to finish and
+    deadlock, as the resolving event can only arrive in a later step.
+    No-op outside a scheduled task. Only autonomous waits (wall-clock timers,
+    executors, I/O) must not be wrapped — those have to finish within a step.
+    """
+    task = _current_scheduled_task.get()
+    if task is None:
+        yield
+        return
+    was_sleeping = task._is_observable and task._is_sleeping.done()
+    task.notify_sleeping()
+    try:
+        yield
+    finally:
+        if not was_sleeping:
+            task.notify_running()
+
+
+async def _run_as_current_task(task: "ScheduledTask"):
+    _current_scheduled_task.set(task)
+    return await task.run()
+
+
 class Suspendable:
     """
     Wraps a coroutine, intercepting __await__ to add the functionality of suspending.
     """
 
-    def __init__(self, coro, ext_contr_event=None, kill_event=None, notify_task=None):
+    def __init__(self, coro, ext_contr_event=None, kill_event=None):
         self._coro = coro
-        # Optional owning ScheduledTask; when set, the wrapper marks it
-        # "sleeping" whenever the coroutine parks on a pending future so that
-        # simulation termination detection treats request/reply drivers (which
-        # await replies rather than the clock) as idle instead of deadlocking.
-        self._notify_task = notify_task
 
         self._kill_event = kill_event
         if ext_contr_event is not None:
@@ -99,24 +129,11 @@ class Suspendable:
                 return err.value
             else:
                 send = iter_send
-            # Parked on a pending future (awaiting a reply/message rather than
-            # progressing) -> mark the owning task sleeping for the duration of
-            # the suspension. Idempotent, so it nests safely with clock sleeps.
-            parked = (
-                self._notify_task is not None
-                and isinstance(signal, asyncio.Future)
-                and not signal.done()
-            )
-            if parked:
-                self._notify_task.notify_sleeping()
             try:
                 # pass signal via yielding it
                 message = yield signal
             except BaseException as err:
                 send, message = iter_throw, err
-            finally:
-                if parked:
-                    self._notify_task.notify_running()
 
     def suspend(self):
         """
@@ -176,9 +193,8 @@ class ScheduledTask:
             self._is_done = asyncio.Future()
 
     def notify_sleeping(self):
-        # Idempotent so it composes with Suspendable's per-await notifications
-        # (a clock-sleep already marks the task sleeping before the wrapper
-        # also sees the yielded sleep future).
+        # Idempotent so explicit notifications compose with a surrounding
+        # sleeping_wait() scope.
         if self._is_observable and not self._is_sleeping.done():
             self._is_sleeping.set_result(True)
 
@@ -542,10 +558,10 @@ class Scheduler:
         """
         l_task = None
         if self.suspendable:
-            coro = Suspendable(task.run(), notify_task=task)
+            coro = Suspendable(_run_as_current_task(task))
             l_task = asyncio.ensure_future(coro)
         else:
-            coro = task.run()
+            coro = _run_as_current_task(task)
             l_task = asyncio.create_task(coro)
         l_task.add_done_callback(task.on_stop)
         l_task.add_done_callback(_raise_exceptions)
