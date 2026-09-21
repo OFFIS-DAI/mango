@@ -17,14 +17,14 @@ This is useful for:
 
 **Key concepts**
 
-* **SimulationWorld** – the container agents register against.  Time is
+* **SimulationWorld**: the container agents register against.  Time is
   controlled by an :class:`~mango.ExternalClock`.
-* **step_simulation** – advance the simulation clock by a fixed amount,
+* **step_simulation**: advance the simulation clock by a fixed amount,
   calling all ``on_step`` hooks and delivering pending messages.
-* **discrete_step_until** – repeatedly step to the next scheduled event
+* **discrete_step_until**: repeatedly step to the next scheduled event
   (message arrival or task wake-up) until a time limit is reached.
-* **CommunicationSimulation** – pluggable model for message delay and loss.
-* **DefaultEnvironment** – spatial environment with optional 2-D area and
+* **CommunicationSimulation**: pluggable model for message delay and loss.
+* **DefaultEnvironment**: spatial environment with optional 2-D area and
   custom behaviours.
 
 
@@ -219,11 +219,11 @@ Inject message delays and packet loss by passing a custom
         async with world:
             await sender.send_message("delayed", receiver.addr)
 
-            # Step to t=1 – message arrives at t=2, so not yet delivered
+            # Step to t=1: message arrives at t=2, so not yet delivered
             await step_simulation(world, step_size_s=1.0)
             print(f"After 1s: {receiver.count} message(s)")
 
-            # Step to t=2.5 – delivery time (2.0) has now passed
+            # Step to t=2.5: delivery time (2.0) has now passed
             await step_simulation(world, step_size_s=1.5)
             print(f"After 2.5s: {receiver.count} message(s)")
 
@@ -271,7 +271,7 @@ from shortest-path distances in that graph.  The delay for a
     import networkx as nx
     from mango import create_distribution_based_com_sim, create_world
 
-    # Linear topology: agent0 — agent1 — agent2
+    # Linear topology: agent0 -- agent1 -- agent2
     g = nx.path_graph(["agent0", "agent1", "agent2"])
 
     comm = create_distribution_based_com_sim(
@@ -304,7 +304,7 @@ with a custom ``distribution_provider`` to draw delays from any distribution:
     )
 
 Both directed and undirected graphs are supported.  For directed graphs, only
-the directed edges contribute to the routing — a pair with no path simply
+the directed edges contribute to the routing; a pair with no path simply
 falls back to the default provider (zero delay).
 
 
@@ -694,7 +694,7 @@ plot_recordings
 ---------------
 
 :func:`~mango.plot_recordings` renders **all** recordings (both world-level
-and per-agent) in a single grid figure — ideal for a quick experiment
+and per-agent) in a single grid figure, ideal for a quick experiment
 overview:
 
 .. code-block:: python
@@ -747,7 +747,7 @@ Declarative behavior with behavior_in
 
 :func:`~mango.behavior_in` lets you attach message handlers and event
 subscriptions to a matched set of agents **without modifying their class
-definitions**.  It is simulation-only — it requires a
+definitions**.  It is simulation-only: it requires a
 :class:`~mango.simulation.world.SimulationWorld`.
 
 .. code-block:: python
@@ -813,7 +813,7 @@ Handler signatures
     def handler(role, content_or_event, ...): ...
 
 behavior_in fires **in addition to** the agent's ``handle_message`` override
-and any existing role subscriptions — it does not replace them.
+and any existing role subscriptions; it does not replace them.
 
 Optional *preprocessor*
 ------------------------

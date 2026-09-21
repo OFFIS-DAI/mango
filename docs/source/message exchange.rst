@@ -112,7 +112,7 @@ when an :class:`~mango.messages.message.ACLMessage` is unpacked.
 Sending messages
 ================
 
-``send_message`` — one-to-one
+``send_message``: one-to-one
 ------------------------------
 
 .. code-block:: python
@@ -151,7 +151,7 @@ interpreted by the protocol layer (e.g. ``priority``).
     agent0 received a message with content Hey! and meta {'sender_id': 'agent1', 'sender_addr': ('127.0.0.1', 5555), 'receiver_id': 'agent0', 'network_protocol': 'tcp', 'priority': 0}
 
 
-``reply_to`` — replying to a message
+``reply_to``: replying to a message
 --------------------------------------
 
 :meth:`~mango.Agent.reply_to` is the idiomatic way to answer a received
@@ -164,8 +164,8 @@ preserves any ``tracking_id`` so tracked conversations keep working:
         async def handle_message(self, content, meta):
             await self.reply_to(f"Echo: {content}", meta)
 
-When you need the :class:`~mango.AgentAddress` itself — for example to cache
-it and send a message later — use :func:`~mango.sender_addr` directly:
+When you need the :class:`~mango.AgentAddress` itself (for example to cache
+it and send a message later), use :func:`~mango.sender_addr` directly:
 
 .. code-block:: python
 
@@ -179,10 +179,10 @@ it and send a message later — use :func:`~mango.sender_addr` directly:
             await self.send_message("acknowledged", sender_addr(meta))
 
 
-``send_messages`` — broadcasting
+``send_messages``: broadcasting
 ----------------------------------
 
-Send the same content to a list of addresses.  Returns a list of booleans —
+Send the same content to a list of addresses.  Returns a list of booleans,
 one success flag per recipient in the same order:
 
 .. code-block:: python
@@ -195,7 +195,7 @@ one success flag per recipient in the same order:
     await self.broadcast("update", [a.addr for a in peer_agents])
 
 
-``schedule_instant_message`` — non-async context
+``schedule_instant_message``: non-async context
 --------------------------------------------------
 
 Inside synchronous callbacks (``on_ready``, ``on_register``, ``on_step``, …)
@@ -219,7 +219,7 @@ to confirm delivery.
     coroutines use ``schedule_instant_task`` directly.
 
 
-``send_tracked_message`` — request / response
+``send_tracked_message``: request / response
 ----------------------------------------------
 
 When a reply must be matched back to a specific outgoing request use
@@ -244,7 +244,7 @@ invokes *response_handler*:
             )
 
 On the responder side, :meth:`~mango.Agent.reply_to` preserves the
-``tracking_id`` automatically — no extra work required:
+``tracking_id`` automatically; no extra work required:
 
 .. code-block:: python
 
@@ -265,9 +265,9 @@ Message routing
 When ``send_message`` is called the container first checks whether
 ``receiver_addr.protocol_addr`` matches its own address:
 
-* **Same container** — the message is placed directly in the receiver agent's
+* **Same container**: the message is placed directly in the receiver agent's
   inbox queue.  No serialisation, no network round-trip.
-* **Remote container** — the message is serialised with the configured codec
+* **Remote container**: the message is serialised with the configured codec
   and sent over TCP or MQTT.
 
 On the receiving side, the container deserialises the payload and looks up the
@@ -277,7 +277,7 @@ that agent's inbox.
 .. note::
 
     The order of delivery is guaranteed within a single container (asyncio
-    queue), but **not** across containers — network reordering can occur with
+    queue), but **not** across containers; network reordering can occur with
     TCP and definitely with MQTT.
 
 
@@ -285,7 +285,7 @@ Forwarding rules
 ----------------
 
 A *forwarding rule* tells an agent to relay every message from a specific
-sender to a different destination — without writing any ``handle_message``
+sender to a different destination, without writing any ``handle_message``
 logic.  This is useful for proxy, gateway, and mediator patterns.
 
 Add a rule with :meth:`~mango.Agent.add_forwarding_rule`:
@@ -462,7 +462,7 @@ The full list of FIPA performatives is available as
    * - Performative
      - Meaning
    * - ``cfp`` / ``call_for_proposal``
-     - Initiate a negotiation — invite proposals
+     - Initiate a negotiation: invite proposals
    * - ``propose``
      - Respond with a concrete offer
    * - ``accept_proposal`` / ``reject_proposal``

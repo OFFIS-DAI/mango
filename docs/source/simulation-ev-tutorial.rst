@@ -6,7 +6,7 @@ This tutorial builds an agent-based simulation of electric vehicles (EVs)
 acting as mobile energy storages in a small neighbourhood.  Households with
 photovoltaic (PV) generators produce surplus energy at midday; the objective
 is to have EVs collect that surplus and deliver it to households with a
-deficit — maximising local self-consumption and reducing grid exchange.
+deficit, maximising local self-consumption and reducing grid exchange.
 
 The scenario combines the major simulation features in one example: the
 :class:`~mango.Area2D` space for spatial positioning, :meth:`~mango.Agent.on_step`
@@ -33,9 +33,9 @@ Scenario
         │         H3(5,2)           │
       (0,0)  ─────────────────── (10,0)
 
-* **5 households** at fixed positions — each has a rooftop PV installation
+* **5 households** at fixed positions: each has a rooftop PV installation
   and a constant electrical load.
-* **3 EVs** that can move freely in the 10×10 grid — each carries a battery
+* **3 EVs** that can move freely in the 10×10 grid: each carries a battery
   that can be charged at a surplus household or discharged at a deficit one.
 * **1 coordinator** that collects net-power reports from all households every
   step and dispatches EVs to the most urgent locations.
@@ -45,7 +45,7 @@ a full sunny summer day (PV peaks around solar noon).
 
 ----
 
-Step 1 — Message types
+Step 1: Message types
 ======================
 
 All coordination messages are plain Python dataclasses:
@@ -71,7 +71,7 @@ All coordination messages are plain Python dataclasses:
 
 ----
 
-Step 2 — Household agent
+Step 2: Household agent
 =========================
 
 Each household computes its hourly PV/load energy balance in ``on_step`` and
@@ -92,7 +92,7 @@ reports the current net power to the coordinator.
             self.grid_export_kwh = 0.0
             self.self_consumed_kwh = 0.0
 
-        # on_step is synchronous — use schedule_instant_message to send
+        # on_step is synchronous, so use schedule_instant_message to send
         def on_step(self, env, clock, step_size_s: float) -> None:
             step_h = step_size_s / 3600.0
             pv = self._pv_output_kw(clock.time)
@@ -130,7 +130,7 @@ reports the current net power to the coordinator.
 
 ----
 
-Step 3 — EV agent
+Step 3: EV agent
 ==================
 
 An EV moves through the space at a fixed speed.  When it reaches its assigned
@@ -170,7 +170,7 @@ target it charges or discharges its battery.
             max_travel = self.speed * step_h
 
             if dist <= max_travel:
-                # Arrived — snap to target and exchange energy.
+                # Arrived: snap to target and exchange energy.
                 env.space.move(self, self.target)
                 energy_kwh = self.assigned_power_kw * step_h
                 if self.action == "charge":
@@ -179,7 +179,7 @@ target it charges or discharges its battery.
                 elif self.action == "discharge":
                     self.soc_kwh = max(0.0, self.soc_kwh - energy_kwh)
             else:
-                # Still en route — advance toward target.
+                # Still en route: advance toward target.
                 ratio = max_travel / dist
                 new_pos = Position2D(
                     current.x + dx * ratio,
@@ -195,7 +195,7 @@ target it charges or discharges its battery.
 
 ----
 
-Step 4 — Coordinator agent
+Step 4: Coordinator agent
 ===========================
 
 The coordinator accumulates net-power reports and dispatches EVs to the most
@@ -260,7 +260,7 @@ there), then deficits with remaining EV capacity.
 
 ----
 
-Step 5 — World setup and spatial placement
+Step 5: World setup and spatial placement
 ==========================================
 
 Create a :class:`~mango.SimulationWorld` with a 10×10
@@ -281,7 +281,7 @@ in the same step):
         environment=env,
     )
 
-Register the coordinator first (it is created without EV addresses — they
+Register the coordinator first (it is created without EV addresses; they
 are added once the EVs are registered):
 
 .. code-block:: python
@@ -325,7 +325,7 @@ immediately after entering the block:
 
 ----
 
-Step 6 — Data recording and running
+Step 6: Data recording and running
 =====================================
 
 Register data collectors **inside** the ``async with`` block (after the space
@@ -359,7 +359,7 @@ call:
 
 ----
 
-Step 7 — Inspecting the results
+Step 7: Inspecting the results
 =================================
 
 After the simulation finishes, inspect the recordings:
@@ -413,14 +413,14 @@ Example output (positions vary due to random start):
 
 ----
 
-Step 8 — Plotting the results
+Step 8: Plotting the results
 ==============================
 
 Use `Plotly <https://plotly.com/python>`_ to visualise the recordings as
 interactive charts.  Two figures match those in the Julia version of this
 tutorial.
 
-**Figure 1 — EV state of charge and household net power**
+**Figure 1: EV state of charge and household net power**
 
 .. code-block:: python
 
@@ -440,7 +440,7 @@ tutorial.
     fig = make_subplots(
         rows=1, cols=2,
         subplot_titles=["EV Battery State of Charge",
-                        "Household Net Power (PV − Load)"],
+                        "Household Net Power (PV - Load)"],
         horizontal_spacing=0.10,
     )
 
@@ -473,7 +473,7 @@ tutorial.
         )
 
     fig.update_layout(
-        title=dict(text="EV Coordination Simulation — 24-Hour Overview", x=0.5),
+        title=dict(text="EV Coordination Simulation: 24-Hour Overview", x=0.5),
         height=440, plot_bgcolor="white", paper_bgcolor="white",
     )
     fig.update_xaxes(range=[0, 24], dtick=4, title_text="Hour of day")
@@ -486,12 +486,12 @@ tutorial.
 
 The left panel shows each EV's battery level over the day.  All three EVs
 discharge into deficit households overnight (before sunrise) and partially
-recharge from surplus households during the solar window (shaded, 06:00–18:00).
+recharge from surplus households during the solar window (shaded, 06:00 to 18:00).
 The right panel confirms the expected sinusoidal PV profile: all households run
-a deficit at night and — depending on their PV peak — surplus or marginal
+a deficit at night and, depending on their PV peak, surplus or marginal
 balance around noon.
 
-**Figure 2 — EV trajectories in the 2D grid**
+**Figure 2: EV trajectories in the 2D grid**
 
 .. code-block:: python
 
@@ -545,8 +545,8 @@ balance around noon.
 
 Each coloured path shows where one EV travelled over 24 hours.  The filled
 circle marks the random starting position; the star marks the final position.
-The EVs cluster around the households with the strongest surplus (H1, H3, H4 —
-high PV peaks) during the solar window, then shift toward deficit locations
+The EVs cluster around the households with the strongest surplus (H1, H3, H4,
+the high PV peaks) during the solar window, then shift toward deficit locations
 towards evening.
 
 ----
@@ -780,11 +780,11 @@ Complete standalone script
         h_labels = ["H1 (6 kW PV)", "H2 (4 kW PV)", "H3 (7 kW PV)",
                      "H4 (5 kW PV)", "H5 (3 kW PV)"]
 
-        # Figure 1 — EV SoC and household net power
+        # Figure 1: EV SoC and household net power
         fig1 = make_subplots(
             rows=1, cols=2,
             subplot_titles=["EV Battery State of Charge",
-                            "Household Net Power (PV − Load)"],
+                            "Household Net Power (PV - Load)"],
             horizontal_spacing=0.10,
         )
         for col in (1, 2):
@@ -813,7 +813,7 @@ Complete standalone script
                 row=1, col=2,
             )
         fig1.update_layout(
-            title=dict(text="EV Coordination Simulation — 24-Hour Overview",
+            title=dict(text="EV Coordination Simulation: 24-Hour Overview",
                        x=0.5),
             height=440, plot_bgcolor="white", paper_bgcolor="white",
         )
@@ -823,7 +823,7 @@ Complete standalone script
         fig1.write_html("ev_soc_netpower.html")
         fig1.show()
 
-        # Figure 2 — EV trajectories
+        # Figure 2: EV trajectories
         fig2 = go.Figure()
         hx = [pos.x for _, pos in household_positions]
         hy = [pos.y for _, pos in household_positions]
@@ -871,17 +871,17 @@ Complete standalone script
 What's next?
 ============
 
-* **Topology-aware coordination** — use :doc:`topology` to limit which
+* **Topology-aware coordination**: use :doc:`topology` to limit which
   households an EV can reach from its current position.
-* **Stochastic delays** — swap :class:`~mango.SimpleCommunicationSimulation`
+* **Stochastic delays**: swap :class:`~mango.SimpleCommunicationSimulation`
   for :class:`~mango.DelayProviderCommunicationSimulation` to model
   unreliable wireless communication between coordinator and EVs.
-* **Competing objectives** — add a bidding role so households can auction
+* **Competing objectives**: add a bidding role so households can auction
   their surplus and the coordinator resolves the market; see :doc:`role-api`.
-* **Role-based refactor** — extract the energy-balance logic into a
+* **Role-based refactor**: extract the energy-balance logic into a
   ``PVLoadRole`` and attach it to different base agents (household, factory,
   charging station) without code duplication.
 
 .. seealso::
 
-    :doc:`simulation` — full reference for the simulation world API
+    :doc:`simulation`: full reference for the simulation world API

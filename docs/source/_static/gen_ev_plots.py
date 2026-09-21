@@ -259,7 +259,7 @@ def plot_overview(world, household_agents, ev_agents, out_path, *, include_plotl
         cols=2,
         subplot_titles=[
             "EV Battery State of Charge",
-            "Household Net Power (PV − Load)",
+            "Household Net Power (PV - Load)",
         ],
         horizontal_spacing=0.10,
     )
@@ -329,7 +329,7 @@ def plot_overview(world, household_agents, ev_agents, out_path, *, include_plotl
     # ── Layout ────────────────────────────────────────────────────────────────
     fig.update_layout(
         title=dict(
-            text="EV Coordination Simulation — 24-Hour Overview",
+            text="EV Coordination Simulation: 24-Hour Overview",
             font=dict(size=15),
             x=0.5,
         ),

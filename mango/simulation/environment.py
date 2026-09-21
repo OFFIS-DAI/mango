@@ -131,7 +131,7 @@ class Area2D(Space):
 
         Example::
 
-            nearby = space.agents_within(my_agent, 5.0, world._agents.values())
+            nearby = space.agents_within(my_agent, 5.0, world.agents.values())
         """
         result = []
         for agent in agents:
@@ -339,4 +339,4 @@ class DefaultEnvironment(Environment):
 
 
 class _NoBehavior(Behavior):
-    """Null behavior – does nothing."""
+    """Null behavior: does nothing."""

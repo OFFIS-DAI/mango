@@ -24,6 +24,7 @@ def mqtt_mirror_container_creator(
     main_queue,
     event_pipe,
     terminate_event,
+    aid_pipe=None,
 ):
     return MQTTContainer(
         client_id=client_id,
@@ -37,6 +38,7 @@ def mqtt_mirror_container_creator(
             event_pipe=event_pipe,
             terminate_event=terminate_event,
             main_queue=main_queue,
+            aid_pipe=aid_pipe,
         ),
         **container_data.kwargs,
     )

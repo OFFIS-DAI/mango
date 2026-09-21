@@ -1,4 +1,4 @@
-mango — modular python agent framework
+mango: modular python agent framework
 =======================================
 
 .. div:: sd-text-center sd-py-4
@@ -6,7 +6,7 @@ mango — modular python agent framework
    **asyncio-native framework for multi-agent systems in Python**
 
    mango provides containers, agents, role composition, scheduling, and a
-   discrete-event simulation world — covering the full spectrum from small
+   discrete-event simulation world, covering the full spectrum from small
    prototypes to large distributed deployments under a single, consistent API.
 
    .. grid:: 3
@@ -69,7 +69,14 @@ Features
 
       **Role system**
       ^^^
-      Compose agent behaviour from small, reusable ``Role`` classes with shared state and event subscriptions.
+      Compose agent behaviour from small, reusable ``Role`` classes with shared state and event subscriptions, wired declaratively with ``@on_message``, ``@on_event``, and ``@periodic``.
+
+   .. grid-item-card::
+      :shadow: sm
+
+      **Transactional messaging**
+      ^^^
+      Multi-reply ``gather`` with quorum and timeout, and multi-hop conversations for gossip, auctions, and negotiation, clock-aware in real time and simulation.
 
    .. grid-item-card::
       :shadow: sm
@@ -140,19 +147,13 @@ Quick look
       .. code-block:: python
 
          import asyncio
-         from mango import Role, agent_composed_of, run_with_tcp
+         from mango import Role, agent_composed_of, run_with_tcp, on_message
 
          class Ping:
              pass
 
          class PingRole(Role):
-             def setup(self):
-                 self.context.subscribe_message(
-                     self,
-                     self.handle_ping,
-                     lambda content, meta: isinstance(content, Ping),
-                 )
-
+             @on_message(Ping)
              def handle_ping(self, content, meta):
                  print("Ping received!")
 
@@ -227,6 +228,7 @@ Where to go next
 
    agents-container
    message exchange
+   transactions
    role-api
    scheduling
    topology

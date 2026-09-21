@@ -34,7 +34,7 @@ Available task types
      - Awaits one coroutine, then runs another.
 
 For every regular task type there is a matching *process* variant (e.g.
-``PeriodicScheduledProcessTask``) that dispatches work to a subprocess — see
+``PeriodicScheduledProcessTask``) that dispatches work to a subprocess; see
 `Dispatching tasks to other processes`_ below.
 
 Basic example
@@ -64,6 +64,12 @@ Basic example
     Hello!
     Hello!
 
+.. tip::
+
+   Inside a :class:`~mango.Role`, a periodic task can be declared on the
+   method itself with :func:`~mango.periodic` instead of calling
+   ``schedule_periodic_task`` in ``on_ready``; see :ref:`role-periodic`.
+
 Suspendable tasks
 -----------------
 
@@ -92,7 +98,7 @@ when scheduling it.  This is particularly useful for the role system
 Dispatching tasks to other processes
 -------------------------------------
 
-asyncio provides concurrency but not parallelism — CPU-bound work blocks the
+asyncio provides concurrency but not parallelism: CPU-bound work blocks the
 event loop.  mango lets you offload heavy computation to a managed worker
 process pool.
 
@@ -139,7 +145,7 @@ Using an external clock
 
 By default the scheduler uses :class:`~mango.AsyncioClock`, which ties
 simulation time to wall-clock time.  Switch to :class:`~mango.ExternalClock`
-when you need to control time externally — for example in a simulation that
+when you need to control time externally, for example in a simulation that
 runs faster (or slower) than real time.
 
 .. testcode::
@@ -190,7 +196,7 @@ runs faster (or slower) than real time.
     Received a message with the following content Hello World.
 
 This terminates after roughly 0.5 seconds.  If you switch to
-``ExternalClock`` and never call ``set_time`` the program would hang —
+``ExternalClock`` and never call ``set_time`` the program would hang,
 the task is waiting for a timestamp that never arrives:
 
 .. testcode::
@@ -225,9 +231,9 @@ Using a distributed clock
 For simulations that span *multiple* containers mango provides a distributed
 clock, implemented as two agents:
 
-* :class:`~mango.DistributedClockManager` — runs once on the managing
+* :class:`~mango.DistributedClockManager`: runs once on the managing
   container; decides when to advance time.
-* :class:`~mango.DistributedClockAgent` — runs in every participating
+* :class:`~mango.DistributedClockAgent`: runs in every participating
   container; synchronises the local :class:`~mango.ExternalClock` with the
   manager.
 
@@ -275,5 +281,5 @@ The protocol works as follows:
 
 .. seealso::
 
-    :doc:`simulation` — ``SimulationWorld`` manages time automatically for
+    :doc:`simulation`: ``SimulationWorld`` manages time automatically for
     single-process simulations.

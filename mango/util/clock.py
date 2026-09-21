@@ -4,6 +4,12 @@ import time
 from abc import ABC, abstractmethod
 
 
+def _future_time(entry) -> float:
+    """Sort key for ``ExternalClock._futures``: bisecting the (time, future)
+    tuples directly would compare Futures on ties, which they do not support."""
+    return entry[0]
+
+
 class Clock(ABC):
     """
     Abstract class for clocks that can be used in mango
@@ -70,8 +76,7 @@ class ExternalClock(Clock):
         # set time
         self._time = t
         # search for all futures that have to be triggerd
-        keys = [k[0] for k in self._futures]
-        threshold = bisect.bisect_right(keys, t)
+        threshold = bisect.bisect_right(self._futures, t, key=_future_time)
         # store
         current_futures, self._futures = (
             self._futures[:threshold],
@@ -93,11 +98,7 @@ class ExternalClock(Clock):
             f.set_result(None)
             return f
         # insert future in sorted list of futures
-        keys = [k[0] for k in self._futures]
-        index = bisect.bisect_right(
-            keys,
-            self.time + t,
-        )
+        index = bisect.bisect_right(self._futures, self.time + t, key=_future_time)
         self._futures.insert(index, (self.time + t, f))
         return f
 

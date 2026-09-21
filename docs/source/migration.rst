@@ -101,7 +101,7 @@ The ``receiver_addr`` / ``receiver_id`` pair has been replaced by a single
 mango 0.4.0 → 1.0.0
 ====================
 
-* **Import paths changed** — ``Agent``, ``Container``, all role classes, and
+* **Import paths changed**: ``Agent``, ``Container``, all role classes, and
   the container factory are now importable from the top-level ``mango``
   package::
 
@@ -110,14 +110,14 @@ mango 0.4.0 → 1.0.0
 * **``handle_msg`` renamed** to ``handle_message`` in both ``Agent`` and
   ``Role``.
 
-* **``send_message`` signature cleaned up** — the ``create_acl`` and
+* **``send_message`` signature cleaned up**: the ``create_acl`` and
   ``acl_metadata`` parameters have been removed; use ``send_acl_message``
   instead (removed in 2.0, see above).  The ``mqtt_kwargs`` parameter has
   been removed; use plain ``**kwargs``.
 
-* **``DateTimeScheduledTask`` removed** — use ``TimestampScheduledTask``
+* **``DateTimeScheduledTask`` removed**: use ``TimestampScheduledTask``
   with a Unix timestamp instead.
 
-* **Context and scheduler are no longer public attributes** — use the
+* **Context and scheduler are no longer public attributes**: use the
   scheduling convenience methods (e.g. ``schedule_periodic_task``) or access
   ``_context`` / ``_scheduler`` from within an agent subclass.

@@ -10,6 +10,7 @@ from mango.util.clock import ExternalClock
 from mango.util.scheduling import (
     ConditionalProcessTask,
     InstantScheduledProcessTask,
+    InstantScheduledTask,
     PeriodicScheduledTask,
     RecurrentScheduledTask,
     Scheduler,
@@ -124,6 +125,78 @@ async def test_recurrent_wait():
     assert len(l) == 2
     assert l[0] == tomorrow.timestamp()
     assert l[1] == aftertomorrow.timestamp()
+
+
+class _EarlyWakeClock(ExternalClock):
+    """Resolves every sleep a little before its deadline.
+
+    Models what a coarse OS timer does: the event loop considers a timer due
+    while the clock still reads just short of the deadline.
+    """
+
+    def __init__(self, start_time: float, skew: float):
+        super().__init__(start_time)
+        self._skew = skew
+
+    def sleep(self, t: float) -> asyncio.Future:
+        return super().sleep(max(t - self._skew, 0))
+
+
+@pytest.mark.asyncio
+async def test_recurrent_naive_rule_is_timezone_independent():
+    """A rule built from naive datetimes must fire when the clock reaches that
+    local time, whatever the machine's UTC offset is.
+
+    Reading the clock as UTC while the rule means local time shifts every
+    occurrence by the offset, which only looks correct where the offset is zero.
+    """
+    # GIVEN
+    start = datetime.datetime(2023, 6, 1, 12, 0, 0)
+    first = start + datetime.timedelta(seconds=60)
+    clock = ExternalClock(start.timestamp())
+    scheduler = Scheduler(clock=clock)
+    fired = []
+
+    async def note():
+        fired.append(clock.time)
+
+    recurrency = rrule.rrule(rrule.MINUTELY, interval=1, dtstart=first, count=1)
+
+    # WHEN
+    scheduler.schedule_task(RecurrentScheduledTask(note, recurrency, clock))
+    await asyncio.sleep(0)
+    assert fired == []
+    clock.set_time(first.timestamp())
+    await asyncio.sleep(0)
+
+    # THEN
+    assert fired == [first.timestamp()]
+
+
+@pytest.mark.asyncio
+async def test_recurrent_does_not_repeat_occurrence_on_early_wakeup():
+    """Each occurrence must run once even if the wait ends before its deadline."""
+    # GIVEN
+    start = datetime.datetime(2023, 6, 1, 12, 0, 0)
+    first = start + datetime.timedelta(seconds=60)
+    skew = 5
+    clock = _EarlyWakeClock(start.timestamp(), skew=skew)
+    scheduler = Scheduler(clock=clock)
+    fired = []
+
+    async def note():
+        fired.append(clock.time)
+
+    recurrency = rrule.rrule(rrule.MINUTELY, interval=1, dtstart=first, count=2)
+
+    # WHEN
+    scheduler.schedule_task(RecurrentScheduledTask(note, recurrency, clock))
+    await asyncio.sleep(0)
+    clock.set_time(first.timestamp() - skew)
+    await asyncio.sleep(0)
+
+    # THEN
+    assert len(fired) == 1
 
 
 @pytest.mark.asyncio
@@ -351,7 +424,10 @@ async def test_task_as_process_suspend_and_resume():
 
     scheduler.resume(marker)
 
-    assert await asyncio.wait_for(task, timeout=0.3) == 46
+    # Generous: the point is that resume() lets the task finish at all. Starting
+    # a worker process costs far more than the task itself where multiprocessing
+    # spawns instead of forking.
+    assert await asyncio.wait_for(task, timeout=60) == 46
 
 
 @pytest.mark.asyncio
@@ -526,3 +602,61 @@ async def test_exception(caplog):
             await asyncio.wait_for(t, timeout=0.3)
 
     assert "got exception in scheduled event" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_recurrent_aware_rule_is_read_as_utc():
+    """A rule built from tz-aware datetimes means absolute time, so the
+    clock has to be read as UTC; reading it as local would shift every
+    occurrence by the machine's UTC offset.
+
+    Counterpart to ``test_recurrent_naive_rule_is_timezone_independent``.
+    """
+    # GIVEN
+    start = datetime.datetime(2023, 6, 1, 12, 0, 0, tzinfo=datetime.timezone.utc)
+    first = start + datetime.timedelta(seconds=60)
+    clock = ExternalClock(start.timestamp())
+    scheduler = Scheduler(clock=clock)
+    fired = []
+
+    async def note():
+        fired.append(clock.time)
+
+    recurrency = rrule.rrule(rrule.MINUTELY, interval=1, dtstart=first, count=1)
+
+    # WHEN
+    scheduler.schedule_task(RecurrentScheduledTask(note, recurrency, clock))
+    await asyncio.sleep(0)
+    assert fired == []
+    clock.set_time(first.timestamp())
+    await asyncio.sleep(0)
+
+    # THEN
+    assert fired == [first.timestamp()]
+
+
+@pytest.mark.asyncio
+async def test_non_suspendable_scheduler_still_runs_and_stops_tasks():
+    """With ``suspendable=False`` the scheduler skips the Suspendable
+    wrapper and uses a plain task; the on_stop callback and task
+    bookkeeping must work the same way."""
+    # GIVEN
+    scheduler = Scheduler()
+    scheduler.suspendable = False
+    stopped = []
+
+    async def work():
+        await asyncio.sleep(0)
+        return 42
+
+    # WHEN
+    task = scheduler.schedule_task(
+        InstantScheduledTask(work(), on_stop=lambda fut: stopped.append(fut.result()))
+    )
+    await task
+
+    # THEN
+    assert task.result() == 42
+    await asyncio.sleep(0)
+    assert stopped == [42]
+    assert scheduler._scheduled_tasks == []
