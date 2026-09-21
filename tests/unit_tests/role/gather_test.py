@@ -23,6 +23,7 @@ from mango import (
     create_tcp_container,
     on_message,
 )
+from mango.agent.core import _addr_from_meta, _GatherCollector
 
 
 @dataclass
@@ -314,3 +315,72 @@ async def test_role_send_tracked_message_response_handler_fires():
         await caller_role.run()
 
     assert caller_role.reply == _Reply(value=7.0)
+
+
+# ---------------------------------------------------------------------------
+# Collector unit tests — the aggregation rules without any transport.
+# ---------------------------------------------------------------------------
+
+
+def _meta(aid: str, protocol_addr=("127.0.0.1", 5599)) -> dict:
+    return {"sender_id": aid, "sender_addr": protocol_addr}
+
+
+def test_addr_from_meta_normalises_decoded_list():
+    """The JSON codec decodes a ``(host, port)`` tuple back into a list;
+    it must become a tuple again or the address is unhashable and never
+    equal to the topology's tuple form."""
+    addr = _addr_from_meta({"sender_id": "a0", "sender_addr": ["127.0.0.1", 5599]})
+
+    assert addr.protocol_addr == ("127.0.0.1", 5599)
+    assert addr == _addr_from_meta(_meta("a0"))
+    assert {addr: 1}[addr] == 1
+
+
+def test_collector_drops_replies_of_other_types():
+    """``reply_type`` guards against tracking-id collisions: unrelated
+    traffic under the same id is ignored, not counted as a reply."""
+    collector = _GatherCollector(expected=1, reply_type=_Reply)
+
+    collector.on_reply("not a reply", _meta("a0"))
+
+    assert collector.responses == {}
+
+
+def test_collector_keeps_first_reply_per_sender():
+    """A retrying responder must not overwrite its own earlier answer,
+    nor push the collector past ``expected``."""
+    collector = _GatherCollector(expected=2, reply_type=_Reply)
+
+    collector.on_reply(_Reply(value=1.0), _meta("a0"))
+    collector.on_reply(_Reply(value=99.0), _meta("a0"))
+
+    assert collector.responses == {_addr_from_meta(_meta("a0")): _Reply(value=1.0)}
+    assert not collector._done.is_set()
+
+
+@pytest.mark.asyncio
+async def test_collector_finish_resolves_early():
+    """``finish`` is how ``gather`` honours a timeout or quorum: waiters
+    are released even though fewer than ``expected`` replies arrived."""
+    collector = _GatherCollector(expected=5)
+    waiter = asyncio.ensure_future(collector.wait())
+    await asyncio.sleep(0)
+
+    collector.finish()
+
+    await asyncio.wait_for(waiter, timeout=1.0)
+
+
+@pytest.mark.asyncio
+async def test_open_gather_rejects_duplicate_tracking_id():
+    """Two collectors under one id would each see a subset of replies;
+    reusing an open id is refused instead."""
+    agent = RoleAgent()
+
+    agent.open_gather("tid-1", expected=1)
+    with pytest.raises(ValueError, match="tid-1"):
+        agent.open_gather("tid-1", expected=1)
+
+    agent.close_gather("tid-1")
+    agent.open_gather("tid-1", expected=1)

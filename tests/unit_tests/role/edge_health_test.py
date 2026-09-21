@@ -26,6 +26,8 @@ from mango import (
     on_message,
     sender_addr,
 )
+from mango.agent.core import TopologyService
+from mango.agent.role import RoleContext, RoleHandler
 from mango.express.health import TopologyHealth
 
 # ---------------------------------------------------------------------------
@@ -226,3 +228,124 @@ async def test_live_neighbours_falls_back_when_no_health():
         assert b.addr in live
         # neighbour_score returns None for a no-health topology.
         assert a._role_context.neighbour_score(b.addr, tid="bare") is None
+
+
+@pytest.mark.asyncio
+async def test_neighbour_scores_maps_every_neighbour():
+    """``neighbour_scores`` is the bulk form of ``neighbour_score``: one
+    entry per topology neighbour, whether or not it ever talked."""
+    container = create_tcp_container(addr=("127.0.0.1", 5574))
+    me = container.register(RoleAgent())
+    chatty = container.register(RoleAgent())
+    silent = container.register(RoleAgent())
+    me.add_role(_PingHandler())
+    chatty.add_role(_PingHandler())
+    silent.add_role(_PingHandler())
+
+    with create_topology(
+        tid="scores",
+        edge_health=EdgeHealth(
+            decay_per_s=0.0,
+            recovery_rate=0.9,
+            initial=0.0,
+            liveness_threshold=0.5,
+        ),
+    ) as t:
+        n_me = t.add_node(me)
+        n_chatty = t.add_node(chatty)
+        n_silent = t.add_node(silent)
+        t.add_edge(n_me, n_chatty)
+        t.add_edge(n_me, n_silent)
+
+    async with activate([container]):
+        await me.send_message(_Ping(counter=1), receiver_addr=chatty.addr)
+        await asyncio.sleep(0.2)
+        scores = me._role_context.neighbour_scores(tid="scores")
+
+        assert set(scores) == {chatty.addr, silent.addr}
+        assert scores[chatty.addr] > 0.5
+        assert scores[silent.addr] == pytest.approx(0.0)
+        # Consistent with the single-neighbour query.
+        assert scores[chatty.addr] == pytest.approx(
+            me._role_context.neighbour_score(chatty.addr, tid="scores")
+        )
+
+
+@pytest.mark.asyncio
+async def test_health_queries_on_agent_without_topology():
+    """An agent that never joined a topology has no TopologyService, so
+    the three queries return their empty answers instead of raising."""
+    container = create_tcp_container(addr=("127.0.0.1", 5575))
+    lonely = container.register(RoleAgent())
+    lonely.add_role(_PingHandler())
+
+    async with activate([container]):
+        ctx = lonely._role_context
+        assert ctx.neighbour_score(lonely.addr) is None
+        assert ctx.neighbour_scores() == {}
+        assert ctx.live_neighbours() == []
+
+
+def test_health_queries_on_unbound_context():
+    """Before the role's agent attaches, the queries answer empty rather
+    than dereferencing a missing agent."""
+    handler = RoleHandler(None)
+    ctx = RoleContext(handler, "agent0", asyncio.Queue())
+
+    assert ctx.neighbour_score("peer") is None
+    assert ctx.neighbour_scores() == {}
+    assert ctx.live_neighbours() == []
+    with pytest.raises(RuntimeError, match="not attached"):
+        ctx._bound_agent("open_conversation")
+
+
+@pytest.mark.asyncio
+async def test_has_health_reports_configured_topologies():
+    """``TopologyService.has_health`` distinguishes a topology created
+    with ``edge_health`` from a plain one."""
+    container = create_tcp_container(addr=("127.0.0.1", 5576))
+    a = container.register(RoleAgent())
+    b = container.register(RoleAgent())
+    a.add_role(_PingHandler())
+    b.add_role(_PingHandler())
+
+    with create_topology(tid="tracked", edge_health=EdgeHealth()) as t:
+        t.add_edge(t.add_node(a), t.add_node(b))
+    with create_topology(tid="plain") as t:
+        t.add_edge(t.add_node(a), t.add_node(b))
+
+    async with activate([container]):
+        svc = a.service_of_type(TopologyService, None)
+        assert svc.has_health("tracked")
+        assert not svc.has_health("plain")
+        assert svc.health_runtime("plain") is None
+
+
+@pytest.mark.asyncio
+async def test_nudge_ignored_without_sender_id():
+    """Auto-nudge keys on the sender; meta without one (an injected or
+    system message) must not create a bogus edge entry."""
+    container = create_tcp_container(addr=("127.0.0.1", 5577))
+    a = container.register(RoleAgent())
+    b = container.register(RoleAgent())
+    a.add_role(_PingHandler())
+    b.add_role(_PingHandler())
+
+    with create_topology(tid="nudge", edge_health=EdgeHealth(initial=0.0)) as t:
+        t.add_edge(t.add_node(a), t.add_node(b))
+
+    async with activate([container]):
+        health = a.service_of_type(TopologyService, None).health_runtime("nudge")
+        a._nudge_topology_health({"sender_addr": b.addr.protocol_addr})
+        assert health.score(a.addr, b.addr, now=0.0) == pytest.approx(0.0)
+
+        # Same message, but on an agent whose scheduler is not wired up:
+        # the decay model needs a clock, so the nudge is skipped.
+        scheduler, a.scheduler = a.scheduler, None
+        try:
+            a._nudge_topology_health(
+                {"sender_id": b.aid, "sender_addr": b.addr.protocol_addr}
+            )
+        finally:
+            a.scheduler = scheduler
+        assert health.score(a.addr, b.addr, now=0.0) == pytest.approx(0.0)

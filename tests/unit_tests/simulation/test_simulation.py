@@ -1332,3 +1332,97 @@ async def test_conversation_from_scheduled_task_does_not_deadlock_step():
 
     await asyncio.wait_for(drive(), timeout=10)
     assert initiator.received == "pong"
+
+
+@pytest.mark.asyncio
+async def test_discrete_step_until_stops_when_no_events_remain():
+    """``discrete_step_until`` is bounded by events, not only by time: an
+    idle world produces no steps at all rather than spinning until the
+    horizon."""
+    agent = SimpleAgent()
+    async with run_with_simulation(agent) as world:
+        results = await discrete_step_until(world, max_advance_time_s=10.0)
+
+    assert results == []
+    assert world.clock.time == 0.0
+
+
+@pytest.mark.asyncio
+async def test_world_delegates_container_properties():
+    """:class:`SimulationWorld` is a facade over its container — the
+    read-through properties and the two setters must address the same
+    container state, not a shadow copy."""
+    a = SimpleAgent()
+    async with run_with_simulation(a) as world:
+        container = world.container
+
+        assert world.addr == container.addr
+        assert world.name == container.name
+        assert world.codec is container.codec
+        assert world.ready == container.ready
+        assert world.agents is container._agents
+
+        comm = SimpleCommunicationSimulation(default_delay_s=3.0)
+        world.communication_sim = comm
+        assert container.communication_sim is comm
+
+        world.running = False
+        assert container.running is False
+        world.running = True
+
+        world.recorded_messages = []
+        assert container.recorded_messages == []
+
+
+@pytest.mark.asyncio
+async def test_next_step_size_accounts_for_pending_messages():
+    """A message in flight is an event: the discrete step must land on its
+    delivery time, not skip past it to the next scheduled task."""
+    comm = SimpleCommunicationSimulation(default_delay_s=2.0)
+    sender = SimpleAgent()
+    receiver = SimpleAgent()
+
+    async with run_with_simulation(sender, receiver, communication_sim=comm) as world:
+        await sender.send_message("hello", receiver_addr=receiver.addr)
+        await asyncio.sleep(0)
+
+        assert world.container._determine_next_step_size() == pytest.approx(2.0)
+
+        result = await world.step(step_size_s=DISCRETE_EVENT)
+        assert result.messages_delivered == 1
+        assert world.clock.time == pytest.approx(2.0)
+        assert [c for c, _ in receiver.messages] == ["hello"]
+
+
+@pytest.mark.asyncio
+async def test_simulation_container_rejects_agent_processes():
+    """Agent subprocesses have their own event loop and clock, which a
+    stepped simulation cannot drive — both entry points say so."""
+    async with run_with_simulation(SimpleAgent()) as world:
+        with pytest.raises(NotImplementedError, match="simulation container"):
+            await world.container.as_agent_process(lambda c: None)
+        with pytest.raises(NotImplementedError, match="simulation container"):
+            world.container.as_agent_process_lazy(lambda c: None)
+
+
+@pytest.mark.asyncio
+async def test_simulation_container_shutdown_survives_failing_agent(caplog):
+    """One agent raising in ``on_stop`` must not leave the remaining
+    agents running — shutdown logs and carries on."""
+
+    class _BadAgent(SimpleAgent):
+        async def on_stop(self):
+            raise RuntimeError("boom")
+
+    bad = _BadAgent()
+    good = SimpleAgent()
+    world = create_world()
+    world.register(bad)
+    world.register(good)
+
+    async with world:
+        await step_simulation(world, step_size_s=1.0)
+
+    assert world.running is False
+    assert "Error shutting down agent" in caplog.text
+    assert good._stopped.done()

@@ -147,6 +147,31 @@ class TestOnMessageDecorator:
         method("hello", {})
         assert len(scheduled) == 1
 
+    def test_sync_handler_is_called_directly(self):
+        """A sync handler needs no task at all — the callback invokes it
+        inline, which is what keeps ordering deterministic for handlers
+        that only mutate role state."""
+
+        class R(_StubRole):
+            @on_message(str)
+            def handle(self, content, meta):
+                self.calls.append(("sync", content, meta["sender_id"]))
+
+        role = R()
+        apply_dispatch(role)
+
+        role.context.message_subs[0]["method"]("hello", {"sender_id": "a0"})
+
+        assert role.calls == [("sync", "hello", "a0")]
+
+    def test_rejects_application_to_non_function(self):
+        """The decorators write their metadata onto the function object;
+        applied to something that cannot carry attributes (a bound
+        method, a builtin) they must say so rather than silently drop
+        the subscription."""
+        with pytest.raises(TypeError, match="plain functions"):
+            on_message(str)(len)
+
 
 class TestOnEventDecorator:
     def test_collects_event_subscription(self):
@@ -163,6 +188,16 @@ class TestOnEventDecorator:
         apply_dispatch(role)
         assert len(role.context.event_subs) == 1
         assert role.context.event_subs[0]["event_type"] is MyEvent
+
+    def test_rejects_async_handler(self):
+        """``emit_event`` dispatches synchronously and never awaits, so an
+        ``async def`` handler would be created and dropped unrun."""
+        with pytest.raises(TypeError, match="synchronous method"):
+
+            class R(_StubRole):
+                @on_event(str)
+                async def handle(self, event, source):
+                    pass
 
     def test_multiple_event_types(self):
         @dataclass
@@ -412,3 +447,26 @@ class TestPeriodicLifecycle:
                 clock.set_time(t)
                 await asyncio.sleep(0.03)
         assert role.ticks[-2:] == [30, 40]
+
+    @pytest.mark.asyncio
+    async def test_runtime_role_does_not_restart_periodic_on_ready(self):
+        """A role added after the agent is ready starts its periodic task
+        once, in ``catch_up_lifecycle``.  A later ``on_ready`` — the
+        container being activated again — must not schedule a second
+        copy alongside it."""
+        clock = ExternalClock(start_time=0)
+        container = create_tcp_container(addr=("127.0.0.1", 5686), clock=clock)
+        agent = container.register(RoleAgent())
+        role = _Tick()
+
+        async with activate(container):
+            agent.add_role(role)
+            await asyncio.sleep(0.02)
+            assert role.ticks == [0]
+
+            agent._role_handler.on_ready()
+            clock.set_time(10)
+            await asyncio.sleep(0.03)
+
+        assert role.ticks == [0, 10]
+        assert role.ready == 2

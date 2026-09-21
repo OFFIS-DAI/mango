@@ -10,6 +10,7 @@ from mango.util.clock import ExternalClock
 from mango.util.scheduling import (
     ConditionalProcessTask,
     InstantScheduledProcessTask,
+    InstantScheduledTask,
     PeriodicScheduledTask,
     RecurrentScheduledTask,
     Scheduler,
@@ -601,3 +602,61 @@ async def test_exception(caplog):
             await asyncio.wait_for(t, timeout=0.3)
 
     assert "got exception in scheduled event" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_recurrent_aware_rule_is_read_as_utc():
+    """A rule built from tz-aware datetimes means absolute time, so the
+    clock has to be read as UTC — reading it as local would shift every
+    occurrence by the machine's UTC offset.
+
+    Counterpart to ``test_recurrent_naive_rule_is_timezone_independent``.
+    """
+    # GIVEN
+    start = datetime.datetime(2023, 6, 1, 12, 0, 0, tzinfo=datetime.timezone.utc)
+    first = start + datetime.timedelta(seconds=60)
+    clock = ExternalClock(start.timestamp())
+    scheduler = Scheduler(clock=clock)
+    fired = []
+
+    async def note():
+        fired.append(clock.time)
+
+    recurrency = rrule.rrule(rrule.MINUTELY, interval=1, dtstart=first, count=1)
+
+    # WHEN
+    scheduler.schedule_task(RecurrentScheduledTask(note, recurrency, clock))
+    await asyncio.sleep(0)
+    assert fired == []
+    clock.set_time(first.timestamp())
+    await asyncio.sleep(0)
+
+    # THEN
+    assert fired == [first.timestamp()]
+
+
+@pytest.mark.asyncio
+async def test_non_suspendable_scheduler_still_runs_and_stops_tasks():
+    """With ``suspendable=False`` the scheduler skips the Suspendable
+    wrapper and uses a plain task; the on_stop callback and task
+    bookkeeping must work the same way."""
+    # GIVEN
+    scheduler = Scheduler()
+    scheduler.suspendable = False
+    stopped = []
+
+    async def work():
+        await asyncio.sleep(0)
+        return 42
+
+    # WHEN
+    task = scheduler.schedule_task(
+        InstantScheduledTask(work(), on_stop=lambda fut: stopped.append(fut.result()))
+    )
+    await task
+
+    # THEN
+    assert task.result() == 42
+    await asyncio.sleep(0)
+    assert stopped == [42]
+    assert scheduler._scheduled_tasks == []

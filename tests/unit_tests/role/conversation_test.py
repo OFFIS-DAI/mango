@@ -575,3 +575,127 @@ async def test_conversation_timeout_follows_simulation_clock():
     # 5 wall seconds — confirms the timeout used clock.sleep.
     assert role.before_advance == pytest.approx(0.0)
     assert role.iteration_done_at == pytest.approx(5.0)
+
+
+# ---------------------------------------------------------------------------
+# Handle-level edge cases: idempotence, immutable payloads, late inbound.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_converge_and_cancel_are_idempotent():
+    """Both terminators may be called repeatedly (and after each other)
+    without queueing a second sentinel that would end a later iterator
+    one message early."""
+    conv = _handle()
+    conv.converge()
+    conv.converge()
+    conv.cancel()
+    conv.cancel()
+
+    assert conv.closed
+    assert [c async for c, _ in conv] == []
+
+
+@pytest.mark.asyncio
+async def test_send_warns_but_proceeds_on_immutable_content(caplog):
+    """Content whose ``conversation_id`` cannot be assigned (a frozen
+    dataclass, a read-only property) still goes out — the id then
+    travels in meta only."""
+
+    @dataclass(frozen=True)
+    class _FrozenAcl:
+        conversation_id: str | None = None
+
+    owner = _RecordingOwner()
+    conv = _handle(owner)
+
+    assert await conv.send("addr-1", _FrozenAcl())
+
+    _, sent_content, kwargs = owner.sent[0]
+    assert kwargs["conversation_id"] == "cid-1"
+    assert sent_content.conversation_id is None
+    assert "immutable conversation_id" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_inbound_after_close_is_dropped():
+    """Messages that arrive after convergence are discarded rather than
+    queued behind the sentinel, where they could never be read."""
+    conv = _handle()
+    conv.converge()
+    conv._on_inbound("late", {})
+
+    assert [c async for c, _ in conv] == []
+
+
+@pytest.mark.asyncio
+async def test_timeout_without_scheduler_warns_and_stays_open(caplog):
+    """An unbound agent has no scheduler clock, so a requested timeout
+    cannot be enforced — the conversation still works, but says so."""
+    agent = Agent()
+
+    async with agent.open_conversation(timeout=0.01) as conv:
+        assert not conv.closed
+
+    assert "no scheduler clock" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_exit_after_agent_detached_still_cancels():
+    """Teardown must survive the owning agent disappearing mid-block:
+    the handle is cancelled even when it can no longer be unregistered."""
+    container = create_tcp_container(addr=("127.0.0.1", 5592))
+    agent = container.register(RoleAgent())
+    role = Role()
+    agent.add_role(role)
+
+    async with activate([container]):
+        async with role.context.open_conversation() as conv:
+            role.context._role_handler._agent = None
+        assert conv.closed
+
+
+@pytest.mark.asyncio
+async def test_join_conversation_without_id_is_rejected():
+    """``join_conversation`` needs an id to join; a meta from an
+    untagged message is a programming error, not a fresh conversation."""
+    agent = Agent()
+
+    with pytest.raises(ValueError, match="conversation_id"):
+        agent.join_conversation({"sender_id": "agent0"})
+
+
+@pytest.mark.asyncio
+async def test_unregister_is_forgiving():
+    """Unregistering an unknown id, or the same handle twice, is a no-op
+    — ``__aexit__`` must not raise on an already-torn-down agent."""
+    agent = Agent()
+    conv = Conversation(owner=agent, conversation_id="cid-x")
+
+    agent._unregister_conversation(conv)  # id never registered
+    agent._register_conversation(conv)
+    agent._unregister_conversation(conv)
+    agent._register_conversation(conv)
+    other = Conversation(owner=agent, conversation_id="cid-x")
+    agent._unregister_conversation(other)  # same id, different handle
+
+    assert agent._conversations["cid-x"] == [conv]
+
+
+@pytest.mark.asyncio
+async def test_shutdown_cancels_open_conversations():
+    """A conversation opened without a timeout whose peer never replies
+    would keep its iterator blocked forever; agent shutdown releases it."""
+    container = create_tcp_container(addr=("127.0.0.1", 5593))
+    agent = container.register(RoleAgent())
+    role = Role()
+    agent.add_role(role)
+
+    async with activate([container]):
+        conv = role.context.open_conversation()._conv
+        agent._register_conversation(conv)
+        assert not conv.closed
+
+    assert conv.closed
+    assert agent._conversations == {}
