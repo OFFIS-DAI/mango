@@ -11,6 +11,10 @@ There are essentially two APIs for acting resp reacting:
 * [Reacting] :func:`RoleContext.subscribe_message`, which allows you to subscribe to certain message types and lets you handle the message
 * [Acting] :func:`RoleContext.schedule_task`, this allows you to schedule a task with delay/repeating/...
 
+Both can also be declared on the role class with the decorators
+:func:`mango.on_message`, :func:`mango.on_event` and :func:`mango.periodic`
+(see :mod:`mango.agent.decorators`).
+
 To interact with the environment an instance of the role context is provided. This context
 provides methods to share data with other roles and to communicate with other agents.
 
@@ -38,6 +42,7 @@ from collections.abc import Callable
 from typing import Any
 
 from mango.agent.core import Agent, AgentAddress, AgentDelegates
+from mango.agent.decorators import apply_periodic, apply_subscriptions
 
 
 class MessagePreprocessor(ABC):
@@ -189,6 +194,9 @@ class RoleHandler:
         self._role_event_type_to_handler = {}
         self._scheduler = scheduler
         self._data = DataContainer()
+        self._started = False
+        self._ready = False
+        self._periodic_started = set()
         # Back-reference to the owning :class:`RoleAgent`.  Set by
         # ``RoleAgent.__init__`` so role-level helpers like
         # :meth:`RoleContext.gather` can reach the agent-level
@@ -252,6 +260,7 @@ class RoleHandler:
         """
         self._roles.remove(role)
         del self._role_to_active[role]
+        self._periodic_started.discard(role)
 
     @property
     def roles(self) -> list[Role]:
@@ -384,12 +393,32 @@ class RoleHandler:
         self._role_event_type_to_handler[event_type] += [(role, method)]
 
     def on_start(self):
-        for role in self.roles:
+        self._started = True
+        for role in list(self.roles):
             role.on_start()
 
     def on_ready(self):
-        for role in self.roles:
+        self._ready = True
+        for role in list(self.roles):
+            self._start_periodic(role)
             role.on_ready()
+
+    def catch_up_lifecycle(self, role: Role) -> None:
+        """Replay the lifecycle phases the agent has already passed for a
+        role that was added late, so ``on_start`` / ``on_ready`` and the
+        role's ``@periodic`` tasks behave the same whether the role was
+        added before or after the container started."""
+        if self._started:
+            role.on_start()
+        if self._ready:
+            self._start_periodic(role)
+            role.on_ready()
+
+    def _start_periodic(self, role: Role) -> None:
+        if role in self._periodic_started:
+            return
+        self._periodic_started.add(role)
+        apply_periodic(role)
 
 
 class RoleContext(AgentDelegates):
@@ -456,13 +485,16 @@ class RoleContext(AgentDelegates):
     def add_role(self, role: Role):
         """Add a role to the context.
 
+        Binds the role, applies its decorator wiring, calls ``setup`` and,
+        if the agent has already been started, replays ``on_start`` /
+        ``on_ready`` immediately.
+
         :param role: the Role
         """
         role._bind(self)
         self._role_handler.add_role(role)
-
-        # Setup role
         role.setup()
+        self._role_handler.catch_up_lifecycle(role)
 
     def get_role(self, cls: type) -> Role | None:
         """
@@ -732,12 +764,11 @@ class Role(ABC):
         :param context: the role context
         """
         self._context = context
-        # Apply class-level @on_message / @on_event / @periodic
-        # decorators before user-defined ``setup`` runs, so the explicit
-        # setup body can add to (not remove from) the declarative wiring.
-        from mango.agent.decorators import apply_dispatch
-
-        apply_dispatch(self)
+        # @on_message / @on_event are applied before ``setup`` so the
+        # explicit setup body can add to the declarative wiring.
+        # @periodic tasks are started by the RoleHandler at on_ready,
+        # once the agent's scheduler exists.
+        apply_subscriptions(self)
 
     @property
     def context(self) -> RoleContext:

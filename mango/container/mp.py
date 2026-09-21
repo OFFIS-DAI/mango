@@ -1,7 +1,9 @@
 import asyncio
 import inspect
 import logging
+import multiprocessing
 import os
+import sys
 import warnings
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -17,6 +19,24 @@ from ..util.multiprocessing import AioDuplex, PipeToWriteQueue, aioduplex
 logger = logging.getLogger(__name__)
 
 WAIT_STEP = 0.01
+
+#: How many WAIT_STEP intervals shutdown gives an agent process to exit before
+#: terminating it.
+_PROCESS_EXIT_STEPS = 500
+
+#: Seconds an orphaned agent process spends shutting down before it exits anyway.
+_ORPHAN_SHUTDOWN_TIMEOUT = 10.0
+
+#: Exit code an agent process reports when it stopped because its parent died.
+_ORPHANED_EXIT_CODE = 3
+
+#: Upper bound on messages written to the pipe between two flushes.
+_MAX_BATCHED_SENDS = 256
+
+#: Upper bound on bytes buffered between two flushes. Bounding the message count
+#: alone lets the buffer grow with the message size, past the point where the
+#: transport would otherwise apply backpressure.
+_MAX_BATCHED_BYTES = 64 * 1024
 
 
 class IPCEventType(enumerate):
@@ -43,6 +63,10 @@ class ContainerMirrorData:
     event_pipe: AioDuplex
     terminate_event: MultiprocessingEvent
     main_queue: asyncio.Queue
+    #: Carries only the aid handshake, which the agent process performs with
+    #: blocking calls from inside ``register``. It must stay free of asyncio
+    #: transports on the child side for those calls to work.
+    aid_pipe: AioDuplex = None
 
 
 @dataclass
@@ -70,6 +94,47 @@ async def cancel_and_wait_for_task(task):
         pass
 
 
+def _parent_is_gone() -> bool:
+    """Whether the process that spawned this one has died.
+
+    ``terminate_event`` is the normal way to stop an agent process, but a parent
+    that is killed, crashes or calls ``os._exit`` never gets to set it. The
+    sentinel multiprocessing already keeps for the parent answers this directly,
+    on every platform and start method.
+    """
+    parent = multiprocessing.parent_process()
+    return parent is not None and not parent.is_alive()
+
+
+async def _shutdown_orphan(container) -> None:
+    """Shut the container down after the parent died, then really exit.
+
+    Nothing can signal this process any more, so a shutdown that blocks - an
+    agent waiting in ``on_stop``, a send to a socket whose peer is gone - would
+    recreate the very orphan this is meant to prevent. Hence the timeout and the
+    unconditional ``os._exit``, which also skips the interpreter's own teardown
+    of tasks that can no longer complete.
+    """
+    logger.warning(
+        "The parent process is gone; shutting down this agent process (pid %s).",
+        os.getpid(),
+    )
+    try:
+        await asyncio.wait_for(container.shutdown(), timeout=_ORPHAN_SHUTDOWN_TIMEOUT)
+    except asyncio.TimeoutError:
+        logger.warning("Shutdown did not finish in time; exiting anyway.")
+    except Exception:
+        logger.exception("Shutdown after the parent died failed; exiting anyway.")
+    finally:
+        logging.shutdown()
+        for stream in (sys.stdout, sys.stderr):
+            try:
+                stream.flush()
+            except Exception:  # noqa: BLE001 - nothing useful to do while exiting
+                pass
+        os._exit(_ORPHANED_EXIT_CODE)
+
+
 def create_agent_process_environment(
     container_data: ContainerData,
     agent_creator,
@@ -79,6 +144,7 @@ def create_agent_process_environment(
     event_pipe: AioDuplex,
     terminate_event: MultiprocessingEvent,
     process_initialized_event: MultiprocessingEvent,
+    aid_pipe: AioDuplex = None,
 ):
     """Create the agent process environment for using agent subprocesses
     in a mango container. This routine will create a new event loop and run
@@ -103,8 +169,9 @@ def create_agent_process_environment(
     :type terminate_event: Event
     :param process_initialized_event: Event signaling to the main container, that the environment is done with initializing
     :type process_initialized_event: Event
+    :param aid_pipe: Pipe carrying only the aid handshake
+    :type aid_pipe: AioDuplex
     """
-    asyncio.set_event_loop(asyncio.new_event_loop())
     container_data.codec = dill.loads(container_data.codec)
     agent_creator = dill.loads(agent_creator)
     mirror_container_creator = dill.loads(mirror_container_creator)
@@ -117,14 +184,16 @@ def create_agent_process_environment(
             main_queue,
             event_pipe.dup(),
             terminate_event,
+            aid_pipe.dup() if aid_pipe is not None else None,
         )
         message_pipe.close()
         event_pipe.close()
+        if aid_pipe is not None:
+            aid_pipe.close()
         if inspect.iscoroutinefunction(agent_creator):
             await agent_creator(container)
         else:
             agent_creator(container)
-        process_initialized_event.set()
 
         for agent in container._agents.values():
             agent._do_start()
@@ -132,7 +201,18 @@ def create_agent_process_environment(
         container.running = True
         container.on_ready()
 
+        # Only now is the process usable from the outside. Signalling earlier
+        # lets `as_agent_process` return before the agents read their inbox, so
+        # a message sent immediately afterwards is answered by an agent that has
+        # not seen `on_ready` yet, or not answered at all. The yield gives the
+        # inbox tasks created by `_do_start` a chance to reach their first await.
+        await asyncio.sleep(0)
+        process_initialized_event.set()
+
         while not terminate_event.is_set():
+            if _parent_is_gone():
+                await _shutdown_orphan(container)
+                return
             await asyncio.sleep(WAIT_STEP)
         await container.shutdown()
 
@@ -319,9 +399,13 @@ class MirrorContainerProcessManager(BaseContainerProcessManager):
                             "A message was routed to the wrong process, as the %s doesn't contain a known receiver-id",
                             meta,
                         )
+                        continue
                     target_inbox = receiver.inbox
                     target_inbox.put_nowait((priority, message, meta))
 
+        except EOFError:
+            # other side disconnected -> task not necessary anymore
+            pass
         except Exception:
             logger.exception("The Move Message Task Loop has failed!")
 
@@ -334,6 +418,15 @@ class MirrorContainerProcessManager(BaseContainerProcessManager):
                     data = await self._out_queue.get()
 
                     tx.write_object(data)
+                    # Write whatever else is already queued before flushing, so
+                    # a backlog costs one flush rather than one per message.
+                    for _ in range(_MAX_BATCHED_SENDS - 1):
+                        if tx.buffered_bytes() >= _MAX_BATCHED_BYTES:
+                            break
+                        try:
+                            tx.write_object(self._out_queue.get_nowait())
+                        except asyncio.QueueEmpty:
+                            break
                     await tx.drain()
 
         except Exception:
@@ -346,9 +439,12 @@ class MirrorContainerProcessManager(BaseContainerProcessManager):
         return True, None
 
     def pre_hook_reserve_aid(self, suggested_aid=None):
+        # Blocking on purpose: register() is synchronous. That is only safe
+        # because no asyncio transport is ever opened on this endpoint.
+        pipe = self._mirror_data.aid_pipe
         ipc_event = IPCEvent(IPCEventType.AIDS, suggested_aid, os.getpid())
-        self._mirror_data.event_pipe.write_connection.send(ipc_event)
-        return self._mirror_data.event_pipe.read_connection.recv()
+        pipe.write_connection.send(ipc_event)
+        return pipe.read_connection.recv()
 
     async def shutdown(self):
         await cancel_and_wait_for_task(self._fetch_from_ipc_task)
@@ -379,6 +475,7 @@ class MainContainerProcessManager(BaseContainerProcessManager):
         self._terminate_sub_processes = self._ctx.Event()
         self._pid_to_message_pipe = {}
         self._pid_to_pipe = {}
+        self._pid_to_aid_pipe = {}
         self._pid_to_aids = {}
         self._handle_process_events_tasks: list[asyncio.Task] = []
         self._handle_sp_messages_tasks: list[asyncio.Task] = []
@@ -398,13 +495,19 @@ class MainContainerProcessManager(BaseContainerProcessManager):
             async with pipe.open() as (rx, tx):
                 while True:
                     event: IPCEvent = await rx.read_object()
-                    if event.type == IPCEventType.AIDS:
-                        aid = self._container._reserve_aid(event.data)
-                        if event.pid not in self._pid_to_aids:
-                            self._pid_to_aids[event.pid] = set()
-                        self._pid_to_aids[event.pid].add(aid)
-                        tx.write_object(aid)
-                        await tx.drain()
+                    try:
+                        if event.type == IPCEventType.AIDS:
+                            aid = self._container._reserve_aid(event.data)
+                            if event.pid not in self._pid_to_aids:
+                                self._pid_to_aids[event.pid] = set()
+                            self._pid_to_aids[event.pid].add(aid)
+                            tx.write_object(aid)
+                            await tx.drain()
+                    except Exception:
+                        # The requester is blocked on a reply it will now never
+                        # get, but ending this loop would break every later
+                        # request from the same process as well.
+                        logger.exception("Handling an IPC event from a process failed")
         except EOFError:
             # other side disconnected -> task not necessry anymore
             pass
@@ -422,12 +525,21 @@ class MainContainerProcessManager(BaseContainerProcessManager):
                         meta,
                     ) = await rx.read_object()
 
-                    self._container._send_internal_message(
-                        message=message,
-                        receiver_id=receiver_id,
-                        priority=prio,
-                        default_meta=meta,
-                    )
+                    try:
+                        self._container._send_internal_message(
+                            message=message,
+                            receiver_id=receiver_id,
+                            priority=prio,
+                            default_meta=meta,
+                        )
+                    except Exception:
+                        # Keep reading: one undeliverable message must not take
+                        # the whole process's uplink down with it.
+                        logger.exception(
+                            "Could not deliver a message from an agent process "
+                            "to the receiver %s",
+                            receiver_id,
+                        )
 
         except EOFError:
             # other side disconnected -> task not necessry anymore
@@ -487,9 +599,14 @@ class MainContainerProcessManager(BaseContainerProcessManager):
         """
         agent_creator = dill.dumps(agent_creator)
         mirror_container_creator = dill.dumps(mirror_container_creator)
-        return await self._create_agent_process_bytes(
+        handle = self._create_agent_process_bytes(
             agent_creator, container, mirror_container_creator
         )
+        # Awaiting the handle waits for the process to become ready but yields
+        # the wait task's result, so the handle itself has to be returned; its
+        # pid is the only way for a caller to address the process afterwards.
+        await handle
+        return handle
 
     def _create_agent_process_bytes(
         self, agent_creator: bytes, container, mirror_container_creator: bytes
@@ -512,11 +629,13 @@ class MainContainerProcessManager(BaseContainerProcessManager):
 
         from_pipe_message, to_pipe_message = aioduplex(self._ctx)
         from_pipe, to_pipe = aioduplex(self._ctx)
+        from_pipe_aid, to_pipe_aid = aioduplex(self._ctx)
         process_initialized = self._ctx.Event()
         with (
             warnings.catch_warnings(),
             to_pipe.detach() as to_pipe,
             to_pipe_message.detach() as to_pipe_message,
+            to_pipe_aid.detach() as to_pipe_aid,
         ):
             warnings.filterwarnings(
                 "ignore",
@@ -539,6 +658,7 @@ class MainContainerProcessManager(BaseContainerProcessManager):
                     to_pipe,
                     self._terminate_sub_processes,
                     process_initialized,
+                    to_pipe_aid,
                 ),
             )
             self._agent_processes.append(agent_process)
@@ -547,12 +667,15 @@ class MainContainerProcessManager(BaseContainerProcessManager):
 
         from_pipe_message_dup = from_pipe_message.dup()
         from_pipe_dup = from_pipe.dup()
+        from_pipe_aid_dup = from_pipe_aid.dup()
         from_pipe_message.close()
         from_pipe.close()
+        from_pipe_aid.close()
         self._pid_to_message_pipe[agent_process.pid] = from_pipe_message_dup
         self._pid_to_pipe[agent_process.pid] = from_pipe_dup
+        self._pid_to_aid_pipe[agent_process.pid] = from_pipe_aid_dup
         self._handle_process_events_tasks.append(
-            asyncio.create_task(self._handle_process_events(from_pipe_dup))
+            asyncio.create_task(self._handle_process_events(from_pipe_aid_dup))
         )
         self._handle_sp_messages_tasks.append(
             asyncio.create_task(self._handle_process_message(from_pipe_message_dup))
@@ -560,9 +683,17 @@ class MainContainerProcessManager(BaseContainerProcessManager):
 
         async def wait_for_process_initialized():
             while not process_initialized.is_set():
+                if not agent_process.is_alive():
+                    # The child died before reporting itself ready, so the event
+                    # will never be set. Without this the parent waits forever
+                    # and the child's traceback on stderr is the only clue.
+                    raise RuntimeError(
+                        f"The agent process {agent_process.pid} terminated "
+                        f"during startup with exit code "
+                        f"{agent_process.exitcode} instead of becoming ready; "
+                        "its traceback was written to stderr."
+                    )
                 await asyncio.sleep(WAIT_STEP)
-
-            await asyncio.sleep(0)
 
         return AgentProcessHandle(
             asyncio.create_task(wait_for_process_initialized()), agent_process.pid
@@ -592,6 +723,11 @@ class MainContainerProcessManager(BaseContainerProcessManager):
 
     async def shutdown(self):
         if self._active:
+            # Drop out of the active state first: a second shutdown then does
+            # nothing instead of joining processes that are already closed, and
+            # a later as_agent_process re-initialises rather than reusing the
+            # torn-down state.
+            self._active = False
             # send a signal to all sub processes to terminate their message feed in's
             self._terminate_sub_processes.set()
 
@@ -603,6 +739,34 @@ class MainContainerProcessManager(BaseContainerProcessManager):
 
             # wait for and tidy up processes
             for process in self._agent_processes:
-                process.join()
-                process.terminate()
+                # Polled rather than joined: a blocking join keeps the event loop
+                # from running, and an agent whose on_stop never returns would
+                # hold it there forever with terminate() out of reach.
+                for _ in range(_PROCESS_EXIT_STEPS):
+                    if not process.is_alive():
+                        break
+                    await asyncio.sleep(WAIT_STEP)
+                if process.is_alive():
+                    logger.warning(
+                        "Agent process %s did not exit on its own; terminating it",
+                        process.pid,
+                    )
+                    process.terminate()
+                    process.join(timeout=WAIT_STEP * _PROCESS_EXIT_STEPS)
+                else:
+                    process.join(timeout=WAIT_STEP * _PROCESS_EXIT_STEPS)
                 process.close()
+
+            for pipe in (
+                *self._pid_to_pipe.values(),
+                *self._pid_to_message_pipe.values(),
+                *self._pid_to_aid_pipe.values(),
+            ):
+                pipe.close()
+            self._agent_processes.clear()
+            self._handle_process_events_tasks.clear()
+            self._handle_sp_messages_tasks.clear()
+            self._pid_to_pipe.clear()
+            self._pid_to_message_pipe.clear()
+            self._pid_to_aid_pipe.clear()
+            self._pid_to_aids.clear()

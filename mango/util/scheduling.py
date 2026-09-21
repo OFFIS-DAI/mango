@@ -334,21 +334,38 @@ class RecurrentScheduledTask(ScheduledTask):
         self._stopped = False
         self._coroutine_func = coroutine_func
 
+    def _clock_datetime(self) -> datetime:
+        """Clock time as a datetime that is comparable with the recurrence rule.
+
+        A recurrence built from naive datetimes (``datetime.now()``,
+        ``datetime(2023, 1, 1)``) describes local time, because that is what
+        those constructors and ``datetime.timestamp()`` mean. Reading the clock
+        as UTC instead would shift every occurrence by the machine's UTC offset,
+        so a task would fire hours late everywhere except in UTC.
+        """
+        dtstart = getattr(self._recurrency_rule, "_dtstart", None)
+        if dtstart is not None and dtstart.tzinfo is not None:
+            return datetime.fromtimestamp(self.clock.time, tz=timezone.utc)
+        return datetime.fromtimestamp(self.clock.time)
+
     async def run(self):
+        # The rule is advanced from the occurrence that was handled last, not
+        # from the current clock reading: a wait can end marginally before its
+        # deadline, and re-reading the clock would then pick that very same
+        # occurrence a second time.
+        reference = self._clock_datetime()
         while not self._stopped:
-            current_time = datetime.fromtimestamp(
-                self.clock.time, tz=timezone.utc
-            ).replace(tzinfo=None)
-            after = self._recurrency_rule.after(current_time)
+            after = self._recurrency_rule.after(reference)
             # after can be None, if until or count was set on the rrule
             if after is None:
                 self._stopped = True
             else:
-                delay = (after - current_time).total_seconds()
+                delay = max((after - self._clock_datetime()).total_seconds(), 0)
                 sleep_future: asyncio.Future = self.clock.sleep(delay)
                 self.notify_sleeping()
                 await sleep_future
                 self.notify_running()
+                reference = after
                 await self._coroutine_func()
 
 

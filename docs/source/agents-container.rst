@@ -220,11 +220,14 @@ other mango agent — through the normal messaging API.
 
     .. code-block:: python
 
-        await main_container.dispatch_to_agent_process(
+        main_container.dispatch_to_agent_process(
             process_handle.pid,
             my_function,   # called as my_function(sub_container, *args)
             *args,
         )
+
+    ``my_function`` has to be importable in the subprocess, so define it at
+    module level rather than as a lambda or a nested function.
 
 If you need to set up process agents before an asyncio loop is available,
 use :meth:`~mango.container.core.Container.as_agent_process_lazy` (no

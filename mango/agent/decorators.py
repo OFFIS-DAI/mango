@@ -16,11 +16,15 @@ remove or replace it.
 
 The decorators are pure annotations: they stash configuration on the
 decorated method via the attribute name :data:`_MANGO_DISPATCH_META`.
-The :class:`mango.agent.role.Role` base class collects them at class
-creation time via ``__init_subclass__`` and replays the registrations
-through :meth:`RoleContext.subscribe_message` /
-:meth:`RoleContext.subscribe_event` /
-:meth:`RoleContext.schedule_periodic_task` when the role is bound.
+The registrations are replayed in two steps when the role is attached to
+an agent.  Message and event subscriptions go through
+:meth:`RoleContext.subscribe_message` / :meth:`RoleContext.subscribe_event`
+as soon as the role is bound (before ``setup``).  Periodic tasks are
+started through :meth:`RoleContext.schedule_periodic_task` when the role
+reaches ``on_ready``: the agent's scheduler only exists once the agent is
+registered in a container, and ``on_ready`` is the first point at which
+sending messages from the task body is safe.  A role added to an agent
+that is already running is caught up immediately.
 
 Async coroutine handlers for ``on_message`` are scheduled as instant
 tasks automatically — the underlying ``handle_message`` callback is
@@ -154,14 +158,15 @@ def periodic(
     """Schedule the decorated coroutine method as a periodic task.
 
     :param every: period in seconds, or a string key looked up on the
-        role instance at attach time (e.g. ``"poll_period_s"`` reads
-        ``role.poll_period_s`` — useful for sector-dependent periods
-        configured per role instance).
+        role instance when the task is started (e.g. ``"poll_period_s"``
+        reads ``role.poll_period_s`` — useful for periods configured per
+        role instance).  The period is measured on the agent's scheduler
+        clock, so it is simulation time under an ``ExternalClock``.
     :param only_if: optional predicate ``only_if(self) -> bool`` evaluated
         at every firing.  When false the task body is skipped — the
         scheduler still runs but the handler returns early.  This
-        replaces the "if not leader: return" guard that every periodic
-        coroutine in scare repeats by hand.
+        replaces a hand-written ``if not leader: return`` guard at the
+        top of the coroutine.
     """
 
     def decorator(method: Callable) -> Callable:
@@ -222,12 +227,24 @@ def _bind_sync(method: Callable, role: Any) -> Callable:
 
 
 def apply_dispatch(role: Any) -> None:
-    """Apply every collected dispatch entry on ``role`` to the bound context.
+    """Apply every collected dispatch entry on ``role`` in one go.
 
-    Called by :class:`Role._bind` after the role context is wired but
+    Equivalent to :func:`apply_subscriptions` followed by
+    :func:`apply_periodic`.  Requires a context that can already
+    schedule tasks; the :class:`mango.agent.role.Role` lifecycle calls
+    the two halves separately instead.
+    """
+    apply_subscriptions(role)
+    apply_periodic(role)
+
+
+def apply_subscriptions(role: Any) -> None:
+    """Register the ``@on_message`` / ``@on_event`` handlers of ``role``.
+
+    Called by :meth:`Role._bind` after the role context is wired but
     before user-defined ``setup()``.  Splitting this out keeps the
     decoration mechanism orthogonal from the Role base class — tests
-    can call ``apply_dispatch(role)`` against a mock context.
+    can call it against a mock context.
     """
     dispatch = collect_dispatch(type(role))
     ctx = role.context
@@ -255,6 +272,20 @@ def apply_dispatch(role: Any) -> None:
             etype = sub["event_type"]
             handler = getattr(role, name)
             ctx.subscribe_event(role, etype, handler)
+
+
+def apply_periodic(role: Any) -> None:
+    """Start the ``@periodic`` tasks of ``role`` on its context.
+
+    Called by the role handler when the role reaches ``on_ready`` (or
+    immediately, if the role is added to an agent that is already
+    ready).  Tasks are scheduled with ``src=role`` so that
+    :meth:`RoleContext.deactivate` suspends them together with the
+    role's other tasks.
+    """
+    dispatch = collect_dispatch(type(role))
+    ctx = role.context
+    for name, meta in dispatch.items():
         for sub in meta.periodic:
             every = sub["every"]
             only_if = sub["only_if"]
@@ -276,4 +307,4 @@ def apply_dispatch(role: Any) -> None:
                     return _run()
 
                 schedule = _gated
-            ctx.schedule_periodic_task(schedule, delay=delay)
+            ctx.schedule_periodic_task(schedule, delay=delay, src=role)

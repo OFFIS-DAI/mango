@@ -16,8 +16,18 @@ from typing import Any
 
 import pytest
 
-from mango import Role, on_event, on_message, periodic
+from mango import (
+    Role,
+    RoleAgent,
+    activate,
+    agent_composed_of,
+    create_tcp_container,
+    on_event,
+    on_message,
+    periodic,
+)
 from mango.agent.decorators import apply_dispatch, collect_dispatch
+from mango.util.clock import ExternalClock
 
 
 @dataclass
@@ -44,8 +54,8 @@ class _StubContext:
             {"role": role, "event_type": event_type, "method": method}
         )
 
-    def schedule_periodic_task(self, coro_func, delay):
-        self.periodic_subs.append({"coro": coro_func, "delay": delay})
+    def schedule_periodic_task(self, coro_func, delay, src=None):
+        self.periodic_subs.append({"coro": coro_func, "delay": delay, "src": src})
 
     def schedule_instant_task(self, coro):
         # The async @on_message wrap calls this when a matching message
@@ -266,9 +276,8 @@ class TestCollectDispatch:
 
 
 class TestRoleIntegration:
-    """End-to-end via a real :class:`Role` — verifies that ``_bind``
-    triggers ``apply_dispatch`` so a role using only decorators (no
-    ``setup`` body) gets fully wired."""
+    """Via a real :class:`Role` — verifies what ``_bind`` wires and what
+    it leaves to the ``on_ready`` phase."""
 
     def test_role_without_setup_still_subscribes(self):
         captured = []
@@ -284,3 +293,122 @@ class TestRoleIntegration:
         role._context = ctx
         apply_dispatch(role)
         assert len(ctx.message_subs) == 1
+
+    def test_bind_applies_subscriptions_but_defers_periodic(self):
+        class MyRole(Role):
+            @on_message(str)
+            def handler(self, content, meta):
+                pass
+
+            @periodic(every=1.0)
+            async def tick(self):
+                pass
+
+        ctx = _StubContext()
+        role = MyRole()
+        role._bind(ctx)
+        assert len(ctx.message_subs) == 1
+        assert ctx.periodic_subs == []
+
+    def test_periodic_is_scheduled_with_role_as_src(self):
+        class MyRole(Role):
+            @periodic(every=1.0)
+            async def tick(self):
+                pass
+
+        ctx = _StubContext()
+        role = MyRole()
+        role._context = ctx
+        apply_dispatch(role)
+        assert ctx.periodic_subs[0]["src"] is role
+
+
+class _Tick(Role):
+    """Real role with a decorated periodic task and lifecycle counters."""
+
+    def __init__(self):
+        super().__init__()
+        self.ticks: list[float] = []
+        self.started = 0
+        self.ready = 0
+
+    def on_start(self):
+        self.started += 1
+
+    def on_ready(self):
+        self.ready += 1
+
+    @periodic(every=10.0)
+    async def tick(self):
+        self.ticks.append(self.context.current_timestamp)
+
+
+class TestPeriodicLifecycle:
+    """``@periodic`` against real containers: the task must start at
+    ``on_ready`` regardless of whether the role was added before the
+    agent was registered, before the container started, or at runtime."""
+
+    @pytest.mark.asyncio
+    async def test_agent_composed_of_defers_periodic_until_ready(self):
+        container = create_tcp_container(addr=("127.0.0.1", 5681))
+        role = _Tick()
+        agent_composed_of(role, register_in=container)
+        assert role.ticks == []
+        async with activate(container):
+            await asyncio.sleep(0.05)
+            assert len(role.ticks) == 1
+        assert (role.started, role.ready) == (1, 1)
+
+    @pytest.mark.asyncio
+    async def test_periodic_follows_external_clock(self):
+        clock = ExternalClock(start_time=0)
+        container = create_tcp_container(addr=("127.0.0.1", 5682), clock=clock)
+        role = _Tick()
+        agent_composed_of(role, register_in=container)
+        async with activate(container):
+            await asyncio.sleep(0.05)
+            for t in (10, 20, 30):
+                clock.set_time(t)
+                await asyncio.sleep(0.02)
+        assert role.ticks == [0, 10, 20, 30]
+
+    @pytest.mark.asyncio
+    async def test_role_added_at_runtime_is_caught_up(self):
+        container = create_tcp_container(addr=("127.0.0.1", 5683))
+        agent = container.register(RoleAgent())
+        async with activate(container):
+            role = _Tick()
+            agent.add_role(role)
+            assert (role.started, role.ready) == (1, 1)
+            await asyncio.sleep(0.05)
+            assert len(role.ticks) == 1
+
+    @pytest.mark.asyncio
+    async def test_role_added_before_start_gets_hooks_once(self):
+        container = create_tcp_container(addr=("127.0.0.1", 5684))
+        agent = container.register(RoleAgent())
+        role = _Tick()
+        agent.add_role(role)
+        assert (role.started, role.ready) == (0, 0)
+        async with activate(container):
+            await asyncio.sleep(0.02)
+        assert (role.started, role.ready) == (1, 1)
+
+    @pytest.mark.asyncio
+    async def test_deactivate_suspends_decorated_periodic(self):
+        clock = ExternalClock(start_time=0)
+        container = create_tcp_container(addr=("127.0.0.1", 5685), clock=clock)
+        role = _Tick()
+        agent_composed_of(role, register_in=container)
+        async with activate(container):
+            await asyncio.sleep(0.05)
+            role.context.deactivate(role)
+            for t in (10, 20):
+                clock.set_time(t)
+                await asyncio.sleep(0.03)
+            assert role.ticks == [0]
+            role.context.activate(role)
+            for t in (30, 40):
+                clock.set_time(t)
+                await asyncio.sleep(0.03)
+        assert role.ticks[-2:] == [30, 40]

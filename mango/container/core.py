@@ -283,7 +283,7 @@ class Container(ABC):
         :type agent_creator: Function(Container)
         :param mirror_container_creator: function, which creates the mirror container, generally
             this parameter is set by the subclasses of container
-        :type mirror_container_creator: Function(ContainerData, AsyncioLoop, AioDuplex, AioDuplex, Event)
+        :type mirror_container_creator: Function(ContainerData, AsyncioLoop, AioDuplex, Queue, AioDuplex, Event, AioDuplex)
         :return: a handle for the created process. It contains the pid as property 'pid' and can be awaited
             to make sure the initialization of the agents in the subprocess is actually done.
         :rtype: AgentProcessHandle

@@ -64,6 +64,12 @@ Basic example
     Hello!
     Hello!
 
+.. tip::
+
+   Inside a :class:`~mango.Role`, a periodic task can be declared on the
+   method itself with :func:`~mango.periodic` instead of calling
+   ``schedule_periodic_task`` in ``on_ready``; see :ref:`role-periodic`.
+
 Suspendable tasks
 -----------------
 

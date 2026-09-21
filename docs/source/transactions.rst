@@ -68,6 +68,9 @@ Responders need no special API — they just reply, echoing the ``tracking_id``.
         async def on_request(self, content, meta):
             await self.context.reply_to(PriceOffer(price=self.price), meta)
 
+(:func:`~mango.on_message` and the other role decorators are described in
+:ref:`role-decorators`.)
+
 **Quorum and partial results.**  By default ``gather`` waits for *all*
 receivers or times out.  Lower ``min_fraction`` to return as soon as a fraction
 has answered — useful when stragglers should not hold up progress:

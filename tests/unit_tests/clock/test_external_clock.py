@@ -54,9 +54,18 @@ async def test_external_clock_simple():
     assert round(results[1], 1) == 0.4
 
 
+#: asyncio decides a timer is due when its deadline lies within one clock
+#: resolution, and that clock resolves to ~16 ms on Windows against ~1 ns on
+#: Linux. So a single wait can end measurably before its deadline, and a chain
+#: of waits drifts past it by the same granularity per step.
+_CLOCK_SLACK = max(8 * time.get_clock_info("monotonic").resolution, 0.01)
+
+
 def assert_os_close(va, bound, tol=0.1):
-    assert va >= bound
-    assert va <= bound + tol
+    assert va >= bound - _CLOCK_SLACK, f"{va} is more than {_CLOCK_SLACK} below {bound}"
+    assert va <= bound + tol + _CLOCK_SLACK, (
+        f"{va} is more than {tol + _CLOCK_SLACK} above {bound}"
+    )
 
 
 @pytest.mark.asyncio

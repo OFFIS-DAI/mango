@@ -147,19 +147,13 @@ Quick look
       .. code-block:: python
 
          import asyncio
-         from mango import Role, agent_composed_of, run_with_tcp
+         from mango import Role, agent_composed_of, run_with_tcp, on_message
 
          class Ping:
              pass
 
          class PingRole(Role):
-             def setup(self):
-                 self.context.subscribe_message(
-                     self,
-                     self.handle_ping,
-                     lambda content, meta: isinstance(content, Ping),
-                 )
-
+             @on_message(Ping)
              def handle_ping(self, content, meta):
                  print("Ping received!")
 
