@@ -20,7 +20,11 @@ def unfinished_task_count(container: Container):
 
 
 async def tasks_complete_or_sleeping(container: Container, except_sources=["no_wait"]):
-    sleeping_tasks = []
+    # Identity-keyed set, not a list: only ``len()`` and membership are used, and
+    # the linear scan made settling O(tasks^2) per step -- the single hottest
+    # frame in an agent-dense simulation. ScheduledTask defines no __eq__/__hash__,
+    # so set membership is the same identity test the list scan performed.
+    sleeping_tasks = set()
     task_list = []
     # is None for containers in MirrorContainerProcessManager
     if container.inbox is not None:
@@ -38,16 +42,20 @@ async def tasks_complete_or_sleeping(container: Container, except_sources=["no_w
         if container.inbox is not None:
             await container.inbox.join()
         for scheduled_task, task, _, _ in task_list:
+            # Do NOT skip this wait when the futures are already resolved. It looks
+            # redundant -- .done() answers the same question without the two loop
+            # turns asyncio.wait costs -- but those turns are load-bearing: they let
+            # queued callbacks and agent coroutines drain inside the settle. Skipping
+            # them (even with an explicit sleep(0) per round to keep the loop from
+            # spinning) changes the simulation: measured on scare/simbench_lv, world
+            # steps 1010 -> 850, GossipIter -26%, gas tier-4 served 0.315 -> 0.247.
             await asyncio.wait(
                 [scheduled_task._is_sleeping, scheduled_task._is_done],
                 return_when=asyncio.FIRST_COMPLETED,
             )
-            if (
-                scheduled_task._is_sleeping.done()
-                and scheduled_task not in sleeping_tasks
-            ):
+            if scheduled_task._is_sleeping.done():
                 # we need to recognize how many sleeping tasks we have in order to find out if all tasks are done
-                sleeping_tasks.append(scheduled_task)
+                sleeping_tasks.add(scheduled_task)
 
         # recreate task_list - as new tasks might have been added
         task_list = []
