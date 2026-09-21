@@ -21,12 +21,13 @@ async def increase_clock(c, increase_time, wait: float = 0, amount=1):
 async def test_sleep():
     clock = ExternalClock(start_time=100)
     scheduler = Scheduler(clock=clock)
-    t_1 = time.time()
     task = asyncio.create_task(increase_clock(clock, 1, 0.1, 5))
     await scheduler.sleep(4)
-    passed_time = round(time.time() - t_1, 1)
+    #: which clock step the sleep returns on pins the behaviour exactly,
+    #: while the elapsed real time drifts under load (flaky on macOS CI).
+    woke_up_at = clock.time
     await task
-    assert passed_time == 0.4
+    assert woke_up_at == 104
 
 
 @pytest.mark.asyncio
