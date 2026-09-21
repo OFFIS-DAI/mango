@@ -4,7 +4,7 @@ Role API
 
 Besides subclassing :class:`~mango.Agent` directly, mango provides the *role
 system* as a higher-level way to structure agent behaviour.  A *role*
-encapsulates one responsibility of an agent — for example coalition membership,
+encapsulates one responsibility of an agent, for example coalition membership,
 resource monitoring, or a messaging protocol.
 
 Roles promote **reusability**: the same role class can be added to different
@@ -22,7 +22,7 @@ interact through a shared context and event API rather than direct references.
    .. grid-item-card:: Declarative wiring
       :shadow: sm
 
-      ``@on_message`` · ``@on_event`` · ``@periodic`` — declare handlers on
+      ``@on_message`` · ``@on_event`` · ``@periodic``: declare handlers on
       the class instead of registering them in ``setup``.
 
    .. grid-item-card:: Messages
@@ -35,7 +35,7 @@ interact through a shared context and event API rather than direct references.
    .. grid-item-card:: Inter-role events
       :shadow: sm
 
-      ``emit_event`` / ``@on_event`` — typed, in-process signals
+      ``emit_event`` / ``@on_event``: typed, in-process signals
       between roles of the same agent.
 
    .. grid-item-card:: Sharing data
@@ -57,7 +57,7 @@ interact through a shared context and event API rather than direct references.
 
 .. seealso::
 
-    :doc:`agents-container` — agent basics and lifecycle
+    :doc:`agents-container`: agent basics and lifecycle
 
 
 ----
@@ -216,7 +216,7 @@ The role lifecycle mirrors the agent lifecycle, with one extra step:
 Wiring a role: decorators or ``setup``
 --------------------------------------
 
-Everything a role reacts to — messages, events, and the clock — can be
+Everything a role reacts to (messages, events, and the clock) can be
 declared directly on the handler method.  A role that uses the decorators
 usually needs no ``setup`` at all; the wiring is read from the class when the
 role is added to an agent:
@@ -269,8 +269,8 @@ to ``every``.
 
 Fall back to the explicit calls in ``setup`` / ``on_ready`` when
 
-* the handler needs a :class:`~mango.MessagePreprocessor` — for example a
-  :class:`~mango.WaitingMessagePreprocessor` to serialise delivery — since
+* the handler needs a :class:`~mango.MessagePreprocessor`, for example a
+  :class:`~mango.WaitingMessagePreprocessor` to serialise delivery, since
   ``@on_message`` does not take one;
 * the message type, or whether to subscribe at all, depends on constructor
   arguments or configuration;
@@ -282,7 +282,7 @@ Fall back to the explicit calls in ``setup`` / ``on_ready`` when
   :meth:`~mango.RoleContext.subscribe_model`, which have no decorator.
 
 Both forms compose freely on one role.  Decorator wiring is applied **before**
-``setup`` runs, so ``setup`` extends it — it cannot remove a decorated
+``setup`` runs, so ``setup`` extends it; it cannot remove a decorated
 handler.  Neither form offers an unsubscribe: to stop a role from reacting,
 :meth:`~mango.RoleContext.deactivate` it or
 :meth:`~mango.RoleContext.remove_role` it (see below).
@@ -331,10 +331,10 @@ instant tasks automatically:
 
 Two keyword options refine the subscription:
 
-* ``where`` — an extra predicate ``where(self, content, meta) -> bool``.  It
+* ``where``: an extra predicate ``where(self, content, meta) -> bool``.  It
   receives ``self``, so it can read role state instead of capturing it in a
   class-time closure.
-* ``priority`` — dispatch order when several handlers match (lower runs first,
+* ``priority``: dispatch order when several handlers match (lower runs first,
   default ``0``).
 
 .. code-block:: python
@@ -349,8 +349,8 @@ Two keyword options refine the subscription:
    A message of the right type that fails ``where`` is simply not delivered
    to *this* handler.  It is not dropped: every other matching subscription
    still fires, and the role's ``handle_message`` fallback (below) still sees
-   it.  If a role needs to observe every message of a type — say, to count
-   arrivals for a timeout — while acting only on some of them, add a second
+   it.  If a role needs to observe every message of a type (say, to count
+   arrivals for a timeout) while acting only on some of them, add a second
    ``@on_message(Type)`` handler without ``where``, or use
    ``handle_message``.
 
@@ -367,7 +367,7 @@ Subscribing in ``setup``
 ------------------------
 
 :meth:`~mango.RoleContext.subscribe_message` is the explicit form of the
-decorator.  It takes the role, a handler, and a *condition* function — only
+decorator.  It takes the role, a handler, and a *condition* function; only
 messages for which the condition returns ``True`` are forwarded:
 
 .. testcode::
@@ -393,11 +393,11 @@ The optional ``priority`` parameter controls dispatch order when multiple
 subscriptions match (lower number = called earlier, default = ``0``); the
 optional ``preprocessor`` is described below.  Two things differ from the
 decorator: the condition receives no ``self``, so capture what it needs in
-the closure, and the callback contract is synchronous — an ``async`` handler
+the closure, and the callback contract is synchronous, so an ``async`` handler
 registered this way has to be scheduled explicitly, e.g. with
 ``self.context.schedule_instant_task(self.handler(content, meta))``.
 
-**Fallback: ``handle_message``** — a role may also override
+**Fallback: ``handle_message``**: a role may also override
 :meth:`~mango.Role.handle_message`.  It receives **every** message the agent
 receives, whether or not a subscription or decorated handler already handled
 it, and is called after those handlers.  Use it as a catch-all or observer:
@@ -425,7 +425,7 @@ Message preprocessors
 A :class:`~mango.MessagePreprocessor` sits between the inbox and the handler.
 It is registered alongside the handler in :meth:`~mango.RoleContext.subscribe_message`
 and can **transform**, **gate**, or **rate-limit** messages before they reach
-the role.  Preprocessors are only available through ``subscribe_message`` —
+the role.  Preprocessors are only available through ``subscribe_message``;
 ``@on_message`` does not take one.
 
 Implement :meth:`~mango.MessagePreprocessor.handle` and call
@@ -466,7 +466,7 @@ content or metadata before passing it on:
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :class:`~mango.WaitingMessagePreprocessor` is a built-in preprocessor that
-**serialises message delivery** — the next message is only dispatched once the
+**serialises message delivery**: the next message is only dispatched once the
 handler for the current message has returned (or its coroutine completed).
 
 This prevents race conditions when a role's handler performs async work that
@@ -507,7 +507,7 @@ Observing outgoing messages
 ---------------------------
 
 :meth:`~mango.RoleContext.subscribe_send` lets a role intercept every message
-sent by the agent — useful for logging, auditing, or protocol tracing:
+sent by the agent, useful for logging, auditing, or protocol tracing:
 
 .. code-block:: python
 
@@ -524,7 +524,7 @@ passed to ``send_message``.
 
 .. note::
 
-    ``subscribe_send`` observes — it cannot block or modify the message.  For
+    ``subscribe_send`` only observes; it cannot block or modify the message.  For
     full interception you would need to override ``send_message`` on a custom
     ``RoleAgent`` subclass.
 
@@ -588,11 +588,11 @@ type and are only called when that exact type (or a subclass) is emitted.
 
 The *event_source* parameter is passed as the second argument to the handler
 (``source`` above).  Pass ``self`` to let listeners know which role raised
-the event — useful when multiple roles can emit the same event type.
+the event, useful when multiple roles can emit the same event type.
 
 The handler runs **synchronously** inside
 :meth:`~mango.RoleContext.emit_event`, so it must be a plain (non-async)
-method — decorating an ``async def`` with ``@on_event`` raises a ``TypeError``
+method; decorating an ``async def`` with ``@on_event`` raises a ``TypeError``
 at class-definition time rather than silently never running.
 
 The explicit form is :meth:`~mango.RoleContext.subscribe_event` in ``setup``:
@@ -621,9 +621,9 @@ Periodic tasks
 ==============
 
 :func:`~mango.periodic` runs an ``async`` method of the role on a fixed
-period.  The task is started when the role reaches ``on_ready`` — the same
+period.  The task is started when the role reaches ``on_ready`` (the same
 moment at which you would call
-:meth:`~mango.RoleContext.schedule_periodic_task` by hand — runs the method
+:meth:`~mango.RoleContext.schedule_periodic_task` by hand), runs the method
 once immediately, and then again after every ``every`` seconds.
 
 ``every`` is either a number of seconds or the *name* of an instance
@@ -648,8 +648,8 @@ early, replacing the ``if not leader: return`` guard by hand.
 **Periods follow the clock.**  The period is measured on the agent's
 scheduler clock, not on wall time.  Under the default
 :class:`~mango.AsyncioClock` that is the same thing; under an
-:class:`~mango.ExternalClock` — and therefore inside a
-:class:`~mango.SimulationWorld` — the task advances only when simulation time
+:class:`~mango.ExternalClock` (and therefore inside a
+:class:`~mango.SimulationWorld`) the task advances only when simulation time
 does:
 
 .. testcode::
@@ -703,7 +703,7 @@ other tasks, and :meth:`~mango.RoleContext.activate` resumes them.
 
 .. seealso::
 
-    :doc:`scheduling` — all task types, clocks, and process-based tasks.
+    :doc:`scheduling`: all task types, clocks, and process-based tasks.
 
 
 ----
@@ -713,7 +713,7 @@ Sharing data between roles
 
 Two patterns are available for roles to share state within the same agent.
 
-**Simple shared container** — attach arbitrary attributes to
+**Simple shared container**: attach arbitrary attributes to
 :attr:`~mango.RoleContext.data`:
 
 .. testcode::
@@ -735,7 +735,7 @@ Two patterns are available for roles to share state within the same agent.
 
     hello
 
-**Observable model** — create a typed model and subscribe to its changes:
+**Observable model**: create a typed model and subscribe to its changes:
 
 .. testcode::
 
@@ -780,7 +780,7 @@ subscribed to via :meth:`~mango.RoleContext.subscribe_model`.
 Deactivating and activating roles
 ==================================
 
-Sometimes you want to suspend an entire role temporarily — for example, stop
+Sometimes you want to suspend an entire role temporarily, for example to stop
 accepting coalition invitations while already in one.  Use
 :meth:`~mango.RoleContext.deactivate` / :meth:`~mango.RoleContext.activate`:
 
@@ -823,7 +823,7 @@ suspended and receives the caller (``src``) as its argument:
 Dynamic role management
 ========================
 
-Roles can be added or removed at any point during the agent's lifetime —
+Roles can be added or removed at any point during the agent's lifetime,
 not just at construction time.  This is useful for loading roles on demand,
 implementing *strategy patterns*, or tearing down protocol roles after a
 negotiation completes.
@@ -863,7 +863,7 @@ instance must not be used again.
 
         @on_message(str, where=lambda self, c, m: c == "done")
         def on_final(self, content, meta):
-            # negotiation complete — tear this role down
+            # negotiation complete: tear this role down
             self.context.remove_role(self)
 
 
@@ -887,7 +887,7 @@ it to build explicit dependencies between roles:
 .. tip::
 
     Prefer :ref:`inter-role events <inter-role-events>` or shared models over
-    direct ``get_role`` lookups where possible — they keep roles decoupled and
+    direct ``get_role`` lookups where possible; they keep roles decoupled and
     make it easier to swap implementations.
 
 
@@ -912,7 +912,7 @@ scheduling decisions:
 
 .. seealso::
 
-    :doc:`simulation` — roles also support ``on_step``, ``on_global_event``,
+    :doc:`simulation`: roles also support ``on_step``, ``on_global_event``,
     and ``on_agent_event`` hooks, as well as message preprocessors
     (:class:`~mango.MessagePreprocessor`, :class:`~mango.WaitingMessagePreprocessor`),
     when running inside a :class:`~mango.SimulationWorld`.

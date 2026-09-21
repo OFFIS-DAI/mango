@@ -4,7 +4,7 @@ A *conversation* groups a sequence of messages that share a single id
 so participants can volley back and forth without each reply being
 consumed on receipt (the way ``tracking_id`` is in
 :meth:`AgentDelegates.send_tracked_message`).  Use it for protocols
-that span many hops — gossip, auctions, holonic ADMM coordination.
+that span many hops: gossip, auctions, holonic ADMM coordination.
 
 The handle is an async context manager that yields a
 :class:`Conversation` carrying the id, a user-controlled state dict,
@@ -22,7 +22,7 @@ and a receive queue::
                 continue
             await conv.send(pick_next_hop(), GossipStep(...))
 
-(Inside a role, use ``self.context.open_conversation`` — the API is
+(Inside a role, use ``self.context.open_conversation``; the API is
 available on plain agents and role contexts alike.)
 
 Responders join the existing exchange via the inbound ``meta``::
@@ -37,14 +37,14 @@ Every join owns an independent handle with its own ``state`` and
 agent (e.g. an ``@on_message`` handler that re-fires while an earlier
 join is still open), each inbound message is delivered to *all* of
 them.  Note that a conversation message is also dispatched to matching
-``@on_message`` handlers as usual — the iterator receives it *in
+``@on_message`` handlers as usual: the iterator receives it *in
 addition to*, not instead of, normal dispatch.
 
 Two control methods end the iteration:
 
-* :meth:`Conversation.converge` — graceful: any messages already on
+* :meth:`Conversation.converge` (graceful): any messages already on
   the queue still deliver, then the iterator exits.
-* :meth:`Conversation.cancel` — abrupt: queued messages are discarded
+* :meth:`Conversation.cancel` (abrupt): queued messages are discarded
   and the iterator exits on the next pull.  Also called when the
   clock-aware timeout fires and when the context manager exits.
 """
@@ -68,7 +68,7 @@ logger = logging.getLogger(__name__)
 
 # Carried alongside ``tracking_id`` because the latter is consumed by
 # the single-shot reply machinery; a conversation message may legitimately
-# bear both (e.g. when a participant calls ``reply_to`` inside a session —
+# bear both (e.g. when a participant calls ``reply_to`` inside a session;
 # ``reply_to`` echoes the conversation id automatically).
 CONVERSATION_ID_KEY = "conversation_id"
 
@@ -76,7 +76,7 @@ CONVERSATION_ID_KEY = "conversation_id"
 class Conversation:
     """A live, agent-owned conversation handle.
 
-    The ``state`` dict is user-controlled — mango never reads it.
+    The ``state`` dict is user-controlled; mango never reads it.
     """
 
     # Queue sentinel that signals end-of-iteration.  A class-level
@@ -137,7 +137,7 @@ class Conversation:
             return
         self._cancelled = True
         # Drain anything already queued so a consumer blocked inside
-        # ``queue.get()`` receives the sentinel next, not a stale message —
+        # ``queue.get()`` receives the sentinel next, not a stale message,
         # honouring the "drops queued messages" contract even mid-await.
         while not self._queue.empty():
             try:
@@ -151,7 +151,7 @@ class Conversation:
 
         The tag always wins over a ``conversation_id`` kwarg.  When
         *content* itself has a ``conversation_id`` attribute (e.g. an
-        ACL message), it is stamped too — container transports send such
+        ACL message), it is stamped too: container transports send such
         content without the surrounding meta, so the id must travel
         inside the message to survive a cross-container hop.
         """
@@ -202,12 +202,12 @@ class Conversation:
             raise StopAsyncIteration
         # Only an inbound message (or converge/cancel/timeout) feeds the
         # queue, so a parked iterator counts as sleeping for stepped
-        # simulations — the message can only arrive in a later step.
+        # simulations; the message can only arrive in a later step.
         with sleeping_wait():
             content, meta = await self._queue.get()
         if content is self._END:
-            # Re-enqueue the sentinel so every other consumer — blocked
-            # concurrently or arriving later — terminates as well.
+            # Re-enqueue the sentinel so every other consumer (blocked
+            # concurrently or arriving later) terminates as well.
             self._queue.put_nowait((self._END, None))
             raise StopAsyncIteration
         return content, meta
@@ -223,7 +223,7 @@ class _ConversationContext:
       inbound messages route to it, and arms the optional clock-aware
       timeout.
     * ``__aexit__`` disarms the timeout, unregisters the handle, and
-      cancels it — an iterator that escaped the block terminates instead
+      cancels it, so an iterator that escaped the block terminates instead
       of waiting on a queue that can never be fed again.  ``conv.state``
       stays readable after exit.
     """
@@ -244,7 +244,7 @@ class _ConversationContext:
             if clock is None:
                 logger.warning(
                     "Conversation %s: timeout=%s requested but the agent has "
-                    "no scheduler clock — the timeout will not be enforced.",
+                    "no scheduler clock; the timeout will not be enforced.",
                     self._conv.conversation_id,
                     timeout,
                 )

@@ -1,6 +1,6 @@
 """Unit tests for :mod:`mango.agent.decorators`.
 
-These tests do not spin up a container — they exercise
+These tests do not spin up a container; they exercise
 ``apply_dispatch`` directly against a stub context that records every
 subscribe / schedule call.  That keeps the tests focused on the
 decoration semantics (collection order, async-wrap, predicate
@@ -148,7 +148,7 @@ class TestOnMessageDecorator:
         assert len(scheduled) == 1
 
     def test_sync_handler_is_called_directly(self):
-        """A sync handler needs no task at all — the callback invokes it
+        """A sync handler needs no task at all: the callback invokes it
         inline, which is what keeps ordering deterministic for handlers
         that only mutate role state."""
 
@@ -247,7 +247,7 @@ class TestPeriodicDecorator:
 
             class R(_StubRole):
                 @periodic(every=1.0)
-                def tick(self):  # noqa: B903 — sync intentionally for the test
+                def tick(self):  # noqa: B903 (sync intentionally for the test)
                     pass
 
     def test_only_if_gates_the_body(self):
@@ -300,7 +300,7 @@ class TestCollectDispatch:
 
         class Sub(Base):
             @on_message(int)
-            def handler(self, content, meta):  # noqa: D401 — override
+            def handler(self, content, meta):  # noqa: D401 (override)
                 pass
 
         meta = collect_dispatch(Sub)
@@ -311,7 +311,7 @@ class TestCollectDispatch:
 
 
 class TestRoleIntegration:
-    """Via a real :class:`Role` — verifies what ``_bind`` wires and what
+    """Via a real :class:`Role`: verifies what ``_bind`` wires and what
     it leaves to the ``on_ready`` phase."""
 
     def test_role_without_setup_still_subscribes(self):
@@ -451,8 +451,8 @@ class TestPeriodicLifecycle:
     @pytest.mark.asyncio
     async def test_runtime_role_does_not_restart_periodic_on_ready(self):
         """A role added after the agent is ready starts its periodic task
-        once, in ``catch_up_lifecycle``.  A later ``on_ready`` — the
-        container being activated again — must not schedule a second
+        once, in ``catch_up_lifecycle``.  A later ``on_ready`` (the
+        container being activated again) must not schedule a second
         copy alongside it."""
         clock = ExternalClock(start_time=0)
         container = create_tcp_container(addr=("127.0.0.1", 5686), clock=clock)

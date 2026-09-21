@@ -40,7 +40,7 @@ Collecting replies with gather
 :meth:`~mango.Agent.gather` sends one message to many receivers and
 returns their replies as a dict keyed by the responding agent's
 :class:`~mango.AgentAddress`.  It is the right tool for one-round request
-scatter/gather — a price poll, a capability query, a distributed sum:
+scatter/gather: a price poll, a capability query, a distributed sum:
 
 .. code-block:: python
 
@@ -58,7 +58,7 @@ scatter/gather — a price poll, a capability query, a distributed sum:
             best = min(replies.values(), key=lambda offer: offer.price)
             return best
 
-Responders need no special API — they just reply, echoing the ``tracking_id``.
+Responders need no special API; they just reply, echoing the ``tracking_id``.
 :meth:`~mango.Agent.reply_to` does that automatically:
 
 .. code-block:: python
@@ -73,14 +73,14 @@ Responders need no special API — they just reply, echoing the ``tracking_id``.
 
 **Quorum and partial results.**  By default ``gather`` waits for *all*
 receivers or times out.  Lower ``min_fraction`` to return as soon as a fraction
-has answered — useful when stragglers should not hold up progress:
+has answered, useful when stragglers should not hold up progress:
 
 .. code-block:: python
 
     # return as soon as ⌈0.5 · N⌉ replies are in (majority quorum)
     replies = await self.context.gather(Ping(), peers, min_fraction=0.5)
 
-On timeout, ``gather`` returns whatever arrived so far rather than raising — so
+On timeout, ``gather`` returns whatever arrived so far rather than raising, so
 always be prepared for fewer entries than receivers.  The first reply from each
 sender wins; late duplicates are dropped so the mapping is stable.
 
@@ -108,7 +108,7 @@ Multi-hop conversations
 A *conversation* groups a sequence of messages under one shared id so
 participants can volley back and forth without every reply being consumed on
 receipt.  Reach for it when a single tracked reply or one ``gather`` round is
-not enough — gossip, auctions, multi-round negotiation, iterative distributed
+not enough: gossip, auctions, multi-round negotiation, iterative distributed
 optimisation.
 
 The initiator opens a conversation, sends into it, and iterates the replies as
@@ -162,7 +162,7 @@ The handle yielded by ``open_conversation`` is a
 .. note::
 
    A conversation message is delivered to matching ``@on_message`` handlers
-   *and* pushed to the conversation iterator — the iterator receives it in
+   *and* pushed to the conversation iterator; the iterator receives it in
    addition to, not instead of, normal dispatch.  Replying with
    :meth:`~mango.Agent.reply_to` inside a conversation keeps the id, so the
    reply routes back into the initiator's iterator automatically.
@@ -189,7 +189,7 @@ handler while an earlier join is still iterating), each inbound message is
 delivered to *all* of them.
 
 ``conv.state`` lives on the handle, so it does not persist across separate
-``join_conversation`` blocks — a responder that accumulates state over many
+``join_conversation`` blocks, so a responder that accumulates state over many
 handler invocations should keep it on the role (or agent) instance instead.
 
 Ending an exchange
@@ -197,25 +197,25 @@ Ending an exchange
 
 Two control methods end iteration, plus the timeout:
 
-* :meth:`~mango.agent.conversation.Conversation.converge` — graceful: drain
+* :meth:`~mango.agent.conversation.Conversation.converge` (graceful): drain
   what is already queued, then stop.  Use it when the protocol reached a
   result.
-* :meth:`~mango.agent.conversation.Conversation.cancel` — abrupt: drop the
+* :meth:`~mango.agent.conversation.Conversation.cancel` (abrupt): drop the
   queue and stop.  Use it to abandon.
-* **Timeout** — pass ``timeout=`` to ``open_conversation`` /
+* **Timeout**: pass ``timeout=`` to ``open_conversation`` /
   ``join_conversation``.  When it elapses (measured on the scheduler clock) the
   conversation is cancelled automatically.  ``conv.state`` remains readable
   after the ``with`` block exits, so you can inspect the outcome.
 
-Leaving the ``async with`` block also cancels the handle — an iterator that
+Leaving the ``async with`` block also cancels the handle, so an iterator that
 escaped the block terminates instead of waiting forever.
 
 .. warning::
 
-   ``open_conversation`` defaults to ``timeout=None`` (no timeout) — unlike
+   ``open_conversation`` defaults to ``timeout=None`` (no timeout), unlike
    ``gather``, conversations are long-lived by design.  An un-timed
    conversation whose peer never replies will block its ``async for``
-   forever — always set a ``timeout`` for protocols that can stall.  (Open
+   forever, so always set a ``timeout`` for protocols that can stall.  (Open
    conversations are cleaned up on agent shutdown as a backstop.)
 
 .. note::
@@ -227,6 +227,6 @@ escaped the block terminates instead of waiting forever.
 
 .. seealso::
 
-   :doc:`simulation` — conversation and ``gather`` timeouts advance with
+   :doc:`simulation`: conversation and ``gather`` timeouts advance with
    simulation time under :func:`~mango.run_with_simulation`, so the same
    protocol code runs unchanged in real time and in a discrete-event world.

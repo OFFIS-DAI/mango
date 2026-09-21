@@ -112,7 +112,7 @@ class TopologyService:
         self._tid_to_characteristic: dict[str, str] = {}
         self._tid_to_connectors: dict[str, list[tuple[str, TopologyNeighbor]]] = {}
         self._marked_connector_for: list[str] = []
-        # Optional :class:`TopologyHealth` instance per topology — see
+        # Optional :class:`TopologyHealth` instance per topology; see
         # :mod:`mango.express.health`.  Populated by ``Topology.inject``
         # for every topology that was configured with ``edge_health``.
         # The same instance is shared across every agent in the
@@ -250,7 +250,7 @@ class _GatherCollector:
         if self._reply_type is not None and not isinstance(content, self._reply_type):
             return
         addr = _addr_from_meta(meta)
-        # First reply per sender wins — late duplicates (e.g. retries)
+        # First reply per sender wins: late duplicates (e.g. retries)
         # are dropped so the caller sees a stable mapping.
         if addr in self.responses:
             return
@@ -330,7 +330,7 @@ class AgentDelegates:
         # Open conversation handles keyed by conversation_id (see
         # :mod:`mango.agent.conversation`).  Several handles may be open
         # for the same id (e.g. an ``@on_message`` handler that re-fires
-        # while an earlier join is still open) — every matching inbound
+        # while an earlier join is still open); every matching inbound
         # message is fanned out to all of them.
         self._conversations: dict[str, list[Conversation]] = {}
         self._behavior_message_subs: list[tuple] = []
@@ -465,7 +465,7 @@ class AgentDelegates:
         """Return the agent whose registries and scheduler serve *operation*.
 
         Identity on an agent itself; delegating contexts (e.g.
-        ``RoleContext``) override this to return their owning agent —
+        ``RoleContext``) override this to return their owning agent, because
         message routing consults the *agent's* registries, so tracked
         handlers, gather collectors and conversations must be
         registered there, not on the delegate.
@@ -545,7 +545,7 @@ class AgentDelegates:
           :meth:`send_tracked_message`).  Popped on first matching
           reply.
         * Multi-shot ``_gather_collectors`` entries (created by
-          :meth:`open_gather`).  Not popped — every matching reply
+          :meth:`open_gather`).  Not popped: every matching reply
           is delivered to the collector until the caller closes it.
         """
         tracking_id = meta.get("tracking_id")
@@ -576,7 +576,7 @@ class AgentDelegates:
         """Register a conversation handle for inbound routing.
 
         Called by the conversation context manager on entry; several
-        handles may share one id — messages fan out to all of them.
+        handles may share one id, and messages fan out to all of them.
         """
         self._conversations.setdefault(conv.conversation_id, []).append(conv)
 
@@ -615,7 +615,7 @@ class AgentDelegates:
         my_addr = self.addr
         for tid, health in svc._tid_to_health.items():
             # Only nudge if the sender is actually a neighbour of this
-            # agent in that topology — keeps unrelated traffic
+            # agent in that topology.  This keeps unrelated traffic
             # (cross-topology messages, broadcast lists) from inflating
             # scores for non-neighbours.
             if any(
@@ -674,12 +674,12 @@ class AgentDelegates:
         Returns a dict mapping each responding agent's
         :class:`AgentAddress` to its reply content.  Responders are
         expected to use :meth:`reply_to` (or otherwise echo
-        ``tracking_id`` with ``reply=True``) — every existing
+        ``tracking_id`` with ``reply=True``); every existing
         request/response pair in mango follows that convention, so
         responders work unchanged.
 
         :param receivers: iterable of :class:`AgentAddress` targets.
-        :param reply_type: optional class/tuple — replies of any other
+        :param reply_type: optional class/tuple.  Replies of any other
             type are silently dropped, filtering out tracking-id
             collisions with unrelated traffic.
         :param timeout: cap on how long to wait, measured on the
@@ -687,7 +687,7 @@ class AgentDelegates:
             whatever replies have arrived so far.
         :param min_fraction: between 0 and 1.  Returns as soon as
             ``ceil(min_fraction * len(receivers))`` replies have
-            arrived.  Defaults to 1.0 — wait for all, time out
+            arrived.  Defaults to 1.0: wait for all, time out
             otherwise.
         """
         agent = self._bound_agent("gather")
@@ -737,7 +737,7 @@ class AgentDelegates:
         The optional *timeout* is enforced via the agent's scheduler
         clock so behaviour is identical under :class:`AsyncioClock`
         (real time) and :class:`ExternalClock` (simulation).  Unlike
-        :meth:`gather`, it defaults to ``None`` — conversations are
+        :meth:`gather`, it defaults to ``None`` because conversations are
         long-lived by design, so no arbitrary deadline is imposed.
         """
         return self._make_conversation(
@@ -1217,7 +1217,7 @@ class Agent(ABC, AgentDelegates):
                     # neighbour score should it read one.
                     self._nudge_topology_health(meta)
                     # Push to any matching open conversation in addition
-                    # to (not instead of) normal dispatch — a role can
+                    # to (not instead of) normal dispatch: a role can
                     # react via ``@on_message`` and pull from the
                     # conversation iterator on the same message.
                     self._route_to_conversation(content, meta)

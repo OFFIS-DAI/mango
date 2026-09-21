@@ -126,7 +126,7 @@ def record_agent(
     """Record a per-agent scalar after every step.
 
     *recorder* receives each agent and returns the value to store.  An
-    optional *filter_fn* restricts recording to a subset of agents — pass
+    optional *filter_fn* restricts recording to a subset of agents; pass
     an ``isinstance``-based predicate to record only agents of a particular
     type::
 

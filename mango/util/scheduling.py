@@ -68,7 +68,7 @@ def sleeping_wait():
     idle; without this scope it would wait for the task to finish and
     deadlock, as the resolving event can only arrive in a later step.
     No-op outside a scheduled task. Only autonomous waits (wall-clock timers,
-    executors, I/O) must not be wrapped — those have to finish within a step.
+    executors, I/O) must not be wrapped; those have to finish within a step.
     """
     task = _current_scheduled_task.get()
     if task is None:

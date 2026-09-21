@@ -1,5 +1,5 @@
 """
-SimulationWorld – a self-contained simulation world for mango.
+SimulationWorld: a self-contained simulation world for mango.
 
 Mirrors the ``World`` type from Mango.jl.  Agents registered in a
 SimulationWorld share an :class:`~mango.util.clock.ExternalClock` and can

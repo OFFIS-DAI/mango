@@ -467,7 +467,7 @@ class TestSimulationWorldRegister:
     async def test_suggested_aid_unavailable_falls_back(self):
         world = create_world()
         a1 = world.register(SimpleAgent(), suggested_aid="agent0")
-        # "agent0" clashes with the auto-naming pattern – falls back
+        # "agent0" clashes with the auto-naming pattern, so it falls back
         a2 = world.register(SimpleAgent(), suggested_aid="agent0")
         assert a1.aid == "agent0"
         # Second registration should get a different aid
@@ -638,12 +638,12 @@ async def test_message_with_delay_delivered_on_next_step():
         await world.send_message(
             "delayed", receiver_addr=receiver.addr, sender_id=sender.aid
         )
-        # Step only 1 second – message not yet due (delay=2s)
+        # Step only 1 second: message not yet due (delay=2s)
         result1 = await step_simulation(world, step_size_s=1.0)
         assert result1.messages_delivered == 0
         assert len(receiver.messages) == 0
 
-        # Step another 2 seconds – message is now due
+        # Step another 2 seconds: message is now due
         result2 = await step_simulation(world, step_size_s=2.0)
         assert result2.messages_delivered == 1
         assert len(receiver.messages) == 1
@@ -1019,7 +1019,7 @@ def test_update_description_all_fields():
 def test_update_description_none_fields_unchanged():
     agent = SimpleAgent()
     agent.update_description(name="Dave")
-    agent.update_description()  # all None – nothing changes
+    agent.update_description()  # all None, so nothing changes
     assert agent.name == "Dave"
 
 
@@ -1082,7 +1082,7 @@ def test_delete_forwarding_rule_nonexistent_is_noop():
     agent = SimpleAgent()
     addr_a = AgentAddress("sim", "a")
     addr_b = AgentAddress("sim", "b")
-    agent.delete_forwarding_rule(addr_a, addr_b)  # no rules at all – must not raise
+    agent.delete_forwarding_rule(addr_a, addr_b)  # no rules at all, must not raise
 
 
 @pytest.mark.asyncio
@@ -1126,7 +1126,7 @@ async def test_send_tracked_message_with_handler():
         await step_simulation(world, step_size_s=1.0)
 
     assert handler_calls == ["pong"]
-    # Handler consumed – no leftover entries
+    # Handler consumed, so no leftover entries
     assert len(sender._transaction_handlers) == 0
 
 
@@ -1256,7 +1256,7 @@ async def test_discrete_step_until_via_run_with_simulation():
 @pytest.mark.asyncio
 async def test_gather_from_scheduled_task_does_not_deadlock_step():
     # Regression: a gather awaiting replies inside a scheduled task must count
-    # as sleeping for termination detection — otherwise world.step() hangs,
+    # as sleeping for termination detection, or world.step() hangs,
     # since the replies can only be delivered after detection returns.
     world = create_world()
 
@@ -1349,7 +1349,7 @@ async def test_discrete_step_until_stops_when_no_events_remain():
 
 @pytest.mark.asyncio
 async def test_world_delegates_container_properties():
-    """:class:`SimulationWorld` is a facade over its container — the
+    """:class:`SimulationWorld` is a facade over its container: the
     read-through properties and the two setters must address the same
     container state, not a shadow copy."""
     a = SimpleAgent()
@@ -1397,7 +1397,7 @@ async def test_next_step_size_accounts_for_pending_messages():
 @pytest.mark.asyncio
 async def test_simulation_container_rejects_agent_processes():
     """Agent subprocesses have their own event loop and clock, which a
-    stepped simulation cannot drive — both entry points say so."""
+    stepped simulation cannot drive, so both entry points say so."""
     async with run_with_simulation(SimpleAgent()) as world:
         with pytest.raises(NotImplementedError, match="simulation container"):
             await world.container.as_agent_process(lambda c: None)
@@ -1408,7 +1408,7 @@ async def test_simulation_container_rejects_agent_processes():
 @pytest.mark.asyncio
 async def test_simulation_container_shutdown_survives_failing_agent(caplog):
     """One agent raising in ``on_stop`` must not leave the remaining
-    agents running — shutdown logs and carries on."""
+    agents running; shutdown logs and carries on."""
 
     class _BadAgent(SimpleAgent):
         async def on_stop(self):

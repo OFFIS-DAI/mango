@@ -2,10 +2,10 @@
 
 Three layers of coverage:
 
-1. :class:`TopologyHealth` unit tests — pure-state machine, no agents.
-2. End-to-end test on TCP containers — confirms auto-nudge fires on
+1. :class:`TopologyHealth` unit tests: pure-state machine, no agents.
+2. End-to-end test on TCP containers: confirms auto-nudge fires on
    every received message and ``live_neighbours`` filters correctly.
-3. Simulation-clock test — confirms decay uses :class:`ExternalClock`
+3. Simulation-clock test: confirms decay uses :class:`ExternalClock`
    so behaviour is identical under simulation time.
 """
 
@@ -31,7 +31,7 @@ from mango.agent.role import RoleContext, RoleHandler
 from mango.express.health import TopologyHealth
 
 # ---------------------------------------------------------------------------
-# Pure unit tests on the runtime — no agents, no clock.
+# Pure unit tests on the runtime: no agents, no clock.
 # ---------------------------------------------------------------------------
 
 
@@ -85,14 +85,14 @@ class TestTopologyHealthRuntime:
 
     def test_per_owner_scores_are_independent(self):
         """The same neighbour observed by two different owners has two
-        independent scores — the runtime is a single shared instance
+        independent scores.  The runtime is a single shared instance
         across all agents in the topology, but the (owner, neighbour)
         key isolates each agent's view."""
         h = TopologyHealth(EdgeHealth(decay_per_s=0.0, initial=1.0))
         h.nudge(_A("alice"), _A("bob"), now=0.0)
         # Alice's view of Bob recovered, Carol's didn't.
         assert h.score(_A("alice"), _A("bob"), now=0.0) > 0.0
-        # Carol hasn't been pinged — still at the initial.
+        # Carol hasn't been pinged, so she is still at the initial.
         assert h.score(_A("carol"), _A("bob"), now=0.0) == pytest.approx(1.0)
 
     def test_recovery_rate_validation(self):
@@ -107,7 +107,7 @@ class TestTopologyHealthRuntime:
 
 
 # ---------------------------------------------------------------------------
-# End-to-end on TCP containers — auto-nudge + live_neighbours.
+# End-to-end on TCP containers: auto-nudge + live_neighbours.
 # ---------------------------------------------------------------------------
 
 
@@ -117,7 +117,7 @@ class _Ping:
 
 
 class _PingHandler(Role):
-    """Receives pings and replies — keeps the test wiring symmetric."""
+    """Receives pings and replies, keeping the test wiring symmetric."""
 
     def __init__(self) -> None:
         super().__init__()
@@ -143,7 +143,7 @@ async def test_auto_nudge_on_received_message():
     with create_topology(
         tid="pair",
         edge_health=EdgeHealth(
-            decay_per_s=0.0,  # disabled — isolate the nudge effect
+            decay_per_s=0.0,  # disabled, to isolate the nudge effect
             recovery_rate=0.5,
             initial=0.0,  # start cold so nudge is observable
             liveness_threshold=0.4,
@@ -208,7 +208,7 @@ async def test_live_neighbours_filters_silent_peers():
 @pytest.mark.asyncio
 async def test_live_neighbours_falls_back_when_no_health():
     """Without ``edge_health`` configured, ``live_neighbours`` returns
-    the full unfiltered neighbour list — callers can use the method
+    the full unfiltered neighbour list, so callers can use the method
     unconditionally."""
     container = create_tcp_container(addr=("127.0.0.1", 5573))
     a = container.register(RoleAgent())
@@ -223,7 +223,7 @@ async def test_live_neighbours_falls_back_when_no_health():
 
     async with activate([container]):
         live = a._role_context.live_neighbours(tid="bare")
-        # No nudges have happened — b is still in the list because
+        # No nudges have happened, but b is still in the list because
         # health tracking was never enabled.
         assert b.addr in live
         # neighbour_score returns None for a no-health topology.

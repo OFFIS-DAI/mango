@@ -55,7 +55,7 @@ class TestObjectStreamReader:
     @pytest.mark.asyncio
     async def test_truncated_frame_raises_oserror(self):
         """A frame that stops halfway is a broken message, not a clean
-        shutdown — callers must be able to tell the two apart."""
+        shutdown, and callers must be able to tell the two apart."""
         reader = _reader_over(b"ab")
 
         with pytest.raises(OSError, match="end of file during message"):
@@ -80,7 +80,7 @@ class TestObjectStreamReader:
     async def test_reads_large_frame_via_64_bit_header(self):
         """Payloads above 2 GiB cannot state their size in the 32-bit
         header, so a ``-1`` marker introduces a 64-bit one.  The frame
-        itself is small here — only the header path differs."""
+        itself is small here; only the header path differs."""
         payload = b"large-frame"
         data = struct.pack("!i", -1) + struct.pack("!Q", len(payload)) + payload
 
@@ -97,7 +97,7 @@ class TestObjectStreamReader:
     @pytest.mark.asyncio
     async def test_read_bytes_returns_the_raw_frame(self):
         """``read_bytes`` is the unpickled counterpart of
-        ``read_object`` — same framing, no deserialisation."""
+        ``read_object``: same framing, no deserialisation."""
         reader = _reader_over(_framed(b"raw"))
 
         assert await reader.read_bytes() == b"raw"
@@ -167,7 +167,7 @@ class TestObjectStreamWriter:
 class TestOwnershiplessConnection:
     def test_send_and_recv_work_synchronously(self):
         """The synchronous API on an endpoint that was never handed to a
-        transport — used by ``pre_hook_reserve_aid``, which has to block."""
+        transport.  Used by ``pre_hook_reserve_aid``, which has to block."""
         a, b = aioduplex()
         sender, receiver = a.dup(), b.dup()
 
@@ -195,8 +195,8 @@ class TestOwnershiplessConnection:
         b.close()
 
     def test_close_is_a_no_op_and_force_close_releases_the_descriptor(self):
-        """``close`` never touches the descriptor — that is the whole
-        point of the class — so an endpoint only ever used synchronously
+        """``close`` never touches the descriptor (that is the whole
+        point of the class), so an endpoint only ever used synchronously
         needs ``_force_close`` to stop leaking it."""
         a, b = aioduplex()
         duplicate = a.dup()
@@ -223,7 +223,7 @@ class TestOwnershiplessConnection:
 
     def test_force_close_tolerates_an_unusable_descriptor(self):
         """A descriptor that no longer resolves to a socket cannot be
-        closed either — ``_force_close`` is best-effort cleanup and must
+        closed either; ``_force_close`` is best-effort cleanup and must
         not raise into a teardown path."""
 
         class _Stale:

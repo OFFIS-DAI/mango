@@ -26,7 +26,7 @@
 
 ---
 
-**mango** (**m**odul**a**r pytho**n** a**g**ent framew**o**rk) is a Python library for building and simulating multi-agent systems (MAS) on top of `asyncio`. It targets researchers and engineers who need reproducible agent behaviour, structured agent architectures, and controlled experimental conditions — without sacrificing usability for prototyping.
+**mango** (**m**odul**a**r pytho**n** a**g**ent framew**o**rk) is a Python library for building and simulating multi-agent systems (MAS) on top of `asyncio`. It targets researchers and engineers who need reproducible agent behaviour, structured agent architectures, and controlled experimental conditions, without sacrificing usability for prototyping.
 
 ---
 
@@ -93,7 +93,7 @@ asyncio.run(main())
 
 ### Proactive behavior
 
-Agents are not limited to reacting to messages. `schedule_periodic_task` registers a coroutine that is called repeatedly at a fixed interval — useful for polling, broadcasting, or any time-driven behavior:
+Agents are not limited to reacting to messages. `schedule_periodic_task` registers a coroutine that is called repeatedly at a fixed interval, useful for polling, broadcasting, or any time-driven behavior:
 
 ```python
 class SensorAgent(Agent):
@@ -206,7 +206,7 @@ asyncio.run(run())
 # Total readings received: 6
 ```
 
-`discrete_step_until` automatically determines each step size as the time until the next scheduled event — a message arrival or a task wakeup — and stops when no further events remain within the time budget.
+`discrete_step_until` automatically determines each step size as the time until the next scheduled event (a message arrival or a task wakeup) and stops when no further events remain within the time budget.
 
 For experiment designs that require fixed, uniform time increments, call `step_simulation` directly:
 

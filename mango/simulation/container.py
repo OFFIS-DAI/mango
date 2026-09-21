@@ -1,5 +1,5 @@
 """
-SimulationContainer – the container implementation backing
+SimulationContainer: the container implementation backing
 :class:`~mango.simulation.world.SimulationWorld`.
 
 Implements the mango container contract for a clock-driven simulation:

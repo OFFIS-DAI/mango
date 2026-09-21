@@ -339,4 +339,4 @@ class DefaultEnvironment(Environment):
 
 
 class _NoBehavior(Behavior):
-    """Null behavior – does nothing."""
+    """Null behavior: does nothing."""

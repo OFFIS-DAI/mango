@@ -28,7 +28,7 @@ from mango.agent.core import _addr_from_meta, _GatherCollector
 
 @dataclass
 class _Ask:
-    """Request payload — carried by the gather caller."""
+    """Request payload, carried by the gather caller."""
 
     topic: str
 
@@ -44,7 +44,7 @@ class _Responder(Role):
     """Replies to every :class:`_Ask` it receives with its configured value.
 
     Uses :meth:`AgentDelegates.reply_to` so the ``tracking_id`` threads
-    back to the caller automatically — that is the contract the gather
+    back to the caller automatically; that is the contract the gather
     machinery relies on.
     """
 
@@ -60,7 +60,7 @@ class _Responder(Role):
 
 
 class _SilentResponder(Role):
-    """Never replies — used to verify the timeout branch."""
+    """Never replies; used to verify the timeout branch."""
 
     @on_message(_Ask)
     async def on_ask(self, content: _Ask, meta: dict) -> None:  # noqa: ARG002
@@ -112,7 +112,7 @@ async def test_gather_collects_all_replies():
     assert len(caller_role.responses) == 3
     values = sorted(r.value for r in caller_role.responses.values())
     assert values == [1.0, 2.0, 3.0]
-    # All three responded, so we never hit the timeout — gather should
+    # All three responded, so we never hit the timeout: gather should
     # have returned essentially immediately.
     assert caller_role.elapsed < 2.0
 
@@ -147,7 +147,7 @@ async def test_gather_returns_on_timeout_with_partial_results():
 
 @pytest.mark.asyncio
 async def test_gather_returns_early_on_quorum():
-    """``min_fraction=0.5`` lets gather return as soon as half have replied —
+    """``min_fraction=0.5`` lets gather return as soon as half have replied;
     no need to wait for the silent member."""
     container = create_tcp_container(addr=("127.0.0.1", 5558))
     addrs = []
@@ -167,7 +167,7 @@ async def test_gather_returns_early_on_quorum():
         await caller_role.run()
 
     # Quorum is 2 (round(0.5 * 3) = 2).  Should return as soon as the
-    # two real responders answered — well under the 5 s timeout.
+    # two real responders answered, well under the 5 s timeout.
     assert caller_role.responses is not None
     assert len(caller_role.responses) >= 2
     assert caller_role.elapsed < 1.0
@@ -241,7 +241,7 @@ async def test_gather_timeout_uses_simulation_clock():
         caller_agent.add_role(caller)
         await caller.run(world)
 
-    # 10 simulated seconds elapsed — confirms gather used clock.sleep,
+    # 10 simulated seconds elapsed, confirming gather used clock.sleep,
     # not wall-clock asyncio.wait_for.
     assert caller.elapsed_sim_time == pytest.approx(10.0)
 
@@ -251,7 +251,7 @@ async def test_gather_filters_by_reply_type():
     """A reply of an unrelated type with the same tracking_id is dropped."""
 
     class _NoiseResponder(Role):
-        """Sends back a string instead of a ``_Reply`` — ``reply_type``
+        """Sends back a string instead of a ``_Reply``; the ``reply_type``
         filter must reject it without raising."""
 
         @on_message(_Ask)
@@ -286,7 +286,7 @@ async def test_gather_filters_by_reply_type():
 async def test_role_send_tracked_message_response_handler_fires():
     """A role's ``send_tracked_message`` must register its response handler
     on the *agent* (whose inbox matches replies), not on the RoleContext's
-    own inherited registry — a handler registered there never fires."""
+    own inherited registry: a handler registered there never fires."""
 
     class _TrackedCaller(Role):
         def __init__(self, peer):
@@ -318,7 +318,7 @@ async def test_role_send_tracked_message_response_handler_fires():
 
 
 # ---------------------------------------------------------------------------
-# Collector unit tests — the aggregation rules without any transport.
+# Collector unit tests: the aggregation rules without any transport.
 # ---------------------------------------------------------------------------
 
 

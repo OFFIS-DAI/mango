@@ -3,15 +3,15 @@
 Three decorators that move the mechanical parts of ``setup()`` out of
 hand-written boilerplate and into class-level metadata:
 
-* :func:`on_message` — subscribe to a message type with an optional filter.
-* :func:`on_event` — subscribe to a co-located event type.
-* :func:`periodic` — schedule a periodic task at role-attach time.
+* :func:`on_message`: subscribe to a message type with an optional filter.
+* :func:`on_event`: subscribe to a co-located event type.
+* :func:`periodic`: schedule a periodic task at role-attach time.
 
 A role that uses these decorators does not need to implement
 ``setup()`` at all unless it has other initialisation logic.  When
 ``setup()`` is implemented, the decorator wiring runs first; the
 explicit ``setup`` body can then *add* further subscriptions.  There is
-no unsubscribe, so ``setup`` extends the declarative wiring — it cannot
+no unsubscribe, so ``setup`` extends the declarative wiring; it cannot
 remove or replace it.
 
 The decorators are pure annotations: they stash configuration on the
@@ -27,7 +27,7 @@ sending messages from the task body is safe.  A role added to an agent
 that is already running is caught up immediately.
 
 Async coroutine handlers for ``on_message`` are scheduled as instant
-tasks automatically — the underlying ``handle_message`` callback is
+tasks automatically, because the underlying ``handle_message`` callback is
 synchronous, so an async handler would otherwise raise
 ``RuntimeWarning: coroutine was never awaited``.  This removes the
 repeated ``def _wrap(coro_fn): ...`` shim every existing role declares.
@@ -64,7 +64,7 @@ class _Dispatch:
     """Per-method dispatch metadata collected by the decorators.
 
     A single method may carry multiple subscriptions (e.g. one
-    ``@on_message`` and one ``@on_event``) by stacking decorators —
+    ``@on_message`` and one ``@on_event``) by stacking decorators;
     each adds an entry to the corresponding list.
     """
 
@@ -80,7 +80,7 @@ def _get_or_create_meta(method: Callable) -> _Dispatch:
         try:
             setattr(method, _MANGO_DISPATCH_META, meta)
         except (AttributeError, TypeError):
-            # Bound methods and some descriptors are read-only — the
+            # Bound methods and some descriptors are read-only; the
             # decorators below are intended for regular functions on
             # class bodies, where setattr always succeeds.
             raise TypeError(
@@ -105,7 +105,7 @@ def on_message(
     :param message_type: only deliver messages where
         ``isinstance(content, message_type)`` is true.
     :param where: optional extra filter.  Called as
-        ``where(self, content, meta) -> bool`` — receives ``self``
+        ``where(self, content, meta) -> bool``, which receives ``self``
         so the filter can read role state (e.g. a sector tag) without
         capturing it in a closure at class-define time.  If ``None``
         any message of *message_type* is accepted.
@@ -159,11 +159,11 @@ def periodic(
 
     :param every: period in seconds, or a string key looked up on the
         role instance when the task is started (e.g. ``"poll_period_s"``
-        reads ``role.poll_period_s`` — useful for periods configured per
+        reads ``role.poll_period_s``), useful for periods configured per
         role instance).  The period is measured on the agent's scheduler
         clock, so it is simulation time under an ``ExternalClock``.
     :param only_if: optional predicate ``only_if(self) -> bool`` evaluated
-        at every firing.  When false the task body is skipped — the
+        at every firing.  When false the task body is skipped: the
         scheduler still runs but the handler returns early.  This
         replaces a hand-written ``if not leader: return`` guard at the
         top of the coroutine.
@@ -189,7 +189,7 @@ def collect_dispatch(cls: type) -> dict[str, _Dispatch]:
     multiple subscriptions because :class:`_Dispatch` is a list of
     each kind.  Subclass methods *replace* base-class entries with the
     same name (standard MRO), but unrelated method names from a base
-    class are still collected — so a base role that declares
+    class are still collected, so a base role that declares
     ``@periodic`` decorated methods is inherited by subclasses
     transparently.
     """
@@ -243,7 +243,7 @@ def apply_subscriptions(role: Any) -> None:
 
     Called by :meth:`Role._bind` after the role context is wired but
     before user-defined ``setup()``.  Splitting this out keeps the
-    decoration mechanism orthogonal from the Role base class — tests
+    decoration mechanism orthogonal from the Role base class, so tests
     can call it against a mock context.
     """
     dispatch = collect_dispatch(type(role))

@@ -2,7 +2,7 @@
 
 Multi-agent gossip protocols typically need a notion of "is this
 neighbour still alive?" so a sender can route around silent peers.
-Without framework support every role re-invents the same machinery —
+Without framework support every role re-invents the same machinery:
 a per-neighbour decay timer, a multiplicative recovery rule on every
 received message, and a filter that drops neighbours whose score is
 below some threshold.
@@ -13,8 +13,8 @@ runtime.  When a topology is built with ``edge_health=EdgeHealth(...)``,
 every agent in the topology gets an auto-installed receive hook that
 multiplicatively recovers the corresponding edge score on every
 incoming message.  Roles can then ask the topology for the
-``live_neighbours()`` set — neighbours whose current score is at or
-above the configured threshold — without touching the bookkeeping.
+``live_neighbours()`` set (neighbours whose current score is at or
+above the configured threshold) without touching the bookkeeping.
 
 The decay follows the clock attached to the agent's scheduler, so
 behaviour is identical under real-time (:class:`AsyncioClock`) and
@@ -61,7 +61,7 @@ class EdgeHealth:
     :param recovery_rate: fraction of (1-score) recovered per received
         message.  Must be in ``(0, 1]``.
     :param initial: starting score for a never-contacted neighbour
-        (default 1.0 — optimistic bootstrap).
+        (default 1.0, an optimistic bootstrap).
     :param liveness_threshold: default cutoff for ``live_neighbours``.
         Callers can override per-call.
     """
@@ -79,7 +79,7 @@ class EdgeHealth:
 
 
 class TopologyHealth:
-    """Per-topology runtime state — one instance per :class:`Topology`.
+    """Per-topology runtime state: one instance per :class:`Topology`.
 
     Stores a score per directed (owner, neighbour) pair keyed by their
     string addresses.  The owner side is included because the same
@@ -87,7 +87,7 @@ class TopologyHealth:
     health view of the same neighbour.
 
     All clock reads go through the ``clock_fn`` callable supplied at
-    construction time — ``lambda: scheduler.clock.time``.  This keeps
+    construction time, e.g. ``lambda: scheduler.clock.time``.  This keeps
     decay rate-aware of simulation time without coupling the runtime
     to a specific clock class.
     """

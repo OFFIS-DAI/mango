@@ -39,7 +39,7 @@ scenario:
      - Co-simulation scenarios where an external tool (e.g. a power-flow
        solver) drives the time loop and injects messages.
 
-All factory methods are *synchronous* — you can create containers before
+All factory methods are *synchronous*: you can create containers before
 starting the asyncio event loop.  The default codec is JSON (see
 :doc:`codecs` for details).  You can supply a custom :class:`~mango.ExternalClock`
 to decouple simulation time from wall time (see :doc:`scheduling`).
@@ -61,7 +61,7 @@ Starting and stopping
 
 Container creation is separate from container *starting*.  Before a container
 can exchange messages its network server must be started.  Use the
-:meth:`~mango.activate` context manager — it starts all containers, runs your
+:meth:`~mango.activate` context manager; it starts all containers, runs your
 code, and shuts everything down on exit (even on exceptions):
 
 .. testcode::
@@ -210,7 +210,7 @@ subprocess, coordinated automatically through a *mirror container*.
     print(f"Agent running in PID {process_handle.pid}")
 
 The agent in the subprocess communicates with other agents exactly like any
-other mango agent — through the normal messaging API.
+other mango agent, through the normal messaging API.
 
 .. note::
     Once an agent is running in a subprocess you cannot access it directly
@@ -236,4 +236,4 @@ process handle is returned; the subprocess is created when
 
 .. seealso::
 
-    :doc:`scheduling` — clock types and the scheduling API
+    :doc:`scheduling`: clock types and the scheduling API

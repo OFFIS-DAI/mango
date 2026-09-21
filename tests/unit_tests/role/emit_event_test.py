@@ -55,7 +55,7 @@ class TestEmitEventNoListener:
         assert received and received[0].value == 42
 
     def test_listener_receives_event_strict_mode(self):
-        """Strict mode is purely about the no-listener case — when a
+        """Strict mode is purely about the no-listener case: when a
         listener exists, the event is delivered normally."""
         handler = _make_handler()
         received: list[_SomeEvent] = []
@@ -78,7 +78,7 @@ class TestRoleContextEmitEvent:
         agent = RoleAgent()
         # The context is reachable via the private handle on the agent.
         ctx: RoleContext = agent._role_context
-        # No listener subscribed — must not raise.
+        # No listener subscribed, so this must not raise.
         ctx.emit_event(_SomeEvent(value=1))
 
     def test_role_context_strict_raises(self):

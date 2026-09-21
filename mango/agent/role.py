@@ -123,7 +123,7 @@ class WaitingMessagePreprocessor(MessagePreprocessor):
                 )
 
             async def on_data(self, content, meta):
-                await asyncio.sleep(0.1)   # safe – next msg waits
+                await asyncio.sleep(0.1)   # safe: next msg waits
                 ...
     """
 
@@ -371,7 +371,7 @@ class RoleHandler:
         """Dispatch *event* to every subscribed handler on this agent.
 
         :param strict: when True, raise :class:`KeyError` if no role is
-            subscribed to ``type(event)``.  Default is False — events
+            subscribed to ``type(event)``.  Default is False: events
             without subscribers are silently dropped, matching the
             fire-and-forget semantics callers expect from a
             notification API and removing the ``try/except KeyError``
@@ -551,7 +551,7 @@ class RoleContext(AgentDelegates):
         :param event_source: emitter of the event (mostly the emitting role), defaults to None
         :type event_source: Any, optional
         :param strict: when True, raise :class:`KeyError` if no role
-            is subscribed to ``type(event)``.  Default False — see
+            is subscribed to ``type(event)``.  Default False; see
             :meth:`RoleHandler.emit_event` for the rationale.
         """
         self._role_handler.emit_event(event, event_source, strict=strict)
@@ -629,7 +629,7 @@ class RoleContext(AgentDelegates):
         edge health is at or above *threshold*.
 
         Falls back to the full neighbour list when the topology has no
-        ``edge_health`` configured — callers can use this method
+        ``edge_health`` configured, so callers can use this method
         unconditionally without having to branch on whether tracking is
         enabled.
         """
@@ -664,7 +664,7 @@ class RoleContext(AgentDelegates):
         agent = self._role_handler._agent
         if agent is None:
             raise RuntimeError(
-                f"{operation} requires a bound RoleAgent — the role's "
+                f"{operation} requires a bound RoleAgent: the role's "
                 "context is not attached yet."
             )
         return agent

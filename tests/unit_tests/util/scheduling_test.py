@@ -607,7 +607,7 @@ async def test_exception(caplog):
 @pytest.mark.asyncio
 async def test_recurrent_aware_rule_is_read_as_utc():
     """A rule built from tz-aware datetimes means absolute time, so the
-    clock has to be read as UTC — reading it as local would shift every
+    clock has to be read as UTC; reading it as local would shift every
     occurrence by the machine's UTC offset.
 
     Counterpart to ``test_recurrent_naive_rule_is_timezone_independent``.

@@ -2,15 +2,15 @@
 
 Coverage flavours:
 
-* Handle-level — termination latch (multi-consumer wakeup, re-iteration),
+* Handle-level: termination latch (multi-consumer wakeup, re-iteration),
   send tagging, broadcast results.
-* Real-time (TCP) — initiator opens a conversation, joiner receives
+* Real-time (TCP): initiator opens a conversation, joiner receives
   the message and joins it, both sides exchange multiple messages
   under one id; also across two containers and with plain (role-less)
   agents.
-* Convergence / cancellation — the iterator terminates correctly when
+* Convergence / cancellation: the iterator terminates correctly when
   the caller signals end.
-* Simulation-time timeout — exercises the conversation's clock-aware
+* Simulation-time timeout: exercises the conversation's clock-aware
   timeout under an :class:`ExternalClock` so we know the timeout
   advances with simulation time, not wall time.
 """
@@ -41,7 +41,7 @@ from mango.simulation.world import step_simulation
 
 @dataclass
 class _Step:
-    """Multi-hop payload — carries a counter the participants increment."""
+    """Multi-hop payload: carries a counter the participants increment."""
 
     counter: int
 
@@ -90,7 +90,7 @@ class _Initiator(Role):
 
 @pytest.mark.asyncio
 async def test_conversation_round_trip():
-    """Three back-and-forth volleys carry the same conversation id —
+    """Three back-and-forth volleys carry the same conversation id, so
     every reply routes to the initiator's async iterator, the joiner's
     fresh ``join_conversation`` succeeds every time."""
     container = create_tcp_container(addr=("127.0.0.1", 5580))
@@ -188,7 +188,7 @@ async def test_conversation_cancel_drops_remaining_messages():
 
 
 # ---------------------------------------------------------------------------
-# Handle-level behaviour — no container needed.
+# Handle-level behaviour: no container needed.
 # ---------------------------------------------------------------------------
 
 
@@ -353,7 +353,7 @@ async def test_overlapping_joins_each_receive_every_message():
 
 
 class _PlainResponder(Agent):
-    """Replies via ``reply_to`` — the conversation id must thread back so
+    """Replies via ``reply_to``; the conversation id must thread back so
     the initiator's iterator receives the reply."""
 
     def handle_message(self, content, meta):
@@ -510,12 +510,12 @@ async def test_conversation_across_two_containers_with_acl_content():
 
 
 # ---------------------------------------------------------------------------
-# Simulation-clock timeout — the load-bearing requirement.
+# Simulation-clock timeout: the load-bearing requirement.
 # ---------------------------------------------------------------------------
 
 
 class SimAgent(Agent):
-    """A bare :class:`Agent` for testing — we only need the scheduler
+    """A bare :class:`Agent` for testing: we only need the scheduler
     clock; the message inbox is unused."""
 
     def handle_message(self, content, meta):
@@ -525,7 +525,7 @@ class SimAgent(Agent):
 @pytest.mark.asyncio
 async def test_conversation_timeout_follows_simulation_clock():
     """An open conversation under ``run_with_simulation`` must time out
-    when *simulation* time crosses the deadline — not wall time.
+    when *simulation* time crosses the deadline, not wall time.
 
     Strategy: open a conversation with ``timeout=5.0`` simulated
     seconds and advance the clock by one 5-second step.  The
@@ -557,9 +557,9 @@ async def test_conversation_timeout_follows_simulation_clock():
                     await step_simulation(world, step_size_s=5.0)
 
                 advancer = asyncio.create_task(_advance())
-                # Drain the conversation — when the timeout fires the
+                # Drain the conversation: when the timeout fires the
                 # iterator exits.
-                async for _, _meta in conv:  # pragma: no cover — empty stream
+                async for _, _meta in conv:  # pragma: no cover (empty stream)
                     pass
                 await advancer
                 self.iteration_done_at = world.clock.time
@@ -572,7 +572,7 @@ async def test_conversation_timeout_follows_simulation_clock():
         await role.watch(world)
 
     # The conversation exited after simulation time advanced 5 s, not
-    # 5 wall seconds — confirms the timeout used clock.sleep.
+    # 5 wall seconds, confirming the timeout used clock.sleep.
     assert role.before_advance == pytest.approx(0.0)
     assert role.iteration_done_at == pytest.approx(5.0)
 
@@ -600,7 +600,7 @@ async def test_converge_and_cancel_are_idempotent():
 @pytest.mark.asyncio
 async def test_send_warns_but_proceeds_on_immutable_content(caplog):
     """Content whose ``conversation_id`` cannot be assigned (a frozen
-    dataclass, a read-only property) still goes out — the id then
+    dataclass, a read-only property) still goes out; the id then
     travels in meta only."""
 
     @dataclass(frozen=True)
@@ -632,7 +632,7 @@ async def test_inbound_after_close_is_dropped():
 @pytest.mark.asyncio
 async def test_timeout_without_scheduler_warns_and_stays_open(caplog):
     """An unbound agent has no scheduler clock, so a requested timeout
-    cannot be enforced — the conversation still works, but says so."""
+    cannot be enforced; the conversation still works, but says so."""
     agent = Agent()
 
     async with agent.open_conversation(timeout=0.01) as conv:
@@ -668,8 +668,8 @@ async def test_join_conversation_without_id_is_rejected():
 
 @pytest.mark.asyncio
 async def test_unregister_is_forgiving():
-    """Unregistering an unknown id, or the same handle twice, is a no-op
-    — ``__aexit__`` must not raise on an already-torn-down agent."""
+    """Unregistering an unknown id, or the same handle twice, is a no-op,
+    so ``__aexit__`` cannot raise on an already-torn-down agent."""
     agent = Agent()
     conv = Conversation(owner=agent, conversation_id="cid-x")
 

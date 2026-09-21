@@ -21,7 +21,7 @@ networkx's graph construction helpers.
    .. grid-item-card:: Build & assign
       :shadow: sm
 
-      Construct a graph, then place agents on its nodes — one by one, in
+      Construct a graph, then place agents on its nodes: one by one, in
       round-robin, or by a predicate.
 
    .. grid-item-card:: Query neighbours
@@ -108,11 +108,11 @@ returns a :class:`~mango.Topology` you can populate with :func:`~mango.per_node`
    * - Constructor
      - Shape
    * - :func:`~mango.complete_topology` ``(n)``
-     - Fully connected — every node linked to every other.
+     - Fully connected: every node linked to every other.
    * - :func:`~mango.star_topology` ``(n)``
      - One hub (node ``0``) connected to ``n - 1`` leaves.
    * - :func:`~mango.cycle_topology` ``(n)``
-     - A ring — each node linked to its two neighbours.
+     - A ring: each node linked to its two neighbours.
    * - :func:`~mango.graph_topology` ``(graph)``
      - Any existing ``networkx`` graph (alias: :func:`~mango.custom_topology`).
 
@@ -132,7 +132,7 @@ Assigning agents to nodes
 A freshly-built graph has empty nodes.  There are three ways to place agents,
 each ending in an automatic :meth:`~mango.Topology.inject`:
 
-**One agent per node** — iterate the nodes with :func:`~mango.per_node` and
+**One agent per node**: iterate the nodes with :func:`~mango.per_node` and
 call :meth:`AgentNode.add` on each:
 
 .. testcode::
@@ -175,10 +175,10 @@ call :meth:`AgentNode.add` on each:
 .. warning::
 
    :func:`~mango.per_node` injects **after** the loop finishes.  Breaking out
-   of the loop early skips the injection — iterate to the end (or call
+   of the loop early skips the injection; iterate to the end (or call
    :meth:`~mango.Topology.inject` yourself).
 
-**Round-robin** — spread a list of agents across the nodes with
+**Round-robin**: spread a list of agents across the nodes with
 :func:`~mango.auto_assign` (wraps around when there are more agents than
 nodes):
 
@@ -189,7 +189,7 @@ nodes):
     topology = complete_topology(3)
     auto_assign(topology, my_agents)   # agent i → node i % 3
 
-**By predicate** — :func:`~mango.assign_agents` places every agent for which
+**By predicate**: :func:`~mango.assign_agents` places every agent for which
 ``condition(agent, node)`` is true.  The node is passed as the second argument;
 a matching agent is added to *every* node whose predicate returns true, so the
 predicate usually tests the agent's type or attributes:
@@ -245,7 +245,7 @@ Querying neighbours from agents and roles
 =========================================
 
 :meth:`~mango.Agent.neighbors` is the direct method on an agent.  When you work
-with the :doc:`role system <role-api>`, use the matching free functions —
+with the :doc:`role system <role-api>`, use the matching free functions;
 they accept **either an agent or a role** and read the same
 :class:`~mango.TopologyService`:
 
@@ -349,8 +349,8 @@ Use the ``state`` argument to query neighbours in a specific state:
     active_neighbours  = agent.neighbors(state=State.NORMAL)
     inactive_links     = agent.neighbors(state=State.INACTIVE)
 
-To change the graph *after* it has been injected — flip a link to
-``BROKEN`` when a peer goes silent, add or remove nodes — wrap the edits in
+To change the graph *after* it has been injected (flip a link to
+``BROKEN`` when a peer goes silent, add or remove nodes), wrap the edits in
 :func:`~mango.modify_topology`.  It re-injects the updated neighbourhoods when
 the block exits:
 
@@ -367,8 +367,8 @@ the block exits:
 Connecting multiple topologies
 ==============================
 
-Large systems are often built from several independent topologies — one per
-region, per voltage level, per organisation — that must still exchange a few
+Large systems are often built from several independent topologies (one per
+region, per voltage level, per organisation) that must still exchange a few
 messages across the boundary.  Rather than merging them into one graph, mango
 links them through *connector* agents.
 
@@ -398,7 +398,7 @@ Nominate connectors either while building the topology with
     connect_topologies(region_a, region_b, connection_type="uplink")
 
 After :func:`~mango.connect_topologies`, each side's connector can see the
-other side's connectors — without any node in ``region_a`` becoming a graph
+other side's connectors, without any node in ``region_a`` becoming a graph
 neighbour of a node in ``region_b``:
 
 .. code-block:: python
@@ -485,11 +485,11 @@ unconditionally:
             scores = self.context.neighbour_scores(tid="grid")  # {addr: score}
             one = self.context.neighbour_score(some_addr, tid="grid")
 
-* :meth:`~mango.RoleContext.live_neighbours` — the neighbours at or above the
+* :meth:`~mango.RoleContext.live_neighbours`: the neighbours at or above the
   threshold (override per call with ``threshold=``).
-* :meth:`~mango.RoleContext.neighbour_scores` — a ``{AgentAddress: score}`` map
+* :meth:`~mango.RoleContext.neighbour_scores`: a ``{AgentAddress: score}`` map
   for all neighbours.
-* :meth:`~mango.RoleContext.neighbour_score` — the score for one neighbour, or
+* :meth:`~mango.RoleContext.neighbour_score`: the score for one neighbour, or
   ``None`` when tracking is off.
 
 All scores are read on the agent's scheduler clock, so decay behaves
@@ -518,7 +518,7 @@ communication delays in a simulation:
 
 .. seealso::
 
-    :doc:`simulation` — use :func:`~mango.run_with_simulation` to run
+    :doc:`simulation`: use :func:`~mango.run_with_simulation` to run
     topology-based agents in a simulation world, and feed
     :func:`~mango.topology_to_aid_graph` into the communication simulation for
     delays that grow with graph distance.
