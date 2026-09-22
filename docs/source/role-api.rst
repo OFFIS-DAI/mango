@@ -238,9 +238,9 @@ role is added to an agent:
 .. note::
 
    :func:`~mango.on_message` and :func:`~mango.periodic` work the same way on
-   a plain :class:`~mango.Agent` subclass, without any role involved; see
-   :doc:`agents-container`.  :func:`~mango.on_event` is role-only, because
-   the event bus it subscribes to belongs to an agent's roles.
+   a plain :class:`~mango.Agent`, with no role involved; see
+   :doc:`agents-container`.  :func:`~mango.on_event` is role-only: the event
+   bus it subscribes to belongs to an agent's roles.
 
 .. code-block:: python
 
@@ -355,8 +355,8 @@ Two keyword options refine the subscription:
 
    A message of the right type that fails ``where`` is simply not delivered
    to *this* handler.  It is not dropped: every other matching subscription
-   still fires, and the role's ``handle_message`` fallback (below) still sees
-   it.  If a role needs to observe every message of a type (say, to count
+   still fires, and the role's ``handle_message`` catch-all (below) still
+   sees it.  If a role needs to observe every message of a type (say, to count
    arrivals for a timeout) while acting only on some of them, add a second
    ``@on_message(Type)`` handler without ``where``, or use
    ``handle_message``.
@@ -404,10 +404,10 @@ the closure, and the callback contract is synchronous, so an ``async`` handler
 registered this way has to be scheduled explicitly, e.g. with
 ``self.context.schedule_instant_task(self.handler(content, meta))``.
 
-**Fallback: ``handle_message``**: a role may also override
+**Catch-all: ``handle_message``**: a role may also override
 :meth:`~mango.Role.handle_message`.  It receives **every** message the agent
 receives, whether or not a subscription or decorated handler already handled
-it, and is called after those handlers.  Use it as a catch-all or observer:
+it, and runs after those handlers.  Use it to observe or log all traffic:
 
 .. code-block:: python
 
@@ -422,8 +422,8 @@ it, and is called after those handlers.  Use it as a catch-all or observer:
     ``handle_message`` is *not* filtered by subscriptions: a message that an
     ``@on_message`` handler of the same or another role has handled still
     reaches every role's ``handle_message``.  (If a subscription's handler is
-    itself a ``handle_message`` method, the fallback pass is skipped so it is
-    not called twice.)
+    itself a ``handle_message`` method, the catch-all pass is skipped so it
+    is not called twice.)
 
 
 Message preprocessors

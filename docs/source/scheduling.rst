@@ -67,13 +67,11 @@ Basic example
 .. tip::
 
    A periodic task can also be declared on the method itself with
-   :func:`~mango.periodic`, instead of calling ``schedule_periodic_task`` in
-   ``on_ready``.  The decorator works on an :class:`~mango.Agent` and on a
-   :class:`~mango.Role` alike and starts the task at the same moment; see
-   :ref:`role-periodic`.  The explicit calls on this page remain the way to
-   schedule anything the decorator does not cover: one-shot, timestamp,
-   conditional, and process tasks, and tasks whose period is only known at
-   runtime.
+   :func:`~mango.periodic` instead of calling ``schedule_periodic_task`` in
+   ``on_ready``.  It works the same on an :class:`~mango.Agent` and on a
+   :class:`~mango.Role`, and starts the task at the same moment; see
+   :ref:`role-periodic`.  The calls on this page cover what the decorator
+   does not: one-shot, timestamp, conditional, and process tasks.
 
 Suspendable tasks
 -----------------

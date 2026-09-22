@@ -27,13 +27,13 @@ registered in a container, and ``on_ready`` is the first point at which
 sending messages from the task body is safe.  A role added to an agent
 that is already running is caught up immediately.
 
-The same decorators work on :class:`~mango.Agent` subclasses, where
-the registrations are replayed by the agent itself: message handlers
-join the agent's behavior subscriptions in ``__init__`` (evaluated in
-``_check_inbox`` before ``handle_message``) and ``@periodic`` tasks are
-started in ``_do_ready``.  ``@on_event`` needs the co-located event bus,
-which only a :class:`~mango.RoleAgent` has; on a plain agent it raises
-:class:`TypeError` at construction time rather than never firing.
+On an :class:`~mango.Agent` the agent replays the registrations itself.
+Message handlers join its behavior subscriptions in ``__init__``, where
+``_check_inbox`` evaluates them before ``handle_message``, and
+``@periodic`` tasks start in ``_do_ready``.  ``@on_event`` is the
+exception: its bus belongs to the role handler, so it needs a
+:class:`~mango.RoleAgent` and raises :class:`TypeError` on a plain agent
+instead of silently never firing.
 
 Async coroutine handlers for ``on_message`` are scheduled as instant
 tasks automatically, because the underlying ``handle_message`` callback is
@@ -108,7 +108,7 @@ def on_message(
 ) -> Callable:
     """Subscribe the decorated method to *message_type*.
 
-    Valid on a :class:`~mango.agent.role.Role` and on an
+    Works on a :class:`~mango.agent.role.Role` and on an
     :class:`~mango.Agent`.  The handler is called as
     ``handler(self, content, meta)``.  Async handlers are scheduled as
     instant tasks automatically.
@@ -117,9 +117,9 @@ def on_message(
         ``isinstance(content, message_type)`` is true.
     :param where: optional extra filter.  Called as
         ``where(self, content, meta) -> bool``, which receives ``self``
-        so the filter can read role state (e.g. a sector tag) without
-        capturing it in a closure at class-define time.  If ``None``
-        any message of *message_type* is accepted.
+        so the filter can read role or agent state (e.g. a sector tag)
+        without capturing it in a closure at class-define time.  If
+        ``None`` any message of *message_type* is accepted.
     :param priority: forwarded to :meth:`RoleContext.subscribe_message`
         (lower runs first).  On an agent it orders the decorated
         handlers among themselves; they all run before
@@ -148,9 +148,9 @@ def on_event(event_type: type) -> Callable:
     are rejected: ``emit_event`` does not await, so an ``async def`` would
     silently never run.
 
-    On an agent this requires a :class:`~mango.RoleAgent`, because the
-    event bus is the one its roles emit on; a plain :class:`~mango.Agent`
-    raises :class:`TypeError` when constructed.
+    On an agent this needs a :class:`~mango.RoleAgent`, whose roles own
+    the event bus; a plain :class:`~mango.Agent` raises
+    :class:`TypeError` when constructed.
     """
 
     def decorator(method: Callable) -> Callable:
@@ -174,7 +174,7 @@ def periodic(
 ) -> Callable:
     """Schedule the decorated coroutine method as a periodic task.
 
-    Valid on a :class:`~mango.agent.role.Role` and on an
+    Works on a :class:`~mango.agent.role.Role` and on an
     :class:`~mango.Agent`; in both cases the task starts at ``on_ready``.
 
     :param every: period in seconds, or a string key looked up on the
@@ -315,14 +315,14 @@ def apply_agent_subscriptions(agent: Any) -> None:
 
     Called by :meth:`mango.Agent.__init__`.  Handlers are added to the
     agent's behavior subscriptions, which ``_check_inbox`` evaluates
-    before :meth:`mango.Agent.handle_message`; ``priority`` orders the
-    decorated handlers among themselves (handlers attached later
-    through :func:`mango.behavior_in` always run after them).
+    before :meth:`mango.Agent.handle_message`.  ``priority`` orders the
+    decorated handlers among themselves; handlers attached later through
+    :func:`mango.behavior_in` always run after them.
 
-    ``@on_event`` is checked here but wired by
-    :func:`apply_agent_events`, because the event bus belongs to the
-    role handler, which a :class:`mango.RoleAgent` only builds after
-    this constructor has run.
+    ``@on_event`` is only checked here and wired by
+    :func:`apply_agent_events`, because its bus belongs to the role
+    handler, which a :class:`mango.RoleAgent` builds after this
+    constructor has run.
     """
     dispatch = collect_dispatch(type(agent))
     collected: list[tuple[int, tuple]] = []

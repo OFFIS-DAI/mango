@@ -34,9 +34,9 @@ This example covers:
 
 First, we want to create two simple agents and have the container send a message to one of them.
 An agent is created by defining a class that inherits from the base Agent class of mango.
-What the agent reacts to is declared on the handler method: :func:`mango.on_message` subscribes it
-to a message type, and the container forwards every message whose content is an instance of that
-type to it.
+An agent declares which messages it handles: :func:`mango.on_message` subscribes a method to a
+message type, and the container forwards every message whose content is an instance of that type
+to it.
 
 .. testcode::
 
@@ -191,17 +191,17 @@ constructor that we will later use to keep track of which agents have already an
     [AgentAddress(protocol_addr='protocol_addr', aid='aid')]
 
 Next, the controller has to distinguish between two message types: the replies to feed_in requests
-and later the acknowledgments that a new maximum feed_in was set by a pv agent. At this stage both
-carry plain content (a number and an empty acknowledgement), so their *type* does not say what
-they mean and ``@on_message`` has nothing to subscribe to. Instead we mark them with the key
-`performative` of the message metadata: `inform` for feed_in replies, `accept_proposal` for feed_in
-change acknowledgements. The task of the performative is here to mark the content we send, this
-enables receiving agents to handle it accordingly.
+and later the acknowledgments that a new maximum feed_in was set by a pv agent. Both carry plain
+content at this stage, a number and an empty acknowledgement, so the content type says nothing
+about what the message means and ``@on_message`` has nothing to subscribe to. Instead we mark them
+with the key `performative` of the message metadata: `inform` for feed_in replies,
+`accept_proposal` for feed_in change acknowledgements. The performative marks the content we send,
+which lets the receiving agent handle it accordingly.
 
-To read it, we override :meth:`mango.Agent.handle_message`, the alternative to a type subscription:
-it receives every message the agent gets, unfiltered, so it can dispatch on anything in ``meta``.
-In part 3 we replace this with dedicated message classes, and the dispatch goes back to one
-``@on_message`` handler per type.
+To read it we override :meth:`mango.Agent.handle_message`, the alternative to a type subscription.
+It receives every message the agent gets, unfiltered, so it can dispatch on anything in ``meta``.
+Part 3 replaces the plain content with dedicated message classes, and one ``@on_message`` handler
+per type takes over again.
 
 .. testcode::
 
@@ -293,10 +293,10 @@ We do the same for our PV agents.
 
 When a PV agent receives a request from the controller, it immediately answers. Note two important changes to the first
 example here: First, within our message handling methods we can not ``await send_message`` directly
-because ``handle_message`` is not a coroutine; an ``async def handle_message`` is never awaited by the agent.
+because ``handle_message`` is not a coroutine, and an ``async def handle_message`` is never awaited by the agent.
 Instead, we call the :meth:`mango.Agent.schedule_instant_message``, which will schedule a send message coroutine.
-(A handler declared with :func:`mango.on_message` may be ``async def``: the agent schedules it as an
-instant task, so it can ``await`` directly. We use that from part 3 on.)
+A handler declared with :func:`mango.on_message` has no such limit: the agent runs an ``async def``
+handler as an instant task, so it can ``await`` directly, as we do from part 3 on.
 Second, we set ``meta`` to contain the typing information of our message.
 
 Now, both of our agents can handle their respective messages. The last thing to do is make the controller actually
@@ -499,10 +499,9 @@ more sophisticated behaviours and pass them to the codec. For more details, refe
 the documentation.
 
 With this, the message handling in our agent classes can be simplified. Every message now has a
-type of its own, so each one gets its own handler again: :func:`mango.on_message` subscribes a
-method to a message type, and the ``handle_message`` dispatch on ``performative`` from part 2
-disappears with it. The pv agent's handlers are ``async def``, so they can ``await send_message``
-directly instead of scheduling it.
+type of its own, so every message gets its own handler: one :func:`mango.on_message` subscription
+per message class, and the ``performative`` dispatch from part 2 is gone. The pv agent's handlers
+are ``async def`` this time, so they can ``await send_message`` instead of scheduling it.
 
 .. testcode::
 
@@ -660,13 +659,13 @@ This example covers:
  - scheduling and periodic tasks
 
 The key part of defining roles are their ``__init__`` method and their handlers.
-The handlers themselves stay as they are: :func:`mango.on_message` works the same on a role as on
-an agent, so the methods you wrote in part 3 move over unchanged and only their home changes: from
-one agent class that did everything to one role per responsibility. The same subscription can also
-be made explicitly in :meth:`mango.Role.setup` with :meth:`mango.RoleContext.subscribe_message`,
-which takes the role, a handler, and a condition function; see :doc:`role-api` for when to prefer
-which form. Another change is that sending messages from the role is now done via its context with
-the method ``self.context.send_message``.
+The handlers themselves stay as they are. :func:`mango.on_message` works the same on a role as on
+an agent, so the methods from part 3 move over unchanged, out of one agent class that did
+everything and into one role per responsibility. The same subscription can also be made explicitly
+in :meth:`mango.Role.setup` with :meth:`mango.RoleContext.subscribe_message`, which takes the role,
+a handler, and a condition function; see :doc:`role-api` for when to prefer which form. Another
+change is that sending messages from the role is now done via its context with the method
+``self.context.send_message``.
 
 We first create the `Ping` role, which has to send out its messages periodically.
 We can use mango's scheduling API to handle this for us: decorating a coroutine method with

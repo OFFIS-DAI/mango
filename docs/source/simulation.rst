@@ -744,17 +744,16 @@ When *aid_to_name* is omitted, agent AIDs are used as labels.  When
 *aid_to_color* is omitted, matplotlib's default colour cycle is applied.
 
 
-Attaching behavior from outside with behavior_in
-================================================
+Attaching behavior with behavior_in
+====================================
 
 An agent normally declares its handlers on the class with
 :func:`~mango.on_message` (see :ref:`Handling messages <agent-handlers>`).
-:func:`~mango.behavior_in` is the alternative for the cases where that is not
-possible or not wanted: it attaches message handlers and event subscriptions
-to a matched set of agents **without modifying their class definitions**:
-instrumenting third-party agents, wiring up a scenario-specific observer, or
-varying behaviour per experiment run.  It is simulation-only: it requires a
-:class:`~mango.simulation.world.SimulationWorld`.
+:func:`~mango.behavior_in` attaches message handlers and event subscriptions
+to a matched set of agents **without modifying their class definitions**,
+which is what you want for instrumenting third-party agents or for varying
+behaviour from one experiment run to the next.  It is simulation-only and
+requires a :class:`~mango.simulation.world.SimulationWorld`.
 
 .. code-block:: python
 
@@ -818,10 +817,9 @@ Handler signatures
     # When role_types is used the first arg is the matched role
     def handler(role, content_or_event, ...): ...
 
-behavior_in fires **in addition to** the agent's own handlers (its
-``@on_message`` subscriptions, its ``handle_message`` override, and any role
-subscriptions); it does not replace them.  Its handlers run after the
-decorated ones and before ``handle_message``.
+behavior_in fires **in addition to** the agent's own handlers, never instead
+of them.  Its handlers run after the ``@on_message`` ones and before
+``handle_message``, and role subscriptions are untouched.
 
 Optional *preprocessor*
 ------------------------

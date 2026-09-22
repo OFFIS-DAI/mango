@@ -54,7 +54,7 @@ Requires Python 3.10 or later.
 
 ## Quick Start
 
-Every agent is a subclass of `Agent`. Incoming messages are handled by the methods you subscribe to a message type with `@on_message`; two lifecycle hooks signal when the agent has joined its container (`on_register`) and when all containers are active and external messaging is safe (`on_ready`).
+Every agent is a subclass of `Agent`. `@on_message` subscribes a method to a message type, and the agent receives every message of that type there; two lifecycle hooks signal when the agent has joined its container (`on_register`) and when all containers are active and external messaging is safe (`on_ready`).
 
 The following complete script creates two agents, starts them in a shared container, sends a message from one to the other, and shuts everything down cleanly:
 

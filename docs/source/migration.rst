@@ -2,16 +2,16 @@
 Migration
 =========
 
-This page documents breaking API changes between major mango releases.
+This page documents breaking API changes between major mango releases, and
+style changes worth adopting.
 
 Message handling style
 ======================
 
-Nothing about :meth:`~mango.Agent.handle_message` has changed: existing agents
-and roles keep working untouched.  The documentation now leads with
-:func:`~mango.on_message` instead, which subscribes one handler per message
-type on an agent or a role, so the ``isinstance`` chain inside
-``handle_message`` becomes one decorated method per type:
+:func:`~mango.on_message` subscribes one handler to one message type, on an
+agent as well as on a role, and the documentation now leads with it.  An
+``isinstance`` chain inside ``handle_message`` becomes one decorated method
+per type:
 
 .. code-block:: python
 
@@ -33,16 +33,17 @@ type on an agent or a role, so the ``isinstance`` chain inside
         def handle_status(self, content, meta):
             ...
 
-Migrate a handler at a time; the two styles coexist in the same class.  Keep
-``handle_message`` where the content type does not identify the message (for
-example FIPA performative dispatch) or where an agent must observe every
-message; see :ref:`Handling messages <agent-handlers>`.
+This is not a breaking change.  ``handle_message`` works as before, the two
+styles coexist in the same class, and a handler can move over at a time.
+Keep ``handle_message`` where the content type does not identify the message,
+as in FIPA performative dispatch, or where an agent has to see every message.
+:ref:`Handling messages <agent-handlers>` describes both.
 
 .. note::
 
-    An ``async def handle_message`` is never awaited and its body never runs.
-    A handler declared with ``@on_message`` may be ``async def``: it is
-    scheduled as an instant task.
+    An ``async def handle_message`` is never awaited, so its body never runs.
+    A handler declared with ``@on_message`` may be ``async def``: the agent
+    runs it as an instant task.
 
 mango 1.2.x → 2.0.0
 ====================

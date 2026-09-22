@@ -38,11 +38,11 @@ all messages it receives:
 
     Creating a RepeatingAgent. At this point self.addr=None
 
-Agents must be a subclass of :class:`mango.Agent`. What an agent reacts to is declared on the
-handler method: :func:`mango.on_message` subscribes it to a message type, and the agent receives
-every message whose content is an instance of that type. An agent can declare as many handlers as
-it has message types; see :ref:`Handling messages <agent-handlers>` for the ``where`` and
-``priority`` options and for :meth:`mango.Agent.handle_message`, the catch-all alternative.
+Agents must be a subclass of :class:`mango.Agent`. An agent declares which messages it handles:
+:func:`mango.on_message` subscribes a method to a message type, and every message whose content is
+an instance of that type is delivered there. Declare one handler per message type.
+:ref:`Handling messages <agent-handlers>` covers the rest: the ``where`` and ``priority`` options,
+and the catch-all :meth:`mango.Agent.handle_message`.
 
 Agent's are notified when they are registered :meth:`mango.Agent.on_register`
 and when the container(s) has been activated :meth:`mango.Agent.on_ready`. Consequenty, most agent features (like scheduling,

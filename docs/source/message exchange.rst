@@ -63,9 +63,9 @@ the optional FIPA ACL layer.
 Receiving messages
 ==================
 
-Subscribe a method to a message type with :func:`~mango.on_message`.  Every
-message whose content is an instance of that type is delivered to it, with
-the ``meta`` dict of the delivery as second argument:
+:func:`~mango.on_message` subscribes a method to a message type.  The agent
+hands it every message whose content is an instance of that type, together
+with the message's ``meta``:
 
 .. testcode::
 
@@ -80,12 +80,11 @@ the ``meta`` dict of the delivery as second argument:
             print(f'{self.aid} received a message with content {content} and '
                 f'meta {meta}')
 
-Declare one handler per message type; a chain of ``isinstance`` checks is
-never needed.  ``async def`` handlers work the same way and are scheduled as
-instant tasks, so they may ``await`` (``send_message`` included) without
-blocking the inbox.  The decorator works on :class:`~mango.Agent` and on
-:class:`~mango.Role` alike; `Alternatives`_ below covers the cases a type
-subscription cannot express.
+Declare one handler per message type instead of a chain of ``isinstance``
+checks.  A handler may be ``async def``: the agent runs it as an instant
+task, so it can ``await`` a send of its own without blocking the inbox.
+Agents and roles use the same decorator.  For messages that a type cannot
+tell apart, see `Alternatives`_ below.
 
 The ``meta`` dict is populated by the container before delivery.  Several
 fields are always present:
@@ -128,13 +127,13 @@ when an :class:`~mango.messages.message.ACLMessage` is unpacked.
 Alternatives
 ------------
 
-A type subscription covers the common case: the content object says what the
-message means.  When it does not, three other entry points are available.
+A type subscription fits when the content object says what the message
+means.  When it does not, these take over.
 
-**``handle_message``** receives every message the agent gets, unfiltered and
-after the decorated handlers have run.  Override it when the meaning lives in
-``meta`` rather than in the content type, or when the agent has to observe
-all traffic:
+**``handle_message``** receives every message the agent gets, unfiltered,
+after the decorated handlers have run.  Override it when the meaning sits in
+``meta`` rather than in the content type, or when the agent has to see all
+traffic:
 
 .. code-block:: python
 
@@ -142,18 +141,18 @@ all traffic:
         def handle_message(self, content, meta):
             print(f"{meta['sender_id']} -> {self.aid}: {content}")
 
-It is also the escape hatch for an agent that must notice messages nothing
-subscribed to; a decorated agent silently ignores those.
+It is also the only place to notice a message that no handler claimed; a
+decorated agent drops those silently.
 
 **``subscribe_message``** is the explicit form of ``@on_message`` inside a
-role.  It takes a free condition function instead of a type, accepts a
-:class:`~mango.MessagePreprocessor`, and can be registered conditionally at
-runtime.  See `Role-based message dispatch`_ below and :doc:`role-api`.
+role.  It takes a condition function instead of a type, accepts a
+:class:`~mango.MessagePreprocessor`, and can be registered at runtime.  See
+`Role-based message dispatch`_ below and :doc:`role-api`.
 
-**Forwarding rules** relay a message without handling it at all; see
-`Forwarding rules`_ below.  In a simulation, :func:`~mango.behavior_in`
-attaches a handler to agents from the outside, without touching their class;
-see :doc:`simulation`.
+**Forwarding rules** relay a message without handling it at all (see
+`Forwarding rules`_ below).  In a simulation, :func:`~mango.behavior_in` adds
+a handler from the outside, without touching the agent class (see
+:doc:`simulation`).
 
 ----
 
@@ -397,7 +396,7 @@ Role-based message dispatch
 
 When using the :doc:`role system <role-api>`, every role of a
 :class:`~mango.RoleAgent` brings its own handlers, and one message can reach
-several of them.  Each role declares what it takes:
+several of them.  Each role declares what it handles:
 
 .. code-block:: python
 
@@ -419,10 +418,10 @@ The ``RoleAgent`` evaluates each registered condition in priority order (lower
 number = higher priority, default ``0``) and calls every method whose
 condition returns ``True``.  Multiple roles can handle the same message.
 
-:meth:`~mango.RoleContext.subscribe_message` is the explicit form of the same
-mechanism, registered in the role's ``setup``.  Use it when the condition is
-not a type check, when a :class:`~mango.MessagePreprocessor` is needed, or
-when the subscription depends on runtime state:
+:meth:`~mango.RoleContext.subscribe_message` registers the same subscription
+explicitly, in the role's ``setup``.  Use it when the condition is not a type
+check, when a :class:`~mango.MessagePreprocessor` is needed, or when the
+subscription depends on runtime state:
 
 .. code-block:: python
 
@@ -469,6 +468,10 @@ normal ``send_message``:
     from mango import Agent, create_acl, on_message, run_with_tcp, sender_addr
     from mango.messages.message import Performatives
 
+    def performative(kind):
+        """Match messages whose ACL performative is *kind*."""
+        return lambda self, content, meta: meta.get("performative") == kind
+
     class BuyerAgent(Agent):
         def on_ready(self):
             self.schedule_instant_task(self._send_cfp())
@@ -485,14 +488,12 @@ normal ``send_message``:
             )
             await self.send_message(acl, seller.addr)
 
-        @on_message(dict, where=lambda self, c, m:
-                    m.get("performative") == Performatives.propose)
+        @on_message(dict, where=performative(Performatives.propose))
         def handle_proposal(self, content, meta):
-            print(f"Received proposal: {content.get('price')}")
+            print(f"Received proposal: {content['price']}")
 
     class SellerAgent(Agent):
-        @on_message(dict, where=lambda self, c, m:
-                    m.get("performative") == Performatives.cfp)
+        @on_message(dict, where=performative(Performatives.cfp))
         async def handle_cfp(self, content, meta):
             reply = create_acl(
                 {"price": 45},
@@ -508,11 +509,12 @@ normal ``send_message``:
 .. note::
 
     When an :class:`~mango.messages.message.ACLMessage` is delivered, the
-    container unpacks its fields into the ``meta`` dict automatically.  You
-    can therefore read ``meta["performative"]``, ``meta["conversation_id"]``,
-    etc. directly in a handler without unwrapping the object: in the ``where``
-    filter, as above, or in ``handle_message`` when one method should sort out
-    all performatives itself.
+    container unpacks its fields into the ``meta`` dict automatically, so
+    ``meta["performative"]``, ``meta["conversation_id"]`` and the rest are
+    readable in a handler without unwrapping the object.  The ``where``
+    filter above uses that to give each performative its own method;
+    ``handle_message`` is the alternative when one method should sort them
+    out.
 
 The full list of FIPA performatives is available as
 :class:`~mango.messages.message.Performatives`:

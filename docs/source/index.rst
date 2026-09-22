@@ -62,7 +62,7 @@ Features
 
       **Agents**
       ^^^
-      Reactive and proactive behaviour; handlers declared with ``@on_message`` and ``@periodic``; full lifecycle callbacks (``on_register``, ``on_ready``, ``on_stop``).
+      Reactive and proactive behaviour: handlers declared with ``@on_message`` and ``@periodic``, plus full lifecycle callbacks (``on_register``, ``on_ready``, ``on_stop``).
 
    .. grid-item-card::
       :shadow: sm
