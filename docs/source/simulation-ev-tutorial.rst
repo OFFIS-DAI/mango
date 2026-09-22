@@ -111,9 +111,6 @@ reports the current net power to the coordinator.
                 self.coordinator_addr,
             )
 
-        def handle_message(self, content, meta):
-            pass  # households don't receive messages in this example
-
         def _pv_output_kw(self, time_s: float) -> float:
             """Sinusoidal profile peaking at solar noon (hour 12)."""
             hour = (time_s / 3600.0) % 24.0
@@ -139,7 +136,7 @@ target it charges or discharges its battery.
 .. code-block:: python
 
     import math
-    from mango import Agent, Position2D
+    from mango import Agent, Position2D, on_message
 
     class EVAgent(Agent):
         def __init__(
@@ -187,11 +184,11 @@ target it charges or discharges its battery.
                 )
                 env.space.move(self, new_pos)
 
-        def handle_message(self, content, meta):
-            if isinstance(content, EVAssignment):
-                self.target = content.target
-                self.action = content.action
-                self.assigned_power_kw = content.power_kw
+        @on_message(EVAssignment)
+        def handle_assignment(self, content, meta):
+            self.target = content.target
+            self.action = content.action
+            self.assigned_power_kw = content.power_kw
 
 ----
 
@@ -204,7 +201,7 @@ there), then deficits with remaining EV capacity.
 
 .. code-block:: python
 
-    from mango import Agent
+    from mango import Agent, on_message
 
     class CoordinatorAgent(Agent):
         def __init__(self, ev_addresses: list):
@@ -213,10 +210,10 @@ there), then deficits with remaining EV capacity.
             self._powers: dict[str, float] = {}
             self._positions: dict[str, object] = {}
 
-        def handle_message(self, content, meta):
-            if isinstance(content, NetPowerReport):
-                self._powers[content.sender_aid] = content.net_power_kw
-                self._positions[content.sender_aid] = content.position
+        @on_message(NetPowerReport)
+        def handle_report(self, content, meta):
+            self._powers[content.sender_aid] = content.net_power_kw
+            self._positions[content.sender_aid] = content.position
 
         def on_step(self, env, clock, step_size_s: float) -> None:
             if not self._powers:
@@ -254,9 +251,9 @@ there), then deficits with remaining EV capacity.
 
     The coordinator dispatches assignments based on reports from the
     **previous** step (a realistic one-step coordination lag).  Reports sent
-    by households in step *N* are processed by ``handle_message`` during the
-    convergence loop of step *N*, **after** ``on_step`` for step *N* has
-    already run.  The new data is therefore available from step *N+1* onward.
+    by households in step *N* are delivered to the coordinator's handler
+    during the convergence loop of step *N*, **after** ``on_step`` for step
+    *N* has already run.  The new data is therefore available from step *N+1* onward.
 
 ----
 
@@ -564,7 +561,7 @@ Complete standalone script
     from plotly.subplots import make_subplots
 
     from mango import (
-        Agent, Position2D,
+        Agent, Position2D, on_message,
         create_world, step_simulation,
         SimpleCommunicationSimulation, DefaultEnvironment, Area2D,
         record_agent, record_position, position_history,
@@ -611,9 +608,6 @@ Complete standalone script
                 NetPowerReport(self.aid, net, pos), self.coordinator_addr
             )
 
-        def handle_message(self, content, meta):
-            pass
-
         def _pv_output_kw(self, time_s):
             hour = (time_s / 3600.0) % 24.0
             return max(0.0, self.pv_peak_kw * math.sin(math.pi * (hour - 6.0) / 12.0))
@@ -652,11 +646,11 @@ Complete standalone script
                     self, Position2D(current.x + dx * ratio, current.y + dy * ratio)
                 )
 
-        def handle_message(self, content, meta):
-            if isinstance(content, EVAssignment):
-                self.target = content.target
-                self.action = content.action
-                self.assigned_power_kw = content.power_kw
+        @on_message(EVAssignment)
+        def handle_assignment(self, content, meta):
+            self.target = content.target
+            self.action = content.action
+            self.assigned_power_kw = content.power_kw
 
     # ── Coordinator ──────────────────────────────────────────────────────────
 
@@ -667,10 +661,10 @@ Complete standalone script
             self._powers: dict = {}
             self._positions: dict = {}
 
-        def handle_message(self, content, meta):
-            if isinstance(content, NetPowerReport):
-                self._powers[content.sender_aid] = content.net_power_kw
-                self._positions[content.sender_aid] = content.position
+        @on_message(NetPowerReport)
+        def handle_report(self, content, meta):
+            self._powers[content.sender_aid] = content.net_power_kw
+            self._positions[content.sender_aid] = content.position
 
         def on_step(self, env, clock, step_size_s):
             if not self._powers:

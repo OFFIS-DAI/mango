@@ -134,7 +134,7 @@ class Container(ABC):
             agent._do_start()
 
         if self.ready:
-            agent.on_ready()
+            agent._do_ready()
         return agent
 
     def on_register(self, agent: Agent, aid: str, **kwargs) -> None:
@@ -344,7 +344,7 @@ class Container(ABC):
             raise RuntimeError("Container is already ready")
         self.ready = True
         for agent in self._agents.values():
-            agent.on_ready()
+            agent._do_ready()
 
     async def shutdown(self):
         """Shutdown all agents in the container and the container itself"""

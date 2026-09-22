@@ -62,7 +62,7 @@ Features
 
       **Agents**
       ^^^
-      Reactive and proactive behaviour; full lifecycle callbacks (``on_register``, ``on_ready``, ``on_stop``).
+      Reactive and proactive behaviour; handlers declared with ``@on_message`` and ``@periodic``; full lifecycle callbacks (``on_register``, ``on_ready``, ``on_stop``).
 
    .. grid-item-card::
       :shadow: sm
@@ -125,13 +125,14 @@ Quick look
       .. code-block:: python
 
          import asyncio
-         from mango import Agent, create_tcp_container, activate
+         from mango import Agent, create_tcp_container, activate, on_message
 
          class HelloAgent(Agent):
              def on_ready(self):
                  self.schedule_instant_message("Hello, mango!", self.addr)
 
-             def handle_message(self, content, meta):
+             @on_message(str)
+             def handle_greeting(self, content, meta):
                  print(content)  # → Hello, mango!
 
          async def main():

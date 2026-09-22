@@ -235,6 +235,13 @@ role is added to an agent:
      - a :meth:`~mango.RoleContext.schedule_periodic_task` call in
        ``on_ready``.
 
+.. note::
+
+   :func:`~mango.on_message` and :func:`~mango.periodic` work the same way on
+   a plain :class:`~mango.Agent` subclass, without any role involved; see
+   :doc:`agents-container`.  :func:`~mango.on_event` is role-only, because
+   the event bus it subscribes to belongs to an agent's roles.
+
 .. code-block:: python
 
     from mango import Role, on_message, on_event, periodic

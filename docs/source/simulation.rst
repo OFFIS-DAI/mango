@@ -121,14 +121,15 @@ for quick setups:
 .. testcode::
 
     import asyncio
-    from mango import Agent, run_with_simulation, step_simulation, DISCRETE_EVENT
+    from mango import Agent, on_message, run_with_simulation, step_simulation, DISCRETE_EVENT
 
     class EchoAgent(Agent):
         def __init__(self):
             super().__init__()
             self.received = []
 
-        def handle_message(self, content, meta):
+        @on_message(str)
+        def handle_text(self, content, meta):
             self.received.append(content)
 
     async def run():
@@ -163,14 +164,15 @@ loss), messages sent at time *t* are available for delivery from *t* onward:
 .. testcode::
 
     import asyncio
-    from mango import Agent, create_world, step_simulation
+    from mango import Agent, create_world, on_message, step_simulation
 
     class Relay(Agent):
         def __init__(self):
             super().__init__()
             self.received = []
 
-        def handle_message(self, content, meta):
+        @on_message(str)
+        def handle_text(self, content, meta):
             self.received.append((content, round(self.context.current_timestamp, 1)))
 
     async def run():
@@ -199,7 +201,7 @@ Inject message delays and packet loss by passing a custom
 
     import asyncio
     from mango import (
-        Agent, create_world, step_simulation,
+        Agent, create_world, on_message, step_simulation,
         SimpleCommunicationSimulation,
     )
 
@@ -208,7 +210,8 @@ Inject message delays and packet loss by passing a custom
             super().__init__()
             self.count = 0
 
-        def handle_message(self, content, meta):
+        @on_message(str)
+        def handle_text(self, content, meta):
             self.count += 1
 
     async def run():
@@ -439,9 +442,6 @@ override this by calling :meth:`~mango.Area2D.move` before the world starts:
             # Move 1 unit toward the origin on every step
             env.space.move_toward(self, Position2D(0.0, 0.0), max_step=1.0)
 
-        def handle_message(self, content, meta):
-            pass
-
     async def run():
         space = Area2D(width=10.0, height=10.0)
         env = DefaultEnvironment(space=space)
@@ -565,10 +565,11 @@ Every delivered message is logged in ``world.recorded_messages``:
 .. testcode::
 
     import asyncio
-    from mango import Agent, create_world, step_simulation, MessageTransaction
+    from mango import Agent, create_world, on_message, step_simulation, MessageTransaction
 
     class Ping(Agent):
-        def handle_message(self, content, meta):
+        @on_message(str)
+        def handle_text(self, content, meta):
             pass
 
     async def run():
@@ -643,11 +644,12 @@ plot_world
 
     import asyncio
     from mango import (
-        Agent, create_world, step_simulation, record_world, plot_world,
+        Agent, create_world, on_message, step_simulation, record_world, plot_world,
     )
 
     class TrafficAgent(Agent):
-        def handle_message(self, content, meta): pass
+        @on_message(str)
+        def handle_text(self, content, meta): pass
 
     async def run():
         world = create_world()
@@ -742,12 +744,16 @@ When *aid_to_name* is omitted, agent AIDs are used as labels.  When
 *aid_to_color* is omitted, matplotlib's default colour cycle is applied.
 
 
-Declarative behavior with behavior_in
-======================================
+Attaching behavior from outside with behavior_in
+================================================
 
-:func:`~mango.behavior_in` lets you attach message handlers and event
-subscriptions to a matched set of agents **without modifying their class
-definitions**.  It is simulation-only: it requires a
+An agent normally declares its handlers on the class with
+:func:`~mango.on_message` (see :ref:`Handling messages <agent-handlers>`).
+:func:`~mango.behavior_in` is the alternative for the cases where that is not
+possible or not wanted: it attaches message handlers and event subscriptions
+to a matched set of agents **without modifying their class definitions**:
+instrumenting third-party agents, wiring up a scenario-specific observer, or
+varying behaviour per experiment run.  It is simulation-only: it requires a
 :class:`~mango.simulation.world.SimulationWorld`.
 
 .. code-block:: python
@@ -812,8 +818,10 @@ Handler signatures
     # When role_types is used the first arg is the matched role
     def handler(role, content_or_event, ...): ...
 
-behavior_in fires **in addition to** the agent's ``handle_message`` override
-and any existing role subscriptions; it does not replace them.
+behavior_in fires **in addition to** the agent's own handlers (its
+``@on_message`` subscriptions, its ``handle_message`` override, and any role
+subscriptions); it does not replace them.  Its handlers run after the
+decorated ones and before ``handle_message``.
 
 Optional *preprocessor*
 ------------------------

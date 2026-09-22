@@ -1,4 +1,5 @@
-"""Declarative dispatch for :class:`mango.agent.role.Role`.
+"""Declarative dispatch for :class:`mango.agent.role.Role` and
+:class:`mango.agent.core.Agent`.
 
 Three decorators that move the mechanical parts of ``setup()`` out of
 hand-written boilerplate and into class-level metadata:
@@ -25,6 +26,14 @@ reaches ``on_ready``: the agent's scheduler only exists once the agent is
 registered in a container, and ``on_ready`` is the first point at which
 sending messages from the task body is safe.  A role added to an agent
 that is already running is caught up immediately.
+
+The same decorators work on :class:`~mango.Agent` subclasses, where
+the registrations are replayed by the agent itself: message handlers
+join the agent's behavior subscriptions in ``__init__`` (evaluated in
+``_check_inbox`` before ``handle_message``) and ``@periodic`` tasks are
+started in ``_do_ready``.  ``@on_event`` needs the co-located event bus,
+which only a :class:`~mango.RoleAgent` has; on a plain agent it raises
+:class:`TypeError` at construction time rather than never firing.
 
 Async coroutine handlers for ``on_message`` are scheduled as instant
 tasks automatically, because the underlying ``handle_message`` callback is
@@ -99,8 +108,10 @@ def on_message(
 ) -> Callable:
     """Subscribe the decorated method to *message_type*.
 
-    The handler is called as ``handler(self, content, meta)``.  Async
-    handlers are scheduled as instant tasks automatically.
+    Valid on a :class:`~mango.agent.role.Role` and on an
+    :class:`~mango.Agent`.  The handler is called as
+    ``handler(self, content, meta)``.  Async handlers are scheduled as
+    instant tasks automatically.
 
     :param message_type: only deliver messages where
         ``isinstance(content, message_type)`` is true.
@@ -110,7 +121,9 @@ def on_message(
         capturing it in a closure at class-define time.  If ``None``
         any message of *message_type* is accepted.
     :param priority: forwarded to :meth:`RoleContext.subscribe_message`
-        (lower runs first).
+        (lower runs first).  On an agent it orders the decorated
+        handlers among themselves; they all run before
+        :meth:`mango.Agent.handle_message`.
     """
 
     def decorator(method: Callable) -> Callable:
@@ -134,6 +147,10 @@ def on_event(event_type: type) -> Callable:
     synchronously inside :meth:`RoleContext.emit_event`.  Async handlers
     are rejected: ``emit_event`` does not await, so an ``async def`` would
     silently never run.
+
+    On an agent this requires a :class:`~mango.RoleAgent`, because the
+    event bus is the one its roles emit on; a plain :class:`~mango.Agent`
+    raises :class:`TypeError` when constructed.
     """
 
     def decorator(method: Callable) -> Callable:
@@ -157,11 +174,15 @@ def periodic(
 ) -> Callable:
     """Schedule the decorated coroutine method as a periodic task.
 
+    Valid on a :class:`~mango.agent.role.Role` and on an
+    :class:`~mango.Agent`; in both cases the task starts at ``on_ready``.
+
     :param every: period in seconds, or a string key looked up on the
-        role instance when the task is started (e.g. ``"poll_period_s"``
-        reads ``role.poll_period_s``), useful for periods configured per
-        role instance).  The period is measured on the agent's scheduler
-        clock, so it is simulation time under an ``ExternalClock``.
+        role (or agent) instance when the task is started (e.g.
+        ``"poll_period_s"`` reads ``role.poll_period_s``), useful for
+        periods configured per instance.  The period is measured on the
+        agent's scheduler clock, so it is simulation time under an
+        ``ExternalClock``.
     :param only_if: optional predicate ``only_if(self) -> bool`` evaluated
         at every firing.  When false the task body is skipped: the
         scheduler still runs but the handler returns early.  This
@@ -202,7 +223,7 @@ def collect_dispatch(cls: type) -> dict[str, _Dispatch]:
     return out
 
 
-def _bind_async(method: Callable, role: Any) -> Callable:
+def _bind_async(method: Callable, role: Any, host: Any) -> Callable:
     """Return a sync callback that schedules *method* as an instant task.
 
     Used to bridge async ``@on_message`` handlers to the synchronous
@@ -211,8 +232,7 @@ def _bind_async(method: Callable, role: Any) -> Callable:
     """
 
     def _sync(content: Any, meta: dict) -> None:
-        coro = method(role, content, meta)
-        role.context.schedule_instant_task(coro)
+        host.schedule_instant_task(method(role, content, meta))
 
     return _sync
 
@@ -222,6 +242,19 @@ def _bind_sync(method: Callable, role: Any) -> Callable:
 
     def _sync(content: Any, meta: dict) -> None:
         method(role, content, meta)
+
+    return _sync
+
+
+def _bind_agent_async(method: Callable) -> Callable:
+    """Same bridge for agents, whose behavior callbacks receive the agent.
+
+    The agent is not known at decoration time and the behavior
+    subscription passes it in, so the callback stays unbound.
+    """
+
+    def _sync(agent: Any, content: Any, meta: dict) -> None:
+        agent.schedule_instant_task(method(agent, content, meta))
 
     return _sync
 
@@ -238,6 +271,20 @@ def apply_dispatch(role: Any) -> None:
     apply_periodic(role)
 
 
+def _message_condition(mtype: type, where: Callable | None, owner: Any) -> Callable:
+    """Build the ``condition(content, meta)`` predicate for one subscription."""
+    if where is None:
+
+        def condition(content: Any, _meta: dict) -> bool:
+            return isinstance(content, mtype)
+    else:
+
+        def condition(content: Any, _meta: dict) -> bool:
+            return isinstance(content, mtype) and where(owner, content, _meta)
+
+    return condition
+
+
 def apply_subscriptions(role: Any) -> None:
     """Register the ``@on_message`` / ``@on_event`` handlers of ``role``.
 
@@ -251,27 +298,93 @@ def apply_subscriptions(role: Any) -> None:
     for name, meta in dispatch.items():
         method = getattr(type(role), name)  # unbound function
         for sub in meta.message_subs:
-            mtype = sub["message_type"]
-            where = sub["where"]
-            priority = sub["priority"]
-            if where is None:
-
-                def condition(content, _meta, _mtype=mtype):
-                    return isinstance(content, _mtype)
-            else:
-
-                def condition(content, _meta, _mtype=mtype, _w=where, _r=role):
-                    return isinstance(content, _mtype) and _w(_r, content, _meta)
-
+            condition = _message_condition(sub["message_type"], sub["where"], role)
             if inspect.iscoroutinefunction(method):
-                callback = _bind_async(method, role)
+                callback = _bind_async(method, role, role.context)
             else:
                 callback = _bind_sync(method, role)
-            ctx.subscribe_message(role, callback, condition, priority=priority)
+            ctx.subscribe_message(role, callback, condition, priority=sub["priority"])
         for sub in meta.event_subs:
             etype = sub["event_type"]
             handler = getattr(role, name)
             ctx.subscribe_event(role, etype, handler)
+
+
+def apply_agent_subscriptions(agent: Any) -> None:
+    """Register the ``@on_message`` handlers of ``agent``.
+
+    Called by :meth:`mango.Agent.__init__`.  Handlers are added to the
+    agent's behavior subscriptions, which ``_check_inbox`` evaluates
+    before :meth:`mango.Agent.handle_message`; ``priority`` orders the
+    decorated handlers among themselves (handlers attached later
+    through :func:`mango.behavior_in` always run after them).
+
+    ``@on_event`` is checked here but wired by
+    :func:`apply_agent_events`, because the event bus belongs to the
+    role handler, which a :class:`mango.RoleAgent` only builds after
+    this constructor has run.
+    """
+    dispatch = collect_dispatch(type(agent))
+    collected: list[tuple[int, tuple]] = []
+    for name, meta in dispatch.items():
+        method = getattr(type(agent), name)  # unbound function
+        for sub in meta.message_subs:
+            condition = _message_condition(sub["message_type"], sub["where"], agent)
+            if inspect.iscoroutinefunction(method):
+                callback = _bind_agent_async(method)
+            else:
+                callback = method
+            collected.append((sub["priority"], (condition, callback, None)))
+        if meta.event_subs and not agent._has_event_bus:
+            raise TypeError(
+                f"@on_event on {type(agent).__name__}.{name} needs the "
+                "co-located event bus, which only a RoleAgent has; derive the "
+                "agent from RoleAgent or move the handler into a Role"
+            )
+
+    # Stable sort: equal priorities keep declaration order.
+    collected.sort(key=lambda entry: entry[0])
+    agent._behavior_message_subs.extend(entry for _, entry in collected)
+
+
+def apply_agent_events(agent: Any, bus: Any) -> None:
+    """Subscribe the ``@on_event`` handlers of ``agent`` on ``bus``.
+
+    Called by :meth:`mango.RoleAgent.__init__` once the role handler
+    exists, so an agent-level handler sees the same events its roles
+    emit, including those emitted from a role's ``setup``.
+    """
+    for name, meta in collect_dispatch(type(agent)).items():
+        for sub in meta.event_subs:
+            bus.subscribe_event(agent, sub["event_type"], getattr(agent, name))
+
+
+def _start_periodic(owner: Any, host: Any) -> None:
+    """Schedule every ``@periodic`` method of ``owner`` on ``host``."""
+    dispatch = collect_dispatch(type(owner))
+    for name, meta in dispatch.items():
+        for sub in meta.periodic:
+            every = sub["every"]
+            only_if = sub["only_if"]
+            if isinstance(every, str):
+                delay = getattr(owner, every)
+            else:
+                delay = float(every)
+            coro_method = getattr(owner, name)
+            if only_if is None:
+                schedule = coro_method
+            else:
+
+                def _gated(_owner=owner, _coro=coro_method, _gate=only_if):
+                    async def _run():
+                        if not _gate(_owner):
+                            return
+                        await _coro()
+
+                    return _run()
+
+                schedule = _gated
+            host.schedule_periodic_task(schedule, delay=delay, src=owner)
 
 
 def apply_periodic(role: Any) -> None:
@@ -283,28 +396,15 @@ def apply_periodic(role: Any) -> None:
     :meth:`RoleContext.deactivate` suspends them together with the
     role's other tasks.
     """
-    dispatch = collect_dispatch(type(role))
-    ctx = role.context
-    for name, meta in dispatch.items():
-        for sub in meta.periodic:
-            every = sub["every"]
-            only_if = sub["only_if"]
-            if isinstance(every, str):
-                delay = getattr(role, every)
-            else:
-                delay = float(every)
-            coro_method = getattr(role, name)
-            if only_if is None:
-                schedule = coro_method
-            else:
+    _start_periodic(role, role.context)
 
-                def _gated(_role=role, _coro=coro_method, _gate=only_if):
-                    async def _run():
-                        if not _gate(_role):
-                            return
-                        await _coro()
 
-                    return _run()
+def apply_agent_periodic(agent: Any) -> None:
+    """Start the ``@periodic`` tasks of ``agent`` on its own scheduler.
 
-                schedule = _gated
-            ctx.schedule_periodic_task(schedule, delay=delay, src=role)
+    Called by :meth:`mango.Agent._do_ready`.  The scheduler exists from
+    registration on, but ``on_ready`` is the first point at which
+    sending messages from a task body is safe, so the agent starts its
+    tasks at the same lifecycle phase a role does.
+    """
+    _start_periodic(agent, agent)

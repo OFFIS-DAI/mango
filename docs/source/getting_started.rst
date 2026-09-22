@@ -13,7 +13,7 @@ all messages it receives:
 
 .. testcode::
 
-    from mango import Agent
+    from mango import Agent, on_message
 
     class RepeatingAgent(Agent):
 
@@ -21,8 +21,9 @@ all messages it receives:
             super().__init__()
             print(f"Creating a RepeatingAgent. At this point self.addr={self.addr}")
 
-        def handle_message(self, content, meta):
-            # This method defines what the agent will do with incoming messages.
+        @on_message(str)
+        def handle_text(self, content, meta):
+            # Every message whose content is a str is delivered to this method.
             print(f"Received a message with the following content: {content}!")
 
         def on_register(self):
@@ -37,7 +38,13 @@ all messages it receives:
 
     Creating a RepeatingAgent. At this point self.addr=None
 
-Agents must be a subclass of :class:`mango.Agent`. Agent's are notified when they are registered :meth:`mango.Agent.on_register`
+Agents must be a subclass of :class:`mango.Agent`. What an agent reacts to is declared on the
+handler method: :func:`mango.on_message` subscribes it to a message type, and the agent receives
+every message whose content is an instance of that type. An agent can declare as many handlers as
+it has message types; see :ref:`Handling messages <agent-handlers>` for the ``where`` and
+``priority`` options and for :meth:`mango.Agent.handle_message`, the catch-all alternative.
+
+Agent's are notified when they are registered :meth:`mango.Agent.on_register`
 and when the container(s) has been activated :meth:`mango.Agent.on_ready`. Consequenty, most agent features (like scheduling,
 sending internal messages, the agent address) are available after registration, and only after :meth:`mango.Agent.on_ready` has
 been called, all features are available (sending external messages).
@@ -79,14 +86,15 @@ The following script will create a RepeatingAgent, register it, and let it run w
 .. testcode::
 
     import asyncio
-    from mango import create_tcp_container, Agent, activate
+    from mango import create_tcp_container, Agent, activate, on_message
 
     class RepeatingAgent(Agent):
         def __init__(self):
             super().__init__()
             print(f"Creating a RepeatingAgent. At this point self.addr={self.addr}")
 
-        def handle_message(self, content, meta):
+        @on_message(str)
+        def handle_text(self, content, meta):
             print(f"Received a message with the following content: {content}!")
 
         def on_register(self):
@@ -125,13 +133,14 @@ to another agent:
 .. testcode::
 
     import asyncio
-    from mango import Agent
+    from mango import Agent, on_message
 
     class HelloWorldAgent(Agent):
         async def greet(self, other_addr):
             await self.send_message("Hello world!", other_addr)
 
-        def handle_message(self, content, meta):
+        @on_message(str)
+        def handle_text(self, content, meta):
             print(f"Received a message with the following content: {content}")
 
     async def run_container_and_agent(addr, duration):
@@ -161,7 +170,7 @@ a RepeatingAgent and let them run.
 .. testcode::
 
     import asyncio
-    from mango import Agent, create_tcp_container, activate
+    from mango import Agent, create_tcp_container, activate, on_message
 
 
     class RepeatingAgent(Agent):
@@ -169,7 +178,8 @@ a RepeatingAgent and let them run.
             super().__init__()
             print(f"Creating a RepeatingAgent. At this point self.addr={self.addr}")
 
-        def handle_message(self, content, meta):
+        @on_message(str)
+        def handle_text(self, content, meta):
             print(f"Received a message with the following content: {content}!")
 
         def on_register(self):
@@ -182,7 +192,8 @@ a RepeatingAgent and let them run.
         async def greet(self, other_addr):
             await self.send_message("Hello world!", other_addr)
 
-        def handle_message(self, content, meta):
+        @on_message(str)
+        def handle_text(self, content, meta):
             print(f"Received a message with the following content: {content}")
 
 

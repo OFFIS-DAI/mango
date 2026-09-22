@@ -54,20 +54,21 @@ Requires Python 3.10 or later.
 
 ## Quick Start
 
-Every agent is a subclass of `Agent`. Incoming messages are handled by `handle_message`; two lifecycle hooks signal when the agent has joined its container (`on_register`) and when all containers are active and external messaging is safe (`on_ready`).
+Every agent is a subclass of `Agent`. Incoming messages are handled by the methods you subscribe to a message type with `@on_message`; two lifecycle hooks signal when the agent has joined its container (`on_register`) and when all containers are active and external messaging is safe (`on_ready`).
 
 The following complete script creates two agents, starts them in a shared container, sends a message from one to the other, and shuts everything down cleanly:
 
 ```python
 import asyncio
-from mango import Agent, create_tcp_container, activate
+from mango import Agent, create_tcp_container, activate, on_message
 
 
 class ReportingAgent(Agent):
     def on_ready(self):
         print(f"{self.aid}: ready")
 
-    def handle_message(self, content, meta):
+    @on_message(str)
+    def handle_text(self, content, meta):
         print(f"{self.aid}: received '{content}' from {meta['sender_id']}")
 
 
@@ -141,7 +142,7 @@ The following self-contained script runs two agents for 60 simulated seconds and
 
 ```python
 import asyncio
-from mango import Agent, create_world, discrete_step_until, record_agent
+from mango import Agent, create_world, discrete_step_until, on_message, record_agent
 
 
 class SensorAgent(Agent):
@@ -167,7 +168,8 @@ class MonitorAgent(Agent):
         super().__init__()
         self.received = 0
 
-    def handle_message(self, content, meta):
+    @on_message(str)
+    def handle_reading(self, content, meta):
         self.received += 1
         print(f"  t={self.current_timestamp:.0f} s  monitor received: {content}")
 
@@ -196,14 +198,15 @@ async def run():
 
 
 asyncio.run(run())
-#   t=10 s  monitor received: reading 0
-#   t=20 s  monitor received: reading 1
-#   t=30 s  monitor received: reading 2
-#   t=40 s  monitor received: reading 3
-#   t=50 s  monitor received: reading 4
-#   t=60 s  monitor received: reading 5
+#   t=0 s  monitor received: reading 0
+#   t=10 s  monitor received: reading 1
+#   t=20 s  monitor received: reading 2
+#   t=30 s  monitor received: reading 3
+#   t=40 s  monitor received: reading 4
+#   t=50 s  monitor received: reading 5
+#   t=60 s  monitor received: reading 6
 #
-# Total readings received: 6
+# Total readings received: 7
 ```
 
 `discrete_step_until` automatically determines each step size as the time until the next scheduled event (a message arrival or a task wakeup) and stops when no further events remain within the time budget.

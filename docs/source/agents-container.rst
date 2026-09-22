@@ -146,8 +146,99 @@ Implement these methods to hook into the agent's lifecycle:
      - When the container shuts down or the agent is deregistered.
        Use it for cleanup and final messages.
 
-For handling incoming messages override :meth:`~mango.Agent.handle_message`.
-See :doc:`message exchange` for the full messaging API.
+.. _agent-handlers:
+
+Handling messages
+-----------------
+
+An agent declares what it reacts to: :func:`~mango.on_message` subscribes a
+method to a message type, and every message whose content is an instance of
+that type is delivered to it.  :func:`~mango.periodic` turns a coroutine into
+a recurring task the same way.  Both decorators are the ones the role API
+uses (see :doc:`role-api`), and they behave identically on a plain agent.
+
+.. testcode::
+
+    import asyncio
+    from mango import Agent, activate, create_tcp_container, on_message, periodic
+
+    class Ping:
+        pass
+
+    class PingAgent(Agent):
+        def __init__(self):
+            super().__init__()
+            self.beats = 0
+
+        @on_message(Ping)
+        def handle_ping(self, content, meta):
+            print("Ping received!")
+
+        @periodic(every=0.5)
+        async def heartbeat(self):
+            self.beats += 1
+
+    async def run_ping_agent():
+        container = create_tcp_container(addr=('127.0.0.1', 5557))
+        agent = container.register(PingAgent(), suggested_aid="pinger")
+        async with activate(container):
+            await container.send_message(Ping(), agent.addr)
+            await asyncio.sleep(0.01)
+
+    asyncio.run(run_ping_agent())
+
+.. testoutput::
+
+    Ping received!
+
+One handler per message type replaces a chain of ``isinstance`` checks, and
+an agent that covers every message it expects needs no
+:meth:`~mango.Agent.handle_message` at all.  Two keyword options refine a
+subscription, exactly as in :ref:`the role API <role-decorators>`:
+``where(self, content, meta)`` narrows it beyond the type check, and
+``priority`` orders the decorated handlers among themselves (lower first).
+``@periodic`` tasks start once all containers are ready, the same phase as
+:meth:`~mango.Agent.on_ready`.
+
+See :doc:`message exchange` for the full messaging API, and :doc:`role-api`
+when an agent grows enough behaviour to be worth splitting into roles.
+
+.. note::
+
+   :func:`~mango.on_event` is the exception among the three decorators:
+   co-located events are emitted on the event bus owned by an agent's roles,
+   so it needs a :class:`~mango.RoleAgent`.  On a plain
+   :class:`~mango.Agent` it raises ``TypeError`` when the agent is
+   constructed.
+
+
+Alternative: ``handle_message``
+-------------------------------
+
+:meth:`~mango.Agent.handle_message` is the low-level entry point: it receives
+**every** message the agent gets, after the decorated handlers have run and
+without any type filtering.  Override it when a subscription cannot express
+what you need:
+
+* the message type does not identify the request, for example when the
+  meaning is carried in ``meta`` (a FIPA performative, an MQTT topic);
+* the agent must observe *all* traffic, e.g. to log it or count arrivals;
+* an unexpected message should be reported rather than ignored.
+
+.. testcode::
+
+    from mango import Agent, Performatives
+
+    class MeterAgent(Agent):
+        def handle_message(self, content, meta):
+            if meta.get("performative") == Performatives.request:
+                print(f"reading requested: {content}")
+            else:
+                print(f"unexpected message: {content}")
+
+Both styles can be combined: decorated handlers cover the typed messages and
+``handle_message`` catches whatever is left.  Note that it also sees the
+messages the decorated handlers already took, so guard it if that matters.
 
 
 .. _express-setup:

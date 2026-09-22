@@ -130,13 +130,13 @@ Pass your configured codec to the container factory:
 .. testcode::
 
     import asyncio
-    from mango import Agent, create_tcp_container, activate
+    from mango import Agent, create_tcp_container, activate, on_message
 
     class SimpleReceivingAgent(Agent):
-        def handle_message(self, content, meta):
-            if isinstance(content, MyClass):
-                print(content.x)
-                print(content.y)
+        @on_message(MyClass)
+        def handle_my_class(self, content, meta):
+            print(content.x)
+            print(content.y)
 
     async def main():
         codec = JSON()

@@ -4,6 +4,46 @@ Migration
 
 This page documents breaking API changes between major mango releases.
 
+Message handling style
+======================
+
+Nothing about :meth:`~mango.Agent.handle_message` has changed: existing agents
+and roles keep working untouched.  The documentation now leads with
+:func:`~mango.on_message` instead, which subscribes one handler per message
+type on an agent or a role, so the ``isinstance`` chain inside
+``handle_message`` becomes one decorated method per type:
+
+.. code-block:: python
+
+    # Still supported
+    class MyAgent(Agent):
+        def handle_message(self, content, meta):
+            if isinstance(content, Request):
+                ...
+            elif isinstance(content, StatusUpdate):
+                ...
+
+    # Preferred
+    class MyAgent(Agent):
+        @on_message(Request)
+        def handle_request(self, content, meta):
+            ...
+
+        @on_message(StatusUpdate)
+        def handle_status(self, content, meta):
+            ...
+
+Migrate a handler at a time; the two styles coexist in the same class.  Keep
+``handle_message`` where the content type does not identify the message (for
+example FIPA performative dispatch) or where an agent must observe every
+message; see :ref:`Handling messages <agent-handlers>`.
+
+.. note::
+
+    An ``async def handle_message`` is never awaited and its body never runs.
+    A handler declared with ``@on_message`` may be ``async def``: it is
+    scheduled as an instant task.
+
 mango 1.2.x → 2.0.0
 ====================
 
