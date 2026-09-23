@@ -1,7 +1,7 @@
 """End-to-end tests for :meth:`RoleContext.gather`.
 
-``gather`` is the simplification target for the most common scare /
-mes pattern: send a request to N agents, collect their replies under
+``gather`` is the simplification target for the most patterns: 
+send a request to N agents, collect their replies under
 one id, return either when everyone answered or after a timeout.
 These tests run against real TCP containers so the message-passing
 infrastructure (tracking_id threading, reply matching) is exercised

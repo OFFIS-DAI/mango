@@ -43,12 +43,11 @@ async def tasks_complete_or_sleeping(container: Container, except_sources=["no_w
             await container.inbox.join()
         for scheduled_task, task, _, _ in task_list:
             # Do NOT skip this wait when the futures are already resolved. It looks
-            # redundant -- .done() answers the same question without the two loop
-            # turns asyncio.wait costs -- but those turns are load-bearing: they let
+            # redundant, .done() answers the same question without the two loop
+            # turns asyncio.wait costs, but those turns are load-bearing: they let
             # queued callbacks and agent coroutines drain inside the settle. Skipping
             # them (even with an explicit sleep(0) per round to keep the loop from
-            # spinning) changes the simulation: measured on scare/simbench_lv, world
-            # steps 1010 -> 850, GossipIter -26%, gas tier-4 served 0.315 -> 0.247.
+            # spinning) changes the simulation.
             await asyncio.wait(
                 [scheduled_task._is_sleeping, scheduled_task._is_done],
                 return_when=asyncio.FIRST_COMPLETED,
