@@ -66,9 +66,12 @@ Basic example
 
 .. tip::
 
-   Inside a :class:`~mango.Role`, a periodic task can be declared on the
-   method itself with :func:`~mango.periodic` instead of calling
-   ``schedule_periodic_task`` in ``on_ready``; see :ref:`role-periodic`.
+   A periodic task can also be declared on the method itself with
+   :func:`~mango.periodic` instead of calling ``schedule_periodic_task`` in
+   ``on_ready``.  It works the same on an :class:`~mango.Agent` and on a
+   :class:`~mango.Role`, and starts the task at the same moment; see
+   :ref:`role-periodic`.  The calls on this page cover what the decorator
+   does not: one-shot, timestamp, conditional, and process tasks.
 
 Suspendable tasks
 -----------------
@@ -151,7 +154,7 @@ runs faster (or slower) than real time.
 .. testcode::
 
     import asyncio
-    from mango import create_tcp_container, Agent, AsyncioClock, ExternalClock, activate
+    from mango import create_tcp_container, Agent, AsyncioClock, ExternalClock, activate, on_message
 
     class Caller(Agent):
         def __init__(self, receiver_addr):
@@ -174,7 +177,8 @@ runs faster (or slower) than real time.
             super().__init__()
             self.wait_for_reply = asyncio.Future()
 
-        def handle_message(self, content, meta):
+        @on_message(str)
+        def handle_text(self, content, meta):
             print(f'Received a message with the following content {content}.')
             self.wait_for_reply.set_result(True)
 

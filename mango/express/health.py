@@ -52,11 +52,6 @@ class EdgeHealth:
     * recovers multiplicatively toward 1.0 by ``score += (1-score) *
       recovery_rate`` on every incoming message from the neighbour.
 
-    Defaults match the scare baseline: a poll period of ~8 s on a
-    sensitive sector implies one missed beat per second of silence is
-    ``≈ 1/8`` of the full score, while every received message rebuilds
-    60 % of the missing fraction.
-
     :param decay_per_s: score decay per second of silence.
     :param recovery_rate: fraction of (1-score) recovered per received
         message.  Must be in ``(0, 1]``.

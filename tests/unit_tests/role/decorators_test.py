@@ -17,6 +17,7 @@ from typing import Any
 import pytest
 
 from mango import (
+    Agent,
     Role,
     RoleAgent,
     activate,
@@ -470,3 +471,210 @@ class TestPeriodicLifecycle:
 
         assert role.ticks == [0, 10]
         assert role.ready == 2
+
+
+@dataclass
+class _Job:
+    """Payload used by the agent-level dispatch tests."""
+
+    n: int
+
+
+class _DeclarativeAgent(Agent):
+    """Agent that declares everything and implements no ``handle_message``."""
+
+    def __init__(self):
+        super().__init__()
+        self.jobs: list[int] = []
+        self.pings: list[str] = []
+        self.order: list[str] = []
+
+    @on_message(_Job)
+    async def on_job(self, content, meta):
+        self.jobs.append(content.n)
+
+    @on_message(str, where=lambda self, c, m: c.startswith("ping"))
+    def on_ping(self, content, meta):
+        self.pings.append(content)
+
+    @on_message(int, priority=10)
+    def on_int_late(self, content, meta):
+        self.order.append("late")
+
+    @on_message(int, priority=-5)
+    def on_int_early(self, content, meta):
+        self.order.append("early")
+
+
+class TestAgentMessageDispatch:
+    """``@on_message`` on a plain :class:`~mango.Agent`."""
+
+    @pytest.mark.asyncio
+    async def test_sync_async_and_where_filter(self):
+        container = create_tcp_container(addr=("127.0.0.1", 5691))
+        agent = container.register(_DeclarativeAgent(), suggested_aid="a")
+        target = agent.addr
+        async with activate(container):
+            await agent.send_message(_Job(1), target)
+            await agent.send_message("ping!", target)
+            await agent.send_message("pong", target)
+            await asyncio.sleep(0.05)
+        assert agent.jobs == [1]
+        assert agent.pings == ["ping!"]
+
+    @pytest.mark.asyncio
+    async def test_priority_orders_decorated_handlers(self):
+        container = create_tcp_container(addr=("127.0.0.1", 5692))
+        agent = container.register(_DeclarativeAgent(), suggested_aid="a")
+        async with activate(container):
+            await agent.send_message(7, agent.addr)
+            await asyncio.sleep(0.05)
+        assert agent.order == ["early", "late"]
+
+    @pytest.mark.asyncio
+    async def test_declarative_agent_needs_no_handle_message(self):
+        """The base ``handle_message`` raises ``NotImplementedError``, which
+        would kill the inbox task after the first message; a purely
+        declarative agent must not hit it."""
+        container = create_tcp_container(addr=("127.0.0.1", 5693))
+        agent = container.register(_DeclarativeAgent(), suggested_aid="a")
+        async with activate(container):
+            await agent.send_message(_Job(1), agent.addr)
+            await asyncio.sleep(0.02)
+            await agent.send_message(_Job(2), agent.addr)
+            await asyncio.sleep(0.05)
+        assert agent.jobs == [1, 2]
+
+    @pytest.mark.asyncio
+    async def test_handle_message_still_runs_when_implemented(self):
+        class Mixed(_DeclarativeAgent):
+            def __init__(self):
+                super().__init__()
+                self.fallback: list[Any] = []
+
+            def handle_message(self, content, meta):
+                self.fallback.append(content)
+
+        container = create_tcp_container(addr=("127.0.0.1", 5694))
+        agent = container.register(Mixed(), suggested_aid="a")
+        async with activate(container):
+            await agent.send_message(_Job(3), agent.addr)
+            await asyncio.sleep(0.05)
+        assert agent.jobs == [3]
+        assert [c.n for c in agent.fallback] == [3]
+
+
+class _TickAgent(Agent):
+    """Agent with a decorated periodic task and lifecycle counters."""
+
+    def __init__(self):
+        super().__init__()
+        self.ticks: list[float] = []
+        self.ready = 0
+
+    def on_ready(self):
+        self.ready += 1
+
+    def handle_message(self, content, meta):
+        pass
+
+    @periodic(every=10.0)
+    async def tick(self):
+        self.ticks.append(self.context.current_timestamp)
+
+
+class TestAgentPeriodic:
+    """``@periodic`` on a plain :class:`~mango.Agent` starts at ``on_ready``."""
+
+    @pytest.mark.asyncio
+    async def test_periodic_defers_until_ready_and_follows_clock(self):
+        clock = ExternalClock(start_time=0)
+        container = create_tcp_container(addr=("127.0.0.1", 5695), clock=clock)
+        agent = container.register(_TickAgent())
+        assert agent.ticks == []
+        async with activate(container):
+            await asyncio.sleep(0.05)
+            for t in (10, 20):
+                clock.set_time(t)
+                await asyncio.sleep(0.02)
+        assert agent.ticks == [0, 10, 20]
+        assert agent.ready == 1
+
+    @pytest.mark.asyncio
+    async def test_agent_registered_after_ready_is_caught_up(self):
+        container = create_tcp_container(addr=("127.0.0.1", 5696))
+        async with activate(container):
+            agent = container.register(_TickAgent())
+            await asyncio.sleep(0.05)
+            assert len(agent.ticks) == 1
+            assert agent.ready == 1
+
+    @pytest.mark.asyncio
+    async def test_only_if_gates_the_agent_task(self):
+        class Gated(Agent):
+            def __init__(self):
+                super().__init__()
+                self.enabled = False
+                self.ticks = 0
+
+            def handle_message(self, content, meta):
+                pass
+
+            @periodic(every=10.0, only_if=lambda self: self.enabled)
+            async def tick(self):
+                self.ticks += 1
+
+        clock = ExternalClock(start_time=0)
+        container = create_tcp_container(addr=("127.0.0.1", 5697), clock=clock)
+        agent = container.register(Gated())
+        async with activate(container):
+            await asyncio.sleep(0.05)
+            assert agent.ticks == 0
+            agent.enabled = True
+            clock.set_time(10)
+            await asyncio.sleep(0.03)
+        assert agent.ticks == 1
+
+
+class _AgentEvent:
+    pass
+
+
+class _Emitter(Role):
+    def setup(self):
+        self.context.emit_event(_AgentEvent(), self)
+
+
+class TestAgentEvents:
+    """``@on_event`` needs the role event bus."""
+
+    @pytest.mark.asyncio
+    async def test_role_agent_receives_event_from_its_roles(self):
+        class Listener(RoleAgent):
+            def __init__(self):
+                super().__init__()
+                self.events: list[tuple] = []
+
+            @on_event(_AgentEvent)
+            def on_evt(self, event, source):
+                self.events.append((event, source))
+
+        container = create_tcp_container(addr=("127.0.0.1", 5698))
+        agent = container.register(Listener())
+        emitter = _Emitter()
+        async with activate(container):
+            agent.add_role(emitter)
+        assert len(agent.events) == 1
+        assert agent.events[0][1] is emitter
+
+    def test_plain_agent_with_on_event_raises(self):
+        class NoBus(Agent):
+            @on_event(_AgentEvent)
+            def on_evt(self, event, source):
+                pass
+
+            def handle_message(self, content, meta):
+                pass
+
+        with pytest.raises(TypeError, match="RoleAgent"):
+            NoBus()
