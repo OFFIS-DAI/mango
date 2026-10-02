@@ -1,6 +1,6 @@
 """End-to-end tests for :meth:`RoleContext.gather`.
 
-``gather`` is the simplification target for the most patterns: 
+``gather`` is the simplification target for the most patterns:
 send a request to N agents, collect their replies under
 one id, return either when everyone answered or after a timeout.
 These tests run against real TCP containers so the message-passing
