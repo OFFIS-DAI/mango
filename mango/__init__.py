@@ -1,4 +1,5 @@
 from .messages.message import create_acl, Performatives
+from .agent.conversation import Conversation
 from .agent.core import (
     Agent,
     AgentAddress,
@@ -15,6 +16,12 @@ from .agent.role import (
     RoleContext,
     WaitingMessagePreprocessor,
 )
+from .agent.decorators import (
+    on_message,
+    on_event,
+    periodic,
+)
+from .express.health import EdgeHealth, TopologyHealth
 from .container.factory import (
     create_tcp as create_tcp_container,
     create_mqtt as create_mqtt_container,

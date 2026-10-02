@@ -39,7 +39,7 @@ Most of the codec code is adapted from
 
 The JSON codec can handle any JSON-serialisable primitive (strings, numbers,
 booleans, lists, dicts) out of the box.  To send custom class instances you
-register a *serialiser* — a pair of (encode, decode) functions — with
+register a *serialiser*, a pair of (encode, decode) functions, with
 :meth:`~mango.JSON.add_serializer`.
 
 Manual serialiser
@@ -195,7 +195,7 @@ FastJSON codec
 :class:`~mango.messages.codecs.FastJson` is a lightweight alternative to the
 full JSON codec.  It uses `msgspec <https://jcristharif.com/msgspec/>`_ for
 serialisation and is noticeably faster, but it **does not** support a type
-registry.  All messages are encoded and decoded as plain dicts — no custom
+registry.  All messages are encoded and decoded as plain dicts; no custom
 class round-trips.  Use it when speed matters and you only pass primitive
 values or dicts as message content.
 
@@ -241,4 +241,4 @@ just like a top-level message.
 
 .. seealso::
 
-    :doc:`message exchange` — sending and receiving messages
+    :doc:`message exchange`: sending and receiving messages

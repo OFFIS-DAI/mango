@@ -21,12 +21,13 @@ async def increase_clock(c, increase_time, wait: float = 0, amount=1):
 async def test_sleep():
     clock = ExternalClock(start_time=100)
     scheduler = Scheduler(clock=clock)
-    t_1 = time.time()
     task = asyncio.create_task(increase_clock(clock, 1, 0.1, 5))
     await scheduler.sleep(4)
-    passed_time = round(time.time() - t_1, 1)
+    #: which clock step the sleep returns on pins the behaviour exactly,
+    #: while the elapsed real time drifts under load (flaky on macOS CI).
+    woke_up_at = clock.time
     await task
-    assert passed_time == 0.4
+    assert woke_up_at == 104
 
 
 @pytest.mark.asyncio
@@ -54,9 +55,18 @@ async def test_external_clock_simple():
     assert round(results[1], 1) == 0.4
 
 
+#: asyncio decides a timer is due when its deadline lies within one clock
+#: resolution, and that clock resolves to ~16 ms on Windows against ~1 ns on
+#: Linux. So a single wait can end measurably before its deadline, and a chain
+#: of waits drifts past it by the same granularity per step.
+_CLOCK_SLACK = max(8 * time.get_clock_info("monotonic").resolution, 0.01)
+
+
 def assert_os_close(va, bound, tol=0.1):
-    assert va >= bound
-    assert va <= bound + tol
+    assert va >= bound - _CLOCK_SLACK, f"{va} is more than {_CLOCK_SLACK} below {bound}"
+    assert va <= bound + tol + _CLOCK_SLACK, (
+        f"{va} is more than {tol + _CLOCK_SLACK} above {bound}"
+    )
 
 
 @pytest.mark.asyncio

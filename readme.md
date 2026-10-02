@@ -26,7 +26,7 @@
 
 ---
 
-**mango** (**m**odul**a**r pytho**n** a**g**ent framew**o**rk) is a Python library for building and simulating multi-agent systems (MAS) on top of `asyncio`. It targets researchers and engineers who need reproducible agent behaviour, structured agent architectures, and controlled experimental conditions — without sacrificing usability for prototyping.
+**mango** (**m**odul**a**r pytho**n** a**g**ent framew**o**rk) is a Python library for building and simulating multi-agent systems (MAS) on top of `asyncio`. It targets researchers and engineers who need reproducible agent behaviour, structured agent architectures, and controlled experimental conditions, without sacrificing usability for prototyping.
 
 ---
 
@@ -75,7 +75,7 @@ async def main():
     # All agents on a single host share one container.
     container = create_tcp_container(addr=("127.0.0.1", 5555))
 
-    sender   = container.register(ReportingAgent())
+    sender = container.register(ReportingAgent())
     receiver = container.register(ReportingAgent())
 
     async with activate(container):
@@ -93,7 +93,7 @@ asyncio.run(main())
 
 ### Proactive behavior
 
-Agents are not limited to reacting to messages. `schedule_periodic_task` registers a coroutine that is called repeatedly at a fixed interval — useful for polling, broadcasting, or any time-driven behavior:
+Agents are not limited to reacting to messages. `schedule_periodic_task` registers a coroutine that is called repeatedly at a fixed interval, useful for polling, broadcasting, or any time-driven behavior:
 
 ```python
 class SensorAgent(Agent):
@@ -149,7 +149,7 @@ class SensorAgent(Agent):
 
     def __init__(self):
         super().__init__()
-        self.monitor_addr = None   # set after both agents are registered
+        self.monitor_addr = None  # set after both agents are registered
         self.readings_sent = 0
 
     def on_ready(self):
@@ -173,7 +173,7 @@ class MonitorAgent(Agent):
 
 
 async def run():
-    world  = create_world(start_time=0.0)
+    world = create_world(start_time=0.0)
     sensor = world.register(SensorAgent())
     monitor = world.register(MonitorAgent())
 
@@ -181,8 +181,12 @@ async def run():
     sensor.monitor_addr = monitor.addr
 
     # Record the running count of received messages after every step.
-    record_agent(world, "received", lambda a: a.received,
-                 filter_fn=lambda a: isinstance(a, MonitorAgent))
+    record_agent(
+        world,
+        "received",
+        lambda a: a.received,
+        filter_fn=lambda a: isinstance(a, MonitorAgent),
+    )
 
     async with world:
         await discrete_step_until(world, max_advance_time_s=60.0)
@@ -202,7 +206,7 @@ asyncio.run(run())
 # Total readings received: 6
 ```
 
-`discrete_step_until` automatically determines each step size as the time until the next scheduled event — a message arrival or a task wakeup — and stops when no further events remain within the time budget.
+`discrete_step_until` automatically determines each step size as the time until the next scheduled event (a message arrival or a task wakeup) and stops when no further events remain within the time budget.
 
 For experiment designs that require fixed, uniform time increments, call `step_simulation` directly:
 
@@ -212,7 +216,9 @@ from mango import step_simulation
 async with world:
     for _ in range(10):
         result = await step_simulation(world, step_size_s=1.0)
-        print(f"t = {world.clock.time:.1f} s    messages delivered: {result.messages_delivered}")
+        print(
+            f"t = {world.clock.time:.1f} s    messages delivered: {result.messages_delivered}"
+        )
 ```
 
 ### Communication modelling
@@ -225,8 +231,8 @@ from mango import create_world, SimpleCommunicationSimulation
 world = create_world(
     start_time=0.0,
     communication_sim=SimpleCommunicationSimulation(
-        default_delay_s=0.1,            # baseline one-way latency
-        loss_percent=0.01,              # independent loss probability per message
+        default_delay_s=0.1,  # baseline one-way latency
+        loss_percent=0.01,  # independent loss probability per message
         delay_s_directed_edge_dict={
             ("agent0", "agent1"): 0.5,  # directed per-link override
         },
@@ -256,11 +262,15 @@ Agents can be embedded in a continuous 2-D area. Agents without a pre-assigned p
 
 ```python
 from mango import (
-    create_world, Area2D, DefaultEnvironment,
-    record_position, position_history, discrete_step_until,
+    create_world,
+    Area2D,
+    DefaultEnvironment,
+    record_position,
+    position_history,
+    discrete_step_until,
 )
 
-env   = DefaultEnvironment(space=Area2D(width=100.0, height=100.0))
+env = DefaultEnvironment(space=Area2D(width=100.0, height=100.0))
 world = create_world(start_time=0.0, environment=env)
 
 # ... register agents ...
@@ -295,9 +305,9 @@ record_agent(world, "energy_kwh", lambda a: a.energy_kwh)
 async with world:
     await discrete_step_until(world, max_advance_time_s=3600.0)
 
-world.data_collections["msg_count"].timeseries          # list of scalars
-world.data_agent_collections["energy_kwh"].timeseries   # dict[aid -> list]
-world.data_agent_collections["energy_kwh"].time         # shared time axis
+world.data_collections["msg_count"].timeseries  # list of scalars
+world.data_agent_collections["energy_kwh"].timeseries  # dict[aid -> list]
+world.data_agent_collections["energy_kwh"].time  # shared time axis
 ```
 
 All exchanged messages are also logged automatically in `world.recorded_messages` as `MessageTransaction` objects, each carrying sender, receiver, send time, and arrival time.

@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -466,7 +467,7 @@ class TestSimulationWorldRegister:
     async def test_suggested_aid_unavailable_falls_back(self):
         world = create_world()
         a1 = world.register(SimpleAgent(), suggested_aid="agent0")
-        # "agent0" clashes with the auto-naming pattern – falls back
+        # "agent0" clashes with the auto-naming pattern, so it falls back
         a2 = world.register(SimpleAgent(), suggested_aid="agent0")
         assert a1.aid == "agent0"
         # Second registration should get a different aid
@@ -504,7 +505,7 @@ class TestSimulationWorldRegister:
         world = create_world()
         a = world.register(SimpleAgent())
         world.deregister(a.aid)
-        assert a.aid not in world._agents
+        assert a.aid not in world.agents
         await world.shutdown()
 
     def test_deregister_nonexistent_is_noop(self):
@@ -637,12 +638,12 @@ async def test_message_with_delay_delivered_on_next_step():
         await world.send_message(
             "delayed", receiver_addr=receiver.addr, sender_id=sender.aid
         )
-        # Step only 1 second – message not yet due (delay=2s)
+        # Step only 1 second: message not yet due (delay=2s)
         result1 = await step_simulation(world, step_size_s=1.0)
         assert result1.messages_delivered == 0
         assert len(receiver.messages) == 0
 
-        # Step another 2 seconds – message is now due
+        # Step another 2 seconds: message is now due
         result2 = await step_simulation(world, step_size_s=2.0)
         assert result2.messages_delivered == 1
         assert len(receiver.messages) == 1
@@ -672,16 +673,16 @@ async def test_message_unknown_receiver_dropped():
     world.register(SimpleAgent())  # just to have an agent
     # Manually inject a message with unknown receiver
     async with world:
-        await world._deliver_messages_due.__func__(world, 999.0) if False else None  # noqa: this branch is tested via direct queue
         # Insert directly into pending with bogus receiver
         import bisect
 
-        world._pending_messages.clear()
+        container = world.container
+        container._pending_messages.clear()
         bisect.insort(
-            world._pending_messages,
+            container._pending_messages,
             (0.0, 0, 0.0, "msg", {"receiver_id": "ghost", "sender_id": None}),
         )
-        delivered = await world._deliver_messages_due(10.0)
+        delivered = await container._deliver_messages_due(10.0)
     assert delivered == 0  # dropped, not counted
 
 
@@ -725,7 +726,7 @@ async def test_shutdown_sets_running_false():
 async def test_record_world():
     world = create_world()
     world.register(SimpleAgent())
-    record_world(world, "agent_count", lambda: len(world._agents))
+    record_world(world, "agent_count", lambda: len(world.agents))
     async with world:
         await step_simulation(world, step_size_s=1.0)
         await step_simulation(world, step_size_s=1.0)
@@ -1018,7 +1019,7 @@ def test_update_description_all_fields():
 def test_update_description_none_fields_unchanged():
     agent = SimpleAgent()
     agent.update_description(name="Dave")
-    agent.update_description()  # all None – nothing changes
+    agent.update_description()  # all None, so nothing changes
     assert agent.name == "Dave"
 
 
@@ -1081,7 +1082,7 @@ def test_delete_forwarding_rule_nonexistent_is_noop():
     agent = SimpleAgent()
     addr_a = AgentAddress("sim", "a")
     addr_b = AgentAddress("sim", "b")
-    agent.delete_forwarding_rule(addr_a, addr_b)  # no rules at all – must not raise
+    agent.delete_forwarding_rule(addr_a, addr_b)  # no rules at all, must not raise
 
 
 @pytest.mark.asyncio
@@ -1125,7 +1126,7 @@ async def test_send_tracked_message_with_handler():
         await step_simulation(world, step_size_s=1.0)
 
     assert handler_calls == ["pong"]
-    # Handler consumed – no leftover entries
+    # Handler consumed, so no leftover entries
     assert len(sender._transaction_handlers) == 0
 
 
@@ -1250,3 +1251,178 @@ async def test_discrete_step_until_via_run_with_simulation():
     assert world.clock.time <= 3.0
     assert len(results) >= 1
     assert agent.ticks >= 1
+
+
+@pytest.mark.asyncio
+async def test_gather_from_scheduled_task_does_not_deadlock_step():
+    # Regression: a gather awaiting replies inside a scheduled task must count
+    # as sleeping for termination detection, or world.step() hangs,
+    # since the replies can only be delivered after detection returns.
+    world = create_world()
+
+    class GatherAgent(Agent):
+        def __init__(self):
+            super().__init__()
+            self.peer = None
+            self.responses = None
+
+        def handle_message(self, content, meta):
+            pass
+
+        def on_ready(self):
+            self.schedule_instant_task(self.run_gather())
+
+        async def run_gather(self):
+            self.responses = await self.gather(
+                "ping", receivers=[self.peer], timeout=30.0
+            )
+
+    gatherer = world.register(GatherAgent())
+    responder = world.register(ReplyAgent())
+    gatherer.peer = responder.addr
+
+    async def drive():
+        # world entry/exit also run termination detection, so the timeout
+        # must span the whole world lifecycle to catch a deadlock anywhere
+        async with world:
+            for _ in range(4):
+                await step_simulation(world, step_size_s=1.0)
+                if gatherer.responses is not None:
+                    break
+
+    await asyncio.wait_for(drive(), timeout=10)
+    assert gatherer.responses == {responder.addr: "pong"}
+
+
+@pytest.mark.asyncio
+async def test_conversation_from_scheduled_task_does_not_deadlock_step():
+    # Regression: a conversation iterator parked on its queue inside a
+    # scheduled task must count as sleeping for termination detection.
+    world = create_world()
+
+    class InitiatorAgent(Agent):
+        def __init__(self):
+            super().__init__()
+            self.peer = None
+            self.received = None
+
+        def handle_message(self, content, meta):
+            pass
+
+        def on_ready(self):
+            self.schedule_instant_task(self.run_conversation())
+
+        async def run_conversation(self):
+            async with self.open_conversation(timeout=30.0) as conv:
+                await conv.send(self.peer, "ping")
+                async for content, _ in conv:
+                    self.received = content
+                    conv.converge()
+
+    initiator = world.register(InitiatorAgent())
+    responder = world.register(ReplyAgent())
+    initiator.peer = responder.addr
+
+    async def drive():
+        async with world:
+            for _ in range(4):
+                await step_simulation(world, step_size_s=1.0)
+                if initiator.received is not None:
+                    break
+
+    await asyncio.wait_for(drive(), timeout=10)
+    assert initiator.received == "pong"
+
+
+@pytest.mark.asyncio
+async def test_discrete_step_until_stops_when_no_events_remain():
+    """``discrete_step_until`` is bounded by events, not only by time: an
+    idle world produces no steps at all rather than spinning until the
+    horizon."""
+    agent = SimpleAgent()
+    async with run_with_simulation(agent) as world:
+        results = await discrete_step_until(world, max_advance_time_s=10.0)
+
+    assert results == []
+    assert world.clock.time == 0.0
+
+
+@pytest.mark.asyncio
+async def test_world_delegates_container_properties():
+    """:class:`SimulationWorld` is a facade over its container: the
+    read-through properties and the two setters must address the same
+    container state, not a shadow copy."""
+    a = SimpleAgent()
+    async with run_with_simulation(a) as world:
+        container = world.container
+
+        assert world.addr == container.addr
+        assert world.name == container.name
+        assert world.codec is container.codec
+        assert world.ready == container.ready
+        assert world.agents is container._agents
+
+        comm = SimpleCommunicationSimulation(default_delay_s=3.0)
+        world.communication_sim = comm
+        assert container.communication_sim is comm
+
+        world.running = False
+        assert container.running is False
+        world.running = True
+
+        world.recorded_messages = []
+        assert container.recorded_messages == []
+
+
+@pytest.mark.asyncio
+async def test_next_step_size_accounts_for_pending_messages():
+    """A message in flight is an event: the discrete step must land on its
+    delivery time, not skip past it to the next scheduled task."""
+    comm = SimpleCommunicationSimulation(default_delay_s=2.0)
+    sender = SimpleAgent()
+    receiver = SimpleAgent()
+
+    async with run_with_simulation(sender, receiver, communication_sim=comm) as world:
+        await sender.send_message("hello", receiver_addr=receiver.addr)
+        await asyncio.sleep(0)
+
+        assert world.container._determine_next_step_size() == pytest.approx(2.0)
+
+        result = await world.step(step_size_s=DISCRETE_EVENT)
+        assert result.messages_delivered == 1
+        assert world.clock.time == pytest.approx(2.0)
+        assert [c for c, _ in receiver.messages] == ["hello"]
+
+
+@pytest.mark.asyncio
+async def test_simulation_container_rejects_agent_processes():
+    """Agent subprocesses have their own event loop and clock, which a
+    stepped simulation cannot drive, so both entry points say so."""
+    async with run_with_simulation(SimpleAgent()) as world:
+        with pytest.raises(NotImplementedError, match="simulation container"):
+            await world.container.as_agent_process(lambda c: None)
+        with pytest.raises(NotImplementedError, match="simulation container"):
+            world.container.as_agent_process_lazy(lambda c: None)
+
+
+@pytest.mark.asyncio
+async def test_simulation_container_shutdown_survives_failing_agent(caplog):
+    """One agent raising in ``on_stop`` must not leave the remaining
+    agents running; shutdown logs and carries on."""
+
+    class _BadAgent(SimpleAgent):
+        async def on_stop(self):
+            raise RuntimeError("boom")
+
+    bad = _BadAgent()
+    good = SimpleAgent()
+    world = create_world()
+    world.register(bad)
+    world.register(good)
+
+    async with world:
+        await step_simulation(world, step_size_s=1.0)
+
+    assert world.running is False
+    assert "Error shutting down agent" in caplog.text
+    assert good._stopped.done()
