@@ -139,71 +139,94 @@ async def test_schedule_instant_task():
 @pytest.mark.asyncio
 async def test_conditional_task():
     n_tasks = 10
+    lookup_delay = 0.1
     external_clock = ExternalClock()
-    condition_variables = [False] * n_tasks
     scheduler_external = Scheduler(clock=external_clock)
-    increase_time_task = asyncio.create_task(
-        increase_clock(c=external_clock, increase_time=0.05, wait=0.6, amount=2)
-    )
     scheduler_asyncio = Scheduler(clock=AsyncioClock())
-    results_dict = {}
+    conditions = [False] * n_tasks
+    asyncio_ran = set()
+    external_runs = {}
+
+    async def record_asyncio_run(i):
+        asyncio_ran.add(i)
+
+    async def record_external_run(i):
+        external_runs[i] = external_clock.time
+
+    asyncio_tasks = []
+    external_tasks = []
     for i in range(n_tasks):
-
-        def create_condition_func(num):
-            return lambda: condition_variables[num]
-
-        scheduler_asyncio.schedule_conditional_task(
-            coroutine=example_coro(f"asyncio_{i}", time.time(), results_dict),
-            condition_func=create_condition_func(i),
-            lookup_delay=0.1,
+        asyncio_tasks.append(
+            scheduler_asyncio.schedule_conditional_task(
+                coroutine=record_asyncio_run(i),
+                condition_func=lambda i=i: conditions[i],
+                lookup_delay=lookup_delay,
+            )
         )
-        scheduler_external.schedule_conditional_task(
-            coroutine=example_coro(f"external_{i}", time.time(), results_dict),
-            condition_func=create_condition_func(i),
-            lookup_delay=0.1,
+        external_tasks.append(
+            scheduler_external.schedule_conditional_task(
+                coroutine=record_external_run(i),
+                condition_func=lambda i=i: conditions[i],
+                lookup_delay=lookup_delay,
+            )
         )
-    for i in range(n_tasks):
-        await asyncio.sleep(0.1)
-        condition_variables[i] = True
-
-    await increase_time_task
 
     for i in range(n_tasks):
-        assert_os_close(results_dict[f"external_{i}"], 1.2)
-        assert_os_close(results_dict[f"asyncio_{i}"], 0.1 + i / 10)
+        await asyncio.sleep(lookup_delay)
+        assert asyncio_ran.isdisjoint(range(i, n_tasks))
+        conditions[i] = True
+    await asyncio.wait_for(asyncio.gather(*asyncio_tasks), timeout=10)
+    assert asyncio_ran == set(range(n_tasks))
+
+    #: the conditions have been true for a while now, but an external clock
+    #: task only re-checks once the clock advances by a full lookup_delay.
+    assert external_runs == {}
+    external_clock.set_time(0.05)
+    await asyncio.sleep(0.05)
+    assert external_runs == {}
+    external_clock.set_time(0.1)
+    await asyncio.wait_for(asyncio.gather(*external_tasks), timeout=10)
+    assert external_runs == dict.fromkeys(range(n_tasks), 0.1)
 
 
 @pytest.mark.asyncio
 async def test_periodic_task():
+    delay = 0.1
+    n_asyncio_runs = 10
     external_clock = ExternalClock()
     scheduler_external = Scheduler(clock=external_clock)
-    increase_time_task = asyncio.create_task(
-        increase_clock(c=external_clock, increase_time=0.05, wait=0.2, amount=2)
-    )
     scheduler_asyncio = Scheduler(clock=AsyncioClock())
-    results_dict = {"asyncio": [], "external": []}
-    open_tasks = []
-    t_start = time.time()
+    asyncio_runs = []
+    external_runs = []
+    asyncio_done = asyncio.Event()
+    external_ran = asyncio.Event()
 
-    async def example_periodic_coro_asyncio():
-        results_dict["asyncio"].append(time.time() - t_start)
+    async def record_asyncio_run():
+        asyncio_runs.append(time.monotonic())
+        if len(asyncio_runs) == n_asyncio_runs:
+            asyncio_done.set()
 
-    async def example_periodic_coro_external():
-        results_dict["external"].append(time.time() - t_start)
+    async def record_external_run():
+        external_runs.append(external_clock.time)
+        external_ran.set()
 
-    open_tasks.append(
+    open_tasks = [
         scheduler_asyncio.schedule_periodic_task(
-            coroutine_func=example_periodic_coro_asyncio, delay=0.1
-        )
-    )
-    open_tasks.append(
+            coroutine_func=record_asyncio_run, delay=delay
+        ),
         scheduler_external.schedule_periodic_task(
-            coroutine_func=example_periodic_coro_external, delay=0.1
-        )
-    )
+            coroutine_func=record_external_run, delay=delay
+        ),
+    ]
 
-    await asyncio.sleep(1)
-    await increase_time_task
+    await asyncio.wait_for(asyncio_done.wait(), timeout=10)
+    external_ran.clear()
+    external_clock.set_time(0.05)
+    await asyncio.sleep(0.05)
+    assert external_runs == [0]
+    external_clock.set_time(0.1)
+    await asyncio.wait_for(external_ran.wait(), timeout=10)
+
     for task in open_tasks:
         task.cancel()
         try:
@@ -211,8 +234,8 @@ async def test_periodic_task():
         except asyncio.CancelledError:
             pass
 
-    for i in range(10):
-        assert_os_close(results_dict["asyncio"][i], round(0.1 * i, 1))
-    assert len(results_dict["external"]) == 2
-    for i, duration in enumerate(results_dict["external"]):
-        assert_os_close(duration, i * 0.4)
+    #: only the lower bound is guaranteed; a loaded runner can delay any
+    #: wake-up, and since the period restarts after each run the delays add up.
+    for earlier, later in zip(asyncio_runs, asyncio_runs[1:]):
+        assert later - earlier >= delay - _CLOCK_SLACK
+    assert external_runs == [0, 0.1]

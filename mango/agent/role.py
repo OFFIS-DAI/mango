@@ -42,7 +42,11 @@ from collections.abc import Callable
 from typing import Any
 
 from mango.agent.core import Agent, AgentAddress, AgentDelegates
-from mango.agent.decorators import apply_periodic, apply_subscriptions
+from mango.agent.decorators import (
+    apply_agent_events,
+    apply_periodic,
+    apply_subscriptions,
+)
 
 
 class MessagePreprocessor(ABC):
@@ -681,6 +685,8 @@ class RoleAgent(Agent):
     a RoleAgent as base for your agents. A role can be added with :func:`RoleAgent.add_role`.
     """
 
+    _has_event_bus = True
+
     def __init__(self):
         """Create a role-agent
 
@@ -692,6 +698,7 @@ class RoleAgent(Agent):
         self._role_handler = RoleHandler(None)
         self._role_handler._agent = self
         self._role_context = RoleContext(self._role_handler, self.aid, self.inbox)
+        apply_agent_events(self, self._role_handler)
 
     def on_start(self):
         self._role_context.on_start()

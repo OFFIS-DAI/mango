@@ -48,14 +48,15 @@ agents as nodes, then wire them up with edges:
     import asyncio
     from typing import Any
 
-    from mango import Agent, run_with_tcp, create_topology
+    from mango import Agent, on_message, run_with_tcp, create_topology
 
     class TopAgent(Agent):
         def __init__(self):
             super().__init__()
             self.counter = 0
 
-        def handle_message(self, content, meta: dict[str, Any]):
+        @on_message(str)
+        def handle_text(self, content, meta: dict[str, Any]):
             self.counter += 1
 
     async def start_example():
@@ -140,14 +141,15 @@ call :meth:`AgentNode.add` on each:
     import asyncio
     from typing import Any
 
-    from mango import Agent, run_with_tcp, per_node, complete_topology
+    from mango import Agent, on_message, per_node, run_with_tcp, complete_topology
 
     class TopAgent(Agent):
         def __init__(self):
             super().__init__()
             self.counter = 0
 
-        def handle_message(self, content, meta: dict[str, Any]):
+        @on_message(str)
+        def handle_text(self, content, meta: dict[str, Any]):
             self.counter += 1
 
     async def start_example():

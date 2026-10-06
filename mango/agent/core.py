@@ -25,6 +25,7 @@ from ..util.scheduling import (
     sleeping_wait,
 )
 from .conversation import CONVERSATION_ID_KEY, Conversation, _ConversationContext
+from .decorators import apply_agent_periodic, apply_agent_subscriptions
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -1124,6 +1125,10 @@ class AgentDelegates:
 class Agent(ABC, AgentDelegates):
     """Base class for all agents."""
 
+    #: Whether this agent owns the co-located event bus ``@on_event``
+    #: subscribes to.  Only :class:`~mango.RoleAgent` does.
+    _has_event_bus = False
+
     def __init__(
         self,
     ):
@@ -1135,6 +1140,15 @@ class Agent(ABC, AgentDelegates):
 
         self.inbox = asyncio.Queue()
         self.context = AgentContext(None)
+
+        apply_agent_subscriptions(self)
+        # A purely declarative agent has no ``handle_message`` of its own;
+        # calling the base one would raise NotImplementedError and kill the
+        # inbox task, so it is skipped for those agents only.
+        self._dispatches_to_handle_message = (
+            not self._behavior_message_subs
+            or type(self).handle_message is not Agent.handle_message
+        )
 
     @property
     def observable_tasks(self):
@@ -1174,6 +1188,12 @@ class Agent(ABC, AgentDelegates):
         self._stopped = asyncio.Future()
 
         self.on_start()
+
+    def _do_ready(self):
+        # @periodic tasks start here, not at registration: on_ready is the
+        # first point at which sending messages from a task body is safe.
+        apply_agent_periodic(self)
+        self.on_ready()
 
     def _raise_exceptions(self, fut: asyncio.Future):
         """
@@ -1233,7 +1253,8 @@ class Agent(ABC, AgentDelegates):
                                     )
                                 else:
                                     _handler(self, content, meta)
-                        self.handle_message(content=content, meta=meta)
+                        if self._dispatches_to_handle_message:
+                            self.handle_message(content=content, meta=meta)
 
                 # signal to the Queue that the message is handled
                 self.inbox.task_done()
