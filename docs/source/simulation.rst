@@ -17,14 +17,14 @@ This is useful for:
 
 **Key concepts**
 
-* **SimulationWorld** – the container agents register against.  Time is
+* **SimulationWorld**: the container agents register against.  Time is
   controlled by an :class:`~mango.ExternalClock`.
-* **step_simulation** – advance the simulation clock by a fixed amount,
+* **step_simulation**: advance the simulation clock by a fixed amount,
   calling all ``on_step`` hooks and delivering pending messages.
-* **discrete_step_until** – repeatedly step to the next scheduled event
+* **discrete_step_until**: repeatedly step to the next scheduled event
   (message arrival or task wake-up) until a time limit is reached.
-* **CommunicationSimulation** – pluggable model for message delay and loss.
-* **DefaultEnvironment** – spatial environment with optional 2-D area and
+* **CommunicationSimulation**: pluggable model for message delay and loss.
+* **DefaultEnvironment**: spatial environment with optional 2-D area and
   custom behaviours.
 
 
@@ -121,14 +121,15 @@ for quick setups:
 .. testcode::
 
     import asyncio
-    from mango import Agent, run_with_simulation, step_simulation, DISCRETE_EVENT
+    from mango import Agent, on_message, run_with_simulation, step_simulation, DISCRETE_EVENT
 
     class EchoAgent(Agent):
         def __init__(self):
             super().__init__()
             self.received = []
 
-        def handle_message(self, content, meta):
+        @on_message(str)
+        def handle_text(self, content, meta):
             self.received.append(content)
 
     async def run():
@@ -163,14 +164,15 @@ loss), messages sent at time *t* are available for delivery from *t* onward:
 .. testcode::
 
     import asyncio
-    from mango import Agent, create_world, step_simulation
+    from mango import Agent, create_world, on_message, step_simulation
 
     class Relay(Agent):
         def __init__(self):
             super().__init__()
             self.received = []
 
-        def handle_message(self, content, meta):
+        @on_message(str)
+        def handle_text(self, content, meta):
             self.received.append((content, round(self.context.current_timestamp, 1)))
 
     async def run():
@@ -199,7 +201,7 @@ Inject message delays and packet loss by passing a custom
 
     import asyncio
     from mango import (
-        Agent, create_world, step_simulation,
+        Agent, create_world, on_message, step_simulation,
         SimpleCommunicationSimulation,
     )
 
@@ -208,7 +210,8 @@ Inject message delays and packet loss by passing a custom
             super().__init__()
             self.count = 0
 
-        def handle_message(self, content, meta):
+        @on_message(str)
+        def handle_text(self, content, meta):
             self.count += 1
 
     async def run():
@@ -219,11 +222,11 @@ Inject message delays and packet loss by passing a custom
         async with world:
             await sender.send_message("delayed", receiver.addr)
 
-            # Step to t=1 – message arrives at t=2, so not yet delivered
+            # Step to t=1: message arrives at t=2, so not yet delivered
             await step_simulation(world, step_size_s=1.0)
             print(f"After 1s: {receiver.count} message(s)")
 
-            # Step to t=2.5 – delivery time (2.0) has now passed
+            # Step to t=2.5: delivery time (2.0) has now passed
             await step_simulation(world, step_size_s=1.5)
             print(f"After 2.5s: {receiver.count} message(s)")
 
@@ -271,7 +274,7 @@ from shortest-path distances in that graph.  The delay for a
     import networkx as nx
     from mango import create_distribution_based_com_sim, create_world
 
-    # Linear topology: agent0 — agent1 — agent2
+    # Linear topology: agent0 -- agent1 -- agent2
     g = nx.path_graph(["agent0", "agent1", "agent2"])
 
     comm = create_distribution_based_com_sim(
@@ -304,7 +307,7 @@ with a custom ``distribution_provider`` to draw delays from any distribution:
     )
 
 Both directed and undirected graphs are supported.  For directed graphs, only
-the directed edges contribute to the routing — a pair with no path simply
+the directed edges contribute to the routing; a pair with no path simply
 falls back to the default provider (zero delay).
 
 
@@ -439,9 +442,6 @@ override this by calling :meth:`~mango.Area2D.move` before the world starts:
             # Move 1 unit toward the origin on every step
             env.space.move_toward(self, Position2D(0.0, 0.0), max_step=1.0)
 
-        def handle_message(self, content, meta):
-            pass
-
     async def run():
         space = Area2D(width=10.0, height=10.0)
         env = DefaultEnvironment(space=space)
@@ -565,10 +565,11 @@ Every delivered message is logged in ``world.recorded_messages``:
 .. testcode::
 
     import asyncio
-    from mango import Agent, create_world, step_simulation, MessageTransaction
+    from mango import Agent, create_world, on_message, step_simulation, MessageTransaction
 
     class Ping(Agent):
-        def handle_message(self, content, meta):
+        @on_message(str)
+        def handle_text(self, content, meta):
             pass
 
     async def run():
@@ -643,11 +644,12 @@ plot_world
 
     import asyncio
     from mango import (
-        Agent, create_world, step_simulation, record_world, plot_world,
+        Agent, create_world, on_message, step_simulation, record_world, plot_world,
     )
 
     class TrafficAgent(Agent):
-        def handle_message(self, content, meta): pass
+        @on_message(str)
+        def handle_text(self, content, meta): pass
 
     async def run():
         world = create_world()
@@ -694,7 +696,7 @@ plot_recordings
 ---------------
 
 :func:`~mango.plot_recordings` renders **all** recordings (both world-level
-and per-agent) in a single grid figure — ideal for a quick experiment
+and per-agent) in a single grid figure, ideal for a quick experiment
 overview:
 
 .. code-block:: python
@@ -742,13 +744,16 @@ When *aid_to_name* is omitted, agent AIDs are used as labels.  When
 *aid_to_color* is omitted, matplotlib's default colour cycle is applied.
 
 
-Declarative behavior with behavior_in
-======================================
+Attaching behavior with behavior_in
+====================================
 
-:func:`~mango.behavior_in` lets you attach message handlers and event
-subscriptions to a matched set of agents **without modifying their class
-definitions**.  It is simulation-only — it requires a
-:class:`~mango.simulation.world.SimulationWorld`.
+An agent normally declares its handlers on the class with
+:func:`~mango.on_message` (see :ref:`Handling messages <agent-handlers>`).
+:func:`~mango.behavior_in` attaches message handlers and event subscriptions
+to a matched set of agents **without modifying their class definitions**,
+which is what you want for instrumenting third-party agents or for varying
+behaviour from one experiment run to the next.  It is simulation-only and
+requires a :class:`~mango.simulation.world.SimulationWorld`.
 
 .. code-block:: python
 
@@ -812,8 +817,9 @@ Handler signatures
     # When role_types is used the first arg is the matched role
     def handler(role, content_or_event, ...): ...
 
-behavior_in fires **in addition to** the agent's ``handle_message`` override
-and any existing role subscriptions — it does not replace them.
+behavior_in fires **in addition to** the agent's own handlers, never instead
+of them.  Its handlers run after the ``@on_message`` ones and before
+``handle_message``, and role subscriptions are untouched.
 
 Optional *preprocessor*
 ------------------------

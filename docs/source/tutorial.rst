@@ -34,18 +34,21 @@ This example covers:
 
 First, we want to create two simple agents and have the container send a message to one of them.
 An agent is created by defining a class that inherits from the base Agent class of mango.
-Every agent must implement the :meth:`mango.Agent.handle_message` method to which incoming messages are forwarded by the container.
+An agent declares which messages it handles: :func:`mango.on_message` subscribes a method to a
+message type, and the container forwards every message whose content is an instance of that type
+to it.
 
 .. testcode::
 
-    from mango import Agent
+    from mango import Agent, on_message
 
     class PVAgent(Agent):
         def __init__(self):
             super().__init__()
             print("Hello I am a PV agent!")
 
-        def handle_message(self, content, meta):
+        @on_message(str)
+        def handle_text(self, content, meta):
             print(f"Received message with content: {content} and meta {meta}.")
 
     PVAgent()
@@ -187,11 +190,18 @@ constructor that we will later use to keep track of which agents have already an
 
     [AgentAddress(protocol_addr='protocol_addr', aid='aid')]
 
-Next, we set up its :meth:`mango.Agent.handle_message` function. The controller needs to distinguish between two message types:
-The replies to feed_in requests and later the acknowledgments that a new maximum feed_in was set by a pv agent.
-We assign the key `performative` of the metadata of the message to do this. We set the `performative` entry to `inform`
-for feed_in replies and to `accept_proposal` for feed_in change acknowledgements. The task of the performative is here to
-mark the content we send, this enables receiving agents to handle it accordingly.
+Next, the controller has to distinguish between two message types: the replies to feed_in requests
+and later the acknowledgments that a new maximum feed_in was set by a pv agent. Both carry plain
+content at this stage, a number and an empty acknowledgement, so the content type says nothing
+about what the message means and ``@on_message`` has nothing to subscribe to. Instead we mark them
+with the key `performative` of the message metadata: `inform` for feed_in replies,
+`accept_proposal` for feed_in change acknowledgements. The performative marks the content we send,
+which lets the receiving agent handle it accordingly.
+
+To read it we override :meth:`mango.Agent.handle_message`, the alternative to a type subscription.
+It receives every message the agent gets, unfiltered, so it can dispatch on anything in ``meta``.
+Part 3 replaces the plain content with dedicated message classes, and one ``@on_message`` handler
+per type takes over again.
 
 .. testcode::
 
@@ -283,7 +293,10 @@ We do the same for our PV agents.
 
 When a PV agent receives a request from the controller, it immediately answers. Note two important changes to the first
 example here: First, within our message handling methods we can not ``await send_message`` directly
-because ``handle_message`` is not a coroutine. Instead, we call the :meth:`mango.Agent.schedule_instant_message``, which will schedule a send message coroutine.
+because ``handle_message`` is not a coroutine, and an ``async def handle_message`` is never awaited by the agent.
+Instead, we call the :meth:`mango.Agent.schedule_instant_message``, which will schedule a send message coroutine.
+A handler declared with :func:`mango.on_message` has no such limit: the agent runs an ``async def``
+handler as an instant task, so it can ``await`` directly, as we do from part 3 on.
 Second, we set ``meta`` to contain the typing information of our message.
 
 Now, both of our agents can handle their respective messages. The last thing to do is make the controller actually
@@ -485,9 +498,14 @@ functions are called. Of course, you can also create your own serialization and 
 more sophisticated behaviours and pass them to the codec. For more details, refer to the :doc:`codecs` section of
 the documentation.
 
-With this, the message handling in our agent classes can be simplified:
+With this, the message handling in our agent classes can be simplified. Every message now has a
+type of its own, so every message gets its own handler: one :func:`mango.on_message` subscription
+per message class, and the ``performative`` dispatch from part 2 is gone. The pv agent's handlers
+are ``async def`` this time, so they can ``await send_message`` instead of scheduling it.
 
 .. testcode::
+
+    from mango import on_message
 
     class ControllerAgent(Agent):
         def __init__(self, known_agents):
@@ -498,21 +516,16 @@ With this, the message handling in our agent classes can be simplified:
             self.reports_done = None
             self.acks_done = None
 
-        def handle_message(self, content, meta):
-            if isinstance(content, FeedInReplyMsg):
-                self.handle_feed_in_reply(content.feed_in)
-            elif isinstance(content, MaxFeedInAck):
-                self.handle_set_max_ack()
-            else:
-                print(f"{self.aid}: Received a message of unknown type {type(content)}")
-
-        def handle_feed_in_reply(self, feed_in_value):
+        @on_message(FeedInReplyMsg)
+        def handle_feed_in_reply(self, content, meta):
+            feed_in_value = content.feed_in
             self.reported_feed_ins.append(float(feed_in_value))
             if len(self.reported_feed_ins) == len(self.known_agents):
                 if self.reports_done is not None:
                     self.reports_done.set_result(True)
 
-        def handle_set_max_ack(self):
+        @on_message(MaxFeedInAck)
+        def handle_set_max_ack(self, content, meta):
             self.reported_acks += 1
             if self.reported_acks == len(self.known_agents):
                 if self.acks_done is not None:
@@ -561,33 +574,26 @@ With this, the message handling in our agent classes can be simplified:
 
             self.max_feed_in = -1
 
-        def handle_message(self, content, meta):
-            sender = sender_addr(meta)
-
-            if isinstance(content, AskFeedInMsg):
-                self.handle_ask_feed_in(sender)
-            elif isinstance(content, SetMaxFeedInMsg):
-                self.handle_set_feed_in_max(content.max_feed_in, sender)
-            else:
-                print(f"{self.aid}: Received a message of unknown type {type(content)}")
-
-        def handle_ask_feed_in(self, sender_addr):
+        @on_message(AskFeedInMsg)
+        async def handle_ask_feed_in(self, content, meta):
             reported_feed_in = PV_FEED_IN[self.aid]  # PV_FEED_IN must be defined at the top
             msg = FeedInReplyMsg(reported_feed_in)
 
-            self.schedule_instant_message(
+            await self.send_message(
                 content=msg,
-                receiver_addr=sender_addr
+                receiver_addr=sender_addr(meta)
             )
 
-        def handle_set_feed_in_max(self, max_feed_in, sender_addr):
+        @on_message(SetMaxFeedInMsg)
+        async def handle_set_feed_in_max(self, content, meta):
+            max_feed_in = content.max_feed_in
             self.max_feed_in = float(max_feed_in)
             print(f"{self.aid}: Limiting my feed_in to {max_feed_in}")
             msg = MaxFeedInAck()
 
-            self.schedule_instant_message(
+            await self.send_message(
                 content=msg,
-                receiver_addr=sender_addr,
+                receiver_addr=sender_addr(meta),
             )
 
 .. testcode::
@@ -652,22 +658,21 @@ This example covers:
  - role API basics
  - scheduling and periodic tasks
 
-The key part of defining roles are their ``__init__``, :meth:`mango.Role.setup`, and :meth:`mango.Role.on_ready` methods.
-The first is called to create the role object. The second is called when the role is assigned to
-an agent. While the third is called when all containers are started using :meth:`mango.activate`.
-In our case, the main change is that the previous distinction of message types within `handle_message` is now done
-by subscribing to the corresponding message type to tell the agent it should forward these messages
-to this role.
-The :meth:`mango.RoleContext.subscribe_message` method expects, besides the role and a handle method, a message condition function.
-The idea of the condition function is to allow to define a condition filtering incoming messages.
-Another idea is that sending messages from the role is now done via its context with the method:
-``self.context.send_message```.
+The key part of defining roles are their ``__init__`` method and their handlers.
+The handlers themselves stay as they are. :func:`mango.on_message` works the same on a role as on
+an agent, so the methods from part 3 move over unchanged, out of one agent class that did
+everything and into one role per responsibility. The same subscription can also be made explicitly
+in :meth:`mango.Role.setup` with :meth:`mango.RoleContext.subscribe_message`, which takes the role,
+a handler, and a condition function; see :doc:`role-api` for when to prefer which form. Another
+change is that sending messages from the role is now done via its context with the method
+``self.context.send_message``.
 
 We first create the `Ping` role, which has to send out its messages periodically.
-We can use mango's scheduling API to handle
-this for us via the :meth:`mango.RoleContext.schedule_periodic_task` function. This takes a coroutine to execute and a time
-interval. Whenever the time interval runs out the coroutine is triggered. With the scheduling API you can
-also run tasks at specific times. For a full overview, we refer to the documentation.
+We can use mango's scheduling API to handle this for us: decorating a coroutine method with
+:func:`mango.periodic` runs it once the agent is ready and then again after every interval.
+Here the interval is not a fixed number but the name of an attribute, so every ``PingRole`` instance can be
+configured with its own ``time_between_pings``. With the scheduling API you can also run tasks at specific
+times. For a full overview, we refer to :doc:`scheduling`.
 
 .. testcode::
 
@@ -675,6 +680,7 @@ also run tasks at specific times. For a full overview, we refer to the documenta
     from dataclasses import dataclass
 
     from mango import sender_addr, Role, RoleAgent, JSON, create_tcp_container, json_serializable, agent_composed_of
+    from mango import on_message, periodic
 
     PV_CONTAINER_ADDRESS = ("127.0.0.1", 5555)
     CONTROLLER_CONTAINER_ADDRESS = ("127.0.0.1", 5556)
@@ -701,14 +707,7 @@ also run tasks at specific times. For a full overview, we refer to the documenta
             self.ping_counter = 0
             self.expected_pongs = []
 
-        def setup(self):
-            self.context.subscribe_message(
-                self, self.handle_pong, lambda content, meta: isinstance(content, Pong)
-            )
-
-        def on_ready(self):
-            self.context.schedule_periodic_task(self.send_pings, self.time_between_pings)
-
+        @periodic(every="time_between_pings")
         async def send_pings(self):
             for addr in self.ping_recipients:
                 ping_id = self.ping_counter
@@ -721,6 +720,7 @@ also run tasks at specific times. For a full overview, we refer to the documenta
                 self.expected_pongs.append(ping_id)
                 self.ping_counter += 1
 
+        @on_message(Pong)
         def handle_pong(self, content, meta):
             if content.pong_id in self.expected_pongs:
                 print(
@@ -754,22 +754,10 @@ The ControllerRole now covers the former responsibilities of the controller:
             self.reports_done = None
             self.acks_done = None
 
-        def setup(self):
-            self.context.subscribe_message(
-                self,
-                self.handle_feed_in_reply,
-                lambda content, meta: isinstance(content, FeedInReplyMsg),
-            )
-
-            self.context.subscribe_message(
-                self,
-                self.handle_set_max_ack,
-                lambda content, meta: isinstance(content, MaxFeedInAck),
-            )
-
         def on_ready(self):
             self.context.schedule_instant_task(self.run())
 
+        @on_message(FeedInReplyMsg)
         def handle_feed_in_reply(self, content, meta):
             feed_in_value = float(content.feed_in)
 
@@ -778,6 +766,7 @@ The ControllerRole now covers the former responsibilities of the controller:
                 if self.reports_done is not None:
                     self.reports_done.set_result(True)
 
+        @on_message(MaxFeedInAck)
         def handle_set_max_ack(self, content, meta):
             self.reported_acks += 1
             if self.reported_acks == len(self.known_agents):
@@ -827,11 +816,7 @@ The ``Pong`` role is associated with the PV Agents and purely reactive.
 .. testcode::
 
     class PongRole(Role):
-        def setup(self):
-            self.context.subscribe_message(
-                self, self.handle_ping, lambda content, meta: isinstance(content, Ping)
-            )
-
+        @on_message(Ping)
         def handle_ping(self, content, meta):
             ping_id = content.ping_id
             answer = Pong(ping_id)
@@ -860,18 +845,7 @@ unchanged and is simply moved to the PVRole.
             super().__init__()
             self.max_feed_in = -1
 
-        def setup(self):
-            self.context.subscribe_message(
-                self,
-                self.handle_ask_feed_in,
-                lambda content, meta: isinstance(content, AskFeedInMsg),
-            )
-            self.context.subscribe_message(
-                self,
-                self.handle_set_feed_in_max,
-                lambda content, meta: isinstance(content, SetMaxFeedInMsg),
-            )
-
+        @on_message(AskFeedInMsg)
         def handle_ask_feed_in(self, content, meta):
             reported_feed_in = PV_FEED_IN[
                 self.context.aid
@@ -883,6 +857,7 @@ unchanged and is simply moved to the PVRole.
                 receiver_addr=sender_addr(meta)
             )
 
+        @on_message(SetMaxFeedInMsg)
         def handle_set_feed_in_max(self, content, meta):
             max_feed_in = float(content.max_feed_in)
             self.max_feed_in = max_feed_in

@@ -2,7 +2,48 @@
 Migration
 =========
 
-This page documents breaking API changes between major mango releases.
+This page documents breaking API changes between major mango releases, and
+style changes worth adopting.
+
+Message handling style
+======================
+
+:func:`~mango.on_message` subscribes one handler to one message type, on an
+agent as well as on a role, and the documentation now leads with it.  An
+``isinstance`` chain inside ``handle_message`` becomes one decorated method
+per type:
+
+.. code-block:: python
+
+    # Still supported
+    class MyAgent(Agent):
+        def handle_message(self, content, meta):
+            if isinstance(content, Request):
+                ...
+            elif isinstance(content, StatusUpdate):
+                ...
+
+    # Preferred
+    class MyAgent(Agent):
+        @on_message(Request)
+        def handle_request(self, content, meta):
+            ...
+
+        @on_message(StatusUpdate)
+        def handle_status(self, content, meta):
+            ...
+
+This is not a breaking change.  ``handle_message`` works as before, the two
+styles coexist in the same class, and a handler can move over at a time.
+Keep ``handle_message`` where the content type does not identify the message,
+as in FIPA performative dispatch, or where an agent has to see every message.
+:ref:`Handling messages <agent-handlers>` describes both.
+
+.. note::
+
+    An ``async def handle_message`` is never awaited, so its body never runs.
+    A handler declared with ``@on_message`` may be ``async def``: the agent
+    runs it as an instant task.
 
 mango 1.2.x → 2.0.0
 ====================
@@ -101,7 +142,7 @@ The ``receiver_addr`` / ``receiver_id`` pair has been replaced by a single
 mango 0.4.0 → 1.0.0
 ====================
 
-* **Import paths changed** — ``Agent``, ``Container``, all role classes, and
+* **Import paths changed**: ``Agent``, ``Container``, all role classes, and
   the container factory are now importable from the top-level ``mango``
   package::
 
@@ -110,14 +151,14 @@ mango 0.4.0 → 1.0.0
 * **``handle_msg`` renamed** to ``handle_message`` in both ``Agent`` and
   ``Role``.
 
-* **``send_message`` signature cleaned up** — the ``create_acl`` and
+* **``send_message`` signature cleaned up**: the ``create_acl`` and
   ``acl_metadata`` parameters have been removed; use ``send_acl_message``
   instead (removed in 2.0, see above).  The ``mqtt_kwargs`` parameter has
   been removed; use plain ``**kwargs``.
 
-* **``DateTimeScheduledTask`` removed** — use ``TimestampScheduledTask``
+* **``DateTimeScheduledTask`` removed**: use ``TimestampScheduledTask``
   with a Unix timestamp instead.
 
-* **Context and scheduler are no longer public attributes** — use the
+* **Context and scheduler are no longer public attributes**: use the
   scheduling convenience methods (e.g. ``schedule_periodic_task``) or access
   ``_context`` / ``_scheduler`` from within an agent subclass.

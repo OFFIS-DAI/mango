@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import networkx as nx
 
@@ -21,6 +21,9 @@ from mango.agent.core import (
     TopologyNeighbor,
     TopologyService,
 )
+
+if TYPE_CHECKING:
+    from mango.express.health import EdgeHealth
 
 AGENT_NODE_KEY = "node"
 STATE_EDGE_KEY = "state"
@@ -58,11 +61,27 @@ class Topology:
         this to distinguish neighbor sets (default ``"default"``)
     """
 
-    def __init__(self, graph: nx.Graph, *, tid: str = "default") -> None:
+    def __init__(
+        self,
+        graph: nx.Graph,
+        *,
+        tid: str = "default",
+        edge_health: EdgeHealth | None = None,
+    ) -> None:
         self._graph: nx.Graph = graph
         self._tid: str = tid
         self._connectors: list[tuple[str, TopologyNeighbor]] = []
         self._connections: list[tuple[str, Topology]] = []
+        # Optional per-topology link-health tracking.  When set, a
+        # :class:`TopologyHealth` runtime is shared across every agent
+        # in this topology and an auto-nudge subscription is installed
+        # at inject time.  See :mod:`mango.express.health`.
+        from mango.express.health import TopologyHealth
+
+        self._edge_health: EdgeHealth | None = edge_health
+        self._health: TopologyHealth | None = (
+            TopologyHealth(edge_health) if edge_health is not None else None
+        )
 
         for node in self._graph.nodes:
             self._graph.nodes[node][AGENT_NODE_KEY] = AgentNode()
@@ -93,7 +112,8 @@ class Topology:
         :param agents: zero or more agents to place at this node
         :return: integer node ID
         """
-        node_id = max(self._graph.nodes, default=-1) + 1
+        int_labels = [n for n in self._graph.nodes if isinstance(n, int)]
+        node_id = (max(int_labels) + 1) if int_labels else 0
         self._graph.add_node(node_id, **{AGENT_NODE_KEY: AgentNode(list(agents))})
         return node_id
 
@@ -225,6 +245,13 @@ class Topology:
                 svc._tid_to_characteristic[self._tid] = agent_node._characteristic_for(
                     agent
                 )
+                # Bind the shared :class:`TopologyHealth` runtime so the
+                # agent's receive hook can nudge per-edge scores.  None
+                # when the topology was built without ``edge_health``.
+                if self._health is not None:
+                    svc._tid_to_health[self._tid] = self._health
+                else:
+                    svc._tid_to_health.pop(self._tid, None)
 
                 # Transfer any marks from mark_as_connector
                 for conn_type in svc._marked_connector_for:
@@ -318,12 +345,20 @@ def custom_topology(graph: nx.Graph) -> Topology:
 
 @contextmanager
 def create_topology(
-    *, directed: bool = False, tid: str = "default"
+    *,
+    directed: bool = False,
+    tid: str = "default",
+    edge_health: EdgeHealth | None = None,
 ) -> Iterator[Topology]:
     """Context manager that builds a topology and injects neighborhoods on exit.
 
     :param directed: use a directed graph (default ``False``)
     :param tid: topology identifier (default ``"default"``)
+    :param edge_health: opt-in continuous link-health tracking.  When
+        set, every agent in the topology gets an auto-nudge hook that
+        recovers per-neighbour scores on incoming messages, and the
+        :meth:`mango.RoleContext.live_neighbours` query becomes
+        available for this ``tid``.  See :mod:`mango.express.health`.
     :yield: an empty :class:`Topology` to populate
 
     Example::
@@ -337,7 +372,7 @@ def create_topology(
             topology.add_edge(n1, n3)
     """
     graph = nx.DiGraph() if directed else nx.Graph()
-    topology = Topology(graph, tid=tid)
+    topology = Topology(graph, tid=tid, edge_health=edge_health)
     yield topology
     topology.inject()
 
@@ -465,10 +500,14 @@ def connect_topologies(
     :param directed: if ``True`` only ``topology_one → topology_two``
         (default ``False``)
     """
-    topology_one._connections.append((connection_type, topology_two))
+    link_one = (connection_type, topology_two)
+    if link_one not in topology_one._connections:
+        topology_one._connections.append(link_one)
     topology_one._build_and_inject()
     if not directed:
-        topology_two._connections.append((connection_type, topology_one))
+        link_two = (connection_type, topology_one)
+        if link_two not in topology_two._connections:
+            topology_two._connections.append(link_two)
         topology_two._build_and_inject()
 
 
@@ -577,14 +616,12 @@ def topology_to_aid_graph(topology: Topology) -> nx.Graph:
         # Use with create_distribution_based_com_sim for topology-aware delays
     """
     g: nx.Graph = nx.Graph()
-    aid_to_node: dict[str, int] = {}
 
     # Add one vertex per agent
     for node_id in topology.graph.nodes:
         agent_node: AgentNode = topology.graph.nodes[node_id][AGENT_NODE_KEY]
         for agent in agent_node.agents:
             g.add_node(agent.aid, agent=agent)
-            aid_to_node[agent.aid] = node_id
 
     # Same-node agents are fully connected (NORMAL)
     for node_id in topology.graph.nodes:

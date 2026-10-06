@@ -39,7 +39,7 @@ Most of the codec code is adapted from
 
 The JSON codec can handle any JSON-serialisable primitive (strings, numbers,
 booleans, lists, dicts) out of the box.  To send custom class instances you
-register a *serialiser* — a pair of (encode, decode) functions — with
+register a *serialiser*, a pair of (encode, decode) functions, with
 :meth:`~mango.JSON.add_serializer`.
 
 Manual serialiser
@@ -130,13 +130,13 @@ Pass your configured codec to the container factory:
 .. testcode::
 
     import asyncio
-    from mango import Agent, create_tcp_container, activate
+    from mango import Agent, create_tcp_container, activate, on_message
 
     class SimpleReceivingAgent(Agent):
-        def handle_message(self, content, meta):
-            if isinstance(content, MyClass):
-                print(content.x)
-                print(content.y)
+        @on_message(MyClass)
+        def handle_my_class(self, content, meta):
+            print(content.x)
+            print(content.y)
 
     async def main():
         codec = JSON()
@@ -195,7 +195,7 @@ FastJSON codec
 :class:`~mango.messages.codecs.FastJson` is a lightweight alternative to the
 full JSON codec.  It uses `msgspec <https://jcristharif.com/msgspec/>`_ for
 serialisation and is noticeably faster, but it **does not** support a type
-registry.  All messages are encoded and decoded as plain dicts — no custom
+registry.  All messages are encoded and decoded as plain dicts; no custom
 class round-trips.  Use it when speed matters and you only pass primitive
 values or dicts as message content.
 
@@ -241,4 +241,4 @@ just like a top-level message.
 
 .. seealso::
 
-    :doc:`message exchange` — sending and receiving messages
+    :doc:`message exchange`: sending and receiving messages

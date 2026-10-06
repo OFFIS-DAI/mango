@@ -7,6 +7,8 @@ import concurrent.futures
 import logging
 from abc import abstractmethod
 from asyncio import Future
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from multiprocessing import Manager
@@ -51,6 +53,39 @@ class ScheduledProcessControl:
 
     def suspend_task(self):
         self.run_task_event.clear()
+
+
+_current_scheduled_task: ContextVar["ScheduledTask | None"] = ContextVar(
+    "_current_scheduled_task", default=None
+)
+
+
+@contextmanager
+def sleeping_wait():
+    """Mark the current scheduled task as sleeping for the duration of a wait
+    that only an external event can resolve (an incoming message, a clock
+    step). Stepped-simulation termination detection treats sleeping tasks as
+    idle; without this scope it would wait for the task to finish and
+    deadlock, as the resolving event can only arrive in a later step.
+    No-op outside a scheduled task. Only autonomous waits (wall-clock timers,
+    executors, I/O) must not be wrapped; those have to finish within a step.
+    """
+    task = _current_scheduled_task.get()
+    if task is None:
+        yield
+        return
+    was_sleeping = task._is_observable and task._is_sleeping.done()
+    task.notify_sleeping()
+    try:
+        yield
+    finally:
+        if not was_sleeping:
+            task.notify_running()
+
+
+async def _run_as_current_task(task: "ScheduledTask"):
+    _current_scheduled_task.set(task)
+    return await task.run()
 
 
 class Suspendable:
@@ -158,11 +193,13 @@ class ScheduledTask:
             self._is_done = asyncio.Future()
 
     def notify_sleeping(self):
-        if self._is_observable:
+        # Idempotent so explicit notifications compose with a surrounding
+        # sleeping_wait() scope.
+        if self._is_observable and not self._is_sleeping.done():
             self._is_sleeping.set_result(True)
 
     def notify_running(self):
-        if self._is_observable:
+        if self._is_observable and self._is_sleeping.done():
             self._is_sleeping = asyncio.Future()
 
     @abstractmethod
@@ -297,21 +334,38 @@ class RecurrentScheduledTask(ScheduledTask):
         self._stopped = False
         self._coroutine_func = coroutine_func
 
+    def _clock_datetime(self) -> datetime:
+        """Clock time as a datetime that is comparable with the recurrence rule.
+
+        A recurrence built from naive datetimes (``datetime.now()``,
+        ``datetime(2023, 1, 1)``) describes local time, because that is what
+        those constructors and ``datetime.timestamp()`` mean. Reading the clock
+        as UTC instead would shift every occurrence by the machine's UTC offset,
+        so a task would fire hours late everywhere except in UTC.
+        """
+        dtstart = getattr(self._recurrency_rule, "_dtstart", None)
+        if dtstart is not None and dtstart.tzinfo is not None:
+            return datetime.fromtimestamp(self.clock.time, tz=timezone.utc)
+        return datetime.fromtimestamp(self.clock.time)
+
     async def run(self):
+        # The rule is advanced from the occurrence that was handled last, not
+        # from the current clock reading: a wait can end marginally before its
+        # deadline, and re-reading the clock would then pick that very same
+        # occurrence a second time.
+        reference = self._clock_datetime()
         while not self._stopped:
-            current_time = datetime.fromtimestamp(
-                self.clock.time, tz=timezone.utc
-            ).replace(tzinfo=None)
-            after = self._recurrency_rule.after(current_time)
+            after = self._recurrency_rule.after(reference)
             # after can be None, if until or count was set on the rrule
             if after is None:
                 self._stopped = True
             else:
-                delay = (after - current_time).total_seconds()
+                delay = max((after - self._clock_datetime()).total_seconds(), 0)
                 sleep_future: asyncio.Future = self.clock.sleep(delay)
                 self.notify_sleeping()
                 await sleep_future
                 self.notify_running()
+                reference = after
                 await self._coroutine_func()
 
 
@@ -521,10 +575,10 @@ class Scheduler:
         """
         l_task = None
         if self.suspendable:
-            coro = Suspendable(task.run())
+            coro = Suspendable(_run_as_current_task(task))
             l_task = asyncio.ensure_future(coro)
         else:
-            coro = task.run()
+            coro = _run_as_current_task(task)
             l_task = asyncio.create_task(coro)
         l_task.add_done_callback(task.on_stop)
         l_task.add_done_callback(_raise_exceptions)
