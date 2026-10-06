@@ -5,10 +5,10 @@ Requires ``matplotlib`` (``pip install matplotlib``).
 
 Functions
 ---------
-- :func:`plot_world` – line chart of a world-level recording
-- :func:`plot_agents` – multi-line chart of a per-agent recording
-- :func:`plot_recordings` – grid of all recordings in a world
-- :func:`show_communication_data` – message-flow timeline diagram
+- :func:`plot_world`: line chart of a world-level recording
+- :func:`plot_agents`: multi-line chart of a per-agent recording
+- :func:`plot_recordings`: grid of all recordings in a world
+- :func:`show_communication_data`: message-flow timeline diagram
 """
 
 from __future__ import annotations
@@ -341,7 +341,7 @@ def show_communication_data(
 
 def _agent_label(world: SimulationWorld, aid: str) -> str:
     """Return display label for an agent: name if set, else AID."""
-    agent = world._agents.get(aid)
+    agent = world.agents.get(aid)
     if agent is not None and agent.name:
         return f"{agent.name} ({aid})"
     return aid

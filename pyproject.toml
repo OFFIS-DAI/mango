@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mango-agents"
-version = "2.2.1"
+version = "2.3.0"
 authors = [
   { name="mango Team", email="mango@offis.de" },
 ]
@@ -27,7 +27,7 @@ dependencies = [
     "paho-mqtt>=2.1.0",
     "python-dateutil>=2.9.0",
     "dill>=0.3.8",
-    "protobuf==5.27.2",
+    "protobuf>=5.27.2",
     "networkx>=3.4.1"
 ]
 

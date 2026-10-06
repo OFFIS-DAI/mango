@@ -39,7 +39,7 @@ scenario:
      - Co-simulation scenarios where an external tool (e.g. a power-flow
        solver) drives the time loop and injects messages.
 
-All factory methods are *synchronous* — you can create containers before
+All factory methods are *synchronous*: you can create containers before
 starting the asyncio event loop.  The default codec is JSON (see
 :doc:`codecs` for details).  You can supply a custom :class:`~mango.ExternalClock`
 to decouple simulation time from wall time (see :doc:`scheduling`).
@@ -61,7 +61,7 @@ Starting and stopping
 
 Container creation is separate from container *starting*.  Before a container
 can exchange messages its network server must be started.  Use the
-:meth:`~mango.activate` context manager — it starts all containers, runs your
+:meth:`~mango.activate` context manager; it starts all containers, runs your
 code, and shuts everything down on exit (even on exceptions):
 
 .. testcode::
@@ -146,8 +146,89 @@ Implement these methods to hook into the agent's lifecycle:
      - When the container shuts down or the agent is deregistered.
        Use it for cleanup and final messages.
 
-For handling incoming messages override :meth:`~mango.Agent.handle_message`.
-See :doc:`message exchange` for the full messaging API.
+.. _agent-handlers:
+
+Handling messages
+-----------------
+
+An agent declares which messages it handles.  :func:`~mango.on_message`
+subscribes a method to a message type, and every message whose content is an
+instance of that type is delivered to it:
+
+.. testcode::
+
+    import asyncio
+    from mango import Agent, activate, create_tcp_container, on_message
+
+    class Ping:
+        pass
+
+    class PingAgent(Agent):
+        @on_message(Ping)
+        def handle_ping(self, content, meta):
+            print("Ping received!")
+
+    async def run_ping_agent():
+        container = create_tcp_container(addr=('127.0.0.1', 5557))
+        agent = container.register(PingAgent(), suggested_aid="pinger")
+        async with activate(container):
+            await container.send_message(Ping(), agent.addr)
+            await asyncio.sleep(0.01)
+
+    asyncio.run(run_ping_agent())
+
+.. testoutput::
+
+    Ping received!
+
+Declare one handler per message type instead of a chain of ``isinstance``
+checks.  An agent whose handlers cover every message it expects needs no
+:meth:`~mango.Agent.handle_message` at all.
+
+Two options refine a subscription, as in :ref:`the role API
+<role-decorators>`.  ``where(self, content, meta)`` narrows it beyond the
+type check, and ``priority`` orders the decorated handlers, lowest first.
+
+Time-driven behaviour is declared the same way: :func:`~mango.periodic` turns
+a coroutine method into a recurring task that starts once all containers are
+ready (see :doc:`scheduling`).
+
+See :doc:`message exchange` for the full messaging API, and :doc:`role-api`
+for splitting a growing agent into roles.
+
+.. note::
+
+   :func:`~mango.on_event` is the one decorator a plain agent cannot use.
+   Its events travel on the bus an agent's roles emit on, so it needs a
+   :class:`~mango.RoleAgent`; on a plain agent it raises ``TypeError``.
+
+
+Alternative: ``handle_message``
+-------------------------------
+
+:meth:`~mango.Agent.handle_message` receives **every** message the agent
+gets, unfiltered, after the decorated handlers have run.  Override it when
+the message type cannot carry the distinction:
+
+* the meaning sits in ``meta`` rather than in the content, as with a FIPA
+  performative or an MQTT topic;
+* the agent has to see all traffic, for example to log it or count arrivals;
+* a message no handler claimed should be reported instead of ignored.
+
+.. testcode::
+
+    from mango import Agent, Performatives
+
+    class MeterAgent(Agent):
+        def handle_message(self, content, meta):
+            if meta.get("performative") == Performatives.request:
+                print(f"reading requested: {content}")
+            else:
+                print(f"unexpected message: {content}")
+
+The two styles mix freely: decorated handlers take the typed messages,
+``handle_message`` takes the rest.  It also sees the messages the handlers
+already took, so check for that where it matters.
 
 
 .. _express-setup:
@@ -210,7 +291,7 @@ subprocess, coordinated automatically through a *mirror container*.
     print(f"Agent running in PID {process_handle.pid}")
 
 The agent in the subprocess communicates with other agents exactly like any
-other mango agent — through the normal messaging API.
+other mango agent, through the normal messaging API.
 
 .. note::
     Once an agent is running in a subprocess you cannot access it directly
@@ -220,11 +301,14 @@ other mango agent — through the normal messaging API.
 
     .. code-block:: python
 
-        await main_container.dispatch_to_agent_process(
+        main_container.dispatch_to_agent_process(
             process_handle.pid,
             my_function,   # called as my_function(sub_container, *args)
             *args,
         )
+
+    ``my_function`` has to be importable in the subprocess, so define it at
+    module level rather than as a lambda or a nested function.
 
 If you need to set up process agents before an asyncio loop is available,
 use :meth:`~mango.container.core.Container.as_agent_process_lazy` (no
@@ -233,4 +317,4 @@ process handle is returned; the subprocess is created when
 
 .. seealso::
 
-    :doc:`scheduling` — clock types and the scheduling API
+    :doc:`scheduling`: clock types and the scheduling API
