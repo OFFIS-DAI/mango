@@ -346,6 +346,8 @@ and ``on_agent_event`` hooks as agents:
     [1.0, 2.0]
 
 
+.. _simulation-recording:
+
 Data recording
 ==============
 

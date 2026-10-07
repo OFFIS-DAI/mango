@@ -109,6 +109,13 @@ Features
    .. grid-item-card::
       :shadow: sm
 
+      **Tracing**
+      ^^^
+      Opt-in structlog trace of messages, events and scheduled tasks, linked by cause, with your own log lines in context and an HTML viewer.
+
+   .. grid-item-card::
+      :shadow: sm
+
       **FIPA ACL**
       ^^^
       Optional FIPA-compliant message wrapper for interoperability with other agent platforms.
@@ -235,6 +242,7 @@ Where to go next
    topology
    simulation
    codecs
+   tracing
 
 .. toctree::
    :hidden:

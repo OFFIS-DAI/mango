@@ -45,6 +45,7 @@ from typing import Any
 
 from mango.agent.core import Agent, AgentAddress
 from mango.messages.codecs import Codec
+from mango.util import tracing
 from mango.util.clock import ExternalClock
 from mango.util.termination_detection import tasks_complete_or_sleeping
 
@@ -106,17 +107,28 @@ class _AgentDispatchObserver(WorldObserver):
         self._world = world
 
     def dispatch_global_event(self, clock, event: Any) -> None:
+        event_id = tracing._event_emitted(event)
         for agent in self._world.agents.values():
-            for _cond, _handler in agent._behavior_global_event_handlers:
-                if _cond(event):
-                    _handler(agent, event)
-            agent.on_global_event(event)
-            if hasattr(agent, "roles"):
-                for role in agent.roles:
-                    for _cond, _handler in role._behavior_global_event_handlers:
-                        if _cond(event):
-                            _handler(role, event)
-                    role.on_global_event(event)
+            with tracing._trigger(
+                "global_event",
+                "event",
+                agent=agent.aid,
+                clock=agent.scheduler.clock,
+                cause=event_id,
+                content=event,
+            ):
+                for _cond, _handler in agent._behavior_global_event_handlers:
+                    if _cond(event):
+                        tracing._handler_called("event", _handler)
+                        _handler(agent, event)
+                agent.on_global_event(event)
+                if hasattr(agent, "roles"):
+                    for role in agent.roles:
+                        for _cond, _handler in role._behavior_global_event_handlers:
+                            if _cond(event):
+                                tracing._handler_called("event", _handler)
+                                _handler(role, event)
+                        role.on_global_event(event)
 
 
 class SimulationWorld:
@@ -301,6 +313,14 @@ class SimulationWorld:
 
     def _initialize_if_needed(self) -> None:
         if not self._initialized:
+            tracing._emit(
+                "world.started",
+                "run",
+                self.clock,
+                environment=type(self.environment).__name__,
+                communication_sim=type(self._container.communication_sim).__name__,
+                agents=sorted(self.agents),
+            )
             self._container.on_ready()
             self.environment.initialize(list(self.agents.values()), self.clock)
             self._initialized = True
