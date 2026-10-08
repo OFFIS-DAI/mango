@@ -52,10 +52,14 @@ import json
 import os
 import platform
 import sys
-from collections.abc import Callable, Iterable
+import warnings
+from collections.abc import Callable, Iterable, Sequence
 from contextlib import contextmanager
 from contextvars import ContextVar
+from dataclasses import dataclass
 from typing import Any
+
+import networkx as nx
 
 try:
     import structlog
@@ -71,6 +75,11 @@ except ImportError:  # pragma: no cover - exercised without the extra
 #: * ``wait``: tasks starting and stopping to wait (timer, awaited future,
 #:   condition, ...)
 CATEGORIES = frozenset({"run", "message", "event", "task", "wait"})
+
+#: Categories a traced run records by default in real time: ``wait`` records
+#: come with every timer tick, add overhead that shifts real timings, and
+#: matter mostly for simulations.
+REAL_TIME_CATEGORIES = CATEGORIES - {"wait"}
 
 #: Logger name used for mango's trace records.
 LOGGER_NAME = "mango.trace"
@@ -195,9 +204,7 @@ def configure_structlog(
     """
     global _configured_file
     structlog = _require_structlog()
-    if _configured_file is not None:
-        _configured_file.close()
-        _configured_file = None
+    _close_configured_file()
     if path is None:
         file = sys.stderr
     else:
@@ -221,10 +228,182 @@ def configure_structlog(
     )
 
 
+def _close_configured_file() -> None:
+    global _configured_file
+    if _configured_file is not None:
+        _configured_file.close()
+        _configured_file = None
+
+
+@dataclass
+class TraceConfig:
+    """Settings of a traced run, passed as ``trace`` to :func:`mango.activate`,
+    :func:`mango.create_world` or the ``run_with_*`` helpers.
+
+    ``trace=True`` uses these defaults and ``trace="run.jsonl"`` sets only the
+    path.
+
+    :param path: JSON-lines trace file, overwritten by every run
+    :param html: write the viewer next to the trace when the run ends
+    :param open_browser: open the viewer in the browser when the run ends
+    :param title: title of the viewer; the trace file name by default
+    :param categories: subset of :data:`CATEGORIES`; by default all of them
+        for simulated time and :data:`REAL_TIME_CATEGORIES` in real time
+    :param include_content: see :func:`enable_tracing`
+    :param processors: extra structlog processors, see
+        :func:`configure_structlog`
+    """
+
+    path: str | os.PathLike = "mango_trace.jsonl"
+    html: bool = True
+    open_browser: bool = False
+    title: str | None = None
+    categories: Iterable[str] | None = None
+    include_content: bool = False
+    processors: Sequence[Callable] = ()
+
+
+def _trace_config(trace: Any) -> TraceConfig | None:
+    if trace is None or trace is False:
+        return None
+    if trace is True:
+        return TraceConfig()
+    if isinstance(trace, TraceConfig):
+        return trace
+    if isinstance(trace, str | os.PathLike):
+        return TraceConfig(path=trace)
+    raise TypeError(
+        f"trace must be a bool, a path or a TraceConfig, not {type(trace).__name__}"
+    )
+
+
+class _TracedRun:
+    """Traces one run (activation of containers or a simulation world).
+
+    ``start`` points structlog at the trace file and enables tracing;
+    ``finish`` disables it, restores the previous structlog configuration and
+    writes the viewer. Both do nothing without a trace setting.
+    """
+
+    def __init__(self, trace: Any, *, simulated: bool):
+        self.config = _trace_config(trace)
+        self.simulated = simulated
+        self._active = False
+        self._previous_config = None
+        self._previous_file = None
+
+    def start(self) -> None:
+        global _configured_file
+        if self.config is None or self._active:
+            return
+        if is_tracing():
+            warnings.warn(
+                "tracing is already on, so this run is not traced separately",
+                stacklevel=3,
+            )
+            return
+        structlog = _require_structlog()
+        if structlog.is_configured():
+            self._previous_config = structlog.get_config()
+        # an application's own configure_structlog file stays open for later
+        self._previous_file, _configured_file = _configured_file, None
+        configure_structlog(self.config.path, processors=self.config.processors)
+        categories = self.config.categories
+        if categories is None:
+            categories = CATEGORIES if self.simulated else REAL_TIME_CATEGORIES
+        enable_tracing(
+            categories=categories, include_content=self.config.include_content
+        )
+        self._active = True
+
+    def finish(self) -> None:
+        global _configured_file
+        if not self._active:
+            return
+        self._active = False
+        disable_tracing()
+        _close_configured_file()
+        _configured_file = self._previous_file
+        if self._previous_config is None:
+            structlog.reset_defaults()
+        else:
+            structlog.configure(**self._previous_config)
+        message = f"mango: trace written to {self.config.path}"
+        if self.config.html:
+            from .trace_viewer import write_html
+
+            try:
+                html = write_html(
+                    self.config.path,
+                    title=self.config.title,
+                    open_browser=self.config.open_browser,
+                )
+            except Exception as exc:  # must not hide an error of the run itself
+                message += f"; the viewer failed: {exc!r}"
+            else:
+                message += f", viewer: {html}"
+        print(message, file=sys.stderr)
+
+
 def read_trace(path: str | os.PathLike) -> list[dict]:
     """Load a JSON-lines trace written with :func:`configure_structlog`."""
     with open(path, encoding="utf-8") as f:
         return [json.loads(line) for line in f if line.strip()]
+
+
+def message_topology(trace: str | os.PathLike | Iterable[dict]) -> nx.DiGraph:
+    """Return who sent messages to whom in a trace, as a directed graph.
+
+    Nodes are the ids of the agents in the trace, including agents that never
+    sent or received a message. An edge ``sender -> receiver`` exists if at
+    least one message was sent on it, with the attributes
+
+    * ``messages``: number of messages sent,
+    * ``received``: how many of them a traced agent received; fewer means
+      lost, still in flight at the end, or received in another process,
+    * ``types``: number of messages per content type,
+    * ``first`` and ``last``: ``sim_time`` of the first and the last send.
+
+    The graph uses the same agent ids as
+    :func:`mango.topology_to_aid_graph`, so the observed communication can be
+    compared with a configured topology.
+
+    :param trace: a trace file, or records read with :func:`read_trace`
+    """
+    records = read_trace(trace) if isinstance(trace, str | os.PathLike) else list(trace)
+    receiver_of = {
+        r.get("cause"): r.get("agent")
+        for r in records
+        if r.get("event") == "message.received"
+    }
+    graph = nx.DiGraph()
+    graph.add_nodes_from(
+        sorted({r["agent"] for r in records if r.get("agent") is not None})
+    )
+    for r in records:
+        if r.get("event") != "message.sent":
+            continue
+        sender = r.get("agent") or r.get("sender")
+        receiver = r.get("receiver_id") or receiver_of.get(r.get("id"))
+        if sender is None or receiver is None:
+            continue
+        if not graph.has_edge(sender, receiver):
+            graph.add_edge(
+                sender,
+                receiver,
+                messages=0,
+                received=0,
+                types={},
+                first=r.get("sim_time"),
+                last=None,
+            )
+        edge = graph.edges[sender, receiver]
+        edge["messages"] += 1
+        edge["received"] += r.get("id") in receiver_of
+        kind = (r.get("content") or {}).get("type")
+        edge["types"][kind] = edge["types"].get(kind, 0) + 1
+        edge["last"] = r.get("sim_time")
+    return graph
 
 
 # ---------------------------------------------------------------------------
@@ -353,6 +532,7 @@ def _message_sent(content: Any, sender_id, receiver_addr, kwargs: dict, clock) -
         id=msg_id,
         sender=sender_id,
         receiver=str(receiver_addr),
+        receiver_id=getattr(receiver_addr, "aid", None),
         content=_summary(content),
     )
 

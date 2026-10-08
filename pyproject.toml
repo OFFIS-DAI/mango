@@ -55,6 +55,9 @@ Homepage = "https://mango-agents.readthedocs.io"
 Repository = "https://github.com/OFFIS-DAI/mango"
 Issues = "https://github.com/OFFIS-DAI/mango/issues"
 
+[tool.setuptools.package-data]
+"mango.util" = ["viewer/*.html", "viewer/*.css", "viewer/js/*.js"]
+
 
 [tool.pytest.ini_options]
 asyncio_default_fixture_loop_scope = "function"

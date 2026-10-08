@@ -149,6 +149,7 @@ class SimulationWorld:
         clock: ExternalClock,
         communication_sim: CommunicationSimulation,
         environment: Environment | None = None,
+        trace: Any = None,
     ):
         self.environment: Environment = environment or DefaultEnvironment()
         self._container = SimulationContainer(
@@ -163,6 +164,7 @@ class SimulationWorld:
         self._data_collectors: list[Callable] = []
 
         self._initialized: bool = False
+        self._trace = tracing._TracedRun(trace, simulated=True)
 
         # Wire environment to agent dispatcher
         self.environment.add_observer(_AgentDispatchObserver(self))
@@ -261,8 +263,11 @@ class SimulationWorld:
         )
 
     async def shutdown(self) -> None:
-        """Shut down all agents."""
-        await self._container.shutdown()
+        """Shut down all agents, and finish the trace if the world is traced."""
+        try:
+            await self._container.shutdown()
+        finally:
+            self._trace.finish()
 
     def __getitem__(self, key: str | int) -> Agent:
         if isinstance(key, int):
@@ -313,6 +318,7 @@ class SimulationWorld:
 
     def _initialize_if_needed(self) -> None:
         if not self._initialized:
+            self._trace.start()
             tracing._emit(
                 "world.started",
                 "run",
@@ -452,6 +458,7 @@ def create_world(
     start_time: float = 0.0,
     communication_sim: CommunicationSimulation | None = None,
     environment: Environment | None = None,
+    trace: Any = None,
 ) -> SimulationWorld:
     """Create a :class:`SimulationWorld`.
 
@@ -461,6 +468,11 @@ def create_world(
         with zero delay and no loss
     :param environment: environment to use; defaults to
         :class:`~mango.simulation.environment.DefaultEnvironment`
+    :param trace: trace the run (see :ref:`tracing-docs`): ``True`` for the
+        defaults, a path for the trace file, or a
+        :class:`~mango.util.tracing.TraceConfig`. Tracing starts when the
+        world starts and ends when it shuts down; then the viewer is written
+        next to the trace.
     :return: a ready-to-use :class:`SimulationWorld`
 
     Example::
@@ -469,10 +481,16 @@ def create_world(
             start_time=0.0,
             communication_sim=SimpleCommunicationSimulation(default_delay_s=0.1),
         )
+
+        # writes mango_trace.jsonl and the viewer mango_trace.html
+        async with create_world(trace=True) as world:
+            ...
     """
     clock = ExternalClock(start_time=start_time)
     sim = communication_sim or SimpleCommunicationSimulation()
-    return SimulationWorld(clock=clock, communication_sim=sim, environment=environment)
+    return SimulationWorld(
+        clock=clock, communication_sim=sim, environment=environment, trace=trace
+    )
 
 
 async def step_simulation(

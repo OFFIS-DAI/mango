@@ -1,0 +1,157 @@
+<title>__TITLE__</title>
+<style>
+__STYLE__
+</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="1.2" height="6"></rect></pattern>
+    <linearGradient id="fade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-opacity=".45"></stop><stop offset="1" stop-opacity="0"></stop></linearGradient>
+  </defs>
+</svg>
+
+<div class="wrap">
+  <header>
+    <h1 id="title">__TITLE__</h1>
+    <div class="stats" id="stats"></div>
+  </header>
+
+  <section class="filters" aria-label="Filters">
+    <div class="row">
+      <input type="search" id="q" placeholder="Filter: free text or field=value, e.g. agent=a1 event=task.failed"
+        aria-label="Filter records" autocomplete="off">
+      <span class="agent-pick" id="agent-pick"><label for="agent">Agent</label>
+      <select id="agent"></select></span>
+      <span class="linkchip" id="linkchip" hidden></span>
+    </div>
+    <div class="row" id="cats" role="group" aria-label="Categories"></div>
+    <div class="row" id="levels" role="group" aria-label="Log levels"></div>
+    <div class="row">
+      <label class="check"><input type="checkbox" id="only-related"> Only records related to the selection</label>
+      <span class="fields" id="fields"></span>
+    </div>
+  </section>
+
+  <main id="main">
+    <section class="view" id="view" aria-label="Trace">
+      <div class="viewbar">
+        <div class="tabs" role="tablist" aria-label="View">
+          <button role="tab" id="tab-records" aria-controls="records-box" aria-selected="true">Records</button>
+          <button role="tab" id="tab-lanes" aria-controls="lanes-panel" aria-selected="false" tabindex="-1">Lanes</button>
+        </div>
+        <span class="tools" id="ltools" hidden>
+          <button class="tool" id="pick" aria-haspopup="dialog" aria-expanded="false" title="Choose the agents to follow (a)">Lanes</button>
+          <button class="tool" id="follow" title="Follow the selection's cause chain (f)">
+            <span class="lg">Follow chain</span><span class="sh">Follow</span></button>
+          <span class="seg" role="group" aria-label="Order within an instant">
+            <button id="o-packed" aria-pressed="true" title="Pack records of one instant by cause (o)">Packed</button>
+            <button id="o-file" aria-pressed="false" title="One record per row, in file order (o)">
+              <span class="lg">File order</span><span class="sh">File</span></button>
+          </span>
+          <button class="tool" id="fit" aria-pressed="false" title="Fit all lanes into the width (z)">Fit</button>
+        </span>
+        <span class="status" id="status"></span>
+      </div>
+      <div class="viewbody">
+        <div class="scroller" id="records-box" role="tabpanel" aria-labelledby="tab-records" tabindex="-1">
+          <table id="table" aria-label="Records">
+            <colgroup id="cols"></colgroup>
+            <thead><tr id="thead"></tr></thead>
+            <tbody id="rows"></tbody>
+          </table>
+          <div class="vempty" id="empty" hidden></div>
+        </div>
+        <div class="lpanel" id="lanes-panel" role="tabpanel" aria-labelledby="tab-lanes" hidden>
+          <div class="scroller lanes" id="lanes" role="application" aria-roledescription="agent lanes" aria-label="Agent lanes"
+            aria-describedby="lanes-hint" tabindex="0">
+            <div class="lanes-in" id="lanes-in">
+              <div class="lhead" id="lhead"></div>
+              <div class="lrows" id="lrows"><div class="gutter" id="gutter"></div><div class="plane" id="plane"></div></div>
+            </div>
+            <div class="vempty" id="lempty" hidden></div>
+          </div>
+        </div>
+        <canvas id="rail" aria-hidden="true"></canvas>
+      </div>
+      <div class="selbar" id="selbar" hidden></div>
+      <div class="toast" id="toast" hidden></div>
+    </section>
+
+    <div class="side" id="side">
+      <section class="topo open" id="topo" aria-label="Message topology">
+        <div class="topo-h">
+          <button class="chev" id="topo-toggle" aria-expanded="true" aria-controls="topo-b">
+            <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 3.2 5 6.8 8.5 3.2" fill="none" stroke="currentColor"
+              stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Topology</button>
+          <span class="tmeta" id="topo-meta"></span>
+          <span class="seg" role="group" aria-label="Map view" id="topo-mode">
+            <button id="tm-graph" aria-pressed="true">Graph</button><button id="tm-list" aria-pressed="false">List</button>
+          </span>
+          <button class="icon" id="topo-wide" aria-pressed="false" aria-label="Widen the map" title="Widen the map (G)">
+            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M8.5 1.5h4v4M12.5 1.5 8 6M5.5 12.5h-4v-4M1.5 12.5 6 8" fill="none"
+              stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        </div>
+        <div class="troute" id="topo-route"></div>
+        <div class="topo-b" id="topo-b">
+          <svg id="topo-svg" role="group" aria-label="Message topology" tabindex="-1"></svg>
+          <div class="topo-l" id="topo-list" hidden></div>
+        </div>
+        <div class="legend" id="topo-legend"></div>
+      </section>
+      <aside id="panel" aria-live="polite" aria-label="Selection"></aside>
+    </div>
+  </main>
+</div>
+
+<div class="tip" id="tip" role="tooltip" hidden></div>
+<div class="sr-only" id="sr" role="status"></div>
+<div class="sr-only" id="lanes-hint">Arrow keys move, Enter selects, ? lists all keys</div>
+<dialog id="keys" aria-labelledby="keys-h">
+  <button class="icon close" id="keys-close" aria-label="Close">&#x2715;</button>
+  <h2 id="keys-h">Keyboard shortcuts</h2>
+  <div class="kc">
+    <section><h3>Anywhere</h3><dl>
+      <dt><kbd>/</kbd></dt><dd>focus the filter</dd>
+      <dt><kbd>v</kbd></dt><dd>Records / Lanes</dd>
+      <dt><kbd>e</kbd> <kbd>E</kbd></dt><dd>next / previous failure</dd>
+      <dt><kbd>[</kbd> <kbd>]</kbd></dt><dd>go to the cause / the first effect</dd>
+      <dt><kbd>f</kbd></dt><dd>follow the selection's chain in Lanes</dd>
+      <dt><kbd>t</kbd></dt><dd>go to a time</dd>
+      <dt><kbd>g</kbd> <kbd>G</kbd></dt><dd>focus the map / widen it</dd>
+      <dt><kbd>Esc</kbd></dt><dd>close, then clear the selection</dd>
+      <dt><kbd>?</kbd></dt><dd>this sheet</dd>
+    </dl></section>
+    <section><h3>Records</h3><dl>
+      <dt><kbd>&uarr;</kbd> <kbd>&darr;</kbd></dt><dd>move the cursor row</dd>
+      <dt><kbd>Home</kbd> <kbd>End</kbd> <kbd>PgUp</kbd> <kbd>PgDn</kbd></dt><dd>jump</dd>
+      <dt><kbd>Enter</kbd> <kbd>Space</kbd></dt><dd>select or deselect</dd>
+    </dl></section>
+    <section><h3>Lanes</h3><dl>
+      <dt><kbd>&uarr;</kbd> <kbd>&darr;</kbd></dt><dd>previous / next record in the lane</dd>
+      <dt><kbd>&larr;</kbd> <kbd>&rarr;</kbd></dt><dd>nearest record in the next lane</dd>
+      <dt><kbd>Home</kbd> <kbd>End</kbd> <kbd>PgUp</kbd> <kbd>PgDn</kbd></dt><dd>jump within the lane</dd>
+      <dt><kbd>Enter</kbd> <kbd>Space</kbd></dt><dd>select or deselect</dd>
+      <dt><kbd>a</kbd></dt><dd>choose lanes</dd>
+      <dt><kbd>o</kbd></dt><dd>Packed / File order</dd>
+      <dt><kbd>z</kbd></dt><dd>Fit all lanes</dd>
+      <dt><kbd>x</kbd></dt><dd>stop following the cursor's lane</dd>
+      <dt><kbd>Alt</kbd>+<kbd>&larr;</kbd> <kbd>&rarr;</kbd></dt><dd>move the cursor's lane</dd>
+    </dl></section>
+    <section><h3>Map</h3><dl>
+      <dt>arrows</dt><dd>nearest agent in that direction</dd>
+      <dt><kbd>Home</kbd></dt><dd>the hub</dd>
+      <dt><kbd>Enter</kbd></dt><dd>filter or follow; on a connection: show its messages</dd>
+      <dt><kbd>Shift</kbd>+<kbd>Enter</kbd></dt><dd>follow the agent and its partners</dd>
+      <dt><kbd>c</kbd> <kbd>C</kbd></dt><dd>next / previous connection</dd>
+      <dt><kbd>Esc</kbd></dt><dd>back to the agent, then to the view</dd>
+    </dl></section>
+  </div>
+</dialog>
+
+<script type="application/json" id="trace-data">__DATA__</script>
+<script>
+(() => {
+__SCRIPT__
+})();
+</script>

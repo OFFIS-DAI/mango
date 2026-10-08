@@ -74,10 +74,7 @@ Each step also writes its own log line with ``log.info(...)``.
         Role,
         activate,
         agent_composed_of,
-        configure_structlog,
         create_tcp_container,
-        disable_tracing,
-        enable_tracing,
         on_event,
         on_message,
         sender_addr,
@@ -138,18 +135,16 @@ Each step also writes its own log line with ``log.info(...)``.
         container = create_tcp_container(addr=("127.0.0.1", 5555))
         ponger = container.register(agent_composed_of(PongRole()))
         container.register(Pinger(ponger.addr))
-        async with activate(container):
+        async with activate(container, trace="trace.jsonl"):
             await asyncio.sleep(0.1)
 
 
-    configure_structlog("trace.jsonl")  # where structlog writes to
-    enable_tracing()                    # let mango log its records
     asyncio.run(main())
-    disable_tracing()
 
-Only the last four lines are specific to tracing. ``configure_structlog`` sets
-up structlog to write JSON lines to ``trace.jsonl``; ``enable_tracing`` makes
-mango log its records through it.
+Only ``trace="trace.jsonl"`` is specific to tracing: mango records the run to
+``trace.jsonl`` while the container is active. When the container shuts down,
+mango writes the viewer ``trace.html`` next to it (see `Viewing a trace`_) and
+prints where both files are.
 
 The trace now contains one line per record. This is the line your ``answer``
 handler wrote (shortened):
@@ -203,17 +198,69 @@ handler scheduled the task sending the ``Pong``.
 
 .. testcleanup:: tracing
 
-    disable_tracing()
     structlog.contextvars.clear_contextvars()
     structlog.reset_defaults()
     os.chdir(_tracing_cwd)
     _tracing_tmp.cleanup()
 
+Tracing a run
+-------------
+
+``trace`` works the same for containers and for simulations:
+
+.. code-block:: python
+
+    async with activate(container, trace=True):        # containers
+        ...
+
+    async with create_world(trace=True) as world:      # a simulation world
+        await world.step_until(3600)
+
+    async with run_with_tcp(2, agent_a, agent_b, trace=True):  # the run_with_* helpers
+        ...
+
+* ``trace=True`` writes ``mango_trace.jsonl`` and the viewer
+  ``mango_trace.html`` to the current directory, ``trace="run.jsonl"`` chooses
+  the file (the viewer is written next to it), and a
+  :class:`~mango.util.tracing.TraceConfig` sets everything else. Each run
+  overwrites its files.
+* Tracing starts before the containers start (in a world, before the agents'
+  ``on_ready``) and ends when they shut down, also when the run fails.
+* What mango records depends on the clock. With simulated time (a world, or
+  containers with an ``ExternalClock``) it records all categories. In real
+  time it records all but ``wait``
+  (:data:`~mango.util.tracing.REAL_TIME_CATEGORIES`): those records come with
+  every timer tick, add overhead that changes real timings, and matter mostly
+  for simulations.
+* During the run, structlog writes to the trace file. Afterwards your previous
+  structlog configuration is back.
+
+.. code-block:: python
+
+    from mango import TraceConfig
+
+    trace = TraceConfig(
+        "high-load.jsonl",
+        open_browser=True,                # open the viewer when the run ends
+        categories={"message", "event"},  # see Changing what is recorded
+        include_content=True,
+    )
+    async with activate(container, trace=trace):
+        ...
+
+``TraceConfig`` also takes the viewer's ``title`` and extra structlog
+``processors``, and ``html=False`` skips the viewer. To trace only part of a
+run, or into your own structlog configuration, use the building blocks that
+``trace`` combines: :func:`~mango.enable_tracing` and
+:func:`~mango.configure_structlog` (see `Changing what is recorded`_) and the
+``mango-trace`` command.
+
 Viewing a trace
 ---------------
 
-The ``mango-trace`` command turns a trace into a single HTML page that needs no
-server or network:
+A run traced with ``trace`` writes the viewer itself. The ``mango-trace``
+command turns any trace into the same single HTML page, which needs no server
+or network:
 
 .. code-block:: bash
 
@@ -249,6 +296,101 @@ not update itself. After a new run, run ``mango-trace`` again and reload the
 page in the browser.
 
 From Python, use :func:`mango.util.trace_viewer.write_html`.
+
+Records and Lanes
+~~~~~~~~~~~~~~~~~
+
+The records are shown in one of two views; ``v`` switches between them.
+
+**Records** is the table of all records. In a simulation its first column,
+*Sim time*, shows the agents' clock (``sim_time``). The ``+ms`` column shows
+the wall-clock milliseconds since the trace started, which in a simulation are
+often only a few milliseconds for a whole simulated day; when the window is
+narrow, it is left out in favour of the other columns.
+
+**Lanes** follows several agents side by side, like a sequence diagram:
+
+* every followed agent gets a lane with its records on a lifeline; records
+  without an agent, such as the run records and ``event.emitted``, sit in a
+  narrow *no agent* lane,
+* records of one instant line up in one band across all lanes, and the bands
+  run down in time order; idle stretches become a labelled gap such as
+  "+4 min",
+* a message runs from its ``message.sent`` across to the receiver's lane and
+  down beside its lifeline into the ``message.received``, so the time it took
+  shows as the drop; combs fan an event out to the agents that received it,
+  and bars on the lifelines show running tasks, dotted while a task waits,
+* a lost message gets a red × in the receiver's lane where it should have
+  arrived; a message still in flight when the trace ended gets a short dashed
+  stub,
+* the selected record's cause chain is drawn as one line through the lanes,
+  numbered wherever it moves on to another agent.
+
+*Packed* places the records of one instant by cause, so an effect is always
+below what caused it; *File order* shows one record per row, in the order they
+were written. *Fit* squeezes all lanes into the width of the page.
+
+Choose the agents to follow with the *Lanes* picker (``a``), with *Follow
+chain* (``f``: the agents of the selection's cause chain and of what it led
+to), or by clicking agents on the map. Going to a record of an agent you do not
+follow, from the side panel, with ``[`` and ``]`` (cause and first effect) or
+with ``e`` (next error), adds its lane, with *Undo*.
+
+The message topology
+~~~~~~~~~~~~~~~~~~~~
+
+Next to the records, the *Topology* map shows who sent messages to whom: a node
+per agent and an arrow for every direction in which at least one message was
+sent, wider for more messages. A connection that lost messages carries a red
+cut. A message without a receipt counts as *in flight*, not lost, if it was
+sent within one typical delivery time of the end of the trace and its receiver
+received nothing after it; such connections carry a hollow ring instead.
+
+The map and the records stay in sync:
+
+* selecting a record highlights its agent and the numbered route of its cause
+  chain, with the same numbers as in the side panel and in the lanes,
+* clicking an agent filters the records to it in Records and follows it in
+  Lanes; Shift+click follows it together with all its message partners,
+* clicking a connection shows only that connection's messages; a chip in the
+  filter bar removes the filter again, and in Lanes the two agents face each
+  other,
+* hovering an agent or a connection highlights its records, and while filters
+  are set, connections without a matching message are drawn faint.
+
+When many agents share a name with a number, such as ``household-1`` to
+``household-50``, and their full names do not fit around the ring, the map
+labels them by their number and says so in its corner (``N = household-N``).
+
+*List* shows the same connections as a table with the numbers of messages
+sent, received, lost and in flight, the content types, and the ``sim_time`` of
+the first and the last message.
+
+The map is the graph :func:`mango.message_topology
+<mango.util.tracing.message_topology>` returns for the trace, with one
+addition: for older traces without ``receiver_id`` the viewer also takes the
+receiver from the ``aid='...'`` in the ``receiver`` field.
+
+In Python, ``message_topology`` returns a ``networkx.DiGraph`` with the agent
+ids as nodes, as :func:`mango.topology_to_aid_graph` does for a configured
+topology. That makes it easy to check whether the agents talked as designed:
+
+.. code-block:: python
+
+    from mango import message_topology, topology_to_aid_graph
+
+    observed = message_topology("trace.jsonl")
+    for sender, receiver, edge in observed.edges(data=True):
+        print(sender, "->", receiver, edge["messages"], "sent,", edge["received"], "received")
+
+    configured = topology_to_aid_graph(topology)
+    unused = [link for link in configured.edges if not observed.has_edge(*link)]
+
+Press ``?`` for all keyboard shortcuts and a key to the marks in Lanes; with
+nothing selected, the side panel shows the same key while Lanes is open. The
+address of the page keeps the selected record, the view, the followed lanes and
+the connection filter, so a copied link opens the same picture. The page still
+loads nothing from elsewhere and works offline.
 
 Finding a failing step
 ----------------------
@@ -366,7 +508,8 @@ bind these two keys yourself; other keys you bind with
 Changing what is recorded
 -------------------------
 
-``enable_tracing`` decides what mango records:
+``enable_tracing`` decides what mango records; with ``trace``, the same
+settings are fields of :class:`~mango.util.tracing.TraceConfig`:
 
 .. code-block:: python
 
@@ -451,8 +594,8 @@ performance measurements.
 Turning it off
 --------------
 
-Tracing is off unless you call :func:`mango.enable_tracing`. To stop it
-during a run:
+Tracing is off unless you pass ``trace`` or call
+:func:`mango.enable_tracing`. To stop it during a run:
 
 .. code-block:: python
 

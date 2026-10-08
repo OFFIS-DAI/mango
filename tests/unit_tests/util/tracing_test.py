@@ -6,6 +6,7 @@ import structlog
 from mango import (
     Agent,
     RoleAgent,
+    SimpleCommunicationSimulation,
     activate,
     configure_structlog,
     create_tcp_container,
@@ -13,6 +14,7 @@ from mango import (
     disable_tracing,
     enable_tracing,
     is_tracing,
+    message_topology,
     on_message,
     read_trace,
     step_simulation,
@@ -37,6 +39,7 @@ def trace_file(tmp_path):
     configure_structlog(path)
     yield path
     disable_tracing()
+    configure_structlog()
     structlog.contextvars.clear_contextvars()
     structlog.reset_defaults()
 
@@ -332,6 +335,7 @@ async def test_tcp_container_trace(trace_file):
 
     sent = one(records, "message.sent")
     assert sent["sender"] == "sender"
+    assert sent["receiver_id"] == "receiver"
     assert one(records, "task.scheduled", agent="sender")["id"] == sent["cause"]
     received = one(records, "message.received", cause=sent["id"])
     assert received["agent"] == "receiver"
@@ -362,3 +366,43 @@ async def test_failing_message_handler_is_recorded(trace_file):
     # all other mango records are debug
     others = [r for r in records if "category" in r and r is not failed]
     assert {r["level"] for r in others} == {"debug"}
+
+
+@pytest.mark.asyncio
+async def test_message_topology_is_directed(trace_file):
+    enable_tracing()
+    await run_ping_pong()
+    disable_tracing()
+
+    # the first Ping is sent by the world, so only b -> a is a traced send
+    topology = message_topology(trace_file)
+
+    assert set(topology.nodes) == {"a", "b"}
+    assert list(topology.edges) == [("b", "a")]
+    edge = topology.edges["b", "a"]
+    assert edge["messages"] == edge["received"] == 1
+    assert edge["types"] == {"Ping": 1}
+    assert edge["first"] == edge["last"]
+
+
+@pytest.mark.asyncio
+async def test_message_topology_keeps_lost_messages(trace_file):
+    class Silent(Agent):
+        def handle_message(self, content, meta):
+            pass
+
+    enable_tracing(categories={"message"})
+    world = create_world(
+        communication_sim=SimpleCommunicationSimulation(loss_percent=1.0)
+    )
+    receiver = world.register(Silent(), "receiver")
+    world.register(Sender(receiver.addr), "sender")
+    async with world:
+        await step_simulation(world, step_size_s=1.0)
+    disable_tracing()
+
+    topology = message_topology(read_trace(trace_file))
+
+    assert set(topology.nodes) == {"receiver", "sender"}
+    edge = topology.edges["sender", "receiver"]
+    assert (edge["messages"], edge["received"]) == (1, 0)
