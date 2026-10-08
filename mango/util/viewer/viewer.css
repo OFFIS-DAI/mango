@@ -2,71 +2,52 @@
    a sticky column with the topology map above the cause panel. Below 981 px the
    map becomes a strip above the card and the panel drops below it. */
 :root {
-  --bg: #f4f6f9;
-  --panel: #ffffff;
-  --fg: #18202c;
-  --muted: #5a6677;
-  --line: #dbe1e9;
-  --accent: #2b59c3;
-  --accent-soft: #e4ecfb;
-  --ancestor-soft: #efe7fb;
-  --ancestor: #7445c9;
-  --fail: #c2362b;
-  --fail-soft: #fbe9e7;
-  --c-run: #6b7686;
-  --c-message: #2b6fd6;
-  --c-event: #b7790f;
-  --c-task: #10846f;
-  --c-wait: #7d8a9c;
-  --c-app: #b03c8a;
-  --l-debug: #7d8a9c;
-  --l-info: #2b6fd6;
-  --l-warning: #b7790f;
-  --l-error: #c2362b;
-  --band-alt: #f7f9fc;
-  --rule: #e8ecf1;
-  --lifeline: #d5dce6;
-  --gap-hatch: #e3e8ef;
-  --hover-row: #eef3fc;
-  --edge-msg: #5b82c9;
-  --edge-quiet: #7092d0;
-  --edge-evt: #a87a1c;
-  --edge-ghost: #c9d3e2;
-  --lost: #c2362b;
-  --in-flight: #6b7686;
-  --node-ring: #3d4859;
-  --bar-run: #3b9a89;
-  --rail-view: rgba(43, 89, 195, .16);
-  --pop-shadow: rgba(16, 24, 40, .16);
+  /* every colour for the light and the dark scheme: the page follows the system unless
+     data-theme on the root picks one */
+  color-scheme: light dark;
+  --bg: light-dark(#f4f6f9, #11151c);
+  --panel: light-dark(#ffffff, #181e27);
+  --fg: light-dark(#18202c, #e2e7ee);
+  --muted: light-dark(#5a6677, #93a0b2);
+  --line: light-dark(#dbe1e9, #29313d);
+  --accent: light-dark(#2b59c3, #7ea4ff);
+  --accent-soft: light-dark(#e4ecfb, #1c2a47);
+  --ancestor-soft: light-dark(#efe7fb, #2a2140);
+  --ancestor: light-dark(#7445c9, #b493ff);
+  --fail: light-dark(#c2362b, #ff7b6e);
+  --fail-soft: light-dark(#fbe9e7, #3a1d1b);
+  --c-run: light-dark(#6b7686, #93a0b2);
+  --c-message: light-dark(#2b6fd6, #6ea2ff);
+  --c-event: light-dark(#b7790f, #e3a83a);
+  --c-task: light-dark(#10846f, #3cc4a6);
+  --c-wait: light-dark(#7d8a9c, #8592a5);
+  --c-app: light-dark(#b03c8a, #ea7cc5);
+  --l-debug: light-dark(#7d8a9c, #8592a5);
+  --l-info: light-dark(#2b6fd6, #6ea2ff);
+  --l-warning: light-dark(#b7790f, #e3a83a);
+  --l-error: light-dark(#c2362b, #ff7b6e);
+  --band-alt: light-dark(#f7f9fc, #1b212b);
+  --rule: light-dark(#e8ecf1, #232a35);
+  --lifeline: light-dark(#d5dce6, #2e3744);
+  --gap-hatch: light-dark(#e3e8ef, #262e3a);
+  --hover-row: light-dark(#eef3fc, #1d2533);
+  --edge-msg: light-dark(#5b82c9, #5f84c6);
+  --edge-quiet: light-dark(#7092d0, #4e6ca0);
+  --edge-evt: light-dark(#a87a1c, #a8862f);
+  --edge-ghost: light-dark(#c9d3e2, #344055);
+  --lost: light-dark(#c2362b, #ff7b6e);
+  --in-flight: light-dark(#6b7686, #8592a5);
+  --node-ring: light-dark(#3d4859, #aab5c4);
+  --bar-run: light-dark(#3b9a89, #2d7d6f);
+  --rail-view: light-dark(rgba(43, 89, 195, .16), rgba(126, 164, 255, .18));
+  --pop-shadow: light-dark(rgba(16, 24, 40, .16), rgba(0, 0, 0, .5));
   --font-ui: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
   --font-data: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
 }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #11151c; --panel: #181e27; --fg: #e2e7ee; --muted: #93a0b2;
-    --line: #29313d; --accent: #7ea4ff; --accent-soft: #1c2a47;
-    --ancestor-soft: #2a2140; --ancestor: #b493ff; --fail: #ff7b6e;
-    --fail-soft: #3a1d1b; --c-run: #93a0b2; --c-message: #6ea2ff;
-    --c-event: #e3a83a; --c-task: #3cc4a6; --c-wait: #8592a5; --c-app: #ea7cc5;
-    --l-debug: #8592a5; --l-info: #6ea2ff; --l-warning: #e3a83a; --l-error: #ff7b6e;
-    --band-alt: #1b212b; --rule: #232a35; --lifeline: #2e3744; --gap-hatch: #262e3a;
-    --hover-row: #1d2533; --edge-msg: #5f84c6; --edge-quiet: #4e6ca0; --edge-evt: #a8862f; --edge-ghost: #344055;
-    --lost: #ff7b6e; --in-flight: #8592a5; --node-ring: #aab5c4; --bar-run: #2d7d6f;
-    --rail-view: rgba(126, 164, 255, .18); --pop-shadow: rgba(0, 0, 0, .5);
-    color-scheme: dark;
-  }
+:root[data-theme="light"] {
+  color-scheme: light;
 }
 :root[data-theme="dark"] {
-  --bg: #11151c; --panel: #181e27; --fg: #e2e7ee; --muted: #93a0b2;
-  --line: #29313d; --accent: #7ea4ff; --accent-soft: #1c2a47;
-  --ancestor-soft: #2a2140; --ancestor: #b493ff; --fail: #ff7b6e;
-  --fail-soft: #3a1d1b; --c-run: #93a0b2; --c-message: #6ea2ff;
-  --c-event: #e3a83a; --c-task: #3cc4a6; --c-wait: #8592a5; --c-app: #ea7cc5;
-  --l-debug: #8592a5; --l-info: #6ea2ff; --l-warning: #e3a83a; --l-error: #ff7b6e;
-  --band-alt: #1b212b; --rule: #232a35; --lifeline: #2e3744; --gap-hatch: #262e3a;
-  --hover-row: #1d2533; --edge-msg: #5f84c6; --edge-quiet: #4e6ca0; --edge-evt: #a8862f; --edge-ghost: #344055;
-  --lost: #ff7b6e; --in-flight: #8592a5; --node-ring: #aab5c4; --bar-run: #2d7d6f;
-  --rail-view: rgba(126, 164, 255, .18); --pop-shadow: rgba(0, 0, 0, .5);
   color-scheme: dark;
 }
 * { box-sizing: border-box; }

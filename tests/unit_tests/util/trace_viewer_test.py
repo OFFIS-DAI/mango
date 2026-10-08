@@ -1,7 +1,10 @@
 import json
 import re
 
-from mango.util.trace_viewer import main, render_html, write_html
+import pytest
+
+from mango.util.trace_viewer import _bundle, main, render_html, write_html
+from mango.util.tracing import CATEGORIES, VIEWER_SCHEMA
 
 RECORDS = [
     {"event": "message.received", "category": "message", "id": "message-1"},
@@ -75,21 +78,16 @@ def test_page_loads_nothing_from_elsewhere():
 
 def test_theme_tokens_have_dark_values():
     page = render_html(RECORDS)
-
-    light = {
-        p
-        for p in _custom_properties(_block(page, ":root {"))
-        if not p.startswith("--font-")
+    root = _block(page, ":root {")
+    colours = {
+        name: value
+        for name, value in re.findall(r"(--[\w-]+)\s*:\s*([^;]+);", root)
+        if not name.startswith("--font-")
     }
-    media = _block(
-        page,
-        '@media (prefers-color-scheme: dark) {\n  :root:not([data-theme="light"]) {',
-    )
-    forced = _block(page, ':root[data-theme="dark"] {')
 
-    assert light
-    assert light <= _custom_properties(media)
-    assert light <= _custom_properties(forced)
+    assert colours
+    assert "color-scheme: light dark;" in root
+    assert all(value.startswith("light-dark(") for value in colours.values())
 
 
 def test_page_has_views_and_topology():
@@ -110,10 +108,16 @@ def test_page_has_views_and_topology():
 def test_placeholders_replaced():
     page = render_html(RECORDS, title="run")
 
-    for placeholder in ("__TITLE__", "__DATA__", "__STYLE__", "__SCRIPT__"):
+    for placeholder in (
+        "__TITLE__",
+        "__DATA__",
+        "__SCHEMA__",
+        "__STYLE__",
+        "__SCRIPT__",
+    ):
         assert placeholder not in page
-    # only the data and the viewer script; no script file ends its element early
-    assert page.count("</script>") == 2
+    # only the schema, the data and the viewer script; no module ends its element early
+    assert page.count("</script>") == 3
     assert page.isascii()
 
 
@@ -134,3 +138,67 @@ def test_records_without_agent_or_time_embed():
     page = render_html(records)
 
     assert embedded_records(page) == records
+
+
+def test_viewer_has_a_colour_for_every_category():
+    page = render_html(RECORDS)
+
+    assert all(f"--c-{category}:" in page for category in CATEGORIES)
+
+
+def test_page_carries_the_record_schema():
+    page = render_html(RECORDS)
+    schema = re.search(
+        r'<script type="application/json" id="trace-schema">(.*?)</script>', page, re.S
+    ).group(1)
+
+    assert json.loads(schema) == VIEWER_SCHEMA
+
+
+def _write(root, files):
+    for name, text in files.items():
+        path = root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text)
+
+
+def test_bundle_joins_modules_dependencies_first(tmp_path):
+    _write(
+        tmp_path,
+        {
+            "main.js": 'import { b } from "./ui/b.js";\nimport { a } from "./a.js";\nb(a);\n',
+            "a.js": "export const a = 1;\n",
+            "ui/b.js": 'import { a } from "../a.js";\nexport function b(x) {\n  return x + a;\n}\n',
+        },
+    )
+
+    script = _bundle(tmp_path)
+
+    assert (
+        script.index("// a.js")
+        < script.index("// ui/b.js")
+        < script.index("// main.js")
+    )
+    assert "import" not in script and "export" not in script
+
+
+def test_bundle_rejects_cycles_and_clashing_names(tmp_path):
+    _write(
+        tmp_path,
+        {
+            "main.js": 'import { a } from "./a.js";\n',
+            "a.js": 'import { m } from "./main.js";\nexport const a = 1;\n',
+        },
+    )
+    with pytest.raises(ValueError, match="import cycle: main.js -> a.js -> main.js"):
+        _bundle(tmp_path)
+
+    _write(
+        tmp_path,
+        {
+            "a.js": "export const a = 1;\nconst x = 1;\n",
+            "main.js": 'import { a } from "./a.js";\nconst x = a;\n',
+        },
+    )
+    with pytest.raises(ValueError, match="x is declared in a.js and main.js"):
+        _bundle(tmp_path)

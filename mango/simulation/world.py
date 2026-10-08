@@ -1,9 +1,9 @@
 """
 SimulationWorld: a self-contained simulation world for mango.
 
-Mirrors the ``World`` type from Mango.jl.  Agents registered in a
-SimulationWorld share an :class:`~mango.util.clock.ExternalClock` and can
-be stepped forward in discrete or fixed-size time increments.
+Agents registered in a SimulationWorld share an
+:class:`~mango.util.clock.ExternalClock` and can be stepped forward in
+discrete or fixed-size time increments.
 
 The world is a facade: agent registration and message transport are
 handled by a :class:`~mango.simulation.container.SimulationContainer`

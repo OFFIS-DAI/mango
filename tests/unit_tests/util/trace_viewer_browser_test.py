@@ -3,68 +3,9 @@ import pytest
 from mango.util.trace_viewer import render_html
 from mango.util.tracing import message_topology
 
+from .viewer_sample import TRACE
+
 sync_api = pytest.importorskip("playwright.sync_api")
-
-AID = "AgentAddress(protocol_addr='simulation', aid='{}')"
-
-
-def _send(i, sender, receiver, t, with_id=True):
-    record = {
-        "event": "message.sent",
-        "category": "message",
-        "id": f"msg-{i}",
-        "agent": sender,
-        "sender": sender,
-        "receiver": AID.format(receiver),
-        "content": {"type": "Ping"},
-        "sim_time": t,
-        "level": "debug",
-        "timestamp": "2026-10-07T18:15:08.000000Z",
-    }
-    if with_id:
-        record["receiver_id"] = receiver
-    return record
-
-
-def _receive(i, agent, sender, t):
-    return {
-        "event": "message.received",
-        "category": "message",
-        "id": f"message-{i}",
-        "agent": agent,
-        "cause": f"msg-{i}",
-        "sender": sender,
-        "content": {"type": "Ping"},
-        "sim_time": t,
-        "level": "debug",
-        "timestamp": "2026-10-07T18:15:08.000000Z",
-    }
-
-
-TRACE = [
-    {
-        "event": "trace.started",
-        "category": "run",
-        "level": "debug",
-        "timestamp": "2026-10-07T18:15:08.000000Z",
-    },
-    _send(1, "a", "b", 0.0),
-    _receive(1, "b", "a", 1.0),
-    _send(2, "a", "c", 1.0),
-    _send(3, "b", "a", 2.0),
-    _receive(3, "a", "b", 3.0),
-    _send(4, "a", "c", 3.0),
-    _receive(4, "c", "a", 4.0),
-    _send(5, "c", "b", 4.0, with_id=False),
-    _send(6, "b", "a", 8.5),
-    {
-        "event": "note",
-        "agent": "c",
-        "level": "info",
-        "sim_time": 9.0,
-        "timestamp": "2026-10-07T18:15:08.000000Z",
-    },
-]
 
 
 @pytest.fixture(scope="module")
@@ -120,9 +61,6 @@ def test_list_view_matches_message_topology(page):
         (u, v): [d["messages"], d["received"], d["types"], d["first"], d["last"]]
         for u, v, d in graph.edges(data=True)
     }
-    # message_topology cannot resolve msg-5 (no receiver_id, no receipt); the viewer reads aid='b'
-    expected[("c", "b")] = [1, 0, {"Ping": 1}, 4.0, 4.0]
-
     got = {
         (f, t): [s, r, dict(map(tuple, types)), first, last]
         for f, t, s, r, types, first, last in rows
@@ -208,3 +146,199 @@ def test_lanes_connectors_render(page):
     assert hidden == []
     assert {"msg", "stub", "sth", "lost"} <= set(kinds)
     assert page.locator("#plane .rec.g-x").count() == 2
+
+
+def _rows(page):
+    return page.eval_on_selector_all(
+        "#rows tr[data-i]", "trs => trs.map(tr => +tr.dataset.i)"
+    )
+
+
+def _lanes(page):
+    return page.eval_on_selector_all(
+        "#lhead .lh .nm", "els => els.map(e => e.textContent)"
+    )
+
+
+def test_text_field_and_category_filters(page):
+    page.fill("#q", "msg-3")
+    page.wait_for_timeout(100)
+
+    # the send of msg-3 and its receipt, which names msg-3 as its cause
+    assert _rows(page) == [4, 5]
+    assert page.inner_text("#status") == "2 of 11 records"
+
+    page.fill("#q", "receiver_id=c")
+    page.wait_for_timeout(100)
+
+    assert _rows(page) == [3, 6]
+
+    page.fill("#q", "")
+    page.click("[data-cat=message]")
+    page.wait_for_timeout(100)
+
+    assert _rows(page) == [0, 10]
+
+    page.click("[data-cat=message]")
+    page.wait_for_timeout(100)
+
+    assert len(_rows(page)) == len(TRACE)
+
+
+def test_selection_shows_cause_chain(page):
+    page.click("#rows tr[data-i='5']")
+    page.wait_for_function("location.hash === '#r5'")
+    chain = page.eval_on_selector_all(
+        "#panel ol.chain button[data-go]", "bs => bs.map(b => +b.dataset.go)"
+    )
+
+    assert chain == [4, 5]
+    assert "anc" in page.get_attribute("#rows tr[data-i='4']", "class").split()
+    assert "Sent by b" in page.inner_text("#panel .note")
+
+
+def test_keyboard_moves_selects_and_follows_causes(page):
+    page.focus("#records-box")
+    page.keyboard.press("ArrowDown")
+    page.keyboard.press("ArrowDown")
+    page.keyboard.press("Enter")
+    page.wait_for_function("location.hash === '#r1'")
+
+    page.click("#rows tr[data-i='5']")
+    page.keyboard.press("[")
+    page.wait_for_function("location.hash === '#r4'")
+    page.keyboard.press("]")
+    page.wait_for_function("location.hash === '#r5'")
+    page.keyboard.press("Escape")
+    page.wait_for_function("location.hash === ''")
+
+
+def test_topology_graph_and_connection_filter(page):
+    page.wait_for_function("document.querySelectorAll('#topo-svg .nd').length === 3")
+
+    assert page.locator("#topo-svg .lk").count() == 4
+
+    # edges are numbered in send order: a->b, a->c, b->a, c->b
+    page.locator("#topo-svg .lk[data-e='1'] path.hit").dispatch_event("click")
+    page.wait_for_function("location.hash.includes('link=a%3Ec')")
+
+    assert _rows(page) == [3, 6, 7]
+    assert "a → c" in page.inner_text("#linkchip")
+
+    page.click("#linkchip [data-act=clear-link]")
+    page.wait_for_timeout(150)
+
+    assert len(_rows(page)) == len(TRACE)
+    assert page.is_hidden("#linkchip")
+
+
+def test_follow_chain_opens_lanes(page):
+    page.click("#rows tr[data-i='5']")
+    page.keyboard.press("f")
+    page.wait_for_function(
+        "document.querySelectorAll('#plane .rec[data-i]').length > 0"
+    )
+
+    assert page.get_attribute("#tab-lanes", "aria-selected") == "true"
+    assert _lanes(page) == ["b", "a"]
+    assert "Following 2 agents" in page.inner_text("#toast")
+
+
+def test_lane_picker_toggles_and_undo(page):
+    page.click("#tab-lanes")
+    page.wait_for_function(
+        "document.querySelectorAll('#plane .rec[data-i]').length > 0"
+    )
+
+    assert _lanes(page) == ["no agent", "a", "b", "c"]
+
+    page.click("#pick")
+    page.click("#pk-list li[data-l='1']")
+    page.wait_for_timeout(100)
+
+    assert _lanes(page) == ["no agent", "a", "c"]
+
+    page.keyboard.press("Escape")
+    page.wait_for_timeout(100)
+
+    assert page.locator(".pop").count() == 0
+
+    page.click("#lhead .lh[data-l='2'] .x")
+    page.click("#toast button")
+    page.wait_for_timeout(100)
+
+    assert _lanes(page) == ["no agent", "a", "c"]
+
+
+def test_go_to_time(page):
+    page.keyboard.press("t")
+    page.keyboard.type("soon")
+    page.keyboard.press("Enter")
+
+    assert page.inner_text("#goto-err").startswith("Not a time")
+
+    page.fill("#goto-q", "+8s")
+    page.keyboard.press("Enter")
+    page.wait_for_function(
+        "document.getElementById('sr').textContent.startsWith('Went to')"
+    )
+
+    assert page.locator(".pop").count() == 0
+
+
+def test_markup_in_records_is_shown_as_text(browser, tmp_path):
+    evil = '<img src=x class="injected">&"'
+    trace = [
+        {
+            "event": "message.sent",
+            "category": "message",
+            "id": f"msg-{evil}",
+            "agent": f"a{evil}",
+            "receiver_id": f"b{evil}",
+            "content": {"type": evil},
+            "note": evil,
+            "sim_time": 0.0,
+            "level": "error",
+            "timestamp": "2026-10-07T18:15:08.000000Z",
+        },
+        {
+            "event": "message.received",
+            "category": "message",
+            "id": "rcv-1",
+            "agent": f"b{evil}",
+            "cause": f"msg-{evil}",
+            "content": {"type": evil},
+            "sim_time": 1.0,
+            "level": "debug",
+            "timestamp": "2026-10-07T18:15:08.000000Z",
+        },
+        {
+            "event": f"note{evil}",
+            "agent": f"a{evil}",
+            "cause": "rcv-1",
+            "sim_time": 2.0,
+            "level": "info",
+            "timestamp": "2026-10-07T18:15:08.000000Z",
+        },
+    ]
+    path = tmp_path / "evil.html"
+    path.write_text(render_html(trace), encoding="utf-8")
+    page = browser.new_page(viewport={"width": 1280, "height": 800})
+    errors = []
+    page.on("pageerror", lambda e: errors.append(str(e)))
+    page.goto(path.as_uri())
+    page.wait_for_function("document.querySelectorAll('#topo-svg .nd').length === 2")
+    page.click("#rows tr[data-i='1']")
+    page.click("#tab-lanes")
+    page.wait_for_function(
+        "document.querySelectorAll('#plane .rec[data-i]').length > 0"
+    )
+    page.hover("#plane .rec[data-i='0']")
+    page.click("#tm-list")
+    page.wait_for_timeout(200)
+
+    assert page.locator(".injected").count() == 0
+    assert evil in page.inner_text("#panel")
+    assert f"a{evil}" in page.inner_text("#lhead")
+    assert errors == []
+    page.close()

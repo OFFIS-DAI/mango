@@ -25,8 +25,6 @@ Tracing records the process, not the simulation's data: message contents and
 events are summarized by their type unless ``include_content`` is set. To
 store data, use the recording functions of :mod:`mango.simulation.recording`.
 
-Requires ``structlog`` (``pip install mango-agents[trace]``).
-
 Example::
 
     import structlog
@@ -51,6 +49,7 @@ import itertools
 import json
 import os
 import platform
+import re
 import sys
 import warnings
 from collections.abc import Callable, Iterable, Sequence
@@ -60,11 +59,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import networkx as nx
-
-try:
-    import structlog
-except ImportError:  # pragma: no cover - exercised without the extra
-    structlog = None
+import structlog
 
 #: All categories mango can trace.
 #:
@@ -80,6 +75,37 @@ CATEGORIES = frozenset({"run", "message", "event", "task", "wait"})
 #: come with every timer tick, add overhead that shifts real timings, and
 #: matter mostly for simulations.
 REAL_TIME_CATEGORIES = CATEGORIES - {"wait"}
+
+#: How the trace viewer (:mod:`mango.util.trace_viewer`) reads mango's records.
+#: It is written into every viewer page, so the viewer knows no record names of
+#: its own:
+#:
+#: * ``roles``: what each record name means to the viewer
+#: * ``event_received``: the end of the names of event receipts
+#:   (``<kind>_event.received``, written by ``_trigger``)
+#: * ``failed``: the end of the names of failures (``<kind>.failed``)
+#:
+#: A new record name is added here; ``traced_run_test`` checks that every
+#: record mango writes is covered.
+VIEWER_SCHEMA = {
+    "roles": {
+        "message.sent": "sent",
+        "message.received": "received",
+        "event.emitted": "emitted",
+        "role_event.received": "role_event",
+        "handler.called": "handler",
+        "task.scheduled": "scheduled",
+        "task.started": "started",
+        "task.cycle": "cycle",
+        "task.waiting": "waiting",
+        "task.resumed": "resumed",
+        "task.finished": "finished",
+        "task.failed": "failed",
+        "task.cancelled": "cancelled",
+    },
+    "event_received": "_event.received",
+    "failed": ".failed",
+}
 
 #: Logger name used for mango's trace records.
 LOGGER_NAME = "mango.trace"
@@ -102,15 +128,6 @@ _configured_file = None
 _current_clock: ContextVar[Any] = ContextVar("_mango_trace_clock", default=None)
 
 
-def _require_structlog():
-    if structlog is None:
-        raise ImportError(
-            "structlog is required for tracing. "
-            "Install it with: pip install mango-agents[trace]"
-        )
-    return structlog
-
-
 def enable_tracing(
     *,
     categories: Iterable[str] | None = None,
@@ -127,7 +144,6 @@ def enable_tracing(
         contents and events instead of only their type
     """
     global _categories, _include_content
-    _require_structlog()
     selected = CATEGORIES if categories is None else frozenset(categories)
     unknown = selected - CATEGORIES
     if unknown:
@@ -203,7 +219,6 @@ def configure_structlog(
     :param json_output: render JSON lines (default), else a console format
     """
     global _configured_file
-    structlog = _require_structlog()
     _close_configured_file()
     if path is None:
         file = sys.stderr
@@ -302,7 +317,6 @@ class _TracedRun:
                 stacklevel=3,
             )
             return
-        structlog = _require_structlog()
         if structlog.is_configured():
             self._previous_config = structlog.get_config()
         # an application's own configure_structlog file stays open for later
@@ -351,6 +365,15 @@ def read_trace(path: str | os.PathLike) -> list[dict]:
         return [json.loads(line) for line in f if line.strip()]
 
 
+_AID = re.compile(r"aid=(['\"])(.*?)\1")
+
+
+def _aid_in(address) -> str | None:
+    """The agent id in the text of an address (``AgentAddress(..., aid='x')``)."""
+    match = _AID.search(str(address)) if address is not None else None
+    return match.group(2) if match else None
+
+
 def message_topology(trace: str | os.PathLike | Iterable[dict]) -> nx.DiGraph:
     """Return who sent messages to whom in a trace, as a directed graph.
 
@@ -363,6 +386,10 @@ def message_topology(trace: str | os.PathLike | Iterable[dict]) -> nx.DiGraph:
       lost, still in flight at the end, or received in another process,
     * ``types``: number of messages per content type,
     * ``first`` and ``last``: ``sim_time`` of the first and the last send.
+
+    The receiver of a send is its ``receiver_id``, else the agent that
+    received it, else the ``aid`` in its ``receiver`` address; the trace
+    viewer resolves receivers the same way. Sends without one are left out.
 
     The graph uses the same agent ids as
     :func:`mango.topology_to_aid_graph`, so the observed communication can be
@@ -384,7 +411,11 @@ def message_topology(trace: str | os.PathLike | Iterable[dict]) -> nx.DiGraph:
         if r.get("event") != "message.sent":
             continue
         sender = r.get("agent") or r.get("sender")
-        receiver = r.get("receiver_id") or receiver_of.get(r.get("id"))
+        receiver = (
+            r.get("receiver_id")
+            or receiver_of.get(r.get("id"))
+            or _aid_in(r.get("receiver"))
+        )
         if sender is None or receiver is None:
             continue
         if not graph.has_edge(sender, receiver):
@@ -400,7 +431,8 @@ def message_topology(trace: str | os.PathLike | Iterable[dict]) -> nx.DiGraph:
         edge = graph.edges[sender, receiver]
         edge["messages"] += 1
         edge["received"] += r.get("id") in receiver_of
-        kind = (r.get("content") or {}).get("type")
+        content = r.get("content")
+        kind = content.get("type") if isinstance(content, dict) else None
         edge["types"][kind] = edge["types"].get(kind, 0) + 1
         edge["last"] = r.get("sim_time")
     return graph

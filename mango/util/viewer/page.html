@@ -110,45 +110,10 @@ __STYLE__
 <dialog id="keys" aria-labelledby="keys-h">
   <button class="icon close" id="keys-close" aria-label="Close">&#x2715;</button>
   <h2 id="keys-h">Keyboard shortcuts</h2>
-  <div class="kc">
-    <section><h3>Anywhere</h3><dl>
-      <dt><kbd>/</kbd></dt><dd>focus the filter</dd>
-      <dt><kbd>v</kbd></dt><dd>Records / Lanes</dd>
-      <dt><kbd>e</kbd> <kbd>E</kbd></dt><dd>next / previous failure</dd>
-      <dt><kbd>[</kbd> <kbd>]</kbd></dt><dd>go to the cause / the first effect</dd>
-      <dt><kbd>f</kbd></dt><dd>follow the selection's chain in Lanes</dd>
-      <dt><kbd>t</kbd></dt><dd>go to a time</dd>
-      <dt><kbd>g</kbd> <kbd>G</kbd></dt><dd>focus the map / widen it</dd>
-      <dt><kbd>Esc</kbd></dt><dd>close, then clear the selection</dd>
-      <dt><kbd>?</kbd></dt><dd>this sheet</dd>
-    </dl></section>
-    <section><h3>Records</h3><dl>
-      <dt><kbd>&uarr;</kbd> <kbd>&darr;</kbd></dt><dd>move the cursor row</dd>
-      <dt><kbd>Home</kbd> <kbd>End</kbd> <kbd>PgUp</kbd> <kbd>PgDn</kbd></dt><dd>jump</dd>
-      <dt><kbd>Enter</kbd> <kbd>Space</kbd></dt><dd>select or deselect</dd>
-    </dl></section>
-    <section><h3>Lanes</h3><dl>
-      <dt><kbd>&uarr;</kbd> <kbd>&darr;</kbd></dt><dd>previous / next record in the lane</dd>
-      <dt><kbd>&larr;</kbd> <kbd>&rarr;</kbd></dt><dd>nearest record in the next lane</dd>
-      <dt><kbd>Home</kbd> <kbd>End</kbd> <kbd>PgUp</kbd> <kbd>PgDn</kbd></dt><dd>jump within the lane</dd>
-      <dt><kbd>Enter</kbd> <kbd>Space</kbd></dt><dd>select or deselect</dd>
-      <dt><kbd>a</kbd></dt><dd>choose lanes</dd>
-      <dt><kbd>o</kbd></dt><dd>Packed / File order</dd>
-      <dt><kbd>z</kbd></dt><dd>Fit all lanes</dd>
-      <dt><kbd>x</kbd></dt><dd>stop following the cursor's lane</dd>
-      <dt><kbd>Alt</kbd>+<kbd>&larr;</kbd> <kbd>&rarr;</kbd></dt><dd>move the cursor's lane</dd>
-    </dl></section>
-    <section><h3>Map</h3><dl>
-      <dt>arrows</dt><dd>nearest agent in that direction</dd>
-      <dt><kbd>Home</kbd></dt><dd>the hub</dd>
-      <dt><kbd>Enter</kbd></dt><dd>filter or follow; on a connection: show its messages</dd>
-      <dt><kbd>Shift</kbd>+<kbd>Enter</kbd></dt><dd>follow the agent and its partners</dd>
-      <dt><kbd>c</kbd> <kbd>C</kbd></dt><dd>next / previous connection</dd>
-      <dt><kbd>Esc</kbd></dt><dd>back to the agent, then to the view</dd>
-    </dl></section>
-  </div>
+  <div class="kc"></div>
 </dialog>
 
+<script type="application/json" id="trace-schema">__SCHEMA__</script>
 <script type="application/json" id="trace-data">__DATA__</script>
 <script>
 (() => {

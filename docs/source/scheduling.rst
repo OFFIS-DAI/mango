@@ -10,6 +10,8 @@ Every agent owns a *scheduler*.  To schedule work you call one of the
 convenience methods on the agent (e.g. :meth:`~mango.Agent.schedule_periodic_task`)
 or create a :class:`~mango.util.scheduling.ScheduledTask` subclass directly.
 
+.. _scheduling-task-types:
+
 Available task types
 --------------------
 
@@ -73,6 +75,8 @@ Basic example
    :ref:`role-periodic`.  The calls on this page cover what the decorator
    does not: one-shot, timestamp, conditional, and process tasks.
 
+.. _scheduling-suspendable-tasks:
+
 Suspendable tasks
 -----------------
 
@@ -97,6 +101,8 @@ when scheduling it.  This is particularly useful for the role system
         async def do_work(self):
             ...
 
+
+.. _scheduling-process-tasks:
 
 Dispatching tasks to other processes
 -------------------------------------
@@ -228,6 +234,8 @@ the task is waiting for a timestamp that never arrives:
     automatically by :func:`~mango.step_simulation`.  You do not need to
     call ``set_time`` yourself.  See :doc:`simulation` for details.
 
+
+.. _scheduling-distributed-clock:
 
 Using a distributed clock
 --------------------------

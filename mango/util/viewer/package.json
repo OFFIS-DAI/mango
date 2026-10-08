@@ -1,0 +1,5 @@
+{
+  "private": true,
+  "description": "Scripts of mango's trace viewer: ES modules that trace_viewer.py joins into the page",
+  "type": "module"
+}

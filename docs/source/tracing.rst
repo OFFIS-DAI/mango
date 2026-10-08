@@ -28,18 +28,6 @@ are logged by type only (see `Changing what is recorded`_). To save content,
 such as agent states or values over time, use the separate recording functions
 of the simulation world (:ref:`simulation-recording`).
 
-Installation
-------------
-
-structlog is an optional dependency, installed with the ``trace`` extra:
-
-.. code-block:: bash
-
-    pip install "mango-agents[trace]"     # with pip
-    uv add "mango-agents[trace]"          # in a project managed with uv
-    uv sync --extra trace                 # when working on mango itself
-
-
 Example
 -------
 
@@ -203,6 +191,8 @@ handler scheduled the task sending the ``Pong``.
     os.chdir(_tracing_cwd)
     _tracing_tmp.cleanup()
 
+.. _tracing-run:
+
 Tracing a run
 -------------
 
@@ -254,6 +244,8 @@ run, or into your own structlog configuration, use the building blocks that
 ``trace`` combines: :func:`~mango.enable_tracing` and
 :func:`~mango.configure_structlog` (see `Changing what is recorded`_) and the
 ``mango-trace`` command.
+
+.. _tracing-viewer:
 
 Viewing a trace
 ---------------
@@ -336,6 +328,8 @@ to), or by clicking agents on the map. Going to a record of an agent you do not
 follow, from the side panel, with ``[`` and ``]`` (cause and first effect) or
 with ``e`` (next error), adds its lane, with *Undo*.
 
+.. _tracing-message-topology:
+
 The message topology
 ~~~~~~~~~~~~~~~~~~~~
 
@@ -391,6 +385,8 @@ nothing selected, the side panel shows the same key while Lanes is open. The
 address of the page keeps the selected record, the view, the followed lanes and
 the connection filter, so a copied link opens the same picture. The page still
 loads nothing from elsewhere and works offline.
+
+.. _tracing-failing-step:
 
 Finding a failing step
 ----------------------
@@ -480,6 +476,8 @@ mango writes these records, grouped by category:
      - mango and Python version, container type, address and codec, clock
        type, registered agents.
 
+.. _tracing-own-logging:
+
 Adding your own logging
 -----------------------
 
@@ -504,6 +502,8 @@ string, so they can be filtered on.
 mango binds ``agent`` and ``cause`` with :mod:`structlog.contextvars`. Do not
 bind these two keys yourself; other keys you bind with
 ``structlog.contextvars.bind_contextvars`` appear on mango's records too.
+
+.. _tracing-changing-recorded:
 
 Changing what is recorded
 -------------------------
@@ -590,6 +590,8 @@ calls cost the same whether mango's tracing is on or off.
 
 Use tracing to debug and to understand runs, not in production runs or
 performance measurements.
+
+.. _tracing-turning-off:
 
 Turning it off
 --------------

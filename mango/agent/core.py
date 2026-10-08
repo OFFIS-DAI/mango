@@ -38,10 +38,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class AgentDescription:
-    """Metadata describing an agent (name, category, color, unique ID).
-
-    Mirrors the ``AgentDescription`` type in Mango.jl.
-    """
+    """Metadata describing an agent (name, category, color, unique ID)."""
 
     name: str = ""
     category: str = "agent"

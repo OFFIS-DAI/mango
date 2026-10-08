@@ -28,15 +28,13 @@ dependencies = [
     "python-dateutil>=2.9.0",
     "dill>=0.3.8",
     "protobuf>=5.27.2",
-    "networkx>=3.4.1"
+    "networkx>=3.4.1",
+    "structlog>=24.1.0"
 ]
 
 [project.optional-dependencies]
 fastjson = [
     "msgspec>=0.18.6"
-]
-trace = [
-    "structlog>=24.1.0"
 ]
 test = [
     "pytest",
@@ -44,7 +42,7 @@ test = [
     "pytest-asyncio",
     "pre-commit",
     "matplotlib",
-    "structlog>=24.1.0"
+    "playwright"
 ]
 
 [project.scripts]
@@ -56,7 +54,13 @@ Repository = "https://github.com/OFFIS-DAI/mango"
 Issues = "https://github.com/OFFIS-DAI/mango/issues"
 
 [tool.setuptools.package-data]
-"mango.util" = ["viewer/*.html", "viewer/*.css", "viewer/js/*.js"]
+"mango.util" = [
+    "viewer/*.html",
+    "viewer/*.css",
+    "viewer/js/*.js",
+    "viewer/js/*/*.js",
+    "viewer/js/*/*/*.js",
+]
 
 
 [tool.pytest.ini_options]

@@ -6,19 +6,27 @@ import structlog
 
 from mango import (
     Agent,
+    Role,
     TraceConfig,
     activate,
+    agent_composed_of,
     configure_structlog,
     create_tcp_container,
     create_world,
     disable_tracing,
     enable_tracing,
     is_tracing,
+    on_event,
     on_message,
     read_trace,
     run_with_simulation,
 )
-from mango.util.tracing import CATEGORIES, REAL_TIME_CATEGORIES, _trace_config
+from mango.util.tracing import (
+    CATEGORIES,
+    REAL_TIME_CATEGORIES,
+    VIEWER_SCHEMA,
+    _trace_config,
+)
 
 log = structlog.get_logger()
 
@@ -146,3 +154,74 @@ def test_trace_argument_forms():
     assert _trace_config(config) is config
     with pytest.raises(TypeError):
         _trace_config(1)
+
+
+class Tick:
+    pass
+
+
+class Counted:
+    pass
+
+
+class Echo(Role):
+    @on_message(Ping)
+    def on_ping(self, content, meta):
+        self.context.emit_event(Counted(), self)
+
+    @on_event(Counted)
+    def counted(self, event, source):
+        log.info("user.counted")
+
+
+class Busy(Agent):
+    def __init__(self, peer):
+        super().__init__()
+        self.peer = peer
+
+    def on_ready(self):
+        self.schedule_periodic_task(self.ping, delay=1.0)
+        self.schedule_instant_task(self.done())
+        self.schedule_instant_task(self.fail())
+
+    async def ping(self):
+        await self.send_message(Ping(), self.peer)
+
+    async def done(self):
+        log.info("user.done")
+
+    async def fail(self):
+        raise RuntimeError("expected")
+
+    def on_global_event(self, event):
+        pass
+
+    def on_agent_event(self, event):
+        pass
+
+
+@pytest.mark.asyncio
+async def test_viewer_schema_covers_every_record_mango_writes(tmp_path):
+    trace = tmp_path / "all.jsonl"
+    world = create_world(trace=TraceConfig(trace, html=False))
+    echo = world.register(agent_composed_of(Echo()), "echo")
+    world.register(Busy(echo.addr), "busy")
+    async with world:
+        world.environment.emit_global_event(Tick())
+        world.environment.emit_agent_event(Tick(), "busy")
+        await world.step_until(3.0)
+
+    names = {r["event"] for r in read_trace(trace) if r.get("category") != "run"}
+    roles = VIEWER_SCHEMA["roles"]
+    unknown = {
+        name
+        for name in names
+        if name not in roles
+        and not name.endswith(VIEWER_SCHEMA["event_received"])
+        and not name.endswith(VIEWER_SCHEMA["failed"])
+        and not name.startswith("user.")
+    }
+
+    assert unknown == set()
+    assert set(roles) <= names
+    assert {"global_event.received", "agent_event.received"} <= names

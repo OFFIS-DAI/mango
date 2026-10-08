@@ -34,6 +34,8 @@ they behave identically under real time (:class:`~mango.util.clock.AsyncioClock`
 and simulation time (:class:`~mango.util.clock.ExternalClock`).
 
 
+.. _transactions-gather:
+
 Collecting replies with gather
 ==============================
 
@@ -101,6 +103,8 @@ sender wins; late duplicates are dropped so the mapping is stable.
      - ``1.0``
      - Return early once ``⌈min_fraction · len(receivers)⌉`` replied.
 
+
+.. _transactions-conversations:
 
 Multi-hop conversations
 =======================
