@@ -1,9 +1,9 @@
 """
 SimulationWorld: a self-contained simulation world for mango.
 
-Mirrors the ``World`` type from Mango.jl.  Agents registered in a
-SimulationWorld share an :class:`~mango.util.clock.ExternalClock` and can
-be stepped forward in discrete or fixed-size time increments.
+Agents registered in a SimulationWorld share an
+:class:`~mango.util.clock.ExternalClock` and can be stepped forward in
+discrete or fixed-size time increments.
 
 The world is a facade: agent registration and message transport are
 handled by a :class:`~mango.simulation.container.SimulationContainer`
@@ -45,6 +45,7 @@ from typing import Any
 
 from mango.agent.core import Agent, AgentAddress
 from mango.messages.codecs import Codec
+from mango.util import tracing
 from mango.util.clock import ExternalClock
 from mango.util.termination_detection import tasks_complete_or_sleeping
 
@@ -106,17 +107,28 @@ class _AgentDispatchObserver(WorldObserver):
         self._world = world
 
     def dispatch_global_event(self, clock, event: Any) -> None:
+        event_id = tracing._event_emitted(event)
         for agent in self._world.agents.values():
-            for _cond, _handler in agent._behavior_global_event_handlers:
-                if _cond(event):
-                    _handler(agent, event)
-            agent.on_global_event(event)
-            if hasattr(agent, "roles"):
-                for role in agent.roles:
-                    for _cond, _handler in role._behavior_global_event_handlers:
-                        if _cond(event):
-                            _handler(role, event)
-                    role.on_global_event(event)
+            with tracing._trigger(
+                "global_event",
+                "event",
+                agent=agent.aid,
+                clock=agent.scheduler.clock,
+                cause=event_id,
+                content=event,
+            ):
+                for _cond, _handler in agent._behavior_global_event_handlers:
+                    if _cond(event):
+                        tracing._handler_called("event", _handler)
+                        _handler(agent, event)
+                agent.on_global_event(event)
+                if hasattr(agent, "roles"):
+                    for role in agent.roles:
+                        for _cond, _handler in role._behavior_global_event_handlers:
+                            if _cond(event):
+                                tracing._handler_called("event", _handler)
+                                _handler(role, event)
+                        role.on_global_event(event)
 
 
 class SimulationWorld:
@@ -137,6 +149,7 @@ class SimulationWorld:
         clock: ExternalClock,
         communication_sim: CommunicationSimulation,
         environment: Environment | None = None,
+        trace: Any = None,
     ):
         self.environment: Environment = environment or DefaultEnvironment()
         self._container = SimulationContainer(
@@ -151,6 +164,7 @@ class SimulationWorld:
         self._data_collectors: list[Callable] = []
 
         self._initialized: bool = False
+        self._trace = tracing._TracedRun(trace, simulated=True)
 
         # Wire environment to agent dispatcher
         self.environment.add_observer(_AgentDispatchObserver(self))
@@ -249,8 +263,11 @@ class SimulationWorld:
         )
 
     async def shutdown(self) -> None:
-        """Shut down all agents."""
-        await self._container.shutdown()
+        """Shut down all agents, and finish the trace if the world is traced."""
+        try:
+            await self._container.shutdown()
+        finally:
+            self._trace.finish()
 
     def __getitem__(self, key: str | int) -> Agent:
         if isinstance(key, int):
@@ -301,6 +318,15 @@ class SimulationWorld:
 
     def _initialize_if_needed(self) -> None:
         if not self._initialized:
+            self._trace.start()
+            tracing._emit(
+                "world.started",
+                "run",
+                self.clock,
+                environment=type(self.environment).__name__,
+                communication_sim=type(self._container.communication_sim).__name__,
+                agents=sorted(self.agents),
+            )
             self._container.on_ready()
             self.environment.initialize(list(self.agents.values()), self.clock)
             self._initialized = True
@@ -432,6 +458,7 @@ def create_world(
     start_time: float = 0.0,
     communication_sim: CommunicationSimulation | None = None,
     environment: Environment | None = None,
+    trace: Any = None,
 ) -> SimulationWorld:
     """Create a :class:`SimulationWorld`.
 
@@ -441,6 +468,11 @@ def create_world(
         with zero delay and no loss
     :param environment: environment to use; defaults to
         :class:`~mango.simulation.environment.DefaultEnvironment`
+    :param trace: trace the run (see :ref:`tracing-docs`): ``True`` for the
+        defaults, a path for the trace file, or a
+        :class:`~mango.util.tracing.TraceConfig`. Tracing starts when the
+        world starts and ends when it shuts down; then the viewer is written
+        next to the trace.
     :return: a ready-to-use :class:`SimulationWorld`
 
     Example::
@@ -449,10 +481,16 @@ def create_world(
             start_time=0.0,
             communication_sim=SimpleCommunicationSimulation(default_delay_s=0.1),
         )
+
+        # writes mango_trace.jsonl and the viewer mango_trace.html
+        async with create_world(trace=True) as world:
+            ...
     """
     clock = ExternalClock(start_time=start_time)
     sim = communication_sim or SimpleCommunicationSimulation()
-    return SimulationWorld(clock=clock, communication_sim=sim, environment=environment)
+    return SimulationWorld(
+        clock=clock, communication_sim=sim, environment=environment, trace=trace
+    )
 
 
 async def step_simulation(

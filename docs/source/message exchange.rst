@@ -156,6 +156,8 @@ a handler from the outside, without touching the agent class (see
 
 ----
 
+.. _message-exchange-sending:
+
 Sending messages
 ================
 
@@ -197,6 +199,8 @@ interpreted by the protocol layer (e.g. ``priority``).
 
     agent0 received a message with content Hey! and meta {'sender_id': 'agent1', 'sender_addr': ('127.0.0.1', 5555), 'receiver_id': 'agent0', 'network_protocol': 'tcp', 'priority': 0}
 
+
+.. _message-exchange-reply-to:
 
 ``reply_to``: replying to a message
 --------------------------------------
@@ -268,6 +272,8 @@ to confirm delivery.
     coroutines use ``schedule_instant_task`` directly.
 
 
+.. _message-exchange-tracked:
+
 ``send_tracked_message``: request / response
 ----------------------------------------------
 
@@ -308,6 +314,8 @@ On the responder side, :meth:`~mango.Agent.reply_to` preserves the
     correlate replies manually via ``meta["tracking_id"]``.
 
 ----
+
+.. _message-exchange-routing:
 
 Message routing
 ===============
@@ -449,6 +457,8 @@ subscription depends on runtime state:
                                         lambda c, m: True, priority=100)
 
 ----
+
+.. _message-exchange-acl:
 
 ACL messages
 ============

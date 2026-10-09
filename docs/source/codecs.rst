@@ -31,6 +31,8 @@ You can also write your own codec by subclassing ``Codec`` and implementing
     custom serialiser if you need to preserve the type.
 
 
+.. _codecs-json:
+
 JSON codec
 ==========
 
@@ -192,20 +194,23 @@ For simple classes (especially dataclasses) the
 FastJSON codec
 ==============
 
-:class:`~mango.messages.codecs.FastJson` is a lightweight alternative to the
+:class:`~mango.messages.fast_json.FastJSON` is a lightweight alternative to the
 full JSON codec.  It uses `msgspec <https://jcristharif.com/msgspec/>`_ for
 serialisation and is noticeably faster, but it **does not** support a type
 registry.  All messages are encoded and decoded as plain dicts; no custom
 class round-trips.  Use it when speed matters and you only pass primitive
-values or dicts as message content.
+values or dicts as message content.  It needs the ``fastjson`` extra
+(``pip install mango-agents[fastjson]``).
 
 .. code-block:: python
 
-    from mango.messages.codecs import FastJson
+    from mango.messages.fast_json import FastJSON
     from mango import create_tcp_container
 
-    container = create_tcp_container(addr=("127.0.0.1", 5555), codec=FastJson())
+    container = create_tcp_container(addr=("127.0.0.1", 5555), codec=FastJSON())
 
+
+.. _codecs-protobuf:
 
 Protobuf codec
 ==============

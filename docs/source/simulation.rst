@@ -28,6 +28,8 @@ This is useful for:
   custom behaviours.
 
 
+.. _simulation-fixed-step:
+
 Basic fixed-step simulation
 ============================
 
@@ -71,6 +73,8 @@ exit.
    the step.
 
 
+.. _simulation-discrete-event:
+
 Discrete-event simulation
 ==========================
 
@@ -111,6 +115,8 @@ that keeps stepping until a time limit is reached:
 The loop stops automatically when there are no more events within the allowed
 time window.
 
+
+.. _simulation-express:
 
 Express API: run_with_simulation
 =================================
@@ -190,6 +196,8 @@ loss), messages sent at time *t* are available for delivery from *t* onward:
 
     [('hello', 1.0)]
 
+
+.. _simulation-communication:
 
 Communication simulation
 =========================
@@ -346,6 +354,8 @@ and ``on_agent_event`` hooks as agents:
     [1.0, 2.0]
 
 
+.. _simulation-recording:
+
 Data recording
 ==============
 
@@ -419,6 +429,8 @@ track agent positions when a spatial environment is active:
     history = position_history(world)
     # history.timeseries["agent0"]  →  list of Position2D
 
+
+.. _simulation-spatial-environment:
 
 Spatial environment
 ====================
@@ -592,6 +604,8 @@ Every delivered message is logged in ``world.recorded_messages``:
     agent0 -> agent1
 
 
+.. _simulation-agent-description:
+
 Agent description and metadata
 ================================
 
@@ -618,6 +632,8 @@ human-readable metadata:
 
     Alice blue sensor
 
+
+.. _simulation-visualization:
 
 Visualization
 ==============
@@ -743,6 +759,8 @@ This is especially useful for debugging delayed or lost messages:
 When *aid_to_name* is omitted, agent AIDs are used as labels.  When
 *aid_to_color* is omitted, matplotlib's default colour cycle is applied.
 
+
+.. _simulation-behavior-in:
 
 Attaching behavior with behavior_in
 ====================================

@@ -28,7 +28,8 @@ dependencies = [
     "python-dateutil>=2.9.0",
     "dill>=0.3.8",
     "protobuf>=5.27.2",
-    "networkx>=3.4.1"
+    "networkx>=3.4.1",
+    "structlog>=24.1.0"
 ]
 
 [project.optional-dependencies]
@@ -40,13 +41,26 @@ test = [
     "pytest-cov",
     "pytest-asyncio",
     "pre-commit",
-    "matplotlib"
+    "matplotlib",
+    "playwright"
 ]
+
+[project.scripts]
+mango-trace = "mango.util.trace_viewer:main"
 
 [project.urls]
 Homepage = "https://mango-agents.readthedocs.io"
 Repository = "https://github.com/OFFIS-DAI/mango"
 Issues = "https://github.com/OFFIS-DAI/mango/issues"
+
+[tool.setuptools.package-data]
+"mango.util" = [
+    "viewer/*.html",
+    "viewer/*.css",
+    "viewer/js/*.js",
+    "viewer/js/*/*.js",
+    "viewer/js/*/*/*.js",
+]
 
 
 [tool.pytest.ini_options]

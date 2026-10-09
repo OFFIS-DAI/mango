@@ -51,6 +51,8 @@ Features
    :gutter: 4
 
    .. grid-item-card::
+      :link: features-containers
+      :link-type: ref
       :shadow: sm
 
       **Containers**
@@ -58,6 +60,8 @@ Features
       Local, TCP, and MQTT transports; external-coupling container for co-simulation.
 
    .. grid-item-card::
+      :link: features-agents
+      :link-type: ref
       :shadow: sm
 
       **Agents**
@@ -65,6 +69,8 @@ Features
       Reactive and proactive behaviour: handlers declared with ``@on_message`` and ``@periodic``, plus full lifecycle callbacks (``on_register``, ``on_ready``, ``on_stop``).
 
    .. grid-item-card::
+      :link: features-roles
+      :link-type: ref
       :shadow: sm
 
       **Role system**
@@ -72,13 +78,17 @@ Features
       Compose agent behaviour from small, reusable ``Role`` classes with shared state and event subscriptions, wired declaratively with ``@on_message``, ``@on_event``, and ``@periodic``.
 
    .. grid-item-card::
+      :link: features-messaging
+      :link-type: ref
       :shadow: sm
 
-      **Transactional messaging**
+      **Messaging**
       ^^^
-      Multi-reply ``gather`` with quorum and timeout, and multi-hop conversations for gossip, auctions, and negotiation, clock-aware in real time and simulation.
+      Multi-reply ``gather`` with quorum and timeout, multi-hop conversations for gossip, auctions, and negotiation, and an optional FIPA ACL envelope for interoperability.
 
    .. grid-item-card::
+      :link: features-scheduling
+      :link-type: ref
       :shadow: sm
 
       **Scheduling**
@@ -86,6 +96,8 @@ Features
       Instant, periodic, timestamp, and conditional tasks in real-time (``AsyncioClock``) or simulation time (``ExternalClock``).
 
    .. grid-item-card::
+      :link: features-simulation
+      :link-type: ref
       :shadow: sm
 
       **Simulation world**
@@ -93,6 +105,8 @@ Features
       Discrete-event and fixed-step simulation; configurable message delay and loss; spatial environments and data recording.
 
    .. grid-item-card::
+      :link: features-topologies
+      :link-type: ref
       :shadow: sm
 
       **Topologies**
@@ -100,6 +114,8 @@ Features
       Distribute a ``networkx`` graph to agents so every agent knows its direct neighbours.
 
    .. grid-item-card::
+      :link: features-containers
+      :link-type: ref
       :shadow: sm
 
       **Codecs**
@@ -107,11 +123,21 @@ Features
       Built-in JSON and protobuf serialisation; custom serialisers via ``add_serializer`` or the ``@json_serializable`` decorator.
 
    .. grid-item-card::
+      :link: features-tracing
+      :link-type: ref
       :shadow: sm
 
-      **FIPA ACL**
+      **Tracing**
       ^^^
-      Optional FIPA-compliant message wrapper for interoperability with other agent platforms.
+      Opt-in structlog trace of messages, events and scheduled tasks, linked by cause, with your own log lines in context and an HTML viewer.
+
+.. button-ref:: features
+   :ref-type: doc
+   :color: primary
+   :outline:
+   :align: center
+
+   Explore the feature overview
 
 ----
 
@@ -191,12 +217,12 @@ Where to go next
       End-to-end worked examples including simulation.
 
    .. grid-item-card:: User guide
-      :link: agents-container
+      :link: features
       :link-type: doc
       :text-align: center
       :shadow: sm
 
-      In-depth guide to containers, roles, scheduling, and more.
+      Feature map, then in-depth guides to every part of mango.
 
    .. grid-item-card:: API Reference
       :link: api_ref/index
@@ -227,6 +253,7 @@ Where to go next
    :maxdepth: 1
    :caption: User guide
 
+   features
    agents-container
    message exchange
    transactions
@@ -235,6 +262,7 @@ Where to go next
    topology
    simulation
    codecs
+   tracing
 
 .. toctree::
    :hidden:

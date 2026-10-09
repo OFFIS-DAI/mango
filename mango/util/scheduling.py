@@ -17,6 +17,7 @@ from typing import Any
 
 from dateutil.rrule import rrule
 
+from mango.util import tracing
 from mango.util.clock import AsyncioClock, Clock, ExternalClock
 
 logger = logging.getLogger(__name__)
@@ -85,6 +86,7 @@ def sleeping_wait():
 
 async def _run_as_current_task(task: "ScheduledTask"):
     _current_scheduled_task.set(task)
+    tracing._task_started(task)
     return await task.run()
 
 
@@ -191,16 +193,25 @@ class ScheduledTask:
         if self._is_observable:
             self._is_sleeping = asyncio.Future()
             self._is_done = asyncio.Future()
+        # set by the scheduler when tracing is enabled
+        self._trace_id = None
+        self._trace_owner = None
 
     def notify_sleeping(self):
         # Idempotent so explicit notifications compose with a surrounding
         # sleeping_wait() scope.
         if self._is_observable and not self._is_sleeping.done():
             self._is_sleeping.set_result(True)
+            tracing._task_wait(self, waiting=True)
 
     def notify_running(self):
         if self._is_observable and self._is_sleeping.done():
             self._is_sleeping = asyncio.Future()
+            tracing._task_wait(self, waiting=False)
+
+    def _trace_info(self) -> dict:
+        """What the task waits for before running, for the trace."""
+        return {}
 
     @abstractmethod
     async def run(self):
@@ -247,6 +258,9 @@ class TimestampScheduledTask(ScheduledTask):
         await self._wait(self._timestamp)
         return await self._coro
 
+    def _trace_info(self) -> dict:
+        return {"waits_for": "timestamp", "due_at": self._timestamp}
+
     def close(self):
         _close_coro(self._coro)
 
@@ -269,6 +283,12 @@ class AwaitingTask(ScheduledTask):
         await self._awaited_coroutine
         self.notify_running()
         return await self._coroutine
+
+    def _trace_info(self) -> dict:
+        return {
+            "waits_for": "awaitable",
+            "awaitable": type(self._awaited_coroutine).__qualname__,
+        }
 
     def close(self):
         _close_coro(self._awaited_coroutine)
@@ -306,8 +326,14 @@ class PeriodicScheduledTask(ScheduledTask):
         self._coroutine_func = coroutine_func
         self._delay = delay
 
+    def _trace_info(self) -> dict:
+        return {"waits_for": "period", "delay": self._delay}
+
     async def run(self):
+        cycle = 0
         while not self._stopped:
+            cycle += 1
+            tracing._task_cycle(self, cycle)
             await self._coroutine_func()
             sleep_future: asyncio.Future = self.clock.sleep(self._delay)
             self.notify_sleeping()
@@ -348,7 +374,11 @@ class RecurrentScheduledTask(ScheduledTask):
             return datetime.fromtimestamp(self.clock.time, tz=timezone.utc)
         return datetime.fromtimestamp(self.clock.time)
 
+    def _trace_info(self) -> dict:
+        return {"waits_for": "recurrence", "recurrence": str(self._recurrency_rule)}
+
     async def run(self):
+        cycle = 0
         # The rule is advanced from the occurrence that was handled last, not
         # from the current clock reading: a wait can end marginally before its
         # deadline, and re-reading the clock would then pick that very same
@@ -366,6 +396,8 @@ class RecurrentScheduledTask(ScheduledTask):
                 await sleep_future
                 self.notify_running()
                 reference = after
+                cycle += 1
+                tracing._task_cycle(self, cycle)
                 await self._coroutine_func()
 
 
@@ -386,6 +418,13 @@ class ConditionalTask(ScheduledTask):
         self._condition = condition_func
         self._coro = coroutine
         self._delay = lookup_delay
+
+    def _trace_info(self) -> dict:
+        return {
+            "waits_for": "condition",
+            "condition": tracing._handler_name(self._condition),
+            "lookup_delay": self._delay,
+        }
 
     async def run(self):
         while not self._condition():
@@ -525,6 +564,7 @@ class Scheduler:
         num_process_parallel=16,
         suspendable=True,
         observable=True,
+        owner: str | None = None,
     ):
         # List of Tuples with asyncio.Future, ScheduledTask, Suspendable coro, Source
         self._scheduled_tasks: list[
@@ -539,6 +579,8 @@ class Scheduler:
         self._process_pool_exec = None
         self.suspendable = suspendable
         self.observable = observable
+        # id of the agent owning this scheduler, used in trace records
+        self.owner = owner
 
     @staticmethod
     def _run_task_in_p_context(
@@ -580,6 +622,9 @@ class Scheduler:
         else:
             coro = _run_as_current_task(task)
             l_task = asyncio.create_task(coro)
+        tracing._task_scheduled(task, self.owner, src, process=False)
+        if task._trace_id is not None:
+            l_task.add_done_callback(lambda fut: tracing._task_done(task, fut))
         l_task.add_done_callback(task.on_stop)
         l_task.add_done_callback(_raise_exceptions)
         l_task.add_done_callback(self._remove_task)
@@ -767,6 +812,8 @@ class Scheduler:
         )
         scheduled_process_control.init_process()
         scheduled_process_control.resume_task()
+        # before the task is pickled, so the trace id stays in this process
+        tracing._task_scheduled(task, self.owner, src, process=True)
 
         l_task = asyncio.ensure_future(
             loop.run_in_executor(
@@ -776,6 +823,8 @@ class Scheduler:
                 scheduled_process_control,
             )
         )
+        if task._trace_id is not None:
+            l_task.add_done_callback(lambda fut: tracing._task_done(task, fut))
         l_task.add_done_callback(self._remove_process_task)
         l_task.add_done_callback(task.on_stop)
         l_task.add_done_callback(_raise_exceptions)

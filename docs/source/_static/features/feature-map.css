@@ -1,0 +1,401 @@
+/* mango feature map: the hero picture of the "Feature overview" page.
+ *
+ * Markup: _static/features/feature-map.svg, pasted inline by features.rst:
+ *
+ *   .. raw:: html
+ *      :file: _static/features/feature-map.svg
+ *      :class: mango-feature-map-frame
+ *
+ * Because of :class:, docutils wraps the <svg> in
+ * <div class="mango-feature-map-frame">. On phones that frame scrolls the
+ * picture sideways instead of shrinking it below a legible size.
+ *
+ * Every rule is scoped under .mango-feature-map (the <svg>) or the frame.
+ * Neutrals come from furo's variables; accents are --fm-* tokens with light
+ * defaults and dark overrides (explicit dark theme, and "auto" with a dark OS).
+ * Each part is an <a class="fm-part fm-part--<id>"> that links to the RST
+ * label "features-<id>" on the same page.
+ *
+ * The end of the file styles the rest of the page: the caption under the map,
+ * the jump list shown on phones and the "Find by goal" table.
+ */
+
+.mango-feature-map {
+  /* brand accents (light defaults) */
+  --fm-orange: #f49600;
+  --fm-msg: #c27400;
+  --fm-hover-stroke: #c27400;
+  --fm-accent-text: #a85d00;
+  --fm-tint: rgba(253, 199, 67, 0.24);
+  --fm-icon: #a85d00;
+  --fm-agent: #fdc743;
+  --fm-agent-line: #8a5300;
+  --fm-time: #4f8a1e;
+  --fm-time-tint: rgba(107, 173, 46, 0.15);
+  --fm-wire: #7d4e24;
+  --fm-wire-tint: rgba(125, 78, 36, 0.10);
+  --fm-lost: #c2410c;
+  --fm-glow: rgba(253, 199, 67, 0.12);
+  /* neutrals from furo */
+  --fm-panel: var(--color-background-secondary);
+  --fm-card: var(--color-background-primary);
+  --fm-inset: var(--color-background-secondary);
+  --fm-line: color-mix(in srgb, var(--color-foreground-primary) 11%, transparent);
+  --fm-line-strong: color-mix(in srgb, var(--color-foreground-primary) 24%, transparent);
+  --fm-card-hover: color-mix(in srgb, #fdc743 8%, var(--color-background-primary));
+  --fm-inset-hover: color-mix(in srgb, #fdc743 10%, var(--fm-inset));
+  --fm-focus: var(--color-brand-content);
+
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 1.5rem 0 0.75rem;
+  font-family: var(--font-stack);
+}
+
+body[data-theme="dark"] .mango-feature-map {
+  --fm-msg: #f5a524;
+  --fm-hover-stroke: #f49600;
+  --fm-accent-text: #ffb547;
+  --fm-tint: rgba(253, 199, 67, 0.14);
+  --fm-icon: #fdc743;
+  --fm-agent-line: #fdc743;
+  --fm-time: #8fd14f;
+  --fm-time-tint: rgba(107, 173, 46, 0.20);
+  --fm-wire: #e0b07e;
+  --fm-wire-tint: rgba(224, 176, 126, 0.10);
+  --fm-lost: #fb7c4c;
+  --fm-glow: rgba(253, 199, 67, 0.05);
+  --fm-card: color-mix(in srgb, var(--color-foreground-primary) 4%, var(--color-background-secondary));
+  --fm-inset: color-mix(in srgb, var(--color-foreground-primary) 8%, var(--color-background-secondary));
+  --fm-card-hover: color-mix(in srgb, #fdc743 7%, var(--fm-card));
+}
+@media (prefers-color-scheme: dark) {
+  body:not([data-theme="light"]) .mango-feature-map {
+    --fm-msg: #f5a524;
+    --fm-hover-stroke: #f49600;
+    --fm-accent-text: #ffb547;
+    --fm-tint: rgba(253, 199, 67, 0.14);
+    --fm-icon: #fdc743;
+    --fm-agent-line: #fdc743;
+    --fm-time: #8fd14f;
+    --fm-time-tint: rgba(107, 173, 46, 0.20);
+    --fm-wire: #e0b07e;
+    --fm-wire-tint: rgba(224, 176, 126, 0.10);
+    --fm-lost: #fb7c4c;
+    --fm-glow: rgba(253, 199, 67, 0.05);
+    --fm-card: color-mix(in srgb, var(--color-foreground-primary) 4%, var(--color-background-secondary));
+    --fm-inset: color-mix(in srgb, var(--color-foreground-primary) 8%, var(--color-background-secondary));
+    --fm-card-hover: color-mix(in srgb, #fdc743 7%, var(--fm-card));
+  }
+}
+
+/* Browsers without color-mix() would drop the tokens above (transparent lines,
+ * black cards in dark mode). Fixed equivalents for furo's default palette: */
+@supports not (color: color-mix(in srgb, red 50%, blue)) {
+  .mango-feature-map {
+    --fm-line: rgba(0, 0, 0, 0.11);
+    --fm-line-strong: rgba(0, 0, 0, 0.24);
+    --fm-card-hover: #fffbf0;
+    --fm-inset-hover: #f9f4e9;
+  }
+  body[data-theme="dark"] .mango-feature-map {
+    --fm-card: #1f2023;
+    --fm-inset: #26282b;
+    --fm-line: rgba(255, 255, 255, 0.11);
+    --fm-line-strong: rgba(255, 255, 255, 0.24);
+    --fm-card-hover: #2f2c25;
+    --fm-inset-hover: #3c382d;
+  }
+  @media (prefers-color-scheme: dark) {
+    body:not([data-theme="light"]) .mango-feature-map {
+      --fm-card: #1f2023;
+      --fm-inset: #26282b;
+      --fm-line: rgba(255, 255, 255, 0.11);
+      --fm-line-strong: rgba(255, 255, 255, 0.24);
+      --fm-card-hover: #2f2c25;
+      --fm-inset-hover: #3c382d;
+    }
+  }
+}
+
+/* ---------- typography ---------- */
+.mango-feature-map a,
+.mango-feature-map text { text-decoration: none; }
+.mango-feature-map text { font-family: var(--font-stack); }
+.mango-feature-map .fm-title { font-size: 16.5px; font-weight: 700; fill: var(--color-foreground-primary); }
+.mango-feature-map .fm-kw { font-size: 13.5px; fill: var(--color-foreground-secondary); }
+.mango-feature-map .fm-sep { fill: var(--color-foreground-muted); }
+.mango-feature-map .fm-eyebrow { font-size: 13.5px; font-weight: 700; letter-spacing: 1.2px; fill: var(--color-foreground-secondary); }
+.mango-feature-map .fm-note { font-size: 13.5px; fill: var(--color-foreground-secondary); }
+.mango-feature-map .fm-badge { fill: var(--color-foreground-primary); }
+.mango-feature-map .fm-badge-num { font-size: 13.5px; font-weight: 700; text-anchor: middle; fill: var(--color-background-primary); }
+.mango-feature-map .fm-pill-text,
+.mango-feature-map .fm-codec-text,
+.mango-feature-map .fm-record-text { font-family: var(--font-stack--monospace); font-size: 13.5px; }
+.mango-feature-map .fm-wire-text,
+.mango-feature-map .fm-proc-text { font-size: 13.5px; font-weight: 600; letter-spacing: 0.3px; }
+.mango-feature-map .fm-pill-text,
+.mango-feature-map .fm-codec-text,
+.mango-feature-map .fm-wire-text { text-anchor: middle; }
+
+/* ---------- surfaces ---------- */
+.mango-feature-map .fm-panel { fill: var(--fm-panel); stroke: var(--fm-line); }
+.mango-feature-map .fm-panel-glow { stroke: none; }
+.mango-feature-map .fm-glow-a { stop-color: var(--fm-glow); }
+.mango-feature-map .fm-glow-b { stop-color: var(--fm-glow); stop-opacity: 0; }
+.mango-feature-map .fm-card {
+  fill: var(--fm-card);
+  stroke: var(--fm-line);
+  stroke-width: 1;
+}
+.mango-feature-map .fm-card--inset { fill: var(--fm-inset); }
+.mango-feature-map .fm-strip--wire { fill: var(--fm-wire-tint); }
+.mango-feature-map .fm-hatch-line { stroke: var(--fm-line); stroke-width: 1.5; }
+
+/* icons */
+.mango-feature-map .fm-icon { fill: none; stroke: var(--fm-icon); stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+.mango-feature-map .fm-icon .fm-icon-bg { fill: var(--fm-tint); stroke: none; }
+.mango-feature-map .fm-icon .fm-fill { fill: var(--fm-icon); }
+.mango-feature-map .fm-icon--time { stroke: var(--fm-time); }
+.mango-feature-map .fm-icon--time .fm-icon-bg { fill: var(--fm-time-tint); }
+
+/* pills inside the agent tile */
+.mango-feature-map .fm-pill--msg { fill: var(--fm-tint); }
+.mango-feature-map .fm-pill--time { fill: var(--fm-time-tint); }
+.mango-feature-map .fm-pill-text { fill: var(--color-foreground-primary); }
+
+/* roles glyph */
+.mango-feature-map .fm-role { fill: var(--fm-tint); stroke: var(--fm-icon); stroke-width: 1.5; }
+.mango-feature-map .fm-role--alt { fill: var(--fm-agent); }
+.mango-feature-map .fm-bus { fill: var(--fm-icon); }
+.mango-feature-map .fm-bus-link { stroke: var(--fm-icon); stroke-width: 1.5; }
+
+/* topology glyph, and the neighbour links drawn across runtimes */
+.mango-feature-map .fm-edge { fill: none; stroke: var(--color-foreground-muted); stroke-width: 1.5; stroke-linecap: round; }
+.mango-feature-map .fm-edge--inactive { stroke-dasharray: 3 3; }
+/* the topology link drawn across the runtime tiles: a logical overlay, not a
+ * link state, so it gets its own dotted pattern */
+.mango-feature-map .fm-edge--overlay { stroke-dasharray: 0.5 4; stroke-width: 2; }
+.mango-feature-map .fm-edge--broken { stroke: var(--fm-lost); }
+.mango-feature-map .fm-node { fill: var(--fm-agent); stroke: var(--fm-agent-line); stroke-width: 1.5; }
+
+/* time axis */
+.mango-feature-map .fm-axis { fill: none; stroke: var(--fm-line-strong); stroke-width: 1.5; }
+.mango-feature-map .fm-tick { stroke: var(--fm-line-strong); stroke-width: 1; }
+.mango-feature-map .fm-task-periodic { fill: var(--fm-time); }
+.mango-feature-map .fm-task--due { fill: var(--fm-card); stroke: var(--fm-time); stroke-width: 1.75; }
+.mango-feature-map .fm-task-instant { fill: var(--fm-msg); }
+.mango-feature-map .fm-flag { fill: var(--fm-time-tint); stroke: var(--fm-time); stroke-width: 1.5; stroke-linejoin: round; }
+.mango-feature-map .fm-now { stroke: var(--color-foreground-primary); stroke-width: 1.25; stroke-dasharray: 2 3; }
+.mango-feature-map .fm-now-head { fill: var(--color-foreground-primary); }
+
+/* runtime glyphs */
+.mango-feature-map .fm-box { fill: var(--fm-inset); stroke: var(--fm-line-strong); stroke-width: 1; }
+.mango-feature-map .fm-env { stroke: none; }
+.mango-feature-map .fm-grid-dot { fill: var(--fm-line-strong); }
+.mango-feature-map .fm-codec { fill: var(--fm-wire-tint); stroke: none; }
+.mango-feature-map .fm-codec-text { fill: var(--fm-wire); font-weight: 600; }
+.mango-feature-map .fm-agent { fill: var(--fm-agent); stroke: var(--fm-agent-line); stroke-width: 1.5; }
+.mango-feature-map .fm-clock { fill: none; stroke: var(--fm-time); stroke-width: 1.5; stroke-linecap: round; }
+.mango-feature-map .fm-pipe { stroke: var(--fm-line-strong); stroke-width: 1.5; }
+.mango-feature-map .fm-proc { fill: var(--fm-inset); stroke: var(--fm-line-strong); stroke-dasharray: 3 2; }
+.mango-feature-map .fm-wire-text,
+.mango-feature-map .fm-proc-text { fill: var(--color-foreground-secondary); }
+.mango-feature-map .fm-envelope { fill: var(--fm-agent); stroke: var(--fm-msg); stroke-width: 1.5; }
+.mango-feature-map .fm-envelope-flap { fill: none; stroke: var(--fm-msg); stroke-width: 1.5; stroke-linejoin: round; }
+.mango-feature-map .fm-steps { stroke: var(--fm-time); stroke-width: 1.5; }
+.mango-feature-map .fm-spark-axis { fill: none; stroke: var(--fm-line-strong); stroke-width: 1; }
+.mango-feature-map .fm-spark { fill: none; stroke: var(--fm-time); stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+.mango-feature-map .fm-msg { fill: none; stroke: var(--fm-msg); stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+.mango-feature-map .fm-msg--thin { stroke-width: 1.5; }
+.mango-feature-map .fm-msg--lost,
+.mango-feature-map .fm-msg--reply { stroke-dasharray: 3 3; }
+.mango-feature-map .fm-lost { stroke: var(--fm-lost); stroke-width: 2; stroke-linecap: round; }
+.mango-feature-map .fm-arrowhead { fill: var(--fm-msg); }
+.mango-feature-map .fm-arrowhead-muted { fill: var(--fm-line-strong); }
+
+/* tracing pillar */
+.mango-feature-map .fm-record { fill: var(--fm-inset); stroke: var(--fm-line); }
+.mango-feature-map .fm-record-text { fill: var(--color-foreground-primary); }
+.mango-feature-map .fm-record-dot--event { fill: var(--fm-icon); }
+.mango-feature-map .fm-record-dot--msg { fill: var(--fm-msg); }
+.mango-feature-map .fm-record-dot--task { fill: var(--fm-time); }
+.mango-feature-map .fm-record-dot--run { fill: var(--fm-wire); }
+.mango-feature-map .fm-chain { fill: none; stroke: var(--fm-line-strong); stroke-width: 1.5; }
+.mango-feature-map .fm-viewer-bar { stroke: var(--fm-line-strong); stroke-width: 1; }
+.mango-feature-map .fm-viewer-dot { fill: var(--fm-line-strong); }
+.mango-feature-map .fm-lane { stroke: var(--fm-line); stroke-width: 1; }
+.mango-feature-map .fm-viewer-chain { fill: none; stroke: var(--fm-msg); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.mango-feature-map .fm-tap { stroke: var(--color-foreground-muted); stroke-width: 1.25; stroke-dasharray: 2 3; }
+.mango-feature-map .fm-tap-port { fill: var(--fm-card); stroke: var(--fm-orange); stroke-width: 1.75; }
+
+/* "or" divider */
+.mango-feature-map .fm-or-line { stroke: var(--fm-line-strong); stroke-dasharray: 3 4; }
+.mango-feature-map .fm-or-pill { fill: var(--fm-panel); stroke: var(--fm-line-strong); }
+.mango-feature-map .fm-or-text { font-size: 13.5px; font-weight: 700; font-style: italic; text-anchor: middle; fill: var(--color-foreground-secondary); }
+
+/* ---------- interaction ----------
+ * Keyboard focus highlights a part on every device. Hover effects sit in
+ * @media (hover: hover): touch browsers keep :hover on the last tapped part,
+ * which would leave the map dimmed after a reader taps a part, reads its
+ * section and scrolls back up. */
+.mango-feature-map a.fm-part { cursor: pointer; outline: none; }
+.mango-feature-map .fm-part,
+.mango-feature-map .fm-layer-label,
+.mango-feature-map .fm-pillar-label,
+.mango-feature-map .fm-or,
+.mango-feature-map .fm-taps { transition: opacity 160ms ease; }
+.mango-feature-map .fm-part .fm-card,
+.mango-feature-map .fm-part .fm-title,
+.mango-feature-map .fm-tap,
+.mango-feature-map .fm-tap-port { transition: fill 160ms ease, stroke 160ms ease, stroke-width 160ms ease; }
+.mango-feature-map .fm-part:focus-visible .fm-card { stroke: var(--fm-focus); stroke-width: 3; }
+.mango-feature-map .fm-part:focus-visible .fm-title { fill: var(--fm-accent-text); }
+.mango-feature-map .fm-part--tracing:focus-visible ~ .fm-taps .fm-tap { stroke: var(--fm-hover-stroke); }
+.mango-feature-map .fm-part--tracing:focus-visible ~ .fm-taps .fm-tap-port { fill: var(--fm-hover-stroke); }
+
+/* spotlight: while one part is focused or hovered, the rest steps back... */
+.mango-feature-map:has(.fm-part:focus-visible) .fm-part:not(:focus-visible),
+.mango-feature-map:has(.fm-part:focus-visible) :is(.fm-layer-label, .fm-pillar-label, .fm-or, .fm-taps) {
+  opacity: 0.4;
+}
+/* ...except for the roles drawn inside the agent tile, since an agent is
+ * made of roles... */
+.mango-feature-map:has(.fm-part--agents:focus-visible) .fm-part.fm-part--roles:not(:focus-visible) {
+  opacity: 1;
+}
+/* ...and for tracing, which observes every layer: the layers stay readable
+ * and the taps light up */
+.mango-feature-map:has(.fm-part--tracing:focus-visible) .fm-part:not(.fm-part--tracing),
+.mango-feature-map:has(.fm-part--tracing:focus-visible) :is(.fm-layer-label, .fm-or) {
+  opacity: 0.7;
+}
+.mango-feature-map:has(.fm-part--tracing:focus-visible) :is(.fm-pillar-label, .fm-taps) {
+  opacity: 1;
+}
+
+@media (hover: hover) {
+  .mango-feature-map .fm-part:hover .fm-card { stroke: var(--fm-hover-stroke); fill: var(--fm-card-hover); }
+  .mango-feature-map .fm-part--roles:hover .fm-card--inset { fill: var(--fm-inset-hover); }
+  .mango-feature-map .fm-part:hover .fm-title { fill: var(--fm-accent-text); }
+  .mango-feature-map .fm-part--tracing:hover ~ .fm-taps .fm-tap { stroke: var(--fm-hover-stroke); }
+  .mango-feature-map .fm-part--tracing:hover ~ .fm-taps .fm-tap-port { fill: var(--fm-hover-stroke); }
+
+  .mango-feature-map:has(.fm-part:hover) .fm-part:not(:hover),
+  .mango-feature-map:has(.fm-part:hover) :is(.fm-layer-label, .fm-pillar-label, .fm-or, .fm-taps) {
+    opacity: 0.4;
+  }
+  .mango-feature-map:has(.fm-part--agents:hover) .fm-part.fm-part--roles:not(:hover) {
+    opacity: 1;
+  }
+  .mango-feature-map:has(.fm-part--tracing:hover) .fm-part:not(.fm-part--tracing),
+  .mango-feature-map:has(.fm-part--tracing:hover) :is(.fm-layer-label, .fm-or) {
+    opacity: 0.7;
+  }
+  .mango-feature-map:has(.fm-part--tracing:hover) :is(.fm-pillar-label, .fm-taps) {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mango-feature-map * { transition: none !important; }
+}
+
+/* ---------- small screens: scroll instead of shrinking ----------
+ * Inside the frame the picture never gets narrower than 712px, where its
+ * smallest text still renders at 12px; narrower columns scroll sideways. */
+.mango-feature-map-frame {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+.mango-feature-map-frame .mango-feature-map { min-width: 712px; }
+@media (max-width: 46.4em) {
+  .mango-feature-map-frame .mango-feature-map { margin-top: 0.5rem; }
+  .mango-feature-map-frame::before {
+    content: "Scroll sideways to see the whole map \2192";
+    display: block;
+    position: sticky;
+    left: 0;
+    margin-top: 1rem;
+    font-size: 0.8125rem;
+    color: var(--color-foreground-secondary);
+  }
+}
+/* Edge hint: while more of the picture lies to the right, its right edge fades
+ * out; the fade follows the scroll position and is gone at the end. The
+ * picture's opaque panel would hide a background shadow, so this uses a mask.
+ * Browsers without scroll-driven animations keep the text hint only. */
+@property --fm-edge-fade {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@supports (animation-timeline: scroll()) {
+  @keyframes fm-edge-fade {
+    from { --fm-edge-fade: 2.5rem; }
+    92% { --fm-edge-fade: 2.5rem; }
+    to { --fm-edge-fade: 0px; }
+  }
+  .mango-feature-map-frame {
+    -webkit-mask-image: linear-gradient(to left, transparent, #000 var(--fm-edge-fade));
+    mask-image: linear-gradient(to left, transparent, #000 var(--fm-edge-fade));
+    animation: fm-edge-fade linear both;
+    animation-timeline: scroll(self inline);
+  }
+}
+
+/* ---------- the rest of the page ---------- */
+
+/* Caption under the map. furo's secondary text colour keeps AA contrast in
+ * both themes (sphinx-design's sd-text-muted has no dark variant). */
+.mango-feature-map-caption {
+  color: var(--color-foreground-secondary);
+  font-size: var(--font-size--small);
+}
+
+/* Jump list: on phones only part of the map fits on screen, so a row of
+ * links to the eight part sections follows it. Hidden on wider screens,
+ * where the whole map is visible. */
+.mango-feature-jump { display: none; }
+@media (max-width: 46.4em) {
+  .mango-feature-jump { display: block; margin: 0.75rem 0 0; }
+  .mango-feature-jump ul {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .mango-feature-jump li { margin: 0; list-style: none; }
+  .mango-feature-jump li > p { margin: 0; }
+  .mango-feature-jump a {
+    display: inline-block;
+    padding: 0.375rem 0.875rem;
+    border: 1px solid var(--color-background-border);
+    border-radius: 999px;
+    background: var(--color-background-primary);
+    font-size: var(--font-size--small);
+    text-decoration: none;
+  }
+}
+
+/* "Find by goal" table: two columns on wide screens; on phones each row
+ * becomes the goal link with its API names below it, so long names such as
+ * SimpleCommunicationSimulation do not squeeze the goals. On wide screens it
+ * spans the column, like the card grids around it. */
+table.mango-goal-table { width: 100%; }
+@media (max-width: 46.4em) {
+  table.mango-goal-table,
+  table.mango-goal-table tbody,
+  table.mango-goal-table tr,
+  table.mango-goal-table td { display: block; width: auto !important; }
+  table.mango-goal-table thead,
+  table.mango-goal-table colgroup { display: none; }
+  table.mango-goal-table td { border-left: none; border-right: none; padding: 0.25rem 0.5rem; }
+  table.mango-goal-table td:first-child { border-bottom: none; padding-bottom: 0; }
+  table.mango-goal-table td + td { border-top: 0; padding-top: 0; }
+  table.mango-goal-table tr:last-child td:last-child { border-bottom: none; }
+}

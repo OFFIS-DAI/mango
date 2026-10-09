@@ -11,7 +11,7 @@ copyright = "2024, mango team"
 author = "mango team"
 
 # The full version, including alpha/beta/rc tags
-version = release = "2.2.1"
+version = release = "2.3.0"
 
 
 # -- General configuration ---------------------------------------------------
@@ -51,6 +51,10 @@ html_theme = "furo"
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ["_static"]
+
+# Styles for the "Feature overview" page (features.rst): its feature map,
+# jump list and goal table.
+html_css_files = ["features/feature-map.css"]
 
 html_theme_options = {
     "light_logo": "Logo_mango_ohne_sub.svg",

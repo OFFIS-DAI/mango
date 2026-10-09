@@ -25,6 +25,18 @@ Scheduling
    :undoc-members:
    :show-inheritance:
 
+Tracing
+----------------------------------------
+
+.. automodule:: mango.util.tracing
+   :members: TraceConfig, CATEGORIES, REAL_TIME_CATEGORIES, LOGGER_NAME, enable_tracing, disable_tracing, trace_session, is_tracing, add_sim_time, configure_structlog, read_trace, message_topology
+
+Trace viewer
+----------------------------------------
+
+.. automodule:: mango.util.trace_viewer
+   :members: render_html, write_html
+
 Termination detection
 ----------------------------------------
 
