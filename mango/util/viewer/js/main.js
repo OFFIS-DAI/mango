@@ -72,7 +72,6 @@ function renderAll(changed) {
   const filtered = any("view", ...FILTERS) || (changed.has("sel") && state.onlyRelated);
   const rows = filtered || any("sel", "width", "height");
   if (changed.has("fonts")) remeasureLabels();
-  if (changed.has("sel")) computeRelations();
   if (filtered) computeVisibility();
   if (filtered || changed.has("lanes")) markLayoutStale();
 

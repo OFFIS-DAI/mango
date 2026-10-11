@@ -24,7 +24,7 @@ import {
   reverseEdge,
   rowOf,
 } from "../model.js";
-import { descList, pathOfSel, rel } from "../selection.js";
+import { computeRelations, descList, pathOfSel, rel } from "../selection.js";
 import { pending, state, update } from "../state.js";
 import { announce, isPhone, store } from "./dom.js";
 import { lanesBox, recBox } from "./elements.js";
@@ -42,6 +42,8 @@ export function select(i, opts = {}) {
   }
   hideTip();
   update(i != null ? { sel: i, cursor: i } : { sel: i });
+  // not left to the next frame: a key pressed before it (f, ]) acts on the new selection's chain
+  computeRelations();
 }
 
 // keepLanes: the caller has just chosen the lanes (Follow chain, partners, picker), so the Agent filter is not added to them

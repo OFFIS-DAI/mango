@@ -233,8 +233,13 @@ def test_topology_graph_and_connection_filter(page):
 
 
 def test_follow_chain_opens_lanes(page):
-    page.click("#rows tr[data-i='5']")
-    page.keyboard.press("f")
+    # click and key in one task, so no frame is drawn between them, as on a slow machine
+    page.evaluate(
+        """() => {
+            document.querySelector("#rows tr[data-i='5']").click();
+            document.dispatchEvent(new KeyboardEvent("keydown", {key: "f", bubbles: true}));
+        }"""
+    )
     page.wait_for_function(
         "document.querySelectorAll('#plane .rec[data-i]').length > 0"
     )
