@@ -130,7 +130,9 @@ def test_panel_explains_undelivered_sends(page):
         i = _index(event_id)
         page.evaluate(f"location.hash = '#r{i}'")
         # the row and the panel are drawn in the same frame
-        page.wait_for_function(f"document.querySelector('#rows tr.sel')?.dataset.i === '{i}'")
+        page.wait_for_function(
+            f"document.querySelector('#rows tr.sel')?.dataset.i === '{i}'"
+        )
         notes[event_id] = page.inner_text("#panel .note")
 
     assert notes["msg-2"].startswith("Lost: no receipt, although c received later")
