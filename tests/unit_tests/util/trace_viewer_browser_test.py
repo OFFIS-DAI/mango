@@ -39,11 +39,16 @@ def page(browser, tmp_path):
     page.close()
 
 
+def _drawn(page):
+    # the viewer draws a change in the next animation frame, which a slow runner can delay past any fixed wait
+    page.evaluate("() => new Promise(done => requestAnimationFrame(done))")
+
+
 def test_no_console_errors(page):
     page.click("#tab-lanes")
-    page.wait_for_timeout(200)
+    _drawn(page)
     page.click("#tab-records")
-    page.wait_for_timeout(200)
+    _drawn(page)
 
     assert page.errors == []
 
@@ -122,8 +127,10 @@ def test_lost_and_in_flight_split(page):
 def test_panel_explains_undelivered_sends(page):
     notes = {}
     for event_id in ["msg-2", "msg-5", "msg-6"]:
-        page.evaluate(f"location.hash = '#r{_index(event_id)}'")
-        page.wait_for_timeout(250)
+        i = _index(event_id)
+        page.evaluate(f"location.hash = '#r{i}'")
+        # the row and the panel are drawn in the same frame
+        page.wait_for_function(f"document.querySelector('#rows tr.sel')?.dataset.i === '{i}'")
         notes[event_id] = page.inner_text("#panel .note")
 
     assert notes["msg-2"].startswith("Lost: no receipt, although c received later")
@@ -162,25 +169,25 @@ def _lanes(page):
 
 def test_text_field_and_category_filters(page):
     page.fill("#q", "msg-3")
-    page.wait_for_timeout(100)
+    _drawn(page)
 
     # the send of msg-3 and its receipt, which names msg-3 as its cause
     assert _rows(page) == [4, 5]
     assert page.inner_text("#status") == "2 of 11 records"
 
     page.fill("#q", "receiver_id=c")
-    page.wait_for_timeout(100)
+    _drawn(page)
 
     assert _rows(page) == [3, 6]
 
     page.fill("#q", "")
     page.click("[data-cat=message]")
-    page.wait_for_timeout(100)
+    _drawn(page)
 
     assert _rows(page) == [0, 10]
 
     page.click("[data-cat=message]")
-    page.wait_for_timeout(100)
+    _drawn(page)
 
     assert len(_rows(page)) == len(TRACE)
 
@@ -226,7 +233,7 @@ def test_topology_graph_and_connection_filter(page):
     assert "a → c" in page.inner_text("#linkchip")
 
     page.click("#linkchip [data-act=clear-link]")
-    page.wait_for_timeout(150)
+    _drawn(page)
 
     assert len(_rows(page)) == len(TRACE)
     assert page.is_hidden("#linkchip")
@@ -259,18 +266,18 @@ def test_lane_picker_toggles_and_undo(page):
 
     page.click("#pick")
     page.click("#pk-list li[data-l='1']")
-    page.wait_for_timeout(100)
+    _drawn(page)
 
     assert _lanes(page) == ["no agent", "a", "c"]
 
     page.keyboard.press("Escape")
-    page.wait_for_timeout(100)
+    _drawn(page)
 
     assert page.locator(".pop").count() == 0
 
     page.click("#lhead .lh[data-l='2'] .x")
     page.click("#toast button")
-    page.wait_for_timeout(100)
+    _drawn(page)
 
     assert _lanes(page) == ["no agent", "a", "c"]
 
