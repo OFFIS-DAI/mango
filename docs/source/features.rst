@@ -564,7 +564,7 @@ world on a clock you control. It models message delay and loss, provides a 2-D
 environment and records data after every step, while your agent and role
 classes stay unchanged.
 
-**Guide:** :doc:`simulation` · :doc:`simulation-ev-tutorial`
+**Guide:** :doc:`simulation` · :doc:`first-simulation-tutorial` · :doc:`advanced-simulation-tutorial` · :doc:`simulation-ev-tutorial`
 
 .. grid:: 1 1 2 2
    :gutter: 3
@@ -749,7 +749,7 @@ uses structlog, which is installed with mango.
 Where to go next
 ================
 
-.. grid:: 1 2 2 2
+.. grid:: 1 2 3 3
    :gutter: 3
 
    .. grid-item-card:: Getting started
@@ -759,6 +759,24 @@ Where to go next
       :shadow: sm
 
       Install mango and write your first agent in minutes.
+
+   .. grid-item-card:: First simulation tutorial
+      :link: first-simulation-tutorial
+      :link-type: doc
+      :text-align: center
+      :shadow: sm
+
+      A solar street with a shared battery, simulated step by step. No
+      programming background needed.
+
+   .. grid-item-card:: Advanced simulation tutorial
+      :link: advanced-simulation-tutorial
+      :link-type: doc
+      :text-align: center
+      :shadow: sm
+
+      The solar street becomes a study: an environment, scheduled cars, a
+      coordinator that gathers replies, and a slow network.
 
    .. grid-item-card:: Solar agents tutorial
       :link: tutorial
