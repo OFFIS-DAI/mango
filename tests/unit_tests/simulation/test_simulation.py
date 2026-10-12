@@ -649,6 +649,26 @@ async def test_record_messages_disabled_still_delivers_and_counts():
 
 
 @pytest.mark.asyncio
+async def test_record_messages_can_be_toggled_at_runtime():
+    world = create_world()
+    sender = world.register(SimpleAgent())
+    receiver = world.register(SimpleAgent())
+    assert world.record_messages is True
+
+    async with world:
+        world.record_messages = False
+        await world.send_message("a", receiver_addr=receiver.addr, sender_id=sender.aid)
+        await step_simulation(world, step_size_s=1.0)
+
+        world.record_messages = True
+        await world.send_message("b", receiver_addr=receiver.addr, sender_id=sender.aid)
+        await step_simulation(world, step_size_s=1.0)
+
+    assert [tx.content for tx in world.recorded_messages] == ["b"]
+    assert world.messages_delivered_count == 2
+
+
+@pytest.mark.asyncio
 async def test_message_with_delay_delivered_on_next_step():
     comm = SimpleCommunicationSimulation(default_delay_s=2.0)
     world = create_world(communication_sim=comm)
