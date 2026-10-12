@@ -26,13 +26,17 @@ SIMULATION_ADDR = "simulation"
 
 @dataclass
 class MessageTransaction:
-    """Records a message that was delivered during the simulation."""
+    """Records a message that was delivered during the simulation.
+
+    ``content`` is ``None`` unless the world was created with
+    ``record_message_content=True``.
+    """
 
     sender_id: str | None
     receiver_id: str
     sent_time: float
     arriving_time: float
-    content: Any
+    content: Any = None
 
 
 class SimulationContainer(Container):
@@ -50,6 +54,7 @@ class SimulationContainer(Container):
         communication_sim: CommunicationSimulation,
         on_agent_registered: Callable[..., None] | None = None,
         record_messages: bool = True,
+        record_message_content: bool = False,
     ):
         super().__init__(
             addr=SIMULATION_ADDR,
@@ -67,10 +72,13 @@ class SimulationContainer(Container):
         self._pending_messages: list[tuple[float, int, float, Any, dict]] = []
         self._msg_seq: int = 0
 
-        # Transaction log. Every entry keeps the full message content and is
-        # never pruned, so long runs can opt out via ``record_messages=False``;
-        # ``messages_delivered_count`` is maintained either way.
+        # Transaction log. It is never pruned, so by default entries leave out
+        # the message content (the bulk of its memory); keeping it is opt-in via
+        # ``record_message_content=True``, and long runs can drop the log
+        # entirely via ``record_messages=False``. ``messages_delivered_count``
+        # is maintained either way.
         self.record_messages: bool = record_messages
+        self.record_message_content: bool = record_message_content
         self.recorded_messages: list[MessageTransaction] = []
         self.messages_delivered_count: int = 0
 
@@ -153,7 +161,9 @@ class SimulationContainer(Container):
                                 receiver_id=receiver_id,
                                 sent_time=sent_time,
                                 arriving_time=delivery_time,
-                                content=content,
+                                content=content
+                                if self.record_message_content
+                                else None,
                             )
                         )
                     self.messages_delivered_count += 1

@@ -313,7 +313,7 @@ world.data_agent_collections["energy_kwh"].timeseries  # dict[aid -> list]
 world.data_agent_collections["energy_kwh"].time  # shared time axis
 ```
 
-By default, all exchanged messages are also logged automatically in `world.recorded_messages` as `MessageTransaction` objects, each carrying sender, receiver, send time, arrival time, and the message content. This log is never pruned, so for long or message-heavy runs pass `create_world(..., record_messages=False)` to switch it off (`world.recorded_messages` then stays empty, while `world.messages_delivered_count` is still maintained).
+By default, all exchanged messages are also logged automatically in `world.recorded_messages` as `MessageTransaction` objects, each carrying sender, receiver, send time, and arrival time. The message content is left out (`content` is `None`) because it makes up most of the log's memory; pass `create_world(..., record_message_content=True)` to keep it. The log is never pruned, so for long or message-heavy runs pass `create_world(..., record_messages=False)` to switch it off entirely (`world.recorded_messages` then stays empty, while `world.messages_delivered_count` is still maintained).
 
 ### Agent hooks for simulation
 

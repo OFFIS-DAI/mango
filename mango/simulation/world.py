@@ -138,6 +138,7 @@ class SimulationWorld:
         communication_sim: CommunicationSimulation,
         environment: Environment | None = None,
         record_messages: bool = True,
+        record_message_content: bool = False,
     ):
         self.environment: Environment = environment or DefaultEnvironment()
         self._container = SimulationContainer(
@@ -145,6 +146,7 @@ class SimulationWorld:
             communication_sim=communication_sim,
             on_agent_registered=self._install_in_environment,
             record_messages=record_messages,
+            record_message_content=record_message_content,
         )
 
         # Recording infrastructure
@@ -220,6 +222,14 @@ class SimulationWorld:
     @record_messages.setter
     def record_messages(self, value: bool) -> None:
         self._container.record_messages = value
+
+    @property
+    def record_message_content(self) -> bool:
+        return self._container.record_message_content
+
+    @record_message_content.setter
+    def record_message_content(self, value: bool) -> None:
+        self._container.record_message_content = value
 
     @property
     def messages_delivered_count(self) -> int:
@@ -447,6 +457,7 @@ def create_world(
     communication_sim: CommunicationSimulation | None = None,
     environment: Environment | None = None,
     record_messages: bool = True,
+    record_message_content: bool = False,
 ) -> SimulationWorld:
     """Create a :class:`SimulationWorld`.
 
@@ -456,11 +467,15 @@ def create_world(
         with zero delay and no loss
     :param environment: environment to use; defaults to
         :class:`~mango.simulation.environment.DefaultEnvironment`
-    :param record_messages: keep a :class:`MessageTransaction` (including the
-        full content) for every delivered message in
+    :param record_messages: keep a :class:`MessageTransaction` (sender,
+        receiver, send and arrival time) for every delivered message in
         ``world.recorded_messages``. The log is never pruned, so memory grows
         with the number of messages; pass ``False`` for long or message-heavy
         runs. ``world.messages_delivered_count`` is kept either way.
+    :param record_message_content: also store each message's content in its
+        :class:`MessageTransaction`. Off by default because the content is the
+        bulk of the log's memory; when off, ``content`` is ``None``. Has no
+        effect if ``record_messages`` is ``False``.
     :return: a ready-to-use :class:`SimulationWorld`
 
     Example::
@@ -477,6 +492,7 @@ def create_world(
         communication_sim=sim,
         environment=environment,
         record_messages=record_messages,
+        record_message_content=record_message_content,
     )
 
 
