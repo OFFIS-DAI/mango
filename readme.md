@@ -300,7 +300,7 @@ world = create_world(start_time=0.0)
 # ... register agents ...
 
 # World-level: total messages delivered so far
-record_world(world, "msg_count", lambda: len(world.recorded_messages))
+record_world(world, "msg_count", lambda: world.messages_delivered_count)
 
 # Per-agent: an arbitrary attribute
 record_agent(world, "energy_kwh", lambda a: a.energy_kwh)
@@ -313,7 +313,7 @@ world.data_agent_collections["energy_kwh"].timeseries  # dict[aid -> list]
 world.data_agent_collections["energy_kwh"].time  # shared time axis
 ```
 
-All exchanged messages are also logged automatically in `world.recorded_messages` as `MessageTransaction` objects, each carrying sender, receiver, send time, and arrival time.
+By default, all exchanged messages are also logged automatically in `world.recorded_messages` as `MessageTransaction` objects, each carrying sender, receiver, send time, arrival time, and the message content. This log is never pruned, so for long or message-heavy runs pass `create_world(..., record_messages=False)` to switch it off (`world.recorded_messages` then stays empty, while `world.messages_delivered_count` is still maintained).
 
 ### Agent hooks for simulation
 

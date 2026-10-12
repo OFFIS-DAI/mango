@@ -137,12 +137,14 @@ class SimulationWorld:
         clock: ExternalClock,
         communication_sim: CommunicationSimulation,
         environment: Environment | None = None,
+        record_messages: bool = True,
     ):
         self.environment: Environment = environment or DefaultEnvironment()
         self._container = SimulationContainer(
             clock=clock,
             communication_sim=communication_sim,
             on_agent_registered=self._install_in_environment,
+            record_messages=record_messages,
         )
 
         # Recording infrastructure
@@ -210,6 +212,18 @@ class SimulationWorld:
     @recorded_messages.setter
     def recorded_messages(self, value: list[MessageTransaction]) -> None:
         self._container.recorded_messages = value
+
+    @property
+    def record_messages(self) -> bool:
+        return self._container.record_messages
+
+    @record_messages.setter
+    def record_messages(self, value: bool) -> None:
+        self._container.record_messages = value
+
+    @property
+    def messages_delivered_count(self) -> int:
+        return self._container.messages_delivered_count
 
     def register(
         self, agent: Agent, suggested_aid: str | None = None, **install_kwargs
@@ -432,6 +446,7 @@ def create_world(
     start_time: float = 0.0,
     communication_sim: CommunicationSimulation | None = None,
     environment: Environment | None = None,
+    record_messages: bool = True,
 ) -> SimulationWorld:
     """Create a :class:`SimulationWorld`.
 
@@ -441,6 +456,11 @@ def create_world(
         with zero delay and no loss
     :param environment: environment to use; defaults to
         :class:`~mango.simulation.environment.DefaultEnvironment`
+    :param record_messages: keep a :class:`MessageTransaction` (including the
+        full content) for every delivered message in
+        ``world.recorded_messages``. The log is never pruned, so memory grows
+        with the number of messages; pass ``False`` for long or message-heavy
+        runs. ``world.messages_delivered_count`` is kept either way.
     :return: a ready-to-use :class:`SimulationWorld`
 
     Example::
@@ -452,7 +472,12 @@ def create_world(
     """
     clock = ExternalClock(start_time=start_time)
     sim = communication_sim or SimpleCommunicationSimulation()
-    return SimulationWorld(clock=clock, communication_sim=sim, environment=environment)
+    return SimulationWorld(
+        clock=clock,
+        communication_sim=sim,
+        environment=environment,
+        record_messages=record_messages,
+    )
 
 
 async def step_simulation(

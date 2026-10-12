@@ -625,6 +625,27 @@ async def test_message_delivery_and_recorded_messages():
     assert tx.sender_id == sender.aid
     assert tx.receiver_id == receiver.aid
     assert tx.content == "hello"
+    assert world.messages_delivered_count == 1
+
+
+@pytest.mark.asyncio
+async def test_record_messages_disabled_still_delivers_and_counts():
+    world = create_world(record_messages=False)
+    sender = world.register(SimpleAgent())
+    receiver = world.register(SimpleAgent())
+
+    async with world:
+        for text in ("a", "b"):
+            await world.send_message(
+                text, receiver_addr=receiver.addr, sender_id=sender.aid
+            )
+        result = await step_simulation(world, step_size_s=1.0)
+
+    assert result is not None
+    assert result.messages_delivered == 2
+    assert [m[0] for m in receiver.messages] == ["a", "b"]
+    assert world.recorded_messages == []
+    assert world.messages_delivered_count == 2
 
 
 @pytest.mark.asyncio

@@ -591,6 +591,12 @@ Every delivered message is logged in ``world.recorded_messages``:
     True
     agent0 -> agent1
 
+The log keeps the full content of every message and is never pruned, so its
+memory grows with the number of messages exchanged. For long or message-heavy
+runs, switch it off with ``create_world(record_messages=False)``;
+``world.recorded_messages`` then stays empty while
+``world.messages_delivered_count`` is still maintained.
+
 
 Agent description and metadata
 ================================

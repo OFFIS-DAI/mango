@@ -49,6 +49,7 @@ class SimulationContainer(Container):
         clock: ExternalClock,
         communication_sim: CommunicationSimulation,
         on_agent_registered: Callable[..., None] | None = None,
+        record_messages: bool = True,
     ):
         super().__init__(
             addr=SIMULATION_ADDR,
@@ -66,7 +67,12 @@ class SimulationContainer(Container):
         self._pending_messages: list[tuple[float, int, float, Any, dict]] = []
         self._msg_seq: int = 0
 
+        # Transaction log. Every entry keeps the full message content and is
+        # never pruned, so long runs can opt out via ``record_messages=False``;
+        # ``messages_delivered_count`` is maintained either way.
+        self.record_messages: bool = record_messages
         self.recorded_messages: list[MessageTransaction] = []
+        self.messages_delivered_count: int = 0
 
     def on_register(self, agent: Agent, aid: str, **kwargs) -> None:
         if self._on_agent_registered is not None:
@@ -140,15 +146,17 @@ class SimulationContainer(Container):
                 agent = self._agents.get(receiver_id)
                 if agent is not None:
                     await agent.inbox.put((0, content, meta))
-                    self.recorded_messages.append(
-                        MessageTransaction(
-                            sender_id=meta.get("sender_id"),
-                            receiver_id=receiver_id,
-                            sent_time=sent_time,
-                            arriving_time=delivery_time,
-                            content=content,
+                    if self.record_messages:
+                        self.recorded_messages.append(
+                            MessageTransaction(
+                                sender_id=meta.get("sender_id"),
+                                receiver_id=receiver_id,
+                                sent_time=sent_time,
+                                arriving_time=delivery_time,
+                                content=content,
+                            )
                         )
-                    )
+                    self.messages_delivered_count += 1
                     delivered += 1
                 else:
                     logger.warning(
