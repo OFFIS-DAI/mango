@@ -1,0 +1,6 @@
+# Parameter values of every run. Override one with --set, e.g. --set peers.n=20.
+time: {horizon: 50, step: 1}
+peers:
+  n: 10
+  stubbornness: 0.5
+  initial: {uniform: [0.0, 1.0]}

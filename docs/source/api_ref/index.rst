@@ -41,3 +41,4 @@ By subpackages
    mango.messages
    mango.util
    mango.simulation
+   mango.scenario

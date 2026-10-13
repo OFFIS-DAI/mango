@@ -160,12 +160,13 @@ async def test_failing_task_is_recorded(trace_file):
             raise RuntimeError("bad step")
 
     enable_tracing()
-    world = create_world()
+    world = create_world(raise_agent_errors=False)  # the failure is the subject
     agent = world.register(FailingAgent())
     async with world:
         agent.schedule_instant_task(agent.fail())
         await step_simulation(world, step_size_s=1.0)
     disable_tracing()
+    assert [type(e.exception) for e in world.agent_errors] == [RuntimeError]
 
     failed = by_event(read_trace(trace_file), "task.failed")
     assert len(failed) == 1

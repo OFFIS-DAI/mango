@@ -15,6 +15,8 @@ from typing import TYPE_CHECKING, Any
 from mango.util import tracing
 
 if TYPE_CHECKING:
+    import numpy
+
     from mango.util.clock import Clock
 
 
@@ -73,73 +75,254 @@ class Area2D(Space):
     """A rectangular 2-D space.
 
     Agents without a predefined position receive a random location within
-    [0, width] × [0, height] during :meth:`initialize`.
+    [0, width] × [0, height] during :meth:`initialize`, drawn from
+    ``rng``.  A world binds its ``"space"`` stream to ``rng`` when it
+    is still ``None`` (see :func:`~mango.simulation.world.create_world`); a
+    standalone, unbound space falls back to the global :mod:`random` module.
+
+    The ``"space"`` stream is shared: positions are drawn one agent after the
+    other in registration order, so registering another agent *before* an
+    agent moves that agent's random position (registering it after does not).
+    For positions that do not depend on the rest of the scenario, set them
+    explicitly with :meth:`move`, e.g. drawn from each agent's own ``rng``.
+
+    Positions live in the space, not on the agents. Agents and behaviors
+    query them through the public API: :meth:`location`,
+    :meth:`positions` (all positions by aid), :attr:`agents` (all placed
+    agents), :meth:`neighbors_within` (nearest first) and
+    :meth:`agents_within` (candidate order). The queries and :meth:`distance`
+    take an agent or a :class:`Position2D` (a point such as a waypoint or a
+    static target). Agents reach the space through the ``env`` argument of
+    ``on_step`` (``env.space``).
+
+    :param width: extent in x direction
+    :param height: extent in y direction
+    :param rng: random generator for initial positions (any object with a
+        ``random()`` method, e.g. ``numpy.random.Generator``); ``None`` lets
+        the world bind its ``"space"`` stream
 
     Example::
 
-        space = Area2D(width=100.0, height=100.0)
+        space = Area2D(width=100.0, height=100.0)  # the world binds "space"
+        world = create_world(seed=42, environment=DefaultEnvironment(space=space))
+
+        class Bird(Agent):
+            def on_step(self, env, clock, step_size_s):
+                flock = env.space.neighbors_within(self, radius=5.0)
+                if flock:
+                    env.space.move_toward(self, flock[0], max_step=1.0)
     """
 
-    def __init__(self, width: float = 10.0, height: float = 10.0):
+    def __init__(
+        self,
+        width: float = 10.0,
+        height: float = 10.0,
+        rng: numpy.random.Generator | random.Random | None = None,
+    ):
         self.width = width
         self.height = height
+        self.rng = rng
         self._positions: dict[str, Position2D] = {}
+        self._agents: dict[str, Any] = {}
+
+    def _agent_index(self) -> dict[str, Any]:
+        """aid -> agent, for queries that return agents (created lazily for
+        subclasses that do not call ``super().__init__()``)."""
+        return self.__dict__.setdefault("_agents", {})
 
     def move(self, agent, position: Position2D) -> None:
+        """Place *agent* at *position*.
+
+        :param agent: the agent to move
+        :param position: its new :class:`Position2D`
+
+        Example::
+
+            space.move(agent, Position2D(2.0, 3.5))
+        """
+        self._agent_index()[agent.aid] = agent
         self._positions[agent.aid] = position
 
     def location(self, agent) -> Position2D:
-        return self._positions[agent.aid]
+        """Return the position of *agent*.
+
+        :param agent: an agent with a position
+        :return: its :class:`Position2D`
+        :raises KeyError: if the agent has no position yet (positions of
+            agents not placed with :meth:`move` are drawn when the world
+            starts)
+
+        Example::
+
+            here = env.space.location(self)
+        """
+        try:
+            aid = agent.aid
+        except AttributeError:
+            raise TypeError(
+                f"space.location() takes an agent, got {type(agent).__name__} "
+                f"{agent!r}."
+            ) from None
+        try:
+            return self._positions[aid]
+        except KeyError:
+            raise KeyError(
+                f"Agent {aid!r} has no position in this Area2D: place it with "
+                "space.move(agent, Position2D(x, y)), or wait until the world has "
+                "started (unplaced agents get a random position then). An agent "
+                "that was retired or deregistered has no position any more."
+            ) from None
+
+    def _point(self, where, what: str) -> Position2D:
+        """The position of *where*: an agent's location, or *where* itself as a point."""
+        if hasattr(where, "aid"):
+            return self.location(where)
+        if isinstance(where, Position2D) or (
+            hasattr(where, "x") and hasattr(where, "y")
+        ):
+            return where
+        hint = (
+            f" Use Position2D{tuple(where)!r} for a point."
+            if isinstance(where, tuple) and len(where) == 2
+            else ""
+        )
+        raise TypeError(
+            f"{what} must be an agent or a Position2D, got "
+            f"{type(where).__name__} {where!r}.{hint}"
+        )
 
     def has_position(self, agent) -> bool:
         return agent.aid in self._positions
 
+    @property
+    def agents(self) -> list:
+        """All agents that have a position, in placement order.
+
+        Example::
+
+            xs = [env.space.location(a).x for a in env.space.agents]
+        """
+        index = self._agent_index()
+        return [index[aid] for aid in self._positions if aid in index]
+
+    def positions(self) -> dict[str, Position2D]:
+        """Return the position of every placed agent, keyed by aid.
+
+        The returned dict is a copy; change positions with :meth:`move`.
+
+        :return: ``{aid: Position2D}`` in placement order
+
+        Example::
+
+            snapshot = env.space.positions()
+            mean_x = sum(p.x for p in snapshot.values()) / len(snapshot)
+        """
+        return dict(self._positions)
+
+    def neighbors_within(self, agent, radius: float) -> list:
+        """Return the agents within *radius* of *agent*, nearest first.
+
+        Searches all placed agents (see :attr:`agents`); *agent* itself is
+        excluded. Ties keep placement order. The scan is linear in the number
+        of placed agents.
+
+        :param agent: the reference agent (must have a position), or a
+            :class:`Position2D` for the agents near a point
+        :param radius: search radius in space units (inclusive)
+        :return: list of agents ordered by distance
+        :raises TypeError: if *agent* is neither an agent nor a Position2D
+
+        Example::
+
+            class Bird(Agent):
+                def on_step(self, env, clock, step_size_s):
+                    for other in env.space.neighbors_within(self, radius=5.0):
+                        ...
+
+            near_depot = space.neighbors_within(Position2D(10.0, 10.0), 5.0)
+        """
+        center = self._point(agent, "neighbors_within(agent, ...): agent")
+        index = self._agent_index()
+        found = []
+        for aid, position in self._positions.items():
+            other = index.get(aid)
+            if other is None or other is agent:
+                continue
+            d = distance(center, position)
+            if d <= radius:
+                found.append((d, other))
+        found.sort(key=lambda pair: pair[0])
+        return [other for _, other in found]
+
     def initialize(self, agents: list, clock: Clock) -> None:
+        rng = getattr(self, "rng", None)
+        if rng is None:
+            rng = random
+        index = self._agent_index()
         for agent in agents:
+            index[agent.aid] = agent
             if agent.aid not in self._positions:
                 self._positions[agent.aid] = Position2D(
-                    x=random.random() * self.width,
-                    y=random.random() * self.height,
+                    x=float(rng.random()) * self.width,
+                    y=float(rng.random()) * self.height,
                 )
 
     def install(self, agent, **kwargs) -> None:
-        pass
+        self._agent_index()[agent.aid] = agent
 
     def distance(self, agent_a, agent_b) -> float:
-        """Return the Euclidean distance between two agents.
+        """Return the Euclidean distance between two agents or points.
 
-        Both agents must have a registered position.
+        Agents must have a registered position.
 
-        :param agent_a: first agent
-        :param agent_b: second agent
+        :param agent_a: first agent or :class:`Position2D`
+        :param agent_b: second agent or :class:`Position2D`
         :return: Euclidean distance in space units
+        :raises TypeError: if an argument is neither an agent nor a Position2D
 
         Example::
 
             d = space.distance(agent1, agent2)
+            to_goal = space.distance(drone, Position2D(50.0, 50.0))
         """
-        return distance(self.location(agent_a), self.location(agent_b))
+        return distance(
+            self._point(agent_a, "distance(a, b): a"),
+            self._point(agent_b, "distance(a, b): b"),
+        )
 
-    def agents_within(self, center, radius: float, agents: list) -> list:
-        """Return all agents from *agents* within *radius* of *center*.
+    def agents_within(self, center, radius: float, agents=None) -> list:
+        """Return the agents within *radius* of *center*, in candidate order.
 
-        *center* itself is excluded from the result.  Only agents that have
-        a registered position are considered.
+        *center* is an agent (excluded from the result) or a
+        :class:`Position2D` (a point query, e.g. around a waypoint).  Only
+        agents that have a registered position are considered. For "who is
+        near me" from inside an agent prefer :meth:`neighbors_within`
+        (nearest first).
 
-        :param center: the reference agent
-        :param radius: search radius in space units
-        :param agents: candidate agents to search among
+        :param center: the reference agent or point
+        :param radius: search radius in space units (inclusive)
+        :param agents: candidate agents to search among; ``None`` (default)
+            searches all placed agents (:attr:`agents`)
         :return: list of agents within *radius* of *center*
+        :raises TypeError: if *center* is neither an agent nor a Position2D
 
         Example::
 
-            nearby = space.agents_within(my_agent, 5.0, world.agents.values())
+            nearby = space.agents_within(my_agent, 5.0)
+            red_nearby = space.agents_within(my_agent, 5.0, red_team)
+            at_goal = space.agents_within(Position2D(10.0, 10.0), 2.0, drones)
         """
+        point = self._point(center, "agents_within(center, ...): center")
+        if agents is None:
+            agents = self.agents
         result = []
         for agent in agents:
             if agent is center:
                 continue
-            if self.has_position(agent) and self.distance(center, agent) <= radius:
+            if (
+                self.has_position(agent)
+                and distance(point, self.location(agent)) <= radius
+            ):
                 result.append(agent)
         return result
 
@@ -164,7 +347,7 @@ class Area2D(Space):
             space.move_toward(rover, base_station, max_step=1.0)
         """
         pa = self.location(agent)
-        pt = self.location(target) if hasattr(target, "aid") else target
+        pt = self._point(target, "move_toward(agent, target, ...): target")
         dist = math.sqrt((pt.x - pa.x) ** 2 + (pt.y - pa.y) ** 2)
         if dist == 0.0 or dist <= max_step:
             self._positions[agent.aid] = Position2D(x=pt.x, y=pt.y)
@@ -211,6 +394,19 @@ class Behavior(ABC):
 
     Override :meth:`on_step` to model environment dynamics and
     :meth:`initialize` for one-time setup.
+
+    A behavior that needs randomness declares a public ``rng`` attribute
+    initialised to ``None``; the world then binds its ``"behavior"`` stream to
+    it (an explicitly passed generator is kept).
+
+    Example::
+
+        class Weather(Behavior):
+            def __init__(self, rng=None):
+                self.rng = rng
+
+            def on_step(self, environment, clock, step_size_s):
+                self.irradiance = self.rng.uniform(0.0, 1000.0)
     """
 
     def on_step(
@@ -241,7 +437,12 @@ class WorldObserver(ABC):
 
 
 class Environment(ABC):
-    """Abstract environment interface."""
+    """Abstract environment interface.
+
+    An environment that needs randomness declares a public ``rng`` attribute
+    initialised to ``None``; the world then binds its ``"environment"`` stream
+    to it (an explicitly passed generator is kept).
+    """
 
     @abstractmethod
     def initialize(self, agents: list, clock: Clock) -> None:
@@ -283,6 +484,22 @@ class DefaultEnvironment(Environment):
         self._observers: list[WorldObserver] = []
         self._id_to_agent: dict[Any, Any] = {}
         self._initialized: bool = False
+
+    @property
+    def agents(self) -> list:
+        """All agents installed in this environment, in registration order.
+
+        Behaviors use it to iterate the population (``on_step`` receives the
+        environment).
+
+        Example::
+
+            class Drift(Behavior):
+                def on_step(self, environment, clock, step_size_s):
+                    for agent in environment.agents:
+                        ...
+        """
+        return list(self._id_to_agent.values())
 
     @property
     def space(self) -> Space:

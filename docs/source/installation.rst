@@ -16,6 +16,39 @@ Once you have created a virtual environment you can just run pip__ to install it
 
 __ https://pip.pypa.io/en/stable/
 
+Optional extras
+---------------
+Some features need additional packages, which pip installs as *extras*:
+
+.. code-block:: console
+
+    $ pip install "mango-agents[scenario]"      # scenarios and studies: pydantic, PyYAML, pandas
+    $ pip install "mango-agents[scenario-all]"  # plus pyarrow (Parquet results) and scipy (LHS, Sobol)
+    $ pip install "mango-agents[fastjson]"      # msgspec for the fast JSON codec
+
+The ``scenario`` extra enables :doc:`scenario` (``mango.scenario``) and the
+``mango-scenario`` command; without it, importing ``mango.scenario`` raises
+an ``ImportError`` naming the extra.  The ``scenario-all`` extra adds the
+optional packages of the scenario layer:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 75
+
+   * - Package
+     - Enables
+   * - pyarrow
+     - run results as Parquet files (without it, results are written as CSV)
+   * - scipy
+     - the sampling designs ``Lhs`` and ``Sobol`` and ``StudyFrame.sobol_indices()``
+       with its bootstrap intervals (``RandomSample`` works without it, and
+       ``StudyFrame.summary()``/``paired()`` use an accurate approximation of
+       the t quantiles instead)
+
+Second-order Sobol indices (``Sobol(n, second_order=True)``) also need
+SALib, which no extra installs: ``pip install SALib``.  A feature whose
+package is missing raises an ``ImportError`` that names the package.
+
 
 Installation from source
 ------------------------

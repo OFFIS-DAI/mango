@@ -414,8 +414,7 @@ Step 8: Plotting the results
 ==============================
 
 Use `Plotly <https://plotly.com/python>`_ to visualise the recordings as
-interactive charts.  Two figures match those in the Julia version of this
-tutorial.
+interactive charts.
 
 **Figure 1: EV state of charge and household net power**
 
@@ -865,6 +864,11 @@ Complete standalone script
 What's next?
 ============
 
+* **The same neighbourhood as a scenario**: :doc:`scenario-tutorial` rebuilds
+  this example with the scenario layer: a parameter model instead of
+  positional literals, links instead of address patching, one seed for every
+  random draw, and a study over fleet sizes that runs on a process pool and
+  resumes where it stopped.
 * **Topology-aware coordination**: use :doc:`topology` to limit which
   households an EV can reach from its current position.
 * **Stochastic delays**: swap :class:`~mango.SimpleCommunicationSimulation`

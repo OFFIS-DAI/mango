@@ -1,0 +1,9 @@
+"""Kits: reusable parts of scenarios (groups, links, recorders with typed params).
+
+Use one in a scenario file under ``components:`` with ``kind: "kits.field:SensorField"``,
+or in Python with ``scenario.use(SensorField(n=10), prefix="field")``.
+"""
+
+from .field import SensorField
+
+__all__ = ["SensorField"]

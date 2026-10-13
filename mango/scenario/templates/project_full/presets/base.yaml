@@ -1,0 +1,11 @@
+# Parameters of every run. Override single values with --set, e.g. --set field.n=20.
+time: {start: "2024-06-01T00:00", horizon: 6h, step: 15min}
+comm: {kind: simple, loss_percent: 0.0, delay_s: 0.0}
+profiles:
+  # start pins the profile to the calendar (moving time.start keeps it in place)
+  temperature: {path: data/temperature.csv, column: temperature, resolution: 1h, start: "2024-06-01T00:00"}
+phases:
+  - {name: warmup, until: 1h, record: false}   # not recorded
+field:
+  n: 5
+  noise_std: 0.5

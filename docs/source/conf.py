@@ -65,3 +65,20 @@ html_theme_options = {
     "source_directory": "docs/source/",
     "top_of_page_buttons": ["view", "edit"],
 }
+
+# Signatures of the scenario layer show pydantic ``Annotated`` aliases
+# (durations, time points, distributions) and private helpers in their
+# metadata; these have no documentation targets.
+nitpick_ignore_regex = [
+    (r"py:(class|obj)", r".*typing\.Annotated\[.*"),
+    (r"py:class", r"(mango\.scenario\.\w+\.)?_\w+"),
+    (
+        r"py:class",
+        r"mango\.scenario\.(timecfg\.(parse|format)_duration"
+        r"|distributions\.expand_shorthand|comm\.EdgeRule)",
+    ),
+    # pydantic field metadata (bounds, validators, defaults) in signatures of
+    # the scenario layer's models, and external types without intersphinx
+    (r"py:class", r"(pydantic|annotated_types)\..*|PydanticUndefined|-?\d+(\.\d+)?"),
+    (r"py:class", r"(pandas|collections\.abc)\.\w+"),
+]

@@ -1,0 +1,13 @@
+# 3 fleet sizes x 2 comm models x 2 algorithms x 10 replications = 120 runs (concept C6)
+scenario: ev_study.scenario:scenario
+base: presets/base.yaml
+seed: 2026
+uncertainties:
+  ev.n: [5, 10, 20]
+  comm.loss_percent: {ideal: 0.0, lossy: 0.1}
+levers:
+  algorithm: [greedy, proportional]
+replications: 10
+common_random_numbers: true
+outcomes: [ev_study.kpi:self_consumption, ev_study.kpi:peak_import_kw, ev_study.kpi:min_voltage_pu]
+out: results/fleet_comparison

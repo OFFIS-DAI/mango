@@ -1,0 +1,14 @@
+# Does a denser sensor field make up for noisier sensors?
+# mango-scenario validate | plan | run studies/__PROJECT__.yaml
+scenario: scenario.yaml
+base: presets/base.yaml
+uncertainties:
+  field.noise_std: [0.2, 1.0]
+levers:
+  field.n: [3, 8]
+replications: 2
+seed: 2026
+outcomes:
+  - outcomes:mean_abs_error
+  - outcomes:max_abs_error
+out: results/__PROJECT__

@@ -1,0 +1,13 @@
+# Parameters of every run of the EV study (typed by ev_study.params:Params).
+# Override single values on the command line, e.g. --set ev.n=20 --set grid.pv_share=0.8.
+# Times are calendar times; 2024-06-01 is day 1 (warm-up), 2024-06-02 the evaluated day.
+
+time: {start: 2024-06-01T00:00, horizon: 2d, step: 15min}
+phases:
+  - {name: warmup, until: 2024-06-02T00:00, record: false}
+events:
+  - {name: comm_outage, at: 2024-06-02T12:00, until: 2024-06-02T14:00, comm: {loss_percent: 1.0}}
+profiles:
+  h0: {source: csv, path: data/profiles.csv, column: h0, time_column: time}
+  pv: {source: csv, path: data/profiles.csv, column: pv, time_column: time}
+comm: {kind: simple, loss_percent: 0.0}

@@ -1,0 +1,769 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITLE__</title>
+<style>
+:root {
+  --bg: #f7f7f5; --panel: #ffffff; --text: #1f2328; --muted: #656d76; --line: #d8dbe0;
+  --accent: #2b6cb0; --accent-text: #ffffff; --changed: #fff4d6; --code: #f1f3f5;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #15171a; --panel: #1d2024; --text: #e6e8eb; --muted: #9aa3ad; --line: #353a40;
+    --accent: #6ea8ff; --accent-text: #0b1220; --changed: #3a3320; --code: #23272c;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #15171a; --panel: #1d2024; --text: #e6e8eb; --muted: #9aa3ad; --line: #353a40;
+  --accent: #6ea8ff; --accent-text: #0b1220; --changed: #3a3320; --code: #23272c;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+header { padding: 16px; border-bottom: 1px solid var(--line); background: var(--panel); }
+header h1 { margin: 0 0 4px; font-size: 18px; }
+header p { margin: 0; color: var(--muted); }
+header p.note { margin-top: 6px; color: var(--text); }
+header p.note:empty { display: none; }
+main { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; padding: 16px;
+  max-width: 1400px; margin: 0 auto; }
+@media (max-width: 860px) { main { grid-template-columns: minmax(0, 1fr); } }
+section.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; min-width: 0; }
+#output-panel { position: sticky; top: 16px; align-self: start; }
+@media (max-width: 860px) { #output-panel { position: static; } }
+details { border-left: 2px solid var(--line); margin: 6px 0 6px 2px; padding-left: 10px; }
+details.settings { margin-top: 14px; }
+details.settings > summary { color: var(--muted); }
+summary { cursor: pointer; font-weight: 600; padding: 2px 0; }
+.field { display: grid; grid-template-columns: minmax(120px, 220px) minmax(0, 1fr); gap: 8px; align-items: start;
+  padding: 4px 0; }
+@media (max-width: 520px) { .field { grid-template-columns: minmax(0, 1fr); } }
+.field > label { padding-top: 5px; overflow-wrap: anywhere; }
+.field.changed > label { background: var(--changed); border-radius: 4px; padding-left: 4px; }
+.help { color: var(--muted); font-size: 12px; grid-column: 1 / -1; margin-top: -2px; }
+input, select, textarea, button { font: inherit; color: var(--text); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; max-width: 100%; }
+input[type="checkbox"] { width: auto; margin-top: 7px; }
+input:not([type="checkbox"]), select, textarea { width: 100%; }
+button { cursor: pointer; background: var(--panel); }
+button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+.row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.item { border: 1px dashed var(--line); border-radius: 6px; padding: 6px 8px; margin: 6px 0; }
+.item-head { display: flex; justify-content: space-between; align-items: center; color: var(--muted); }
+.toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
+pre { background: var(--code); border-radius: 6px; padding: 10px; overflow: auto; margin: 0;
+  font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre; }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.muted { color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <p id="subtitle"></p>
+  <p id="note" class="note"></p>
+</header>
+<main>
+  <section class="panel" id="form-panel" aria-label="Parameters"><div id="form"></div></section>
+  <section class="panel" id="output-panel" aria-label="YAML preset">
+    <div class="toolbar">
+      <label class="row"><input type="checkbox" id="changed-only" checked> only values that differ from the defaults</label>
+    </div>
+    <div class="toolbar">
+      <input id="filename" value="preset.yaml" aria-label="File name" style="width: 12em">
+      <button class="primary" id="download">Download</button>
+      <button id="copy">Copy</button>
+      <button id="reset">Reset</button>
+    </div>
+    <pre id="yaml"></pre>
+    <p class="muted" id="hint"></p>
+  </section>
+</main>
+<script type="application/json" id="mango-form-data">__DATA__</script>
+<script>
+"use strict";
+// ---------------------------------------------------------------- core (no DOM)
+const FormCore = (() => {
+  const SCALARS = new Set(["string", "number", "integer", "boolean", "null"]);
+
+  function clone(value) { return value === undefined ? undefined : JSON.parse(JSON.stringify(value)); }
+  function canonical(value) {
+    if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+    if (isObject(value)) {
+      return `{${Object.keys(value).sort().map((k) => `${JSON.stringify(k)}:${canonical(value[k])}`).join(",")}}`;
+    }
+    return JSON.stringify(value === undefined ? null : value);
+  }
+  function equal(a, b) { return canonical(a) === canonical(b); }
+  function isObject(value) { return value !== null && typeof value === "object" && !Array.isArray(value); }
+
+  function resolve(schema, defs) {
+    let current = schema || {};
+    const seen = new Set();
+    while (current && current.$ref && !seen.has(current.$ref)) {
+      seen.add(current.$ref);
+      const { $ref, ...rest } = current;
+      current = { ...(defs[$ref.split("/").pop()] || {}), ...rest };
+    }
+    return current;
+  }
+
+  function variantsOf(schema) {
+    return schema.oneOf || schema.anyOf || null;
+  }
+
+  function scalarTypes(schema, defs) {
+    // the scalar types of a schema, or null when it is not a scalar
+    const s = resolve(schema, defs);
+    if (s.enum || s.const !== undefined) return ["enum"];
+    const variants = variantsOf(s);
+    if (variants) {
+      const types = [];
+      for (const v of variants) {
+        const inner = scalarTypes(v, defs);
+        if (inner === null) return null;
+        types.push(...inner);
+      }
+      return types;
+    }
+    if (Array.isArray(s.type)) return s.type.every((t) => SCALARS.has(t)) ? s.type : null;
+    if (SCALARS.has(s.type)) return [s.type];
+    return null;
+  }
+
+  function kindOf(schema, defs) {
+    const s = resolve(schema, defs);
+    if (s.properties && s.properties.kind && s.properties.kind.const !== undefined) return s.properties.kind.const;
+    return null;
+  }
+
+  function title(schema, key) {
+    if (schema.title) return schema.title;
+    return String(key).replace(/_/g, " ");
+  }
+
+  function defaultOf(schema, defs) {
+    const s = resolve(schema, defs);
+    if (s.default !== undefined) return clone(s.default);
+    if (s.const !== undefined) return s.const;
+    if (s.type === "object" && s.properties) {
+      const out = {};
+      for (const [key, prop] of Object.entries(s.properties)) {
+        const value = defaultOf(prop, defs);
+        if (value !== undefined) out[key] = value;
+      }
+      return out;
+    }
+    return undefined;
+  }
+
+  // A field tree node: {key, path, label, help, widget, ...}; widgets:
+  // object, dict, array, union (kind select), choice (other variants), enum, boolean,
+  // number, integer, text (scalar unions, strings), any.
+  function field(schema, defs, path, key, depth) {
+    const s = resolve(schema, defs);
+    // the property's own title and description, not those of a referenced model
+    const own = schema || {};
+    const node = { key, path, label: title(own, key), help: own.description || "", depth };
+    if (depth > 12) return { ...node, widget: "any" };
+    const variants = variantsOf(s);
+    if (variants && scalarTypes(s, defs) === null) {
+      const options = variants.filter((v) => resolve(v, defs).type !== "null");
+      const nullable = options.length < variants.length;
+      const kinds = options.map((v) => kindOf(v, defs));
+      if (options.length === 1) {
+        const inner = field(options[0], defs, path, key, depth);
+        return { ...inner, label: node.label, help: node.help || inner.help, nullable };
+      }
+      if (kinds.every((k) => k !== null)) {
+        return { ...node, widget: "union", nullable, variants: options.map((v, i) => ({
+          kind: kinds[i], label: resolve(v, defs).title || kinds[i],
+          fields: objectFields(resolve(v, defs), defs, path, depth + 1).filter((f) => f.key !== "kind"),
+        })) };
+      }
+      return { ...node, widget: "choice", nullable, variants: options.map((v, i) => {
+        const r = resolve(v, defs);
+        const inner = field(v, defs, path, key, depth + 1);
+        return { label: r.title || kinds[i] || variantLabel(inner, r), field: inner };
+      }) };
+    }
+    const kind = kindOf(s, defs);
+    if (kind !== null && s.type === "object") {
+      return { ...node, widget: "union", nullable: false, variants: [{
+        kind, label: s.title || kind,
+        fields: objectFields(s, defs, path, depth + 1).filter((f) => f.key !== "kind"),
+      }] };
+    }
+    if (s.enum || s.const !== undefined) {
+      return { ...node, widget: "enum", options: s.enum || [s.const] };
+    }
+    const scalars = scalarTypes(s, defs);
+    if (scalars && scalars.length === 2 && scalars.includes("boolean") && scalars.includes("null")) {
+      return { ...node, widget: "enum", options: [true, false], nullable: true };
+    }
+    if (scalars && scalars.length > 1) {
+      return { ...node, widget: "text", types: scalars,
+               placeholder: (s.examples || []).join(" | ") || scalars.filter((t) => t !== "null").join(" or ") };
+    }
+    if (s.type === "boolean") return { ...node, widget: "boolean" };
+    if (s.type === "integer" || s.type === "number") {
+      return { ...node, widget: s.type, minimum: s.minimum ?? s.exclusiveMinimum, maximum: s.maximum ?? s.exclusiveMaximum };
+    }
+    if (s.type === "string") {
+      return { ...node, widget: "text", types: ["string"], placeholder: (s.examples || []).join(" | ") };
+    }
+    if (s.type === "array") {
+      if (s.prefixItems) {
+        return { ...node, widget: "tuple", items: s.prefixItems.map((item, i) => field(item, defs, [...path, i], i, depth + 1)) };
+      }
+      const itemSchema = s.items || {};
+      return { ...node, widget: "array", item: field(itemSchema, defs, [...path, 0], "item", depth + 1),
+               itemDefault: defaultOf(itemSchema, defs), minItems: s.minItems || 0 };
+    }
+    if (s.type === "object" || s.properties || s.additionalProperties) {
+      if (s.properties && Object.keys(s.properties).length) {
+        return { ...node, widget: "object", fields: objectFields(s, defs, path, depth + 1) };
+      }
+      const valueSchema = s.additionalProperties === true || s.additionalProperties === undefined ? {} : s.additionalProperties;
+      return { ...node, widget: "dict", value: field(valueSchema, defs, [...path, "*"], "value", depth + 1),
+               valueDefault: defaultOf(valueSchema, defs) };
+    }
+    return { ...node, widget: "any" };
+  }
+
+  const DISTRIBUTIONS = new Set(["constant", "uniform", "int_uniform", "normal", "lognormal", "choice", "bernoulli"]);
+
+  function variantLabel(inner, schema) {
+    if (inner.widget === "union") {
+      return inner.variants.some((v) => DISTRIBUTIONS.has(v.kind)) ? "distribution" : "by kind";
+    }
+    if (inner.widget === "array" || inner.widget === "tuple") return "list";
+    if (inner.widget === "object" || inner.widget === "dict") return "mapping";
+    return schema.type || inner.widget;
+  }
+
+  function objectFields(s, defs, path, depth) {
+    const required = new Set(s.required || []);
+    return Object.entries(s.properties || {}).map(([key, prop]) => {
+      const f = field(prop, defs, [...path, key], key, depth);
+      f.required = required.has(key);
+      return f;
+    });
+  }
+
+  function buildTree(schema) {
+    const defs = schema.$defs || {};
+    return { widget: "object", key: "", path: [], label: schema.title || "params", help: "", depth: 0,
+             fields: objectFields(resolve(schema, defs), defs, [], 1) };
+  }
+
+  function deepMerge(base, update) {
+    if (!isObject(base) || !isObject(update)) return clone(update);
+    const out = clone(base);
+    for (const [key, value] of Object.entries(update)) {
+      out[key] = key in out ? deepMerge(out[key], value) : clone(value);
+    }
+    return out;
+  }
+
+  function baseline(schema, defaults) {
+    const defs = schema.$defs || {};
+    return deepMerge(defaultOf(schema, defs) || {}, defaults || {});
+  }
+
+  function getPath(root, path) {
+    let current = root;
+    for (const part of path) {
+      if (current === null || current === undefined) return undefined;
+      current = current[part];
+    }
+    return current;
+  }
+
+  function setPath(root, path, value) {
+    let current = root;
+    for (let i = 0; i < path.length - 1; i += 1) {
+      const part = path[i];
+      if (current[part] === null || typeof current[part] !== "object") {
+        current[part] = typeof path[i + 1] === "number" ? [] : {};
+      }
+      current = current[part];
+    }
+    const last = path[path.length - 1];
+    if (value === undefined) {
+      if (Array.isArray(current)) current[last] = null; else delete current[last];
+    } else {
+      current[last] = value;
+    }
+  }
+
+  // The values that differ from the defaults.  Models and dicts are compared field
+  // by field (presets merge into the defaults; a dict entry that was removed is
+  // written as "-key": null); lists, distributions and other values tagged by
+  // kind are written whole (presets replace them).
+  function diff(value, base, f) {
+    if (equal(value, base)) return undefined;
+    const nested = f ? f.widget === "object" || f.widget === "dict" : true;
+    if (nested && isObject(value) && isObject(base)) {
+      const children = f && f.widget === "object" ? new Map(f.fields.map((c) => [c.key, c])) : null;
+      const out = {};
+      for (const [key, item] of Object.entries(value)) {
+        const child = children ? children.get(key) : f && f.widget === "dict" ? f.value : undefined;
+        const changed = diff(item, base[key], child);
+        if (changed !== undefined) out[key] = changed;
+      }
+      if (f && f.widget === "dict") {
+        // presets merge into the defaults, so a removed entry needs a "-key" marker
+        for (const key of Object.keys(base)) {
+          if (!(key in value) || value[key] === undefined) out[`-${key}`] = null;
+        }
+      }
+      return Object.keys(out).length ? out : undefined;
+    }
+    return value === undefined ? undefined : clone(value);
+  }
+
+  // Drop the keys of objects inside lists whose value is null while the item's
+  // default for them is null or unset (optional fields of events and phases):
+  // presets replace lists whole, so these keys only add noise to the preview.
+  function prune(value, f) {
+    if (value === null || typeof value !== "object" || !f) return value;
+    if (Array.isArray(value)) {
+      if (f.widget !== "array") return value;
+      const defaults = isObject(f.itemDefault) ? f.itemDefault : {};
+      return value.map((item) => {
+        if (!isObject(item)) return item;
+        const out = {};
+        for (const [key, inner] of Object.entries(item)) {
+          if (inner === null && (defaults[key] === undefined || defaults[key] === null)) continue;
+          out[key] = inner;
+        }
+        return out;
+      });
+    }
+    if (!isObject(value) || f.widget !== "object") return value;
+    const children = new Map(f.fields.map((c) => [c.key, c]));
+    const out = {};
+    for (const [key, inner] of Object.entries(value)) out[key] = prune(inner, children.get(key));
+    return out;
+  }
+
+  // An object whose values are all scalars (a payload such as {kind: campaign,
+  // strength: 0.3}): the form edits it as key/value rows instead of JSON text.
+  function isScalarObject(value) {
+    return isObject(value) && Object.values(value).every((v) => v === null || typeof v !== "object");
+  }
+
+  function parseScalar(text, types) {
+    const trimmed = text.trim();
+    if (trimmed === "") return types.includes("null") ? null : undefined;
+    if ((types.includes("number") || types.includes("integer")) && /^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$/.test(trimmed)) {
+      return Number(trimmed);
+    }
+    if (types.includes("boolean") && /^(true|false)$/i.test(trimmed)) return trimmed.toLowerCase() === "true";
+    if (types.includes("string") || types.includes("enum")) return text;
+    return text;
+  }
+
+  // "" -> null, a (whole) number -> the number, anything else -> undefined
+  function parseNumber(text, integer) {
+    const trimmed = String(text).trim();
+    if (trimmed === "") return null;
+    const number = Number(trimmed);
+    if (!Number.isFinite(number) || (integer && !Number.isInteger(number))) return undefined;
+    return number;
+  }
+
+  function parseAny(text) {
+    const trimmed = text.trim();
+    if (trimmed === "") return undefined;
+    try { return JSON.parse(trimmed); } catch (error) { return text; }
+  }
+
+  // ------------------------------------------------------------ YAML
+  const RESERVED = /^(true|false|yes|no|on|off|null|~)$/i;
+
+  function yamlString(text) {
+    if (text !== "" && /^[A-Za-z_][\w.\-\/]*$/.test(text) && !RESERVED.test(text)) return text;
+    return JSON.stringify(text);
+  }
+
+  function yamlNumber(value) {
+    if (!Number.isFinite(value)) return JSON.stringify(String(value));
+    const text = String(value);
+    return /e/.test(text) && !/\./.test(text) ? text.replace("e", ".0e") : text;
+  }
+
+  function yamlScalar(value) {
+    if (value === null || value === undefined) return "null";
+    if (typeof value === "boolean") return value ? "true" : "false";
+    if (typeof value === "number") return yamlNumber(value);
+    return yamlString(String(value));
+  }
+
+  function isFlat(value) {
+    if (Array.isArray(value)) return value.length <= 8 && value.every((v) => v === null || typeof v !== "object");
+    if (isObject(value)) {
+      const entries = Object.values(value);
+      return entries.length > 0 && entries.length <= 6 && entries.every((v) => v === null || typeof v !== "object" || (Array.isArray(v) && isFlat(v)));
+    }
+    return true;
+  }
+
+  function entries(value) {
+    // a kind tag first, as in the docs: {kind: uniform, low: 3, high: 8}
+    const items = Object.entries(value);
+    return items.sort(([a], [b]) => (b === "kind") - (a === "kind"));
+  }
+
+  function flow(value) {
+    if (Array.isArray(value)) return `[${value.map(flow).join(", ")}]`;
+    if (isObject(value)) return `{${entries(value).map(([k, v]) => `${yamlString(k)}: ${flow(v)}`).join(", ")}}`;
+    return yamlScalar(value);
+  }
+
+  function toYaml(value, indent = "") {
+    if (isObject(value)) {
+      if (!Object.keys(value).length) return "{}";
+      return entries(value).map(([key, item]) => {
+        const name = `${indent}${yamlString(key)}:`;
+        if ((isObject(item) && Object.keys(item).length) || (Array.isArray(item) && item.length)) {
+          if (isFlat(item)) return `${name} ${flow(item)}`;
+          return `${name}\n${toYaml(item, indent + "  ")}`;
+        }
+        return `${name} ${isObject(item) ? "{}" : Array.isArray(item) ? "[]" : yamlScalar(item)}`;
+      }).join("\n");
+    }
+    if (Array.isArray(value)) {
+      if (!value.length) return "[]";
+      return value.map((item) => {
+        if (isObject(item) && Object.keys(item).length && !isFlat(item)) {
+          const inner = toYaml(item, indent + "  ").replace(/^\s+/, "");
+          return `${indent}- ${inner}`;
+        }
+        return `${indent}- ${isObject(item) || Array.isArray(item) ? flow(item) : yamlScalar(item)}`;
+      }).join("\n");
+    }
+    return yamlScalar(value);
+  }
+
+  return { buildTree, baseline, diff, prune, isScalarObject, toYaml, getPath, setPath, parseScalar, parseNumber, parseAny, clone, equal, defaultOf, resolve };
+})();
+
+if (typeof module !== "undefined") module.exports = FormCore;
+
+// ---------------------------------------------------------------- page (DOM)
+if (typeof document !== "undefined") {
+  (() => {
+    const DATA = JSON.parse(document.getElementById("mango-form-data").textContent);
+    const SCHEMA = DATA.schema;
+    const DEFAULTS = FormCore.baseline(SCHEMA, DATA.defaults);
+    // the values the form starts from (presets and overrides), else the defaults
+    const START = DATA.start ? FormCore.baseline(SCHEMA, FormCore.clone(DATA.start)) : DEFAULTS;
+    const TREE = FormCore.buildTree(SCHEMA);
+    // the run settings every scenario has go after the model's own parameters
+    const FRAMEWORK = new Set(DATA.framework || []);
+    let state = FormCore.clone(START);
+    const formEl = document.getElementById("form");
+    const yamlEl = document.getElementById("yaml");
+    const changedOnly = document.getElementById("changed-only");
+
+    document.getElementById("title").textContent = DATA.title;
+    document.getElementById("subtitle").textContent = DATA.subtitle;
+    document.getElementById("note").textContent = DATA.note || "";
+    document.getElementById("hint").textContent = DATA.hint;
+
+    function h(tag, attrs = {}, children = []) {
+      const el = document.createElement(tag);
+      for (const [key, value] of Object.entries(attrs)) {
+        if (key.startsWith("on")) el.addEventListener(key.slice(2), value);
+        else if (key === "text") el.textContent = value;
+        else if (value !== undefined && value !== null && value !== false) el.setAttribute(key, value === true ? "" : value);
+      }
+      for (const child of children) if (child) el.append(child);
+      return el;
+    }
+
+    function concrete(path, base) {
+      // replace the template path of array items and dict values with the actual one
+      return path.map((part, i) => (i < base.length ? base[i] : part));
+    }
+
+    function rebased(f, base) {
+      const shift = (node) => {
+        const copy = { ...node, path: concrete(node.path, base) };
+        if (node.fields) copy.fields = node.fields.map(shift);
+        if (node.variants) copy.variants = node.variants.map((v) => ({ ...v,
+          fields: v.fields && v.fields.map(shift), field: v.field && shift(v.field) }));
+        if (node.item) copy.item = shift(node.item);
+        if (node.items) copy.items = node.items.map(shift);
+        if (node.value) copy.value = shift(node.value);
+        return copy;
+      };
+      return shift(f);
+    }
+
+    function get(path) { return FormCore.getPath(state, path); }
+    function set(path, value) { FormCore.setPath(state, path, value); update(); }
+
+    function wrap(f, control) {
+      const id = `f-${f.path.join("-")}`;
+      if (control && control.setAttribute && !control.id) control.id = id;
+      const changed = !FormCore.equal(get(f.path), FormCore.getPath(DEFAULTS, f.path));
+      return h("div", { class: `field${changed ? " changed" : ""}`, "data-widget": f.widget }, [
+        h("label", { for: id, text: f.label + (f.required ? " *" : "") }),
+        control,
+        f.help && f.depth <= 3 && f.help.length < 240 ? h("div", { class: "help", text: f.help.split("\n")[0] }) : null,
+      ]);
+    }
+
+    function scalarInput(f, types) {
+      const value = get(f.path);
+      const input = h("input", { type: "text", placeholder: f.placeholder || "",
+        value: value === undefined || value === null ? "" : typeof value === "object" ? JSON.stringify(value) : String(value),
+        onchange: (event) => set(f.path, FormCore.parseScalar(event.target.value, types)) });
+      return wrap(f, input);
+    }
+
+    function render(f) {
+      const value = get(f.path);
+      switch (f.widget) {
+        case "object": {
+          const box = h("details", { open: f.depth <= 1 ? true : undefined, "data-widget": "object" },
+            [h("summary", { text: f.label })]);
+          for (const child of f.fields) box.append(render(child));
+          return box;
+        }
+        case "boolean":
+          return wrap(f, h("input", { type: "checkbox", checked: value === true ? true : undefined,
+            onchange: (event) => set(f.path, event.target.checked) }));
+        case "number":
+        case "integer":
+          return wrap(f, h("input", { type: "number", step: f.widget === "integer" ? "1" : "any",
+            min: f.minimum, max: f.maximum, value: value ?? "",
+            onchange: (event) => {
+              const input = event.target;
+              const number = FormCore.parseNumber(input.value, f.widget === "integer");
+              if (number === undefined) {  // not a (whole) number: keep the last value
+                input.setCustomValidity(f.widget === "integer" ? "Enter a whole number." : "Enter a number.");
+                input.reportValidity();
+                return;
+              }
+              input.setCustomValidity("");
+              if (number === null && !f.nullable) {  // cleared: back to the default
+                const fallback = FormCore.getPath(DEFAULTS, f.path);
+                input.value = fallback ?? "";
+                set(f.path, fallback);
+                return;
+              }
+              set(f.path, number);
+            } }));
+        case "enum": {
+          const select = h("select", { onchange: (event) => set(f.path, f.options[Number(event.target.value)]) });
+          if (f.nullable || value === undefined) select.append(h("option", { value: "-1", text: "" }));
+          f.options.forEach((option, i) => select.append(h("option", { value: String(i), text: String(option),
+            selected: FormCore.equal(option, value) ? true : undefined })));
+          return wrap(f, select);
+        }
+        case "text":
+          return scalarInput(f, f.types);
+        case "any":
+          if (FormCore.isScalarObject(value)) return wrap(f, scalarRows(f, value));
+          return wrap(f, h("input", { type: "text", placeholder: "JSON or text",
+            value: value === undefined ? "" : typeof value === "string" ? value : JSON.stringify(value),
+            onchange: (event) => set(f.path, FormCore.parseAny(event.target.value)) }));
+        case "union": {
+          const current = value && typeof value === "object" ? value.kind : undefined;
+          const variant = f.variants.find((v) => v.kind === current);
+          const select = h("select", { onchange: (event) => {
+            const chosen = f.variants.find((v) => String(v.kind) === event.target.value);
+            set(f.path, chosen ? { kind: chosen.kind } : (f.nullable ? null : undefined));
+            renderAll();
+          } });
+          if (f.nullable || !variant) select.append(h("option", { value: "", text: "" }));
+          for (const v of f.variants) select.append(h("option", { value: String(v.kind), text: v.label,
+            selected: v === variant ? true : undefined }));
+          const box = h("div", { "data-widget": "union" }, [select]);
+          if (variant) for (const child of variant.fields) box.append(render(child));
+          return wrap(f, box);
+        }
+        case "choice": {
+          const index = f.variants.findIndex((v) => matches(v.field, value));
+          const select = h("select", { onchange: (event) => {
+            const chosen = f.variants[Number(event.target.value)];
+            set(f.path, chosen ? FormCore.clone(defaultFor(chosen.field)) : (f.nullable ? null : undefined));
+            renderAll();
+          } });
+          if (f.nullable) select.append(h("option", { value: "-1", text: "(none)" }));
+          f.variants.forEach((v, i) => select.append(h("option", { value: String(i), text: v.label,
+            selected: i === index ? true : undefined })));
+          const box = h("div", { "data-widget": "choice" }, [select]);
+          if (index >= 0) box.append(render({ ...f.variants[index].field, label: "value" }));
+          return wrap(f, box);
+        }
+        case "tuple": {
+          const box = h("div", { class: "row", "data-widget": "tuple" });
+          for (const item of f.items) box.append(render(item));
+          return wrap(f, box);
+        }
+        case "array": {
+          const items = Array.isArray(value) ? value : [];
+          const box = h("div", { "data-widget": "array" });
+          items.forEach((_, i) => {
+            const itemField = rebased(f.item, [...f.path, i]);
+            itemField.label = `${f.label} ${i + 1}`;
+            box.append(h("div", { class: "item" }, [
+              h("div", { class: "item-head" }, [h("span", { text: `#${i + 1}` }),
+                h("button", { type: "button", text: "Remove", onclick: () => {
+                  const list = FormCore.clone(get(f.path)) || [];
+                  list.splice(i, 1);
+                  set(f.path, list);
+                  renderAll();
+                } })]),
+              render(itemField),
+            ]));
+          });
+          box.append(h("button", { type: "button", text: `Add ${f.label}`, onclick: () => {
+            const list = FormCore.clone(get(f.path)) || [];
+            list.push(FormCore.clone(f.itemDefault) ?? null);
+            set(f.path, list);
+            renderAll();
+          } }));
+          return wrap(f, box);
+        }
+        case "dict": {
+          const entries = value && typeof value === "object" ? Object.keys(value) : [];
+          const box = h("div", { "data-widget": "dict" });
+          for (const key of entries) {
+            const valueField = rebased(f.value, [...f.path, key]);
+            valueField.label = key;
+            box.append(h("div", { class: "item" }, [
+              h("div", { class: "item-head" }, [h("code", { text: key }),
+                h("button", { type: "button", text: "Remove", onclick: () => {
+                  const copy = FormCore.clone(get(f.path)) || {};
+                  delete copy[key];
+                  set(f.path, copy);
+                  renderAll();
+                } })]),
+              render(valueField),
+            ]));
+          }
+          const name = h("input", { type: "text", placeholder: "name", style: "width: 12em" });
+          box.append(h("div", { class: "row" }, [name, h("button", { type: "button", text: "Add", onclick: () => {
+            const key = name.value.trim();
+            if (!key) return;
+            const copy = FormCore.clone(get(f.path)) || {};
+            copy[key] = FormCore.clone(f.valueDefault) ?? null;
+            set(f.path, copy);
+            renderAll();
+          } })]));
+          return wrap(f, box);
+        }
+        default:
+          return wrap(f, h("span", { class: "muted", text: "(not editable here)" }));
+      }
+    }
+
+    // key/value rows for an object of scalars (numbers, booleans and text are
+    // recognised as you type them; an empty value is null)
+    function scalarRows(f, value) {
+      const types = ["number", "boolean", "null", "string"];
+      const box = h("div", { "data-widget": "keyvalue" });
+      for (const key of Object.keys(value)) {
+        const inner = value[key];
+        const input = h("input", { type: "text", "aria-label": key,
+          value: inner === null || inner === undefined ? "" : String(inner),
+          onchange: (event) => {
+            const copy = FormCore.clone(get(f.path)) || {};
+            copy[key] = FormCore.parseScalar(event.target.value, types);
+            set(f.path, copy);
+          } });
+        box.append(h("div", { class: "row" }, [h("code", { text: key, style: "min-width: 6em" }), input,
+          h("button", { type: "button", text: "Remove", onclick: () => {
+            const copy = FormCore.clone(get(f.path)) || {};
+            delete copy[key];
+            set(f.path, copy);
+            renderAll();
+          } })]));
+      }
+      const name = h("input", { type: "text", placeholder: "key", style: "width: 10em" });
+      box.append(h("div", { class: "row" }, [name, h("button", { type: "button", text: "Add", onclick: () => {
+        const key = name.value.trim();
+        if (!key) return;
+        const copy = FormCore.clone(get(f.path)) || {};
+        copy[key] = null;
+        set(f.path, copy);
+        renderAll();
+      } })]));
+      return box;
+    }
+
+    function defaultFor(f) {
+      if (f.widget === "object") {
+        const out = {};
+        for (const child of f.fields) { const v = defaultFor(child); if (v !== undefined) out[child.key] = v; }
+        return out;
+      }
+      if (f.widget === "array") return [];
+      if (f.widget === "dict") return {};
+      if (f.widget === "union") return { kind: f.variants[0].kind };
+      if (f.widget === "boolean") return false;
+      if (f.widget === "number" || f.widget === "integer") return 0;
+      return undefined;
+    }
+
+    function matches(f, value) {
+      if (value === undefined || value === null) return false;
+      switch (f.widget) {
+        case "object": case "dict": return typeof value === "object" && !Array.isArray(value) && !("kind" in value);
+        case "union": return typeof value === "object" && value !== null && f.variants.some((v) => v.kind === value.kind);
+        case "array": case "tuple": return Array.isArray(value);
+        case "number": case "integer": return typeof value === "number";
+        case "boolean": return typeof value === "boolean";
+        default: return typeof value !== "object";
+      }
+    }
+
+    function output() {
+      const value = changedOnly.checked ? (FormCore.diff(state, DEFAULTS, TREE) || {}) : state;
+      return FormCore.toYaml(FormCore.prune(value, TREE)) + "\n";
+    }
+
+    function update() { yamlEl.textContent = output(); }
+
+    function renderAll() {
+      const own = TREE.fields.filter((f) => !FRAMEWORK.has(f.key));
+      const settings = TREE.fields.filter((f) => FRAMEWORK.has(f.key));
+      const children = own.map(render);
+      if (settings.length) {
+        const box = h("details", { class: "settings", "data-widget": "settings",
+          open: own.length ? undefined : true },
+          [h("summary", { text: DATA.framework_label || "Run settings" })]);
+        for (const f of settings) box.append(render({ ...f, depth: f.depth + 1 }));
+        children.push(box);
+      }
+      formEl.replaceChildren(...children);
+      update();
+    }
+
+    changedOnly.addEventListener("change", update);
+    document.getElementById("reset").addEventListener("click", () => { state = FormCore.clone(START); renderAll(); });
+    document.getElementById("copy").addEventListener("click", async () => {
+      try { await navigator.clipboard.writeText(output()); } catch (error) { /* clipboard unavailable */ }
+    });
+    document.getElementById("download").addEventListener("click", () => {
+      const blob = new Blob([output()], { type: "application/x-yaml" });
+      const link = h("a", { href: URL.createObjectURL(blob), download: document.getElementById("filename").value || "preset.yaml" });
+      document.body.append(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    });
+    renderAll();
+  })();
+}
+</script>
+</body>
+</html>

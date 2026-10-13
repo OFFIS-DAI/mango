@@ -1,0 +1,11 @@
+"""The agents of __PROJECT__ and the factories that build them.
+
+A factory is a function ``fn(e) -> Agent``; ``e`` tells it which entity it
+builds (``e.name``, ``e.index``), its parameters (``e.p``) and its own random
+stream (``e.rng``).  Scenario files reference factories as
+``"agents:make_collector"``.
+"""
+
+from .sensors import Collector, Reading, Sensor, make_collector, make_sensor
+
+__all__ = ["Collector", "Reading", "Sensor", "make_collector", "make_sensor"]

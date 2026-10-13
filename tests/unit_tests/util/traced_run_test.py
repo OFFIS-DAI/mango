@@ -203,7 +203,8 @@ class Busy(Agent):
 @pytest.mark.asyncio
 async def test_viewer_schema_covers_every_record_mango_writes(tmp_path):
     trace = tmp_path / "all.jsonl"
-    world = create_world(trace=TraceConfig(trace, html=False))
+    # Busy.fail raises on purpose; collect it instead of failing the step
+    world = create_world(trace=TraceConfig(trace, html=False), raise_agent_errors=False)
     echo = world.register(agent_composed_of(Echo()), "echo")
     world.register(Busy(echo.addr), "busy")
     async with world:

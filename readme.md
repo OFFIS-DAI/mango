@@ -39,6 +39,7 @@
 | **Role decomposition** | Complex agent behaviour is factored into loosely coupled, independently testable role objects |
 | **TCP and MQTT transport** | Agents communicate across process and machine boundaries via TCP sockets or an external MQTT broker |
 | **Discrete-event simulation** | A clock-driven `SimulationWorld` provides deterministic, reproducible runs with configurable communication delay and loss, spatial environments, and structured data recording |
+| **Scenarios and studies** | Declare a simulation once with typed parameters, run variants and seeds in parallel or on a Slurm cluster, resumable and replayable, from Python or YAML files and the `mango-scenario` command line |
 
 ---
 
@@ -246,13 +247,13 @@ world = create_world(
 For delays drawn from a distribution at runtime, use `DelayProviderCommunicationSimulation`:
 
 ```python
-import random
 from mango import create_world, DelayProviderCommunicationSimulation
 
 world = create_world(
     start_time=0.0,
+    seed=42,  # reproducible: the provider draws from the world's "comm" stream
     communication_sim=DelayProviderCommunicationSimulation(
-        default_delay_s_provider=lambda: random.gauss(0.1, 0.01),
+        default_delay_s_provider=lambda rng: max(0.0, rng.normal(0.1, 0.01)),
     ),
 )
 ```
@@ -330,6 +331,82 @@ class MyAgent(Agent):
     def on_agent_event(self, event):
         """Invoked when the environment targets this specific agent."""
 ```
+
+---
+
+## Scenarios and studies
+
+The optional scenario layer (`pip install "mango-agents[scenario]"`) declares a simulation once, as groups of agents, links and recorders with typed parameters, and runs it as a study: variants and seeds, in parallel, resumable, with one self-describing folder per run. It builds an ordinary `SimulationWorld`, so agents stay unchanged, and every entity draws from its own random stream of one seed.
+
+```python
+# batteries.py
+from pydantic import BaseModel
+
+from mango import Agent
+from mango.scenario import Scenario, ScenarioParams, Study, Uniform, load_study
+
+
+class Battery(Agent):
+    def __init__(self, soc_kwh, charge_kw):
+        super().__init__()
+        self.soc_kwh, self.charge_kw = soc_kwh, charge_kw
+
+    def on_step(self, env, clock, step_size_s):
+        self.soc_kwh += self.charge_kw * step_size_s / 3600
+
+
+class BatteryParams(BaseModel):
+    n: int = 3
+    soc_kwh: Uniform = Uniform(2.0, 6.0)
+    charge_kw: float = 1.5
+
+
+class Params(ScenarioParams):  # adds seed, time, comm, profiles, phases, events
+    battery: BatteryParams = BatteryParams()
+
+
+scenario = Scenario("batteries", params=Params)
+scenario.time(horizon="4h", step="1h")
+scenario.group("battery", "battery.n", lambda e: Battery(
+    soc_kwh=e.p.battery.soc_kwh.draw(e.rng), charge_kw=e.p.battery.charge_kw))
+scenario.record("soc_kwh", "battery", attr="soc_kwh", kind="state")  # a level, not a flow
+
+
+def final_soc(run):
+    return float(run.wide("soc_kwh").iloc[-1].mean())
+
+
+if __name__ == "__main__":
+    result = scenario.run(seed=42, overrides=["battery.n=5"])
+    print(result.wide("soc_kwh").round(2))  # time x entity: battery_0 ... battery_4
+
+    study = Study(scenario, levers={"battery.charge_kw": [1.0, 2.0]}, replications=3,
+                  seed=2026, outcomes=[final_soc], out="results/batteries")
+    study.run()  # 6 runs, one folder each; a second call skips finished runs
+    print(load_study("results/batteries").groupby("battery.charge_kw")["final_soc"].mean())
+```
+
+The same study as a file, run from the project folder with the `mango-scenario` command line (worker processes import the scenario and outcomes by reference):
+
+```yaml
+# studies/charging.yaml
+scenario: batteries:scenario
+levers: {battery.charge_kw: [1.0, 2.0]}
+replications: 3
+seed: 2026
+outcomes: [batteries:final_soc]
+out: results/charging
+```
+
+```bash
+mango-scenario validate studies/charging.yaml          # parameters, references and data files, before any run
+mango-scenario run studies/charging.yaml               # sequential; --workers 4 for a process pool (short runs
+                                                       # share workers), --executor slurm on a cluster
+mango-scenario rerun results/charging/run_0            # replays one run and compares checksums
+mango-scenario new my_study                            # a runnable project to start from
+```
+
+Kits (reusable scenario components), time series profiles, events and phases (warm-up, outages), flows and states with time integrals and averages, Latin hypercube and Sobol designs with Sobol indices, paired comparisons under common random numbers and how many replications they need, YAML scenario files, stale-run detection and Slurm job arrays are described in the [scenario guide](https://mango-agents.readthedocs.io/en/latest/scenario.html); its table "Which feature for which question" maps research questions to features.
 
 ---
 

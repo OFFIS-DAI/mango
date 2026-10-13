@@ -649,7 +649,12 @@ class MainContainerProcessManager(BaseContainerProcessManager):
                         addr=container.addr,
                         codec=dill.dumps(container.codec),
                         clock=container.clock,
-                        kwargs=container._kwargs,
+                        # streams are keyed by aid, so the mirror shares the
+                        # parent's seed identity regardless of process placement
+                        kwargs={
+                            **container._kwargs,
+                            "seed": container.seed_tree.to_dict(),
+                        },
                     ),
                     agent_creator,
                     mirror_container_creator,

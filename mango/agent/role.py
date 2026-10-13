@@ -39,15 +39,25 @@ Furthermore there are two lifecycle methods to know about:
 import asyncio
 from abc import ABC, abstractmethod
 from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from mango.agent.core import Agent, AgentAddress, AgentDelegates
+from mango.agent.core import (
+    _UNSET,
+    Agent,
+    AgentAddress,
+    AgentDelegates,
+    _check_receiver_addr,
+    _reserved_name_error,
+)
 from mango.agent.decorators import (
     apply_agent_events,
     apply_periodic,
     apply_subscriptions,
 )
 from mango.util import tracing
+
+if TYPE_CHECKING:
+    import numpy
 
 
 class MessagePreprocessor(ABC):
@@ -186,6 +196,23 @@ class Role:
     pass
 
 
+#: Number of role additions and removals so far (all agents); a
+#: SimulationWorld rebuilds its list of on_step hooks when it changes.
+_role_changes = 0
+
+
+def role_changes() -> int:
+    """How often a role was added to or removed from any agent so far.
+
+    Example::
+
+        before = role_changes()
+        agent.add_role(MyRole())
+        role_changes() > before   # True
+    """
+    return _role_changes
+
+
 class RoleHandler:
     """Contains all roles and their models. Implements the communication between roles."""
 
@@ -254,8 +281,10 @@ class RoleHandler:
         Args:
             role ([type]): the role
         """
+        global _role_changes
         self._roles.append(role)
         self._role_to_active[role] = True
+        _role_changes += 1
 
     def remove_role(self, role: Role) -> None:
         """Remove a given role
@@ -263,9 +292,11 @@ class RoleHandler:
         Args:
             role ([type]): the role
         """
+        global _role_changes
         self._roles.remove(role)
         del self._role_to_active[role]
         self._periodic_started.discard(role)
+        _role_changes += 1
 
     @property
     def roles(self) -> list[Role]:
@@ -556,6 +587,7 @@ class RoleContext(AgentDelegates):
         receiver_addr: AgentAddress,
         **kwargs,
     ) -> bool:
+        _check_receiver_addr(receiver_addr)
         self._role_handler._notify_send_message_subs(content, receiver_addr, **kwargs)
         return await self.context.send_message(
             content=content,
@@ -563,6 +595,10 @@ class RoleContext(AgentDelegates):
             sender_id=self.aid,
             **kwargs,
         )
+
+    def _send_now(self, content, receiver_addr: AgentAddress, kwargs: dict) -> bool:
+        self._role_handler._notify_send_message_subs(content, receiver_addr, **kwargs)
+        return super()._send_now(content, receiver_addr, kwargs)
 
     def emit_event(self, event: Any, event_source: Any = None, *, strict: bool = False):
         """Emit an custom event to other roles.
@@ -697,6 +733,9 @@ class RoleContext(AgentDelegates):
         self._role_handler.on_ready()
 
 
+RoleContext._plain_send_message = RoleContext.send_message
+
+
 class RoleAgent(Agent):
     """Agent, which support the role API-system. When you want to use the role-api you always need
     a RoleAgent as base for your agents. A role can be added with :func:`RoleAgent.add_role`.
@@ -798,9 +837,84 @@ class Role(ABC):
     def context(self) -> RoleContext:
         """Return the context of the role. This context can be send as bridge to the agent.
 
+        ``context`` is a reserved name: assigning it raises an
+        ``AttributeError`` that names the fix (store own state under another
+        name, e.g. ``self.situation``).
+
         :return: the context of the role
         """
         return self._context
+
+    @context.setter
+    def context(self, value: Any) -> None:
+        raise _reserved_name_error(
+            "context",
+            "the role's context, set when the role is added to an agent",
+            "choose another attribute name, e.g. self.situation",
+            owner="mango.Role",
+        )
+
+    @property
+    def rng(self) -> "numpy.random.Generator":
+        """The owning agent's reproducible random stream.
+
+        Same object as ``self.context.rng`` and the agent's
+        :attr:`~mango.Agent.rng`; use :meth:`rng_for` for an independent
+        sub-stream.
+
+        Assigning ``self.rng = value`` replaces the attribute for this role
+        only, like a plain attribute (``None`` included); ``del self.rng``
+        returns to the agent's stream.
+
+        :raises RuntimeError: before the role is added to a registered agent
+            (unless a value was assigned)
+
+        Example::
+
+            class Pricing(Role):
+                def on_ready(self):
+                    self.markup = self.rng.uniform(0.0, 0.1)
+        """
+        override = self.__dict__.get("_rng_override", _UNSET)
+        if override is not _UNSET:
+            return override
+        return self._require_context("rng").rng
+
+    @rng.setter
+    def rng(self, value: Any) -> None:
+        self._rng_override = value
+
+    @rng.deleter
+    def rng(self) -> None:
+        self.__dict__.pop("_rng_override", None)
+
+    def rng_for(self, name: str) -> "numpy.random.Generator":
+        """Return an independent named sub-stream of the owning agent's stream.
+
+        Same as ``self.context.rng_for(name)`` and the agent's
+        :meth:`~mango.Agent.rng_for`.
+
+        :param name: ``/``-separated sub-stream name
+        :return: the cached ``numpy.random.Generator`` of that sub-stream
+        :raises RuntimeError: before the role is added to a registered agent
+
+        Example::
+
+            class Pricing(Role):
+                def on_ready(self):
+                    self.noise = self.rng_for("noise").normal(0.0, 0.01)
+        """
+        return self._require_context("rng_for").rng_for(name)
+
+    def _require_context(self, operation: str) -> RoleContext:
+        context = getattr(self, "_context", None)
+        if context is None:
+            raise RuntimeError(
+                f"Role.{operation} is not available before the role is added to "
+                "an agent: the stream belongs to the owning agent and is keyed "
+                "by its aid."
+            )
+        return context
 
     def setup(self) -> None:
         """Lifecycle hook in, which will be called on adding the role to agent. The role context

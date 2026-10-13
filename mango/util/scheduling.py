@@ -4,9 +4,11 @@ Module for commonly used time based scheduled task executed inside one agent.
 
 import asyncio
 import concurrent.futures
+import functools
 import logging
 from abc import abstractmethod
 from asyncio import Future
+from collections.abc import Callable
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -23,19 +25,31 @@ from mango.util.clock import AsyncioClock, Clock, ExternalClock
 logger = logging.getLogger(__name__)
 
 
-def _raise_exceptions(fut: asyncio.Future):
+def _raise_exceptions(fut: asyncio.Future, scheduler=None, task=None):
     """
-    Inline function used as a callback to raise exceptions.
+    Done-callback of scheduled tasks: report an exception the task raised.
+
+    The scheduler's :attr:`Scheduler.on_task_error` hook is called first; the
+    exception is logged unless the hook returns ``True`` (it took over
+    reporting, e.g. a simulation world that raises it at the end of the step).
+
     :param fut: The Future object of the task
+    :param scheduler: the scheduler that ran the task
+    :param task: the :class:`ScheduledTask` that raised
     """
-    try:
-        if fut.exception() is not None:
-            try:
-                raise fut.exception()
-            except BaseException:
-                logger.exception("got exception in scheduled event")
-    except asyncio.CancelledError:
-        pass  # if this happens the task has been cancelled by mango
+    if fut.cancelled():
+        return  # the task has been cancelled by mango
+    exc = fut.exception()
+    if exc is None:
+        return
+    hook = None if scheduler is None else scheduler.on_task_error
+    if hook is not None:
+        try:
+            if hook(task, exc):
+                return
+        except Exception:
+            logger.exception("on_task_error hook failed")
+    logger.error("got exception in scheduled event", exc_info=exc)
 
 
 @dataclass
@@ -186,6 +200,10 @@ class ScheduledTask:
     passed as lambda while the scheduling logic is inside of class inheriting from this one.
     """
 
+    # class defaults, so subclasses with their own __init__ still have them
+    _scheduler = None
+    _src = None
+
     def __init__(self, clock: Clock = None, observable=True, on_stop=None) -> None:
         self.clock = clock if clock is not None else AsyncioClock()
         self._on_stop_hook_in = on_stop
@@ -196,17 +214,25 @@ class ScheduledTask:
         # set by the scheduler when tracing is enabled
         self._trace_id = None
         self._trace_owner = None
+        # set by Scheduler.schedule_task: the scheduler that tracks whether
+        # this task is running, and the task's source (``src``)
+        self._scheduler = None
+        self._src = None
 
     def notify_sleeping(self):
         # Idempotent so explicit notifications compose with a surrounding
         # sleeping_wait() scope.
         if self._is_observable and not self._is_sleeping.done():
             self._is_sleeping.set_result(True)
+            if self._scheduler is not None:
+                self._scheduler._running.discard(self)
             tracing._task_wait(self, waiting=True)
 
     def notify_running(self):
         if self._is_observable and self._is_sleeping.done():
             self._is_sleeping = asyncio.Future()
+            if self._scheduler is not None and not self._is_done.done():
+                self._scheduler._task_running(self)
             tracing._task_wait(self, waiting=False)
 
     def _trace_info(self) -> dict:
@@ -230,6 +256,8 @@ class ScheduledTask:
             self._on_stop_hook_in(fut)
         if self._is_observable:
             self._is_done.set_result(True)
+            if self._scheduler is not None:
+                self._scheduler._running.discard(self)
         self.close()
 
     def close(self):
@@ -581,6 +609,35 @@ class Scheduler:
         self.observable = observable
         # id of the agent owning this scheduler, used in trace records
         self.owner = owner
+        #: Called as ``on_task_error(task, exception)`` when a scheduled task
+        #: raises (not when it is cancelled). Return ``True`` to suppress the
+        #: default log record. :class:`~mango.simulation.SimulationWorld` uses
+        #: it to fail the step in which an agent task raised.
+        self.on_task_error: Callable[[ScheduledTask, BaseException], Any] | None = None
+        #: Called without arguments whenever an observable task starts running
+        #: (it is scheduled, or wakes from sleeping). Containers use it to
+        #: keep track of the agents that may have work (see
+        #: :mod:`mango.util.termination_detection`).
+        self.on_activity: Callable[[], Any] | None = None
+        # observable tasks that are neither sleeping nor done
+        self._running: set[ScheduledTask] = set()
+
+    def _task_running(self, task: ScheduledTask) -> None:
+        """Note that the observable *task* runs (scheduled or woken)."""
+        self._running.add(task)
+        if self.on_activity is not None:
+            self.on_activity()
+
+    @property
+    def running_tasks(self) -> list[ScheduledTask]:
+        """The observable tasks that are neither sleeping nor done (a copy).
+
+        Example::
+
+            if not agent.scheduler.running_tasks:
+                print("idle until a message or the clock wakes it")
+        """
+        return list(self._running)
 
     @staticmethod
     def _run_task_in_p_context(
@@ -626,9 +683,16 @@ class Scheduler:
         if task._trace_id is not None:
             l_task.add_done_callback(lambda fut: tracing._task_done(task, fut))
         l_task.add_done_callback(task.on_stop)
-        l_task.add_done_callback(_raise_exceptions)
+        l_task.add_done_callback(
+            functools.partial(_raise_exceptions, scheduler=self, task=task)
+        )
         l_task.add_done_callback(self._remove_task)
         self._scheduled_tasks.append((task, l_task, coro, src))
+        if task._is_observable and not task._is_done.done():
+            task._scheduler = self
+            task._src = src
+            if not task._is_sleeping.done():
+                self._task_running(task)
         return l_task
 
     def schedule_timestamp_task(
@@ -827,7 +891,9 @@ class Scheduler:
             l_task.add_done_callback(lambda fut: tracing._task_done(task, fut))
         l_task.add_done_callback(self._remove_process_task)
         l_task.add_done_callback(task.on_stop)
-        l_task.add_done_callback(_raise_exceptions)
+        l_task.add_done_callback(
+            functools.partial(_raise_exceptions, scheduler=self, task=task)
+        )
         self._scheduled_process_tasks.append(
             (task, l_task, scheduled_process_control, src)
         )
@@ -1031,25 +1097,24 @@ class Scheduler:
             await self.tasks_complete(timeout=timeout, recursive=recursive)
 
     async def tasks_complete_or_sleeping(self):
-        """ """
-        sleeping_tasks = []
-        # we need to use the while loop here, as new tasks may have been scheduled while waiting for other tasks
-        while len(self._scheduled_tasks + self._scheduled_process_tasks) > len(
-            sleeping_tasks
-        ):
-            for scheduled_task, task, _, _ in (
-                self._scheduled_tasks + self._scheduled_process_tasks
-            ):
-                await asyncio.wait(
-                    [scheduled_task._is_sleeping, scheduled_task._is_done],
-                    return_when=asyncio.FIRST_COMPLETED,
-                )
-                if (
-                    scheduled_task._is_sleeping.done()
-                    and scheduled_task not in sleeping_tasks
-                ):
-                    # we need to recognize how many sleeping tasks we have in order to find out if all tasks are done
-                    sleeping_tasks.append(scheduled_task)
+        """Wait until every observable task of this scheduler is sleeping or done.
+
+        Tasks scheduled while waiting are awaited too. Only running tasks are
+        awaited, so sleeping tasks cost nothing.
+
+        Example::
+
+            agent.schedule_instant_task(agent.work())
+            await agent.scheduler.tasks_complete_or_sleeping()
+        """
+        from mango.util.termination_detection import _collect_pending, settle
+
+        def scan():
+            pending: list = []
+            _collect_pending(self, (), pending)
+            return (), pending
+
+        await settle(scan, quiet_turns=0)
 
     async def shutdown(self):
         """

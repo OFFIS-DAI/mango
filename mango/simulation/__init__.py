@@ -39,9 +39,14 @@ from .recording import (
     record_agent_having,
     record_position,
     record_world,
+    recordings_to_frame,
+    recordings_to_records,
+    TIDY_COLUMNS,
 )
 from .world import (
     DISCRETE_EVENT,
+    AgentError,
+    AgentTaskError,
     SimulationResult,
     SimulationWorld,
     create_world,

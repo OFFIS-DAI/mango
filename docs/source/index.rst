@@ -105,6 +105,15 @@ Features
       Discrete-event and fixed-step simulation; configurable message delay and loss; spatial environments and data recording.
 
    .. grid-item-card::
+      :link: features-scenarios
+      :link-type: ref
+      :shadow: sm
+
+      **Scenarios & studies**
+      ^^^
+      Declare a simulation once with typed parameters, then run variants and seeds in parallel or on Slurm, resumable and replayable, from Python or YAML and the ``mango-scenario`` CLI.
+
+   .. grid-item-card::
       :link: features-topologies
       :link-type: ref
       :shadow: sm
@@ -247,6 +256,8 @@ Where to go next
 
    tutorial
    simulation-ev-tutorial
+   scenario-tutorial
+   scenario-ev-study
 
 .. toctree::
    :hidden:
@@ -261,6 +272,8 @@ Where to go next
    scheduling
    topology
    simulation
+   scenario
+   scenario-recipes
    codecs
    tracing
 

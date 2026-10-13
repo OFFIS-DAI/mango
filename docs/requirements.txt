@@ -1,4 +1,4 @@
--e .
+-e .[scenario]
 pika
 pyzmq
 furo>=2024.8.6

@@ -25,15 +25,30 @@ from ..util.scheduling import (
     Scheduler,
     sleeping_wait,
 )
+from ..util.seeding import name_key
 from .conversation import CONVERSATION_ID_KEY, Conversation, _ConversationContext
 from .decorators import apply_agent_periodic, apply_agent_subscriptions
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
+    import numpy
+
     from mango.express.health import TopologyHealth
 
 logger = logging.getLogger(__name__)
+
+#: Prefix of the per-agent random stream names (``"agent/<aid>"``).
+AGENT_STREAM_PREFIX = "agent"
+
+_UNSET = object()
+
+
+def _reserved_name_error(
+    name: str, meaning: str, hint: str, owner: str = "mango.Agent"
+) -> AttributeError:
+    """The error for assigning one of mango.Agent's (or *owner*'s) reserved attribute names."""
+    return AttributeError(f"{name!r} is reserved by {owner} ({meaning}); {hint}")
 
 
 @dataclass
@@ -288,6 +303,20 @@ class AgentContext:
     def register(self, agent, suggested_aid):
         return self._container.register(agent, suggested_aid=suggested_aid)
 
+    def rng(self, *names: str | int) -> numpy.random.Generator:
+        """Return the container's reproducible random stream *names*.
+
+        See :meth:`mango.container.core.Container.rng`.
+
+        :param names: ``/``-separated stream name, or several segments
+        :return: the cached stream
+
+        Example::
+
+            market_rng = agent.context.rng("market")
+        """
+        return self._container.rng(*names)
+
     def deregister(self, aid):
         if self._container.running:
             self._container.deregister(aid)
@@ -313,6 +342,26 @@ class AgentContext:
         return await self._container.send_message(
             content, receiver_addr=receiver_addr, sender_id=sender_id, **kwargs
         )
+
+
+def _check_receiver_addr(receiver_addr: Any) -> None:
+    """Fail in the caller's frame when *receiver_addr* is no address.
+
+    Sends often run later (an instant task), where a wrong receiver would
+    fail far away from the user code that passed it.
+    """
+    if hasattr(receiver_addr, "aid") and hasattr(receiver_addr, "protocol_addr"):
+        return
+    hint = (
+        "; for an agent id use its address (e.g. agent.addr or "
+        "AgentAddress(protocol_addr, aid)), and reply with sender_addr(meta)"
+        if isinstance(receiver_addr, str)
+        else ""
+    )
+    raise TypeError(
+        f"receiver_addr must be an AgentAddress, got {type(receiver_addr).__name__} "
+        f"{receiver_addr!r}{hint}."
+    )
 
 
 class AgentDelegates:
@@ -370,33 +419,187 @@ class AgentDelegates:
         """
 
     # ------------------------------------------------------------------
+    # Reproducible randomness
+    # ------------------------------------------------------------------
+
+    def _agent_stream(
+        self, operation: str, suffix: str | None
+    ) -> numpy.random.Generator:
+        agent = self._bound_agent(operation)
+        context = agent.context
+        if agent.aid is None or context is None or context._container is None:
+            raise RuntimeError(
+                f"{operation} is not available before the agent is registered: "
+                "the agent's random stream is keyed by its aid, which exists "
+                "after registration (e.g. in on_register, on_start or on_ready)."
+            )
+        # the aid is one key segment, never split on "/": aids "g" and "g/x"
+        # must not share streams ("agent/g/x" would be g's sub-stream "x")
+        segments: tuple[str | int, ...] = (AGENT_STREAM_PREFIX, name_key(agent.aid))
+        if suffix is not None:
+            segments += (suffix,)
+        return context.rng(*segments)
+
+    @property
+    def rng(self) -> numpy.random.Generator:
+        """The agent's reproducible random stream (a ``numpy.random.Generator``).
+
+        The stream is keyed by ``"agent"`` and the aid in the container's
+        :class:`~mango.util.seeding.SeedTree`, so it depends only on the root
+        seed and the aid: adding or removing other agents never changes it.
+        For an aid without ``/`` it is ``world.rng(f"agent/{aid}")``; in
+        general (the aid is always a single segment) it is
+        ``world.rng("agent", name_key(aid))``. The same object is returned on
+        every access. Roles share their agent's stream.
+
+        Agents registered with generated aids (``agent0``, ``agent1``, ...)
+        get streams that depend on registration order; pass ``suggested_aid``
+        for streams that stay stable when the scenario changes.
+
+        Assigning ``self.rng = value`` replaces the attribute for this object,
+        like a plain attribute (``None`` included, so the lazy pattern
+        ``self.rng = None`` ... ``if self.rng is None:`` keeps working);
+        ``del self.rng`` returns to the seeded stream.
+
+        :raises RuntimeError: before the agent is registered (unless a value
+            was assigned)
+
+        Example::
+
+            class EV(Agent):
+                def on_ready(self):
+                    self.arrival_h = self.rng.normal(17.5, 1.0)
+        """
+        override = self.__dict__.get("_rng_override", _UNSET)
+        if override is not _UNSET:
+            return override
+        agent = self._bound_agent("rng")
+        if agent is not self:
+            return agent.rng
+        # Hot path (agents draw from self.rng every step): the stream is a
+        # pure function of the container and the aid, so reuse it while both
+        # are unchanged instead of re-deriving the stream key on every access.
+        context = self.context
+        container = None if context is None else context._container
+        cached = self.__dict__.get("_rng_cache")
+        if (
+            cached is not None
+            and cached[0] is container
+            and cached[1] == self.aid
+            and container is not None
+        ):
+            return cached[2]
+        stream = self._agent_stream("rng", None)
+        self._rng_cache = (container, self.aid, stream)
+        return stream
+
+    @rng.setter
+    def rng(self, value: Any) -> None:
+        self._rng_override = value
+
+    @rng.deleter
+    def rng(self) -> None:
+        self.__dict__.pop("_rng_override", None)
+
+    def rng_for(self, name: str) -> numpy.random.Generator:
+        """Return an independent named sub-stream of the agent's stream.
+
+        The stream is the agent's stream key plus *name* (for an aid without
+        ``/``: ``"agent/<aid>/<name>"``); use it to keep separate concerns
+        (e.g. arrivals and demand) from shifting each other's draws.
+
+        :param name: ``/``-separated sub-stream name
+        :return: the cached ``numpy.random.Generator`` of that sub-stream
+        :raises RuntimeError: before the agent is registered
+
+        Example::
+
+            demand_kwh = self.rng_for("demand").uniform(5.0, 40.0)
+        """
+        return self._agent_stream("rng_for", name)
+
+    # ------------------------------------------------------------------
     # Agent description helpers
     # ------------------------------------------------------------------
 
     @property
     def description(self) -> AgentDescription:
-        """Return the agent's :class:`AgentDescription`."""
+        """Return the agent's :class:`AgentDescription` (reserved name)."""
         return self._description
+
+    @description.setter
+    def description(self, value: Any) -> None:
+        raise _reserved_name_error(
+            "description",
+            "the agent's name, color and category",
+            "use self.update_description(...) to change it, or choose another "
+            "attribute name, e.g. self.summary",
+        )
 
     @property
     def name(self) -> str:
-        """Human-readable name of this agent."""
+        """Human-readable name of this agent (read-only, reserved name).
+
+        Change it with :meth:`update_description`; assigning ``self.name``
+        raises an ``AttributeError`` that says so.
+        """
         return self._description.name
+
+    @name.setter
+    def name(self, value: Any) -> None:
+        raise _reserved_name_error(
+            "name",
+            "the agent's display name",
+            "use self.update_description(name=...) to change it, or choose "
+            "another attribute name, e.g. self.label",
+        )
 
     @property
     def color(self) -> str:
-        """Visual color tag for this agent."""
+        """Visual color tag for this agent (read-only, reserved name).
+
+        Change it with :meth:`update_description`.
+        """
         return self._description.color
+
+    @color.setter
+    def color(self, value: Any) -> None:
+        raise _reserved_name_error(
+            "color",
+            "the agent's visual tag",
+            "use self.update_description(color=...) to change it, or choose "
+            "another attribute name, e.g. self.team",
+        )
 
     @property
     def category(self) -> str:
-        """Category tag for this agent."""
+        """Category tag for this agent (read-only, reserved name).
+
+        Change it with :meth:`update_description`.
+        """
         return self._description.category
+
+    @category.setter
+    def category(self, value: Any) -> None:
+        raise _reserved_name_error(
+            "category",
+            "the agent's category tag",
+            "use self.update_description(category=...) to change it, or choose "
+            "another attribute name, e.g. self.kind",
+        )
 
     @property
     def uid(self) -> str:
-        """Unique identifier (UUID string) of this agent."""
+        """Unique identifier (UUID string) of this agent (read-only, reserved name)."""
         return self._description.uid
+
+    @uid.setter
+    def uid(self, value: Any) -> None:
+        raise _reserved_name_error(
+            "uid",
+            "the agent's read-only unique id",
+            "choose another attribute name, e.g. self.person_id",
+        )
 
     def update_description(
         self,
@@ -800,7 +1003,17 @@ class AgentDelegates:
 
     @property
     def aid(self):
+        """The agent id, assigned at registration (read-only, reserved name)."""
         return self._aid
+
+    @aid.setter
+    def aid(self, value: Any) -> None:
+        raise _reserved_name_error(
+            "aid",
+            "the agent id, assigned by the container at registration",
+            "pass suggested_aid=... to register() to choose it, or choose "
+            "another attribute name, e.g. self.index",
+        )
 
     @property
     def addr(self):
@@ -813,6 +1026,14 @@ class AgentDelegates:
             return None
         return AgentAddress(self.context.addr, self.aid)
 
+    @addr.setter
+    def addr(self, value: Any) -> None:
+        raise _reserved_name_error(
+            "addr",
+            "the agent's address, derived from its container and aid",
+            "choose another attribute name, e.g. self.home_addr",
+        )
+
     async def send_message(
         self,
         content,
@@ -822,6 +1043,7 @@ class AgentDelegates:
         """
         See container.send_message(...)
         """
+        _check_receiver_addr(receiver_addr)
         return await self.context.send_message(
             content, receiver_addr=receiver_addr, sender_id=self.aid, **kwargs
         )
@@ -851,18 +1073,49 @@ class AgentDelegates:
         receiver_addr: AgentAddress,
         **kwargs,
     ):
-        """
-        Schedules sending a message without any delay. This is equivalent to using the schedulers 'schedule_instant_task' with the coroutine created by
-        'container.send_message'.
+        """Send a message without waiting for it: the send runs in the next loop turn.
+
+        Equivalent to ``self.schedule_instant_task(self.send_message(...))``,
+        and the way to send from synchronous code such as ``on_step`` or
+        ``handle_message``. In a :class:`~mango.simulation.SimulationWorld`
+        (whose sending never suspends) no task is created: one event-loop
+        callback sends the message at the same moment and in the same order,
+        which is several times cheaper per message.
 
         :param content: The content of the message
         :param receiver_addr: The address passed to the container
         :param kwargs: Additional parameters to provide protocol specific settings
-        :returns: asyncio.Task for the scheduled coroutine
-        """
+        :returns: an awaitable resolved with the result of ``send_message``
+            (an ``asyncio.Task``, or an ``asyncio.Future`` on the fast path)
 
+        Example::
+
+            def on_step(self, env, clock, step_size_s):
+                for peer in self.peers:
+                    self.schedule_instant_message({"price": self.price}, peer)
+        """
+        _check_receiver_addr(receiver_addr)
+        context = self.context
+        send_soon = getattr(getattr(context, "_container", None), "_send_soon", None)
+        if (
+            send_soon is not None
+            and type(self).send_message is type(self)._plain_send_message
+            and "send_message" not in self.__dict__
+            and type(context).send_message is AgentContext.send_message
+            and not tracing.is_tracing()
+        ):
+            return send_soon(
+                self._send_now, content, receiver_addr, kwargs, self.scheduler
+            )
         return self.schedule_instant_task(
             self.send_message(content, receiver_addr=receiver_addr, **kwargs)
+        )
+
+    def _send_now(self, content, receiver_addr: AgentAddress, kwargs: dict) -> bool:
+        """What :meth:`send_message` does, synchronously (fast path of
+        :meth:`schedule_instant_message`; tracing takes the regular path)."""
+        return self.context._container._enqueue_message(
+            content, receiver_addr, self.aid, kwargs
         )
 
     def schedule_conditional_process_task(
@@ -1123,12 +1376,148 @@ class AgentDelegates:
         )
 
 
+#: The ``send_message`` whose effect ``_send_now`` reproduces; a subclass that
+#: overrides ``send_message`` keeps its override (no fast path).
+AgentDelegates._plain_send_message = AgentDelegates.send_message
+
+
+class AgentInbox(asyncio.Queue):
+    """The agent's message queue: an ``asyncio.Queue`` that reports new messages.
+
+    ``on_put`` (a callable without arguments, or ``None``) is called after
+    every message is added; containers use it to know which agents have work
+    without looking at every agent (see :mod:`mango.util.termination_detection`).
+
+    Example::
+
+        inbox = AgentInbox()
+        inbox.on_put = lambda: print("message")
+        inbox.put_nowait((0, "hello", {}))   # prints "message"
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.on_put: Any = None
+
+    def put_nowait(self, item: Any) -> None:
+        super().put_nowait(item)
+        if self.on_put is not None:
+            self.on_put()
+
+
 class Agent(ABC, AgentDelegates):
-    """Base class for all agents."""
+    """Base class for all agents.
+
+    Subclasses must call ``super().__init__()`` first in their ``__init__``.
+
+    **Names reserved by mango.Agent.** These attributes belong to the
+    framework; assigning them raises an ``AttributeError`` that names the
+    fix, so pick another name for your own state:
+
+    ``aid``, ``addr``
+        the agent id and address, assigned at registration
+    ``name``, ``color``, ``category``, ``uid``, ``description``
+        the agent's description; change it with :meth:`update_description`
+    ``inbox``, ``context``, ``scheduler``
+        the message queue, the container context and the task scheduler
+    ``rng``
+        the agent's seeded random stream (assignable, see :attr:`rng`)
+
+    Methods such as ``send_message``, ``schedule_*_task``, ``neighbors``,
+    ``on_step`` and ``handle_message`` are part of the API as well.
+
+    Example::
+
+        class Resident(Agent):
+            def __init__(self, team):
+                super().__init__()
+                self.team = team  # not self.color: that name is reserved
+
+            def on_register(self):
+                self.update_description(color=self.team)
+    """
 
     #: Whether this agent owns the co-located event bus ``@on_event``
     #: subscribes to.  Only :class:`~mango.RoleAgent` does.
     _has_event_bus = False
+
+    # The message queue, container context and scheduler live in private
+    # slots behind properties so that a subclass assigning e.g.
+    # ``self.inbox = []`` gets a clear error instead of a crash much later in
+    # mango's message loop. Values of the right type (or None) are accepted,
+    # so mango itself (and tests) can still swap them.
+
+    @property
+    def inbox(self) -> asyncio.Queue:
+        """The agent's message queue (reserved name)."""
+        return self._mango_inbox
+
+    @inbox.setter
+    def inbox(self, value: Any) -> None:
+        if not isinstance(value, asyncio.Queue):
+            raise _reserved_name_error(
+                "inbox",
+                "the agent's incoming message queue",
+                "choose another attribute name, e.g. self.received",
+            )
+        self._mango_inbox = value
+        self._mango_activity_changed()
+
+    @property
+    def context(self) -> AgentContext:
+        """The agent's container context (reserved name)."""
+        return self._mango_context
+
+    @context.setter
+    def context(self, value: Any) -> None:
+        if value is not None and not isinstance(value, AgentContext):
+            raise _reserved_name_error(
+                "context",
+                "the agent's container context",
+                "choose another attribute name, e.g. self.situation",
+            )
+        self._mango_context = value
+
+    @property
+    def scheduler(self) -> Scheduler:
+        """The agent's task scheduler, created at registration (reserved name)."""
+        return self._mango_scheduler
+
+    @scheduler.setter
+    def scheduler(self, value: Any) -> None:
+        if value is not None and not isinstance(value, Scheduler):
+            raise _reserved_name_error(
+                "scheduler",
+                "the agent's task scheduler",
+                "choose another attribute name, e.g. self.planner",
+            )
+        self._mango_scheduler = value
+        self._mango_activity_changed()
+
+    #: The container's activity tracker this agent reports to (set at
+    #: registration; see :mod:`mango.util.termination_detection`).
+    _mango_activity: Any = None
+
+    def _mango_activity_changed(self) -> None:
+        """Re-attach a swapped inbox or scheduler to the container's activity tracker."""
+        activity = self.__dict__.get("_mango_activity")
+        if activity is not None:
+            activity.attach(self)
+
+    def __getattr__(self, name: str) -> Any:
+        # Only reached when normal lookup fails, so it costs nothing on the
+        # hot path. Turns the confusing errors caused by a forgotten
+        # super().__init__() into one that names the fix.
+        if name.startswith("__") or "_mango_inbox" in self.__dict__:
+            raise AttributeError(
+                f"{type(self).__name__!r} object has no attribute {name!r}"
+            )
+        cls = type(self).__name__
+        raise AttributeError(
+            f"{cls!r} object has no attribute {name!r}: the agent was not "
+            f"initialised by mango.Agent. Call super().__init__() first in "
+            f"{cls}.__init__."
+        )
 
     def __init__(
         self,
@@ -1139,7 +1528,7 @@ class Agent(ABC, AgentDelegates):
 
         super().__init__()
 
-        self.inbox = asyncio.Queue()
+        self.inbox = AgentInbox()
         self.context = AgentContext(None)
 
         apply_agent_subscriptions(self)
@@ -1242,8 +1631,19 @@ class Agent(ABC, AgentDelegates):
 
                 # signal to the Queue that the message is handled
                 self.inbox.task_done()
-        except Exception:
-            logger.exception("The check inbox task of %s failed!", self.aid)
+        except Exception as exc:
+            self._inbox_failure = exc
+            if self.__dict__.get("_mango_inbox_failure_reported") and getattr(
+                self.context._container, "running", False
+            ):
+                # a simulation world raises it (once, with this traceback
+                # chained) at its next settling point: one report, not one
+                # traceback per failing agent
+                logger.debug(
+                    "The check inbox task of %s failed!", self.aid, exc_info=True
+                )
+            else:
+                logger.exception("The check inbox task of %s failed!", self.aid)
 
     def _dispatch_message(self, content: Any, meta: dict) -> None:
         """Hand a received message to forwarding, replies and handlers."""
@@ -1278,7 +1678,8 @@ class Agent(ABC, AgentDelegates):
                             _handler(self, content, meta)
                 if self._dispatches_to_handle_message:
                     tracing._handler_called("message", self.handle_message)
-                    self.handle_message(content=content, meta=meta)
+                    # positional, like roles: the parameter names are free
+                    self.handle_message(content, meta)
 
     def _check_forwarding_rules(self, content: Any, meta: dict) -> bool:
         """Apply forwarding rules; returns True if a rule matched."""

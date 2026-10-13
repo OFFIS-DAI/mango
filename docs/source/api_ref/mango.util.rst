@@ -9,6 +9,14 @@ Clock
    :undoc-members:
    :show-inheritance:
 
+Seeding
+-----------------------
+
+.. automodule:: mango.util.seeding
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 Distributed clock
 ------------------------------------
 

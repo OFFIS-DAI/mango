@@ -6,7 +6,8 @@ Feature overview
 
 mango is a small set of parts that fit together: agents, which can be composed
 of roles, talk through messages along a topology and run tasks on a clock;
-containers or a simulation world run them, and tracing observes all of it.
+containers or a simulation world run them, tracing observes all of it, and
+the scenario layer turns simulations into reproducible studies.
 Start from one of the parts below or from
 :ref:`what you want to do <features-goals>`, and follow the cards into the
 guide.
@@ -30,11 +31,12 @@ guide.
       * :ref:`Scheduling <features-scheduling>`
       * :ref:`Containers <features-containers>`
       * :ref:`Simulation <features-simulation>`
+      * :ref:`Scenarios <features-scenarios>`
       * :ref:`Tracing <features-tracing>`
 
 .. only:: latex
 
-   mango consists of eight parts, each described in one of the sections below:
+   mango consists of nine parts, each described in one of the sections below:
 
    * :ref:`features-agents`: autonomous actors with addresses, lifecycle and
      handlers.
@@ -46,6 +48,8 @@ guide.
      messages.
    * :ref:`features-simulation`: deterministic time, simulated network,
      recorded results.
+   * :ref:`features-scenarios`: declare a simulation once, run it as a
+     reproducible study.
    * :ref:`features-tracing`: follow every message, event and task back to its
      cause.
 
@@ -96,6 +100,16 @@ Know what you want to do, but not where it lives? Pick the closest goal.
      - ``behavior_in``
    * - :ref:`record values over time and plot them <simulation-recording>`
      - ``record_agent`` · ``plot_agents``
+   * - :ref:`run a simulation over many variants and seeds, resumably <scenario-studies>`
+     - ``Study`` · ``load_study``
+   * - :ref:`reuse a fleet or a grid model in the next study <scenario-kits>`
+     - ``ScenarioComponent`` · ``scenario.use``
+   * - :ref:`compare variants on common random numbers, with confidence intervals <scenario-crn>`
+     - ``frame.paired`` · ``frame.summary``
+   * - :ref:`find out which parameter matters most <scenario-designs>`
+     - ``Sobol`` · ``sobol_indices``
+   * - :ref:`run a study on a Slurm cluster <scenario-slurm>`
+     - ``mango-scenario run --executor slurm``
    * - :ref:`find out why a message never arrived <tracing-message-topology>`
      - ``message_topology``
    * - :ref:`find the handler that raised an exception <tracing-failing-step>`
@@ -648,6 +662,125 @@ classes stay unchanged.
       and when.
       +++
       ``plot_agents`` · ``show_communication_data``
+
+
+.. _features-scenarios:
+
+Scenarios & studies
+===================
+
+The scenario layer declares a simulation once, as groups, links and
+recorders with typed parameters, and runs it as a study: many variants and
+seeds, in parallel, resumable, with one self-describing folder and a tidy
+result table per run. It builds an ordinary simulation world, so agents stay
+unchanged. It needs the ``scenario`` extra (``pip install
+"mango-agents[scenario]"``).
+
+**Guide:** :doc:`scenario` · :doc:`scenario-tutorial`
+
+.. grid:: 1 1 2 2
+   :gutter: 3
+
+   .. grid-item-card:: Declarative scenarios
+      :link: scenario-first
+      :link-type: ref
+      :shadow: sm
+
+      Declare groups of agents, links and recorders once; every run builds a
+      fresh world from them, with entities named ``ev_0``, ``ev_1`` ...
+      +++
+      ``Scenario`` · ``group`` · ``link`` · ``record``
+
+   .. grid-item-card:: Typed parameters and presets
+      :link: scenario-params
+      :link-type: ref
+      :shadow: sm
+
+      One pydantic model for every number, with distributions, YAML presets
+      and dotted overrides; typos fail before the run.
+      +++
+      ``ScenarioParams`` · ``load_params``
+
+   .. grid-item-card:: One seed, named random streams
+      :link: scenario-seeds
+      :link-type: ref
+      :shadow: sm
+
+      Every entity draws from its own stream of one seed, so adding agents
+      never changes the others and every run replays exactly.
+      +++
+      ``e.rng`` · ``result.seed``
+
+   .. grid-item-card:: Studies
+      :link: scenario-studies
+      :link-type: ref
+      :shadow: sm
+
+      Factors, designs and replications as a run table; process pools,
+      resume by content hash, provenance and one table of outcomes with
+      paired comparisons and confidence intervals.
+      +++
+      ``Study`` · ``load_study`` · ``frame.paired``
+
+   .. grid-item-card:: Reusable kits
+      :link: scenario-kits
+      :link-type: ref
+      :shadow: sm
+
+      Bundle groups, behaviors, recorders and their parameters into a
+      component the next study uses with one line.
+      +++
+      ``ScenarioComponent`` · ``scenario.use``
+
+   .. grid-item-card:: Profiles and calendar time
+      :link: scenario-profiles
+      :link-type: ref
+      :shadow: sm
+
+      Load and PV curves from CSV or Parquet, aligned to the calendar, with
+      per-entity noise from the entity's stream.
+      +++
+      ``profiles:`` · ``e.profile``
+
+   .. grid-item-card:: Events and phases
+      :link: scenario-events
+      :link-type: ref
+      :shadow: sm
+
+      Warm-up periods, communication outages and faults declared as data
+      instead of branches in the step loop.
+      +++
+      ``phases:`` · ``events:``
+
+   .. grid-item-card:: Sensitivity analysis
+      :link: scenario-designs
+      :link-type: ref
+      :shadow: sm
+
+      Latin hypercube and Sobol designs over parameter ranges, and Sobol
+      indices from the stored outcomes.
+      +++
+      ``Lhs`` · ``Sobol`` · ``sobol_indices``
+
+   .. grid-item-card:: YAML files and the command line
+      :link: scenario-cli
+      :link-type: ref
+      :shadow: sm
+
+      Scenario and study files, then validate, plan, run, replay and
+      inspect studies; plain-script export, preset forms, project template.
+      +++
+      ``mango-scenario`` · ``load_scenario``
+
+   .. grid-item-card:: Slurm clusters
+      :link: scenario-slurm
+      :link-type: ref
+      :shadow: sm
+
+      Run the pending runs of a study as one job array; resume and status
+      work as on a laptop.
+      +++
+      ``SlurmExecutor`` · ``--executor slurm``
 
 
 .. _features-tracing:

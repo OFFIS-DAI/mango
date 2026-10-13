@@ -1,0 +1,25 @@
+"""Outcomes: one number per run, computed from the run's recorded values.
+
+``run.ts(name)`` returns a recorded variable (index: time in seconds) for the
+evaluation phases only (the warm-up is not recorded).  A study lists outcomes
+as ``"outcomes:mean_abs_error"``.
+"""
+
+
+def _error(run):
+    return run.ts("estimate") - run.ts("temperature")
+
+
+def mean_abs_error(run):
+    """Mean absolute error of the collector's estimate over the recorded time.
+
+    Every row is one step (fixed steps, flows), so the mean over the rows is the
+    time average; it covers the recorded phases only, like ``run.time_average``
+    (dividing a sum by ``run.horizon_s`` would also count the warm-up).
+    """
+    return float(_error(run).abs().mean())
+
+
+def max_abs_error(run):
+    """Largest absolute error of the collector's estimate."""
+    return float(_error(run).abs().max())

@@ -1,0 +1,96 @@
+"""__PROJECT__: agents on a ring move their value toward their neighbours' values.
+
+Read this file top to bottom:
+
+1. the agent: what one agent does every step
+2. the parameters: every number a run may change
+3. the scenario: who exists, who talks to whom, what is recorded
+4. the outcomes: one number per run, for the study
+
+One run:    python model.py
+The study:  mango-scenario run study.yaml
+"""
+
+from pydantic import BaseModel, Field
+
+from mango import Agent
+from mango.scenario import Scenario, ScenarioParams, Uniform
+
+
+# 1. The agent -------------------------------------------------------------------
+class Peer(Agent):
+    """Holds a value; sends it to its neighbours and moves toward their mean."""
+
+    def __init__(self, value: float, stubbornness: float):
+        super().__init__()
+        self.value = value
+        self.stubbornness = stubbornness  # weight of its own value, in [0, 1]
+        self.heard: dict[str, float] = {}  # latest value of each neighbour
+
+    def on_step(self, env, clock, step_size_s: float) -> None:
+        if self.heard:
+            mean = sum(self.heard.values()) / len(self.heard)
+            self.value = self.stubbornness * self.value + (1 - self.stubbornness) * mean
+        for neighbor in self.neighbors(tid="ring"):
+            self.schedule_instant_message(self.value, neighbor)
+
+    def handle_message(self, content, meta) -> None:
+        self.heard[meta["sender_id"]] = content
+
+
+# 2. The parameters --------------------------------------------------------------
+class PeerParams(BaseModel, extra="forbid"):
+    n: int = Field(10, ge=2, description="number of agents on the ring")
+    stubbornness: float = Field(
+        0.5, ge=0, le=1, description="weight an agent gives its own value"
+    )
+    initial: Uniform = Field(
+        Uniform(0.0, 1.0), description="distribution of the initial values"
+    )
+
+
+class Params(ScenarioParams):
+    peers: PeerParams = PeerParams()
+
+
+def make_peer(e):
+    """Factory of the agents: e.p are the parameters, e.draw() uses the agent's stream."""
+    return Peer(value=e.draw(e.p.peers.initial), stubbornness=e.p.peers.stubbornness)
+
+
+def spread(ctx):
+    """Largest minus smallest value: 0 when all agents agree."""
+    values = [agent.value for agent in ctx.agents("peer")]
+    return max(values) - min(values)
+
+
+# 3. The scenario ----------------------------------------------------------------
+scenario = Scenario("__PROJECT__", params=Params)
+scenario.time(horizon=50, step=1)  # 50 steps of 1 s
+peers = scenario.group("peer", "peers.n", make_peer)
+scenario.link("ring", peers, pattern="ring")
+# kind="flow": the values change in on_step, so the row at t describes the step
+# that ended at t (a level changed in message handlers would be kind="state")
+scenario.record("value", peers, attr="value", kind="flow")  # one series per agent
+scenario.record_world("spread", spread, kind="flow")  # one series for the run
+
+
+# 4. The outcomes ----------------------------------------------------------------
+# A recorded row at time t > 0 is the state after the step that ended at t; the
+# row at t = 0 is the initial state.
+def final_spread(run):
+    """The spread after the last step."""
+    return float(run.ts("spread").iloc[-1])
+
+
+def mean_spread(run):
+    """The spread averaged over the recorded time: time_average() weights every row
+    with the step it ends and divides by the recorded time (a record: false
+    warm-up or an early stop is left out, unlike dividing by the horizon)."""
+    return run.time_average("spread")
+
+
+if __name__ == "__main__":  # also keeps worker processes from running this
+    result = scenario.run("presets/base.yaml", seed=1)
+    print("spread:", result.ts("spread").round(3).tolist()[:8], "...")
+    print(f"final {final_spread(result):.4f}, mean {mean_spread(result):.4f}")

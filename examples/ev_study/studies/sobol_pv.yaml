@@ -1,0 +1,11 @@
+# Follow-up: Sobol sensitivity to PV share and EV battery size (phase 3)
+extends: studies/fleet_comparison.yaml
+uncertainties:            # merged into the parent's; a single value fixes a factor
+  ev.n: 10
+  comm.loss_percent: 0.0
+  grid.pv_share: {range: [0.2, 0.9]}
+  ev.capacity_kwh: {range: [40, 100]}
+levers: {algorithm: [proportional]}
+design: {sobol: {n: 256, second_order: false}}
+replications: 3
+out: results/sobol_pv

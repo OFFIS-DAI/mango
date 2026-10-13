@@ -1,0 +1,13 @@
+# The scenario of __PROJECT__: who exists, how they are linked, what is recorded.
+# Parameter values live in presets/; check with: mango-scenario plan scenario.yaml -p presets/base.yaml
+name: __PROJECT__
+components:
+  field: {kind: "kits.field:SensorField"}   # params under 'field', group field.sensor
+groups:
+  collector: {factory: "agents:make_collector", count: 1}
+links:
+  - {name: reports, from: field.sensor, to: collector, pattern: many_to_one}
+record:
+  # kind: flow -- the estimate of the step that ended at the row (the readings of a
+  # step arrive within it); integrate()/time_average() need the kind
+  - {name: estimate, group: collector, attr: estimate, kind: flow}

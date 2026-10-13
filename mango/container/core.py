@@ -2,12 +2,15 @@ import asyncio
 import copy
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, TypeVar
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from ..agent.core import Agent, AgentAddress
 from ..messages.codecs import Codec
 from ..util import tracing
 from ..util.clock import Clock
+from ..util.seeding import SeedTree
+from ..util.termination_detection import AgentActivity
 from .mp import (
     MainContainerProcessManager,
     MirrorContainerProcessManager,
@@ -20,9 +23,18 @@ AGENT_PATTERN_NAME_PRE = "agent"
 
 A = TypeVar("A")
 
+if TYPE_CHECKING:
+    import numpy
+
 
 class Container(ABC):
-    """Superclass for a mango container"""
+    """Superclass for a mango container
+
+    Every container owns a :class:`~mango.util.seeding.SeedTree` (keyword
+    ``seed``, accepted by all container factories, e.g.
+    ``create_tcp_container(addr, seed=42)``) from which agents draw their
+    reproducible random streams (see :attr:`Agent.rng <mango.Agent.rng>`).
+    """
 
     def __init__(
         self,
@@ -34,17 +46,26 @@ class Container(ABC):
         copy_internal_messages=False,
         mirror_data=None,
         mp_method="spawn",
+        seed: "int | SeedTree | Mapping | None" = None,
         **kwargs,
     ):
         self.name: str = name
         self.addr = addr
         self.clock = clock
         self._copy_internal_messages = copy_internal_messages
+        # an unseeded tree is created on first use, so a container that never
+        # hands out a stream leaves the global ``random`` state untouched
+        self._seed_tree: SeedTree | None = (
+            seed if seed is None or isinstance(seed, SeedTree) else SeedTree(seed)
+        )
 
         self.codec: Codec = codec
 
         # dict of agents. aid: agent instance
         self._agents: dict[str, Agent] = {}
+        # the agents that may have work (messages, running tasks): what
+        # tasks_complete_or_sleeping looks at
+        self._activity = AgentActivity()
         self._aid_counter: int = 0  # counter for aids
 
         self.running: bool = False  # True until self.shutdown() is called
@@ -69,6 +90,41 @@ class Container(ABC):
             self._container_process_manager = MainContainerProcessManager(
                 self, mp_method
             )
+
+    @property
+    def seed_tree(self) -> SeedTree:
+        """The root :class:`~mango.util.seeding.SeedTree` of this container.
+
+        A ``SeedTree`` passed as ``seed`` is used as-is (not copied), so its
+        cached streams are shared with the caller. Without a seed the root
+        entropy is drawn from the global :mod:`random` module on first access.
+
+        Example::
+
+            container = create_tcp_container("127.0.0.1:5555", seed=42)
+            container.seed_tree.to_dict()  # {"entropy": 42, "spawn_key": []}
+        """
+        if self._seed_tree is None:
+            self._seed_tree = SeedTree()
+        return self._seed_tree
+
+    def rng(self, *names: str | int) -> "numpy.random.Generator":
+        """Return the reproducible random stream *names* of this container.
+
+        One ``numpy.random.Generator`` is cached per stream, so every caller
+        asking for the same name shares a single stream. Segments are read
+        like :meth:`SeedTree.rng <mango.util.seeding.SeedTree.rng>`.
+
+        :param names: ``/``-separated stream name, e.g. ``"market"``, or
+            several segments
+        :return: the stream
+
+        Example::
+
+            container = create_tcp_container("127.0.0.1:5555", seed=42)
+            container.rng("market").normal(0.0, 1.0)
+        """
+        return self.seed_tree.rng(*names)
 
     def _all_aids(self):
         all_aids = list(self._agents.keys()) + self._container_process_manager.aids
@@ -129,6 +185,7 @@ class Container(ABC):
             raise ValueError("Agent is already registered to a container")
         self._agents[aid] = agent
         agent._do_register(self, aid)
+        self._activity.attach(agent)
         self.on_register(agent, aid, **kwargs)
         logger.debug("Successfully registered agent;%s", aid)
         if self.running:
@@ -154,7 +211,8 @@ class Container(ABC):
         :param aid:
         :return:
         """
-        del self._agents[aid]
+        agent = self._agents.pop(aid)
+        self._activity.detach(agent)
 
     @abstractmethod
     async def send_message(

@@ -5,24 +5,50 @@ Recorders register a collector on the world that is invoked after every
 simulation step; the collected values are stored in
 :class:`WorldRecording` / :class:`AgentsRecording` instances accessible
 via ``world.data_collections`` and ``world.data_agent_collections``.
+:func:`recordings_to_records` and :func:`recordings_to_frame` flatten all
+recordings into one tidy (long) table with the columns
+:data:`~mango.simulation.recording.TIDY_COLUMNS`.
 """
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from ..agent.core import Agent
 
 if TYPE_CHECKING:
+    import pandas
+
     from .world import SimulationWorld
+
+#: Column order of the tidy export (``datetime`` only with a calendar clock).
+TIDY_COLUMNS: tuple[str, ...] = (
+    "time",
+    "datetime",
+    "group",
+    "entity",
+    "variable",
+    "value",
+)
+
+#: Entity (and group) name of world-level rows in the tidy export.
+WORLD_ENTITY = "world"
 
 
 @dataclass
 class WorldRecording:
-    """Time-series recording of world-level data."""
+    """Time-series recording of world-level data.
+
+    ``entity`` names the owner of the values in the tidy export
+    (:func:`recordings_to_records`); ``None`` means ``"world"``.
+    ``variable`` is the tidy ``variable`` of the rows; ``None`` means the
+    recording key (a distinct key lets two entities record one variable).
+    """
 
     timeseries: list[Any] = field(default_factory=list)
     time: list[float] = field(default_factory=list)
+    entity: str | None = None
+    variable: str | None = None
 
 
 @dataclass
@@ -46,11 +72,19 @@ def collect_data(
     world: "SimulationWorld",
     key: str,
     collector: Callable[["SimulationWorld", WorldRecording], None],
+    *,
+    entity: str | None = None,
 ) -> None:
     """Register a world-level data collector.
 
     *collector* is called after every simulation step with the world and the
     :class:`WorldRecording` identified by *key*.
+
+    :param world: the simulation world
+    :param key: recording key
+    :param collector: ``(world, recording) -> None`` callable
+    :param entity: owner name of the values in the tidy export (default
+        ``"world"``)
 
     Example::
 
@@ -59,7 +93,7 @@ def collect_data(
             rec.time.append(w.clock.time),
         ))
     """
-    recording = world.new_world_recording(key)
+    recording = world.new_world_recording(key, entity=entity)
 
     def _run(w: "SimulationWorld") -> None:
         collector(w, recording)
@@ -98,17 +132,26 @@ def record_world(
     world: "SimulationWorld",
     key: str,
     recorder: Callable[[], Any],
+    *,
+    entity: str | None = None,
 ) -> None:
     """Record a world-level scalar after every step.
 
     *recorder* is a zero-argument callable whose return value is appended to
     the recording's ``timeseries``.
 
+    :param world: the simulation world
+    :param key: recording key
+    :param recorder: zero-argument callable returning the value
+    :param entity: owner name of the values in the tidy export, e.g.
+        ``"grid"`` (default ``"world"``)
+
     Example::
 
         record_world(world, "agent_count", lambda: len(world.agents))
+        record_world(world, "load_kw", lambda: grid.load_kw, entity="grid")
     """
-    recording = world.new_world_recording(key)
+    recording = world.new_world_recording(key, entity=entity)
 
     def _run(w: "SimulationWorld") -> None:
         recording.timeseries.append(recorder())
@@ -233,3 +276,167 @@ def position_history(
     :return: the recording
     """
     return world.data_agent_collections.get(key, AgentsRecording())
+
+
+def _select(collections: Mapping[str, Any], keys: set[str] | None) -> list:
+    return [(k, rec) for k, rec in collections.items() if keys is None or k in keys]
+
+
+def recordings_to_records(
+    world: "SimulationWorld",
+    *,
+    groups: Mapping[str, str] | None = None,
+    keys: Iterable[str] | None = None,
+    include_world: bool = True,
+    include_agents: bool = True,
+) -> list[dict]:
+    """Flatten the world's recordings into tidy (long-format) rows.
+
+    Every recorded value becomes one ``dict`` with the keys of
+    :data:`~mango.simulation.recording.TIDY_COLUMNS`: ``time`` (clock
+    seconds), ``datetime`` (only when the world clock has a calendar),
+    ``group``, ``entity``, ``variable`` (the recording key) and ``value``.
+
+    - Agent rows: ``entity`` is the aid; ``group`` is ``groups[aid]`` when
+      given, else the agent's ``description.category`` while the agent is
+      still registered, else ``None``.
+    - World rows: ``group`` and ``entity`` are the recording's ``entity``
+      (default ``"world"``).
+
+    Rows are ordered deterministically: world recordings in key-insertion
+    order, then agent recordings in key-insertion order, aids in insertion
+    order, times as recorded.
+
+    :param world: the simulation world
+    :param groups: optional ``aid -> group`` mapping
+    :param keys: restrict the export to these recording keys
+    :param include_world: include world-level recordings
+    :param include_agents: include agent-level recordings
+    :return: list of row dicts
+    :raises KeyError: if *keys* names an unknown recording
+    :raises ValueError: if an agent's values cannot be aligned with times
+
+    Example::
+
+        record_agent(world, "soc", lambda a: a.soc)
+        ...
+        rows = recordings_to_records(world, groups={"ev_0": "ev"})
+        # [{"time": 0.0, "group": "ev", "entity": "ev_0", "variable": "soc", "value": 0.5}, ...]
+    """
+    key_set = None if keys is None else set(keys)
+    if key_set is not None:
+        known = set(world.data_collections) | set(world.data_agent_collections)
+        unknown = sorted(key_set - known)
+        if unknown:
+            raise KeyError(
+                f"Unknown recording key(s) {unknown}; recorded keys are {sorted(known)}."
+            )
+    clock = world.clock
+    to_datetime = clock.to_datetime if getattr(clock, "has_calendar", False) else None
+    groups = groups or {}
+    rows: list[dict] = []
+
+    def _row(t: float, group: Any, entity: Any, variable: str, value: Any) -> dict:
+        row: dict[str, Any] = {"time": t}
+        if to_datetime is not None:
+            row["datetime"] = to_datetime(t)
+        row["group"] = group
+        row["entity"] = entity
+        row["variable"] = variable
+        row["value"] = value
+        return row
+
+    if include_world:
+        for key, recording in _select(world.data_collections, key_set):
+            if len(recording.time) != len(recording.timeseries):
+                raise ValueError(
+                    f"World recording '{key}' has {len(recording.timeseries)} values "
+                    f"but {len(recording.time)} times; append one time per value."
+                )
+            owner = recording.entity or WORLD_ENTITY
+            variable = recording.variable or key
+            for t, value in zip(recording.time, recording.timeseries):
+                rows.append(_row(t, owner, owner, variable, value))
+
+    if include_agents:
+        agents = world.agents
+        for key, recording in _select(world.data_agent_collections, key_set):
+            for aid, values in recording.timeseries.items():
+                times = recording.agent_time.get(aid)
+                if times is None:
+                    if len(values) != len(recording.time):
+                        raise ValueError(
+                            f"Cannot align recording '{key}' of agent '{aid}': "
+                            f"{len(values)} values but no per-agent times and "
+                            f"{len(recording.time)} shared times. Append to "
+                            f"recording.agent_time[aid] alongside each value."
+                        )
+                    times = recording.time
+                elif len(times) != len(values):
+                    raise ValueError(
+                        f"Recording '{key}' of agent '{aid}' has {len(values)} "
+                        f"values but {len(times)} times."
+                    )
+                if aid in groups:
+                    group = groups[aid]
+                elif aid in agents:
+                    group = agents[aid].description.category
+                else:
+                    group = None
+                for t, value in zip(times, values):
+                    rows.append(_row(t, group, aid, key, value))
+
+    return rows
+
+
+def recordings_to_frame(
+    world: "SimulationWorld",
+    *,
+    groups: Mapping[str, str] | None = None,
+    keys: Iterable[str] | None = None,
+    include_world: bool = True,
+    include_agents: bool = True,
+) -> "pandas.DataFrame":
+    """Return the world's recordings as a tidy ``pandas.DataFrame``.
+
+    Same rows and keyword arguments as :func:`recordings_to_records`; the
+    columns follow :data:`~mango.simulation.recording.TIDY_COLUMNS` (without
+    ``datetime`` when the world clock has no calendar).
+
+    :param world: the simulation world
+    :param groups: see :func:`recordings_to_records`
+    :param keys: see :func:`recordings_to_records`
+    :param include_world: see :func:`recordings_to_records`
+    :param include_agents: see :func:`recordings_to_records`
+    :return: the tidy data frame
+
+    Example::
+
+        df = recordings_to_frame(world)
+        # one variable per table: entities as columns, one row per time
+        soc = df[df.variable == "soc"].pivot(
+            index="time", columns="entity", values="value"
+        )
+        # or every (entity, variable) pair as its own column
+        wide = df.pivot_table(
+            index="time", columns=["entity", "variable"], values="value"
+        )
+    """
+    try:
+        import pandas as pd
+    except ImportError as exc:
+        raise ImportError(
+            "recordings_to_frame requires pandas; install it with 'pip install pandas'."
+        ) from exc
+
+    columns = list(TIDY_COLUMNS)
+    if not getattr(world.clock, "has_calendar", False):
+        columns.remove("datetime")
+    rows = recordings_to_records(
+        world,
+        groups=groups,
+        keys=keys,
+        include_world=include_world,
+        include_agents=include_agents,
+    )
+    return pd.DataFrame(rows, columns=columns)

@@ -1426,3 +1426,32 @@ async def test_simulation_container_shutdown_survives_failing_agent(caplog):
     assert world.running is False
     assert "Error shutting down agent" in caplog.text
     assert good._stopped.done()
+
+
+class _BrokenHandler(Agent):
+    def __init__(self):
+        super().__init__()
+        self.calls = 0
+
+    def handle_message(self, content, meta):
+        self.calls += 1
+        raise ValueError("cannot handle")
+
+
+@pytest.mark.asyncio
+async def test_failing_message_handler_raises_on_step_instead_of_hanging():
+    world = create_world(seed=1)
+    sender = world.register(_BrokenHandler(), "sender")
+    receiver = world.register(_BrokenHandler(), "receiver")
+    async with world:
+        await sender.send_message("hi", receiver.addr)
+        await sender.send_message("again", receiver.addr)
+        with pytest.raises(
+            RuntimeError, match="Agent 'receiver' stopped processing"
+        ) as info:
+            await asyncio.wait_for(world.step(step_size_s=1.0), 5)
+        assert isinstance(info.value.__cause__, ValueError)
+        # the world stays failed; later steps raise at once
+        with pytest.raises(RuntimeError, match="'receiver'"):
+            await asyncio.wait_for(world.step(step_size_s=1.0), 5)
+    assert receiver.calls == 1

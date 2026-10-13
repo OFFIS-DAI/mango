@@ -99,7 +99,11 @@ Agents
 ======
 
 Agents are created by subclassing :class:`~mango.Agent`.  Every subclass
-**must** call ``super().__init__()`` in its constructor.
+**must** call ``super().__init__()`` in its constructor.  The attribute names
+``aid``, ``addr``, ``name``, ``color``, ``category``, ``uid``,
+``description``, ``inbox``, ``context`` and ``scheduler`` belong to
+:class:`~mango.Agent`; assigning one of them raises an ``AttributeError``
+that suggests another name.
 
 An agent is registered with a container via :meth:`~mango.Container.register`.
 Registration assigns the agent its *agent ID* (``aid``) and enables
@@ -149,8 +153,11 @@ Implement these methods to hook into the agent's lifecycle:
      - After **all** containers passed to :meth:`~mango.activate` have
        started.  This is the right place to send the first messages.
    * - :meth:`~mango.Agent.on_stop`
-     - When the container shuts down or the agent is deregistered.
-       Use it for cleanup and final messages.
+     - When the container shuts down or the agent stops with
+       ``await agent.shutdown()`` (which also deregisters it).  Use it for
+       cleanup and final messages.  ``container.deregister(aid)`` alone
+       only removes the agent from the container: it calls no ``on_stop``
+       and leaves the agent's tasks running.
 
 .. _agent-handlers:
 

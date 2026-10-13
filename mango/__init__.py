@@ -40,6 +40,7 @@ from .express.api import (
 )
 from .util.distributed_clock import DistributedClockAgent, DistributedClockManager
 from .util.clock import ExternalClock, AsyncioClock
+from .util.seeding import SeedTree
 from .messages.codecs import (
     json_serializable,
     JSON,
@@ -86,6 +87,8 @@ from .simulation import (
     Position2D,
     Space,
     distance,
+    AgentError,
+    AgentTaskError,
     AgentsRecording,
     DISCRETE_EVENT,
     MessageTransaction,
@@ -101,6 +104,9 @@ from .simulation import (
     record_agent_having,
     record_position,
     record_world,
+    recordings_to_frame,
+    recordings_to_records,
+    TIDY_COLUMNS,
     step_simulation,
     plot_agents,
     plot_recordings,

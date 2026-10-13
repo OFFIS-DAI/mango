@@ -25,6 +25,14 @@ Environment
    :undoc-members:
    :show-inheritance:
 
+Recording
+---------
+
+.. automodule:: mango.simulation.recording
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 Visualization
 -------------
 

@@ -1,0 +1,54 @@
+"""Sensors measure a temperature with noise and report it; a collector averages."""
+
+from dataclasses import dataclass
+
+from mango import Agent
+
+
+@dataclass
+class Reading:
+    """A sensor's measurement, sent to the collector every step."""
+
+    sender: str
+    value: float
+
+
+class Sensor(Agent):
+    def __init__(self, temperature, noise_std: float, bias: float):
+        super().__init__()
+        self.temperature = temperature  # a Profile: temperature.at(clock)
+        self.noise_std = noise_std
+        self.bias = bias
+        self.measured = temperature.at(0.0) + bias
+
+    def on_step(self, env, clock, step_size_s: float) -> None:
+        noise = float(self.rng.normal(0.0, self.noise_std))  # the sensor's own stream
+        self.measured = self.temperature.at(clock) + self.bias + noise
+        for collector in self.neighbors(tid="reports"):
+            self.schedule_instant_message(Reading(self.aid, self.measured), collector)
+
+
+class Collector(Agent):
+    def __init__(self):
+        super().__init__()
+        self.readings: dict[str, float] = {}
+        self.estimate = 0.0
+
+    def handle_message(self, content, meta) -> None:
+        if isinstance(content, Reading):
+            self.readings[content.sender] = content.value
+            self.estimate = sum(self.readings.values()) / len(self.readings)
+
+
+def make_sensor(e):
+    """Factory of the sensors (declared by the SensorField kit: e.p is its params)."""
+    return Sensor(
+        temperature=e.profile("temperature"),
+        noise_std=e.p.noise_std,
+        bias=e.draw(e.p.bias),
+    )
+
+
+def make_collector(e):
+    """Factory of the collector."""
+    return Collector()

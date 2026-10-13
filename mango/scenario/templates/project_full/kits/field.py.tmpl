@@ -1,0 +1,33 @@
+"""A field of temperature sensors as a kit."""
+
+from pydantic import BaseModel
+
+from mango.scenario import Normal, ScenarioComponent
+
+from agents import make_sensor
+
+
+def true_temperature(ctx):
+    """The temperature the sensors measured in the step that just ended.
+
+    A row at time t is the state after the step [t - step, t): the sensors
+    measured at the step start (in on_step), so compare with the profile there.
+    """
+    start = max(0.0, ctx.world.clock.time - (ctx.time.step_s or 0.0))
+    return ctx.profile("temperature").at(start)
+
+
+class SensorField(ScenarioComponent):
+    """Sensors (group ``<prefix>.sensor``) and the true temperature (world variable)."""
+
+    class Params(BaseModel, extra="forbid"):
+        n: int = 5
+        noise_std: float = 0.5
+        bias: Normal = Normal(0.0, 0.2)  # per sensor, drawn from its own stream
+
+    def build(self, ctx):
+        sensors = ctx.group("sensor", ctx.p.n, make_sensor)
+        # kind="flow": both describe the step that ended at the row (the sensors
+        # measure in on_step); a level that holds until it changes is kind="state"
+        ctx.record("measured", sensors, attr="measured", kind="flow")
+        ctx.record_world("temperature", true_temperature, kind="flow")

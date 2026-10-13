@@ -1,6 +1,8 @@
 import asyncio
+import datetime
 import logging
 from abc import ABC, abstractmethod
+from collections.abc import Mapping
 from typing import Any
 
 from ..agent.core import Agent
@@ -10,6 +12,7 @@ from ..container.factory import create_mqtt, create_tcp
 from ..messages.codecs import Codec
 from ..util import tracing
 from ..util.clock import ExternalClock
+from ..util.seeding import SeedTree
 
 logger = logging.getLogger(__name__)
 
@@ -260,6 +263,8 @@ class RunWithSimulationManager:
         communication_sim=None,
         environment=None,
         trace: Any = None,
+        seed: "int | SeedTree | Mapping | None" = None,
+        start_datetime: "datetime.datetime | str | None" = None,
     ) -> None:
         self._agent_tuples = [
             agent if isinstance(agent, tuple) else (agent, {}) for agent in agents
@@ -268,6 +273,8 @@ class RunWithSimulationManager:
         self._communication_sim = communication_sim
         self._environment = environment
         self._trace = trace
+        self._seed = seed
+        self._start_datetime = start_datetime
         self._world = None
 
     async def __aenter__(self):
@@ -278,6 +285,8 @@ class RunWithSimulationManager:
             communication_sim=self._communication_sim,
             environment=self._environment,
             trace=self._trace,
+            seed=self._seed,
+            start_datetime=self._start_datetime,
         )
         for agent, params in self._agent_tuples:
             self._world.register(agent, suggested_aid=params.get("aid"))
@@ -295,6 +304,8 @@ def run_with_simulation(
     communication_sim=None,
     environment=None,
     trace: Any = None,
+    seed: "int | SeedTree | Mapping | None" = None,
+    start_datetime: "datetime.datetime | str | None" = None,
 ) -> RunWithSimulationManager:
     """Create and return an async context manager backed by a :class:`~mango.simulation.world.SimulationWorld`.
 
@@ -308,6 +319,15 @@ def run_with_simulation(
         async with run_with_simulation(MyAgent(), MyAgent()) as world:
             await step_simulation(world, step_size_s=1.0)
 
+        # reproducible random streams and calendar time
+        async with run_with_simulation(
+            (MyAgent(), {"aid": "ev_0"}),
+            seed=42,
+            start_datetime="2024-06-01T00:00",
+        ) as world:
+            await step_simulation(world, step_size_s=3600.0)
+            print(world.datetime, world.seed)
+
     :param agents: agent instances or ``(agent, {"aid": "preferred_id"})`` tuples
     :param start_time: initial simulation clock time in seconds (default ``0.0``)
     :param communication_sim: custom communication simulation; defaults to
@@ -316,6 +336,11 @@ def run_with_simulation(
     :param environment: custom environment; defaults to
         :class:`~mango.simulation.environment.DefaultEnvironment`
     :param trace: trace the run, see :func:`~mango.create_world`
+    :param seed: root seed of the world's random streams (``int``,
+        :class:`~mango.util.seeding.SeedTree`, or ``world.seed`` of an earlier
+        run), see :func:`~mango.create_world`
+    :param start_datetime: calendar date and time of *start_time* (``datetime``
+        or ISO 8601 string), see :func:`~mango.create_world`
     :return: async context manager that yields the :class:`~mango.simulation.world.SimulationWorld`
     :rtype: RunWithSimulationManager
     """
@@ -325,6 +350,8 @@ def run_with_simulation(
         communication_sim=communication_sim,
         environment=environment,
         trace=trace,
+        seed=seed,
+        start_datetime=start_datetime,
     )
 
 
