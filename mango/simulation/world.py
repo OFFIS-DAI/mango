@@ -524,10 +524,10 @@ def create_world(
     clock = ExternalClock(start_time=start_time)
     sim = communication_sim or SimpleCommunicationSimulation()
     return SimulationWorld(
-        clock=clock, 
-        communication_sim=sim, 
-        environment=environment, 
-        trace=trace
+        clock=clock,
+        communication_sim=sim,
+        environment=environment,
+        trace=trace,
         record_messages=record_messages,
         record_message_content=record_message_content,
     )
