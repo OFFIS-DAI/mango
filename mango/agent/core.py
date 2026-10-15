@@ -17,6 +17,7 @@ from enum import Enum
 from typing import TYPE_CHECKING, Any
 
 from ..messages.message import AgentAddress
+from ..util import tracing
 from ..util.clock import Clock
 from ..util.scheduling import (
     ScheduledProcessTask,
@@ -37,10 +38,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class AgentDescription:
-    """Metadata describing an agent (name, category, color, unique ID).
-
-    Mirrors the ``AgentDescription`` type in Mango.jl.
-    """
+    """Metadata describing an agent (name, category, color, unique ID)."""
 
     name: str = ""
     category: str = "agent"
@@ -309,6 +307,9 @@ class AgentContext:
         """
         See container.send_message(...)
         """
+        tracing._message_sent(
+            content, sender_id, receiver_addr, kwargs, self._container.clock
+        )
         return await self._container.send_message(
             content, receiver_addr=receiver_addr, sender_id=sender_id, **kwargs
         )
@@ -1175,7 +1176,7 @@ class Agent(ABC, AgentDelegates):
         self._aid = aid
         self.context._container = container
         self.scheduler = Scheduler(
-            suspendable=True, observable=True, clock=container.clock
+            suspendable=True, observable=True, clock=container.clock, owner=aid
         )
         # Populate description aid if not yet set
         if not self._description.name:
@@ -1225,41 +1226,59 @@ class Agent(ABC, AgentDelegates):
                 priority, content, meta = message
                 meta["priority"] = priority
 
-                # Check forwarding rules
-                forwarded = self._check_forwarding_rules(content, meta)
-
-                if not forwarded:
-                    # Check tracked reply handlers
-                    # Update topology link-health (if any topology this
-                    # agent belongs to has ``edge_health`` enabled).
-                    # Done before user-defined dispatch so the role's
-                    # ``@on_message`` handler sees a freshly-nudged
-                    # neighbour score should it read one.
-                    self._nudge_topology_health(meta)
-                    # Push to any matching open conversation in addition
-                    # to (not instead of) normal dispatch: a role can
-                    # react via ``@on_message`` and pull from the
-                    # conversation iterator on the same message.
-                    self._route_to_conversation(content, meta)
-                    if not self._handle_tracked_reply(content, meta):
-                        for _cond, _handler, _proc in self._behavior_message_subs:
-                            if _cond(content, meta):
-                                if _proc is not None:
-                                    _proc.handle(
-                                        self,
-                                        lambda c, m, h=_handler: h(self, c, m),
-                                        content,
-                                        meta,
-                                    )
-                                else:
-                                    _handler(self, content, meta)
-                        if self._dispatches_to_handle_message:
-                            self.handle_message(content=content, meta=meta)
+                if not tracing.is_tracing():
+                    self._dispatch_message(content, meta)
+                else:
+                    with tracing._trigger(
+                        "message",
+                        "message",
+                        agent=self.aid,
+                        clock=self.scheduler.clock,
+                        cause=meta.get(tracing.TRACE_MESSAGE_ID_KEY),
+                        sender=meta.get("sender_id"),
+                        content=content,
+                    ):
+                        self._dispatch_message(content, meta)
 
                 # signal to the Queue that the message is handled
                 self.inbox.task_done()
         except Exception:
             logger.exception("The check inbox task of %s failed!", self.aid)
+
+    def _dispatch_message(self, content: Any, meta: dict) -> None:
+        """Hand a received message to forwarding, replies and handlers."""
+        # Check forwarding rules
+        forwarded = self._check_forwarding_rules(content, meta)
+
+        if not forwarded:
+            # Update topology link-health (if any topology this
+            # agent belongs to has ``edge_health`` enabled).
+            # Done before user-defined dispatch so the role's
+            # ``@on_message`` handler sees a freshly-nudged
+            # neighbour score should it read one.
+            self._nudge_topology_health(meta)
+            # Push to any matching open conversation in addition
+            # to (not instead of) normal dispatch: a role can
+            # react via ``@on_message`` and pull from the
+            # conversation iterator on the same message.
+            self._route_to_conversation(content, meta)
+            # Check tracked reply handlers
+            if not self._handle_tracked_reply(content, meta):
+                for _cond, _handler, _proc in self._behavior_message_subs:
+                    if _cond(content, meta):
+                        tracing._handler_called("message", _handler)
+                        if _proc is not None:
+                            _proc.handle(
+                                self,
+                                lambda c, m, h=_handler: h(self, c, m),
+                                content,
+                                meta,
+                            )
+                        else:
+                            _handler(self, content, meta)
+                if self._dispatches_to_handle_message:
+                    tracing._handler_called("message", self.handle_message)
+                    self.handle_message(content=content, meta=meta)
 
     def _check_forwarding_rules(self, content: Any, meta: dict) -> bool:
         """Apply forwarding rules; returns True if a rule matched."""

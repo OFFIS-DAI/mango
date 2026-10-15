@@ -6,6 +6,7 @@ from typing import Any, TypeVar
 
 from ..agent.core import Agent, AgentAddress
 from ..messages.codecs import Codec
+from ..util import tracing
 from ..util.clock import Clock
 from .mp import (
     MainContainerProcessManager,
@@ -334,6 +335,18 @@ class Container(ABC):
         self._check_inbox_task: asyncio.Task = asyncio.create_task(self._check_inbox())
 
         await self._container_process_manager.start()
+
+        tracing._emit(
+            "container.started",
+            "run",
+            self.clock,
+            container=type(self).__name__,
+            name=self.name,
+            addr=str(self.addr),
+            codec=type(self.codec).__name__,
+            clock_type=type(self.clock).__name__,
+            agents=sorted(self._agents),
+        )
 
         """Start the container. It totally depends on the implementation for what is actually happening."""
         for agent in self._agents.values():

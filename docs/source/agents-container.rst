@@ -13,6 +13,8 @@ agent, and handles serialisation/deserialisation with the chosen codec.
 When two agents share the same container their messages stay in-process
 (no network round-trip), which speeds up local communication significantly.
 
+.. _agents-container-container-types:
+
 Container types
 ---------------
 
@@ -55,6 +57,8 @@ to decouple simulation time from wall time (see :doc:`scheduling`).
 .. testoutput::
 
     ('127.0.0.1', 5555)
+
+.. _agents-container-starting-stopping:
 
 Starting and stopping
 ---------------------
@@ -121,6 +125,8 @@ the framework generates one automatically.
 .. testoutput::
 
     my_agent
+
+.. _agents-container-lifecycle:
 
 Lifecycle callbacks
 -------------------

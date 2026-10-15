@@ -47,6 +47,7 @@ from mango.agent.decorators import (
     apply_periodic,
     apply_subscriptions,
 )
+from mango.util import tracing
 
 
 class MessagePreprocessor(ABC):
@@ -324,12 +325,15 @@ class RoleHandler:
             if method.__name__ == "handle_message":
                 handle_message_found = True
             if self._is_role_active(role) and message_condition(content, meta):
+                tracing._handler_called("message", method)
                 if preprocessor is not None:
                     preprocessor.handle(role, method, content, meta)
                 else:
                     method(content, meta)
         if not handle_message_found:
             for role in self.roles:
+                if type(role).handle_message is not Role.handle_message:
+                    tracing._handler_called("message", role.handle_message)
                 role.handle_message(content, meta)
 
     def _notify_send_message_subs(self, content, receiver_addr: AgentAddress, **kwargs):
@@ -387,8 +391,21 @@ class RoleHandler:
             if strict:
                 raise KeyError(type(event))
             return
-        for _, method in subs:
-            method(event, event_source)
+        if not tracing.is_tracing():
+            for _, method in subs:
+                method(event, event_source)
+            return
+        with tracing._trigger(
+            "role_event",
+            "event",
+            agent=self._agent.aid if self._agent is not None else None,
+            clock=self._scheduler.clock if self._scheduler is not None else None,
+            content=event,
+            source=type(event_source).__qualname__ if event_source else None,
+        ):
+            for _, method in subs:
+                tracing._handler_called("event", method)
+                method(event, event_source)
 
     def subscribe_event(self, role: Role, event_type: type, method: Callable):
         if event_type not in self._role_event_type_to_handler:

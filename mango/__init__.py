@@ -107,3 +107,13 @@ from .simulation import (
     plot_world,
     show_communication_data,
 )
+from .util.tracing import (
+    TraceConfig,
+    configure_structlog,
+    disable_tracing,
+    enable_tracing,
+    is_tracing,
+    message_topology,
+    read_trace,
+    trace_session,
+)

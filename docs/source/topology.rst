@@ -37,6 +37,8 @@ networkx's graph construction helpers.
       hierarchical and multi-overlay designs.
 
 
+.. _topology-building:
+
 Building a topology from scratch
 =================================
 
@@ -95,6 +97,8 @@ neighbourhood of every node into each agent's
 start sending** (register the agents in a container after, as above).
 
 
+.. _topology-shapes:
+
 Ready-made graph shapes
 =======================
 
@@ -126,6 +130,8 @@ returns a :class:`~mango.Topology` you can populate with :func:`~mango.per_node`
     ring           = cycle_topology(6)
     from_graph     = graph_topology(nx.wheel_graph(7))
 
+
+.. _topology-assigning-agents:
 
 Assigning agents to nodes
 =========================
@@ -243,6 +249,8 @@ At runtime, filter neighbours by characteristic and read your own label:
     my_role = topology_characteristic(agent)   # "" if none was set
 
 
+.. _topology-neighbours:
+
 Querying neighbours from agents and roles
 =========================================
 
@@ -296,6 +304,8 @@ The full filter set is shared by :meth:`~mango.Agent.neighbors` and
     )
 
 
+.. _topology-broadcast:
+
 Broadcasting to neighbours
 ==========================
 
@@ -322,6 +332,8 @@ Any extra keyword arguments are forwarded to ``send_message`` (e.g.
 ``tracking_id``), and ``include_connectors`` extends the broadcast across a
 topology link.
 
+
+.. _topology-link-states:
 
 Link states
 ============
@@ -365,6 +377,8 @@ the block exits:
         t.remove_node(2)
     # every affected agent now sees the updated neighbour set
 
+
+.. _topology-connecting:
 
 Connecting multiple topologies
 ==============================
@@ -421,6 +435,8 @@ reach both, pass ``include_connectors`` to
 Pass ``directed=True`` to :func:`~mango.connect_topologies` for a one-way link
 (``region_a`` reaches ``region_b`` but not vice versa).
 
+
+.. _topology-link-health:
 
 Tracking link health
 ====================

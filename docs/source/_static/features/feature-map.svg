@@ -1,0 +1,327 @@
+<svg class="mango-feature-map" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 684" role="group" aria-labelledby="fm-title fm-desc">
+  <title id="fm-title">Map of mango's parts</title>
+  <desc id="fm-desc">Four layers, from your code down to the wire. Your code: agents, composed of roles. Interaction: messaging and conversations, and topologies, a graph of neighbours that may span several containers. Time: every agent has a scheduler that runs on the clock of its runtime. Runtime and wire: containers, each with one codec that encodes outgoing and decodes incoming messages, which travel over TCP or MQTT; agents may also run in their own process. Instead of containers, a simulation world can deliver the messages with simulated delay and loss. Tracing runs alongside every layer: it records what happens in each, links event, message and task records to their causes, and shows them in a viewer. Each part links to its section below.</desc>
+
+  <defs>
+    <filter id="fm-shadow" x="-5%" y="-5%" width="110%" height="120%">
+      <feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-color="#1d1d1b" flood-opacity="0.07"/>
+    </filter>
+    <linearGradient id="fm-glow" x1="0" y1="0" x2="1" y2="1">
+      <stop class="fm-glow-a" offset="0"/>
+      <stop class="fm-glow-b" offset="0.55"/>
+    </linearGradient>
+    <marker id="fm-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="fm-arrowhead" d="M1 1 L9 5 L1 9 z"/>
+    </marker>
+    <marker id="fm-arrow-sm" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path class="fm-arrowhead" d="M1 1 L9 5 L1 9 z"/>
+    </marker>
+    <marker id="fm-arrow-muted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="fm-arrowhead-muted" d="M1 1 L9 5 L1 9 z"/>
+    </marker>
+    <pattern id="fm-grid" width="12" height="12" patternUnits="userSpaceOnUse">
+      <circle class="fm-grid-dot" cx="6" cy="6" r="1"/>
+    </pattern>
+    <pattern id="fm-hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <path class="fm-hatch-line" d="M0 0 V8"/>
+    </pattern>
+  </defs>
+
+  <!-- Backdrop panel with a faint mango glow -->
+  <rect class="fm-panel" x="0.5" y="0.5" width="799" height="683" rx="16"/>
+  <rect class="fm-panel-glow" x="0.5" y="0.5" width="799" height="683" rx="16" fill="url(#fm-glow)"/>
+
+  <!-- ============ Layer 1: your code ============ -->
+  <g class="fm-layer-label" aria-hidden="true">
+    <circle class="fm-badge" cx="34" cy="35" r="10"/>
+    <text class="fm-badge-num" x="34" y="40">1</text>
+    <text class="fm-eyebrow" x="52" y="40">YOUR CODE</text>
+    <text class="fm-note" x="632" y="40" text-anchor="end">runs unchanged on a network or in simulation</text>
+  </g>
+
+  <!-- Part: agents (the outer tile; roles sit inside it) -->
+  <a href="#features-agents" class="fm-part fm-part--agents" aria-label="Agents: address, lifecycle, @on_message">
+    <title>Agents: autonomous actors with addresses, lifecycle and handlers</title>
+    <rect class="fm-card" filter="url(#fm-shadow)" x="24" y="54" width="608" height="112" rx="12"/>
+    <g class="fm-icon" transform="translate(40 70)">
+      <rect class="fm-icon-bg" width="28" height="28" rx="8"/>
+      <circle class="fm-icon-agent" cx="14" cy="11" r="4"/>
+      <path d="M7 22 a7 6 0 0 1 14 0"/>
+    </g>
+    <text class="fm-title" x="78" y="90">Agents</text>
+    <text class="fm-kw" x="40" y="118">address <tspan class="fm-sep">·</tspan> lifecycle <tspan class="fm-sep">·</tspan> @on_message</text>
+    <!-- every agent owns an inbox and a scheduler -->
+    <rect class="fm-pill fm-pill--msg" x="40" y="130" width="58" height="20" rx="10"/>
+    <text class="fm-pill-text" x="69" y="144.5">inbox</text>
+    <rect class="fm-pill fm-pill--time" x="104" y="130" width="90" height="20" rx="10"/>
+    <text class="fm-pill-text" x="149" y="144.5">scheduler</text>
+  </a>
+
+  <!-- Part: roles (drawn inside the agent tile: an agent is composed of roles) -->
+  <a href="#features-roles" class="fm-part fm-part--roles" aria-label="Roles: Role, events, shared model">
+    <title>Roles: compose agent behaviour from reusable parts</title>
+    <rect class="fm-card fm-card--inset" x="276" y="66" width="344" height="88" rx="9"/>
+    <g class="fm-icon" transform="translate(292 80)">
+      <rect class="fm-icon-bg" width="28" height="28" rx="8"/>
+      <rect x="7" y="7" width="6" height="6" rx="1.5"/>
+      <rect x="15" y="7" width="6" height="6" rx="1.5"/>
+      <rect x="7" y="15" width="6" height="6" rx="1.5"/>
+      <rect class="fm-fill" x="15" y="15" width="6" height="6" rx="1.5"/>
+    </g>
+    <text class="fm-title" x="330" y="100">Roles</text>
+    <text class="fm-kw" x="292" y="130">Role <tspan class="fm-sep">·</tspan> events <tspan class="fm-sep">·</tspan> shared model</text>
+    <!-- three role blocks on the agent's in-process event bus -->
+    <g class="fm-glyph" aria-hidden="true">
+      <rect class="fm-bus" x="506" y="118" width="92" height="5" rx="2.5"/>
+      <path class="fm-bus-link" d="M520 108 V118 M552 108 V118 M584 108 V118"/>
+      <rect class="fm-role" x="508" y="84" width="24" height="24" rx="6"/>
+      <rect class="fm-role" x="540" y="84" width="24" height="24" rx="6"/>
+      <rect class="fm-role fm-role--alt" x="572" y="84" width="24" height="24" rx="6"/>
+    </g>
+  </a>
+
+  <!-- ============ Layer 2: interaction ============ -->
+  <g class="fm-layer-label" aria-hidden="true">
+    <circle class="fm-badge" cx="34" cy="187" r="10"/>
+    <text class="fm-badge-num" x="34" y="192">2</text>
+    <text class="fm-eyebrow" x="52" y="192">INTERACTION</text>
+    <text class="fm-note" x="632" y="192" text-anchor="end">one send path under every pattern</text>
+  </g>
+
+  <!-- Part: messaging -->
+  <a href="#features-messaging" class="fm-part fm-part--messaging" aria-label="Messaging and conversations: send, reply, gather, conversation">
+    <title>Messaging &amp; conversations: from one-off sends to multi-hop conversations</title>
+    <rect class="fm-card" filter="url(#fm-shadow)" x="24" y="206" width="348" height="84" rx="12"/>
+    <g class="fm-icon" transform="translate(40 222)">
+      <rect class="fm-icon-bg" width="28" height="28" rx="8"/>
+      <path d="M7 11 H20 M17 8 L20 11 L17 14"/>
+      <path d="M21 18 H8 M11 15 L8 18 L11 21"/>
+    </g>
+    <text class="fm-title" x="78" y="242">Messaging &amp; conversations</text>
+    <text class="fm-kw" x="40" y="270">send <tspan class="fm-sep">·</tspan> reply <tspan class="fm-sep">·</tspan> gather <tspan class="fm-sep">·</tspan> conversation</text>
+    <!-- gather: one agent sends to three, replies come back (dashed) -->
+    <g class="fm-glyph" aria-hidden="true">
+      <path class="fm-msg fm-msg--thin" d="M324 244 L344 230" marker-end="url(#fm-arrow-sm)"/>
+      <path class="fm-msg fm-msg--thin" d="M325.5 249 L343 249" marker-end="url(#fm-arrow-sm)"/>
+      <path class="fm-msg fm-msg--thin" d="M324 254 L344 268" marker-end="url(#fm-arrow-sm)"/>
+      <path class="fm-msg fm-msg--thin fm-msg--reply" d="M350 219 Q334 210 322 237" marker-end="url(#fm-arrow-sm)"/>
+      <path class="fm-msg fm-msg--thin fm-msg--reply" d="M350 279 Q334 288 322 261" marker-end="url(#fm-arrow-sm)"/>
+      <circle class="fm-agent" cx="318" cy="249" r="6.5"/>
+      <circle class="fm-agent fm-agent--small" cx="352" cy="225" r="5"/>
+      <circle class="fm-agent fm-agent--small" cx="352" cy="249" r="5"/>
+      <circle class="fm-agent fm-agent--small" cx="352" cy="273" r="5"/>
+    </g>
+  </a>
+
+  <!-- Part: topologies -->
+  <a href="#features-topologies" class="fm-part fm-part--topologies" aria-label="Topologies: graph, neighbours, link states">
+    <title>Topologies: who talks to whom, as a graph</title>
+    <rect class="fm-card" filter="url(#fm-shadow)" x="396" y="206" width="236" height="84" rx="12"/>
+    <g class="fm-icon" transform="translate(412 222)">
+      <rect class="fm-icon-bg" width="28" height="28" rx="8"/>
+      <path d="M9 10 L19 9 L14 19 Z"/>
+      <circle class="fm-fill" cx="9" cy="10" r="2.5"/>
+      <circle class="fm-fill" cx="19" cy="9" r="2.5"/>
+      <circle class="fm-fill" cx="14" cy="19" r="2.5"/>
+    </g>
+    <text class="fm-title" x="450" y="242">Topologies</text>
+    <text class="fm-kw" x="412" y="270">graph <tspan class="fm-sep">·</tspan> neighbours <tspan class="fm-sep">·</tspan> link states</text>
+    <!-- mini graph: normal, inactive (dashed) and broken links -->
+    <g class="fm-glyph" aria-hidden="true">
+      <path class="fm-edge" d="M559 229 L585 220 M559 229 L575 246 M585 220 L575 246 M585 220 L612 233"/>
+      <path class="fm-edge fm-edge--inactive" d="M575 246 L605 249"/>
+      <path class="fm-edge fm-edge--broken" d="M612 233 L609.5 238.5 M607.5 243 L605 249"/>
+      <circle class="fm-node" cx="559" cy="229" r="4.5"/>
+      <circle class="fm-node" cx="585" cy="220" r="4.5"/>
+      <circle class="fm-node" cx="575" cy="246" r="4.5"/>
+      <circle class="fm-node" cx="612" cy="233" r="4.5"/>
+      <circle class="fm-node" cx="605" cy="249" r="4.5"/>
+    </g>
+  </a>
+
+  <!-- ============ Layer 3: time ============ -->
+  <g class="fm-layer-label" aria-hidden="true">
+    <circle class="fm-badge" cx="34" cy="311" r="10"/>
+    <text class="fm-badge-num" x="34" y="316">3</text>
+    <text class="fm-eyebrow" x="52" y="316">TIME</text>
+    <text class="fm-note" x="632" y="316" text-anchor="end">a scheduler per agent, a clock per runtime</text>
+  </g>
+
+  <!-- Part: scheduling -->
+  <a href="#features-scheduling" class="fm-part fm-part--scheduling" aria-label="Scheduling and clocks: tasks, @periodic, clock">
+    <title>Scheduling &amp; clocks: proactive tasks on real or simulated time</title>
+    <rect class="fm-card" filter="url(#fm-shadow)" x="24" y="330" width="608" height="76" rx="12"/>
+    <g class="fm-icon fm-icon--time" transform="translate(40 346)">
+      <rect class="fm-icon-bg" width="28" height="28" rx="8"/>
+      <circle cx="14" cy="14" r="8"/>
+      <path d="M14 9.5 V14 L17 16"/>
+    </g>
+    <text class="fm-title" x="78" y="366">Scheduling &amp; clocks</text>
+    <text class="fm-kw" x="40" y="394">tasks <tspan class="fm-sep">·</tspan> @periodic <tspan class="fm-sep">·</tspan> clock</text>
+    <!-- a time axis: instant task, periodic tasks, a timestamp flag and the clock's "now" -->
+    <g class="fm-glyph" aria-hidden="true">
+      <path class="fm-axis" d="M300 378 H606" marker-end="url(#fm-arrow-muted)"/>
+      <path class="fm-tick" d="M330 374 V382 M390 374 V382 M450 374 V382 M510 374 V382 M570 374 V382"/>
+      <rect class="fm-task-instant" x="307" y="373" width="10" height="10" rx="2" transform="rotate(45 312 378)"/>
+      <circle class="fm-task-periodic" cx="360" cy="378" r="5"/>
+      <circle class="fm-task-periodic" cx="420" cy="378" r="5"/>
+      <circle class="fm-task-periodic fm-task--due" cx="480" cy="378" r="5"/>
+      <circle class="fm-task-periodic fm-task--due" cx="540" cy="378" r="5"/>
+      <path class="fm-flag" d="M510 378 V353 L525 358 L510 363"/>
+      <path class="fm-now" d="M450 352 V390"/>
+      <path class="fm-now-head" d="M445 346 H455 L450 352 Z"/>
+    </g>
+  </a>
+
+  <!-- ============ Layer 4: runtime and wire ============ -->
+  <g class="fm-layer-label" aria-hidden="true">
+    <circle class="fm-badge" cx="34" cy="427" r="10"/>
+    <text class="fm-badge-num" x="34" y="432">4</text>
+    <text class="fm-eyebrow" x="52" y="432">RUNTIME &amp; WIRE</text>
+    <text class="fm-note" x="632" y="432" text-anchor="end">swap the runtime, keep your agents</text>
+  </g>
+
+  <!-- Part: containers (real network: two containers, one codec each, a wire between, an agent process) -->
+  <a href="#features-containers" class="fm-part fm-part--containers" aria-label="Containers and codecs: TCP, MQTT, codec, processes">
+    <title>Containers &amp; codecs: host agents, encode and transport their messages</title>
+    <rect class="fm-card" filter="url(#fm-shadow)" x="24" y="446" width="286" height="214" rx="12"/>
+    <path class="fm-strip fm-strip--wire" d="M24.5 612 H309.5 V648 a11.5 11.5 0 0 1 -11.5 11.5 H36 a11.5 11.5 0 0 1 -11.5 -11.5 Z"/>
+    <g class="fm-icon" transform="translate(40 462)">
+      <rect class="fm-icon-bg" width="28" height="28" rx="8"/>
+      <rect x="6" y="8" width="16" height="13" rx="2.5"/>
+      <path d="M6 17 H22"/>
+    </g>
+    <text class="fm-title" x="78" y="482">Containers &amp; codecs</text>
+    <text class="fm-kw" x="40" y="510">TCP <tspan class="fm-sep">·</tspan> MQTT <tspan class="fm-sep">·</tspan> codec <tspan class="fm-sep">·</tspan> processes</text>
+    <g class="fm-glyph" aria-hidden="true">
+      <!-- container A: two agents, a clock, one codec at its edge -->
+      <rect class="fm-box" x="40" y="540" width="104" height="64" rx="8"/>
+      <path class="fm-codec" d="M40.5 584 H143.5 V596 a7.5 7.5 0 0 1 -7.5 7.5 H48 a7.5 7.5 0 0 1 -7.5 -7.5 Z"/>
+      <text class="fm-codec-text" x="104" y="598.5">{} codec</text>
+      <g class="fm-clock" transform="translate(128 555)"><circle r="6.5"/><path d="M0 -3.5 V0 L2.5 1.5"/></g>
+      <!-- container B, the same; one of its agents runs in its own OS process -->
+      <rect class="fm-box" x="168" y="540" width="104" height="64" rx="8"/>
+      <path class="fm-codec" d="M168.5 584 H271.5 V596 a7.5 7.5 0 0 1 -7.5 7.5 H176 a7.5 7.5 0 0 1 -7.5 -7.5 Z"/>
+      <text class="fm-codec-text" x="232" y="598.5">{} codec</text>
+      <g class="fm-clock" transform="translate(256 555)"><circle r="6.5"/><path d="M0 -3.5 V0 L2.5 1.5"/></g>
+      <path class="fm-pipe" d="M250 604 V624 M254 604 V624"/>
+      <rect class="fm-proc" x="206" y="624" width="92" height="24" rx="12"/>
+      <circle class="fm-agent fm-agent--small" cx="221" cy="636" r="5"/>
+      <text class="fm-proc-text" x="232" y="640.5">process</text>
+      <!-- a topology link (dotted overlay) between neighbours in different containers -->
+      <path class="fm-edge fm-edge--overlay" d="M105 559 C112 522 212 522 219 559"/>
+      <circle class="fm-agent" cx="62" cy="564" r="7"/>
+      <circle class="fm-agent" cx="100" cy="564" r="7"/>
+      <circle class="fm-agent" cx="190" cy="564" r="7"/>
+      <circle class="fm-agent" cx="224" cy="564" r="7"/>
+      <!-- same container: straight into the inbox; other container: codec, wire, codec -->
+      <path class="fm-msg" d="M67 557 Q81 544 94 556" marker-end="url(#fm-arrow)"/>
+      <path class="fm-msg" d="M62 573 V617 Q62 625 70 625 H182 Q190 625 190 617 V576" marker-end="url(#fm-arrow)"/>
+      <rect class="fm-envelope" x="113" y="616" width="26" height="18" rx="3"/>
+      <path class="fm-envelope-flap" d="M114 617 L126 626 L138 617"/>
+      <text class="fm-wire-text" x="126" y="651">TCP · MQTT</text>
+    </g>
+  </a>
+
+  <!-- "or" divider: the simulation world replaces containers and network -->
+  <g class="fm-or" aria-hidden="true">
+    <path class="fm-or-line" d="M328 458 V648"/>
+    <rect class="fm-or-pill" x="313" y="553" width="30" height="22" rx="11"/>
+    <text class="fm-or-text" x="328" y="568.5">or</text>
+  </g>
+
+  <!-- Part: simulation (alternative runtime: one in-process world, simulated network) -->
+  <a href="#features-simulation" class="fm-part fm-part--simulation" aria-label="Simulation world: steps, delay and loss, environment, recording">
+    <title>Simulation world: deterministic time, simulated network, recorded results</title>
+    <rect class="fm-card" filter="url(#fm-shadow)" x="346" y="446" width="286" height="214" rx="12"/>
+    <path class="fm-strip fm-strip--sim" fill="url(#fm-hatch)" d="M346.5 612 H631.5 V648 a11.5 11.5 0 0 1 -11.5 11.5 H358 a11.5 11.5 0 0 1 -11.5 -11.5 Z"/>
+    <g class="fm-icon" transform="translate(362 462)">
+      <rect class="fm-icon-bg" width="28" height="28" rx="8"/>
+      <circle cx="14" cy="14" r="8"/>
+      <ellipse cx="14" cy="14" rx="3.5" ry="8"/>
+      <path d="M6 14 H22"/>
+    </g>
+    <text class="fm-title" x="400" y="482">Simulation world</text>
+    <g class="fm-glyph" aria-hidden="true">
+      <path class="fm-spark-axis" d="M556 464 V490 H616"/>
+      <polyline class="fm-spark" points="560,484 571,478 582,481 593,471 604,474 614,466"/>
+    </g>
+    <text class="fm-kw" x="362" y="510">steps <tspan class="fm-sep">·</tspan> delay &amp; loss</text>
+    <text class="fm-kw" x="362" y="528">environment <tspan class="fm-sep">·</tspan> recording</text>
+    <g class="fm-glyph" aria-hidden="true">
+      <!-- the world: one in-process space holding every agent, stepped by its own clock -->
+      <rect class="fm-box" x="362" y="540" width="254" height="64" rx="8"/>
+      <rect class="fm-env" x="362" y="540" width="254" height="64" rx="8" fill="url(#fm-grid)"/>
+      <path class="fm-steps" d="M380 540 V546 M398 540 V546 M416 540 V546 M434 540 V546 M452 540 V546 M470 540 V546 M488 540 V546 M506 540 V546 M524 540 V546 M542 540 V546 M560 540 V546 M578 540 V546"/>
+      <g class="fm-clock" transform="translate(600 555)"><circle r="6.5"/><path d="M0 -3.5 V0 L2.5 1.5"/></g>
+      <!-- the same topology link (dotted overlay), now inside the world -->
+      <path class="fm-edge fm-edge--overlay" d="M447 559 Q498 541 549 563"/>
+      <circle class="fm-agent" cx="388" cy="578" r="7"/>
+      <circle class="fm-agent" cx="440" cy="562" r="7"/>
+      <circle class="fm-agent" cx="500" cy="584" r="7"/>
+      <circle class="fm-agent" cx="556" cy="566" r="7"/>
+      <!-- no codec: messages go through the simulated network, delayed or lost -->
+      <path class="fm-msg" d="M440 571 V617 Q440 625 448 625 H548 Q556 625 556 617 V578" marker-end="url(#fm-arrow)"/>
+      <path class="fm-msg fm-msg--lost" d="M388 587 V617 Q388 625 396 625 H408"/>
+      <path class="fm-lost" d="M413 621 L421 629 M421 621 L413 629"/>
+      <text class="fm-wire-text" x="498" y="651">delay &amp; loss</text>
+    </g>
+  </a>
+
+  <!-- ============ Pillar: tracing records every layer ============ -->
+  <g class="fm-pillar-label" aria-hidden="true">
+    <text class="fm-eyebrow" x="656" y="40">ALL LAYERS</text>
+  </g>
+  <a href="#features-tracing" class="fm-part fm-part--tracing" aria-label="Tracing and debugging: cause chain, structlog, viewer">
+    <title>Tracing &amp; debugging: follow every message, event and task back to its cause</title>
+    <rect class="fm-card" filter="url(#fm-shadow)" x="656" y="54" width="120" height="606" rx="12"/>
+    <!-- the lens and the title top the pillar, like every other part -->
+    <g class="fm-icon" transform="translate(668 66)">
+      <rect class="fm-icon-bg" width="28" height="28" rx="8"/>
+      <circle cx="12" cy="12" r="5.5"/>
+      <path d="M16 16 L21 21"/>
+    </g>
+    <text class="fm-title" x="704" y="86">Tracing</text>
+    <!-- one record kind per layer. Event, message and task records link into a
+         cause chain; run records (trace, container or world started) have no
+         cause, so they stand apart -->
+    <g class="fm-glyph" aria-hidden="true">
+      <path class="fm-chain" d="M680 133 V237 M680 259 V357"/>
+      <rect class="fm-record" x="668" y="111" width="96" height="22" rx="6"/>
+      <circle class="fm-record-dot fm-record-dot--event" cx="680" cy="122" r="4"/>
+      <text class="fm-record-text" x="690" y="126.5">event</text>
+      <rect class="fm-record" x="668" y="237" width="96" height="22" rx="6"/>
+      <circle class="fm-record-dot fm-record-dot--msg" cx="680" cy="248" r="4"/>
+      <text class="fm-record-text" x="690" y="252.5">message</text>
+      <rect class="fm-record" x="668" y="357" width="96" height="22" rx="6"/>
+      <circle class="fm-record-dot fm-record-dot--task" cx="680" cy="368" r="4"/>
+      <text class="fm-record-text" x="690" y="372.5">task</text>
+      <rect class="fm-record" x="668" y="477" width="96" height="22" rx="6"/>
+      <circle class="fm-record-dot fm-record-dot--run" cx="680" cy="488" r="4"/>
+      <text class="fm-record-text" x="690" y="492.5">run</text>
+      <!-- the viewer: records on agent lanes, one cause chain highlighted -->
+      <rect class="fm-box" x="668" y="526" width="96" height="58" rx="6"/>
+      <path class="fm-viewer-bar" d="M668.5 538 H763.5"/>
+      <circle class="fm-viewer-dot" cx="676" cy="532" r="1.75"/>
+      <circle class="fm-viewer-dot" cx="682" cy="532" r="1.75"/>
+      <circle class="fm-viewer-dot" cx="688" cy="532" r="1.75"/>
+      <path class="fm-lane" d="M676 549 H756 M676 561 H756 M676 573 H756"/>
+      <path class="fm-viewer-chain" d="M690 549 L712 561 L738 573"/>
+      <circle class="fm-record-dot fm-record-dot--event" cx="690" cy="549" r="3.5"/>
+      <circle class="fm-record-dot fm-record-dot--msg" cx="712" cy="561" r="3.5"/>
+      <circle class="fm-record-dot fm-record-dot--task" cx="738" cy="573" r="3.5"/>
+    </g>
+    <text class="fm-kw" x="668" y="608">cause chain</text>
+    <text class="fm-kw" x="668" y="626">structlog</text>
+    <text class="fm-kw" x="668" y="644">viewer</text>
+  </a>
+
+  <!-- Taps: tracing listens to every layer (after the pillar so its hover can light them up) -->
+  <g class="fm-taps" aria-hidden="true">
+    <path class="fm-tap" d="M632 122 H656 M632 248 H656 M632 368 H656 M632 488 H656"/>
+    <circle class="fm-tap-port" cx="656" cy="122" r="4"/>
+    <circle class="fm-tap-port" cx="656" cy="248" r="4"/>
+    <circle class="fm-tap-port" cx="656" cy="368" r="4"/>
+    <circle class="fm-tap-port" cx="656" cy="488" r="4"/>
+  </g>
+</svg>

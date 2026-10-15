@@ -12,6 +12,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from mango.util import tracing
+
 if TYPE_CHECKING:
     from mango.util.clock import Clock
 
@@ -324,18 +326,29 @@ class DefaultEnvironment(Environment):
     def emit_agent_event(self, event: Any, agent_id: Any) -> None:
         """Deliver *event* to the agent registered under *agent_id*."""
         agent = self._id_to_agent.get(agent_id)
+        event_id = tracing._event_emitted(event, target=str(agent_id))
         if agent is None:
             return
-        for _cond, _handler in agent._behavior_agent_event_handlers:
-            if _cond(event):
-                _handler(agent, event)
-        agent.on_agent_event(event)
-        if hasattr(agent, "roles"):
-            for role in agent.roles:
-                for _cond, _handler in role._behavior_agent_event_handlers:
-                    if _cond(event):
-                        _handler(role, event)
-                role.on_agent_event(event)
+        with tracing._trigger(
+            "agent_event",
+            "event",
+            agent=agent.aid,
+            clock=agent.scheduler.clock,
+            cause=event_id,
+            content=event,
+        ):
+            for _cond, _handler in agent._behavior_agent_event_handlers:
+                if _cond(event):
+                    tracing._handler_called("event", _handler)
+                    _handler(agent, event)
+            agent.on_agent_event(event)
+            if hasattr(agent, "roles"):
+                for role in agent.roles:
+                    for _cond, _handler in role._behavior_agent_event_handlers:
+                        if _cond(event):
+                            tracing._handler_called("event", _handler)
+                            _handler(role, event)
+                    role.on_agent_event(event)
 
 
 class _NoBehavior(Behavior):
