@@ -624,7 +624,72 @@ async def test_message_delivery_and_recorded_messages():
     assert isinstance(tx, MessageTransaction)
     assert tx.sender_id == sender.aid
     assert tx.receiver_id == receiver.aid
-    assert tx.content == "hello"
+    assert tx.content is None
+    assert world.messages_delivered_count == 1
+
+
+@pytest.mark.asyncio
+async def test_record_message_content_opt_in():
+    world = create_world(record_message_content=True)
+    sender = world.register(SimpleAgent())
+    receiver = world.register(SimpleAgent())
+    assert world.record_message_content is True
+
+    async with world:
+        await world.send_message(
+            "hello", receiver_addr=receiver.addr, sender_id=sender.aid
+        )
+        await step_simulation(world, step_size_s=1.0)
+
+        world.record_message_content = False
+        await world.send_message(
+            "bye", receiver_addr=receiver.addr, sender_id=sender.aid
+        )
+        await step_simulation(world, step_size_s=1.0)
+
+    assert [tx.content for tx in world.recorded_messages] == ["hello", None]
+
+
+@pytest.mark.asyncio
+async def test_record_messages_disabled_still_delivers_and_counts():
+    world = create_world(record_messages=False)
+    sender = world.register(SimpleAgent())
+    receiver = world.register(SimpleAgent())
+
+    async with world:
+        for text in ("a", "b"):
+            await world.send_message(
+                text, receiver_addr=receiver.addr, sender_id=sender.aid
+            )
+        result = await step_simulation(world, step_size_s=1.0)
+
+    assert result is not None
+    assert result.messages_delivered == 2
+    assert [m[0] for m in receiver.messages] == ["a", "b"]
+    assert world.recorded_messages == []
+    assert world.messages_delivered_count == 2
+
+
+@pytest.mark.asyncio
+async def test_record_messages_can_be_toggled_at_runtime():
+    world = create_world()
+    sender = world.register(SimpleAgent())
+    receiver = world.register(SimpleAgent())
+    assert world.record_messages is True
+
+    world.record_message_content = True
+
+    async with world:
+        world.record_messages = False
+        await world.send_message("a", receiver_addr=receiver.addr, sender_id=sender.aid)
+        await step_simulation(world, step_size_s=1.0)
+
+        world.record_messages = True
+        await world.send_message("b", receiver_addr=receiver.addr, sender_id=sender.aid)
+        await step_simulation(world, step_size_s=1.0)
+
+    assert [tx.content for tx in world.recorded_messages] == ["b"]
+    assert world.messages_delivered_count == 2
 
 
 @pytest.mark.asyncio
