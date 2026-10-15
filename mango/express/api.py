@@ -8,30 +8,47 @@ from ..agent.role import Role, RoleAgent
 from ..container.core import AgentAddress, Container
 from ..container.factory import create_mqtt, create_tcp
 from ..messages.codecs import Codec
+from ..util import tracing
+from ..util.clock import ExternalClock
 
 logger = logging.getLogger(__name__)
 
 
 class ContainerActivationManager:
-    def __init__(self, containers: list[Container]) -> None:
+    def __init__(self, containers: list[Container], trace: Any = None) -> None:
         self._containers = containers
+        self._trace = tracing._TracedRun(
+            trace,
+            simulated=all(isinstance(c.clock, ExternalClock) for c in containers),
+        )
 
     async def __aenter__(self):
-        await asyncio.gather(*[c.start() for c in self._containers])
-        for container in self._containers:
-            container.on_ready()
+        self._trace.start()
+        try:
+            await asyncio.gather(*[c.start() for c in self._containers])
+            for container in self._containers:
+                container.on_ready()
+        except BaseException:
+            self._trace.finish()
+            raise
         if len(self._containers) == 1:
             return self._containers[0]
         return self._containers
 
     async def __aexit__(self, exc_type, exc, tb):
-        await asyncio.gather(*[c.shutdown() for c in self._containers])
+        try:
+            await asyncio.gather(*[c.shutdown() for c in self._containers])
+        finally:
+            self._trace.finish()
 
 
 class RunWithContainer(ABC):
-    def __init__(self, num: int, *agents: tuple[Agent, dict]) -> None:
+    def __init__(
+        self, num: int, *agents: tuple[Agent, dict], trace: Any = None
+    ) -> None:
         self._num = num
         self._agents = agents
+        self._trace = trace
         self.__activation_cm = None
 
     @abstractmethod
@@ -54,7 +71,7 @@ class RunWithContainer(ABC):
             container.register(
                 actual_agent, suggested_aid=agent_params.get("aid", None)
             )
-        self.__activation_cm = activate(container_list)
+        self.__activation_cm = activate(container_list, trace=self._trace)
         await self.__activation_cm.__aenter__()
         await self.after_start(container_list, self._agents)
         if len(container_list) == 1:
@@ -73,12 +90,13 @@ class RunWithTCPManager(RunWithContainer):
         addr: tuple[str, int] = ("127.0.0.1", 5555),
         codec: None | Codec = None,
         auto_port: bool = False,
+        trace: Any = None,
     ) -> None:
         agents = [
             agent if isinstance(agent, tuple) else (agent, dict())
             for agent in agents[0]
         ]
-        super().__init__(num, *agents)
+        super().__init__(num, *agents, trace=trace)
 
         self._addr = addr
         self._codec = codec
@@ -101,12 +119,13 @@ class RunWithMQTTManager(RunWithContainer):
         *agents: Agent | tuple[Agent, dict],
         broker_addr: tuple[str, int] = ("127.0.0.1", 5555),
         codec: None | Codec = None,
+        trace: Any = None,
     ) -> None:
         agents = [
             agent if isinstance(agent, tuple) else (agent, dict())
             for agent in agents[0]
         ]
-        super().__init__(num, *agents)
+        super().__init__(num, *agents, trace=trace)
 
         self._broker_addr = broker_addr
         self._codec = codec
@@ -132,7 +151,7 @@ class RunWithMQTTManager(RunWithContainer):
                 await container.subscribe_for_agent(aid=actual_agent.aid, topic=topic)
 
 
-def activate(*containers: Container) -> ContainerActivationManager:
+def activate(*containers: Container, trace: Any = None) -> ContainerActivationManager:
     """
     Create and return an async activation context manager.
     This can be used with the `async with` syntax to run code while the container(s) are active.
@@ -151,12 +170,19 @@ def activate(*containers: Container) -> ContainerActivationManager:
         async with activate(container_list) as container_list:
             # do your stuff
 
+        # Traced: writes mango_trace.jsonl and the viewer mango_trace.html
+        async with activate(container, trace=True):
+            # do your stuff
+
+    :param trace: trace the run (see :ref:`tracing-docs`): ``True`` for the
+        defaults, a path for the trace file, or a
+        :class:`~mango.util.tracing.TraceConfig`
     :return: The context manager to be used as described
     :rtype: ContainerActivationManager
     """
     if isinstance(containers[0], list):
         containers = containers[0]
-    return ContainerActivationManager(list(containers))
+    return ContainerActivationManager(list(containers), trace=trace)
 
 
 def run_with_tcp(
@@ -165,6 +191,7 @@ def run_with_tcp(
     addr: tuple[str, int] = ("127.0.0.1", 5555),
     codec: None | Codec = None,
     auto_port: bool = False,
+    trace: Any = None,
 ) -> RunWithTCPManager:
     """
     Create and return an async context manager, which can be used to run the given
@@ -184,10 +211,13 @@ def run_with_tcp(
     :type codec: None | Codec, optional
     :param auto_port: set if the port should be chosen automatically
     :type auto_port: bool
+    :param trace: trace the run, see :func:`activate`
     :return: the async context manager to run the agents with
     :rtype: RunWithTCPManager
     """
-    return RunWithTCPManager(num, agents, addr=addr, codec=codec, auto_port=auto_port)
+    return RunWithTCPManager(
+        num, agents, addr=addr, codec=codec, auto_port=auto_port, trace=trace
+    )
 
 
 def run_with_mqtt(
@@ -195,6 +225,7 @@ def run_with_mqtt(
     *agents: tuple[Agent, dict],
     broker_addr: tuple[str, int] = ("127.0.0.1", 1883),
     codec: None | Codec = None,
+    trace: Any = None,
 ) -> RunWithMQTTManager:
     """Create and return an async context manager, which can be used to run the given
     agents in `num` automatically created mqtt container. The agents are distributed according
@@ -210,10 +241,13 @@ def run_with_mqtt(
     :type broker_addr: tuple[str, int], optional
     :param codec: _description_, defaults to None
     :type codec: None | Codec, optional, The codec of the container
+    :param trace: trace the run, see :func:`activate`
     :return: the async context manager
     :rtype: RunWithMQTTManager
     """
-    return RunWithMQTTManager(num, agents, broker_addr=broker_addr, codec=codec)
+    return RunWithMQTTManager(
+        num, agents, broker_addr=broker_addr, codec=codec, trace=trace
+    )
 
 
 class RunWithSimulationManager:
@@ -225,6 +259,7 @@ class RunWithSimulationManager:
         start_time: float = 0.0,
         communication_sim=None,
         environment=None,
+        trace: Any = None,
     ) -> None:
         self._agent_tuples = [
             agent if isinstance(agent, tuple) else (agent, {}) for agent in agents
@@ -232,6 +267,7 @@ class RunWithSimulationManager:
         self._start_time = start_time
         self._communication_sim = communication_sim
         self._environment = environment
+        self._trace = trace
         self._world = None
 
     async def __aenter__(self):
@@ -241,6 +277,7 @@ class RunWithSimulationManager:
             start_time=self._start_time,
             communication_sim=self._communication_sim,
             environment=self._environment,
+            trace=self._trace,
         )
         for agent, params in self._agent_tuples:
             self._world.register(agent, suggested_aid=params.get("aid"))
@@ -257,6 +294,7 @@ def run_with_simulation(
     start_time: float = 0.0,
     communication_sim=None,
     environment=None,
+    trace: Any = None,
 ) -> RunWithSimulationManager:
     """Create and return an async context manager backed by a :class:`~mango.simulation.world.SimulationWorld`.
 
@@ -277,6 +315,7 @@ def run_with_simulation(
         with zero delay and no loss
     :param environment: custom environment; defaults to
         :class:`~mango.simulation.environment.DefaultEnvironment`
+    :param trace: trace the run, see :func:`~mango.create_world`
     :return: async context manager that yields the :class:`~mango.simulation.world.SimulationWorld`
     :rtype: RunWithSimulationManager
     """
@@ -285,6 +324,7 @@ def run_with_simulation(
         start_time=start_time,
         communication_sim=communication_sim,
         environment=environment,
+        trace=trace,
     )
 
 

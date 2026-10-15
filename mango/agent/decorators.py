@@ -234,6 +234,7 @@ def _bind_async(method: Callable, role: Any, host: Any) -> Callable:
     def _sync(content: Any, meta: dict) -> None:
         host.schedule_instant_task(method(role, content, meta))
 
+    _sync.__wrapped__ = method  # names the user's handler in traces
     return _sync
 
 
@@ -243,6 +244,7 @@ def _bind_sync(method: Callable, role: Any) -> Callable:
     def _sync(content: Any, meta: dict) -> None:
         method(role, content, meta)
 
+    _sync.__wrapped__ = method  # names the user's handler in traces
     return _sync
 
 
@@ -256,6 +258,7 @@ def _bind_agent_async(method: Callable) -> Callable:
     def _sync(agent: Any, content: Any, meta: dict) -> None:
         agent.schedule_instant_task(method(agent, content, meta))
 
+    _sync.__wrapped__ = method  # names the user's handler in traces
     return _sync
 
 

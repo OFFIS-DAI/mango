@@ -108,6 +108,8 @@ The context is available from :meth:`~mango.Role.setup` onward (not in
 
 ----
 
+.. _role-api-role-class:
+
 The Role class
 ==============
 
@@ -302,6 +304,8 @@ handler.  Neither form offers an unsubscribe: to stop a role from reacting,
 
 
 ----
+
+.. _role-api-handling-messages:
 
 Handling messages
 =================
@@ -715,6 +719,8 @@ other tasks, and :meth:`~mango.RoleContext.activate` resumes them.
 
 ----
 
+.. _role-api-sharing-data:
+
 Sharing data between roles
 ==========================
 
@@ -784,6 +790,8 @@ subscribed to via :meth:`~mango.RoleContext.subscribe_model`.
 
 ----
 
+.. _role-api-deactivation:
+
 Deactivating and activating roles
 ==================================
 
@@ -826,6 +834,8 @@ suspended and receives the caller (``src``) as its argument:
 
 
 ----
+
+.. _role-api-dynamic-roles:
 
 Dynamic role management
 ========================

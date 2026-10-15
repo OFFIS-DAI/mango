@@ -17,3 +17,18 @@ repos:
     hooks:
       - id: end-of-file-fixer
       - id: trailing-whitespace
+  # the trace viewer's scripts (mango/util/viewer/js); pre-commit installs node and the tools
+  - repo: local
+    hooks:
+      - id: prettier
+        name: prettier (trace viewer)
+        language: node
+        additional_dependencies: ["prettier@3.9.8"]
+        entry: prettier --write --config mango/util/viewer/.prettierrc.json
+        files: ^mango/util/viewer/js/.*\.js$
+      - id: eslint
+        name: eslint (trace viewer)
+        language: node
+        additional_dependencies: ["eslint@10.11.0"]
+        entry: eslint --config mango/util/viewer/eslint.config.mjs --max-warnings 0
+        files: ^mango/util/viewer/js/.*\.js$
