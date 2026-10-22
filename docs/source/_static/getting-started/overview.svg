@@ -1,0 +1,296 @@
+<svg class="mango-feature-map mango-overview" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 936" role="group" aria-labelledby="ov-title" aria-describedby="ov-desc">
+  <title id="ov-title">How mango is built and run</title>
+  <desc id="ov-desc">Top: your agent system. Three boxes explain its parts. The agent has an address, a lifecycle, an inbox and a scheduler, and it can be composed of roles. Messaging sends messages to addresses and handles them by type. Scheduling runs an agent's own tasks, once or periodically, on the runtime's clock. Below the boxes, agents exchange messages; the agent box points to one of them, the scheduling box to another that runs a periodic task. An arrow hands the same agent system to one of two runtimes. Left, real time: containers exchange messages over TCP or MQTT, encoded by a codec, on wall-clock time, and the environment lives outside mango, connected by your code. Right, simulation: one simulation world advances simulated time in steps, keeps messages in process, optionally with simulated delay and loss, and contains the environment as an entity inside mango. Each part links to the step below that introduces it.</desc>
+
+  <defs>
+    <filter id="ov-shadow" x="-5%" y="-5%" width="110%" height="120%">
+      <feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-color="#1d1d1b" flood-opacity="0.07"/>
+    </filter>
+    <filter id="ov-node-shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="1.5" stdDeviation="2" flood-color="#1d1d1b" flood-opacity="0.18"/>
+    </filter>
+    <linearGradient id="ov-glow" x1="0" y1="0" x2="1" y2="1">
+      <stop class="fm-glow-a" offset="0"/>
+      <stop class="fm-glow-b" offset="0.55"/>
+    </linearGradient>
+    <!-- the stage's dot grid fades out towards its edges -->
+    <radialGradient id="ov-stage-fade" cx="0.5" cy="0.5" r="0.65">
+      <stop offset="0.3" stop-color="#fff"/>
+      <stop offset="1" stop-color="#000"/>
+    </radialGradient>
+    <mask id="ov-stage-mask">
+      <rect x="24" y="218" width="752" height="264" fill="url(#ov-stage-fade)"/>
+    </mask>
+    <marker id="ov-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="fm-arrowhead" d="M1 1 L9 5 L1 9 z"/>
+    </marker>
+    <marker id="ov-arrow-muted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path class="ov-arrowhead-muted" d="M1 1 L9 5 L1 9 z"/>
+    </marker>
+    <marker id="ov-arrow-time" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path class="ov-arrowhead-time" d="M1 1 L9 5 L1 9 z"/>
+    </marker>
+    <marker id="ov-arrow-big" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path class="ov-arrowhead-strong" d="M1 1 L9 5 L1 9 z"/>
+    </marker>
+    <pattern id="ov-grid" width="12" height="12" patternUnits="userSpaceOnUse">
+      <circle class="fm-grid-dot" cx="6" cy="6" r="1"/>
+    </pattern>
+    <pattern id="ov-hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <path class="fm-hatch-line" d="M0 0 V8"/>
+    </pattern>
+  </defs>
+
+  <!-- Backdrop panel with a faint mango glow -->
+  <rect class="fm-panel" x="0.5" y="0.5" width="799" height="935" rx="16"/>
+  <rect class="fm-panel-glow" x="0.5" y="0.5" width="799" height="935" rx="16" fill="url(#ov-glow)"/>
+
+  <!-- ============ 1: your agent system ============ -->
+  <g class="fm-layer-label" aria-hidden="true">
+    <text class="fm-eyebrow" x="24" y="40">YOUR AGENT SYSTEM</text>
+    <text class="fm-note" x="776" y="40" text-anchor="end">written once, runs in either runtime</text>
+  </g>
+
+  <!-- the stage the agent system is drawn on -->
+  <g aria-hidden="true">
+    <rect class="ov-stage" x="24" y="218" width="752" height="264" rx="14"/>
+    <rect class="ov-stage-grid" x="24" y="218" width="752" height="264" rx="14" fill="url(#ov-grid)" mask="url(#ov-stage-mask)"/>
+  </g>
+
+  <!-- who talks to whom (not a part: the links stay visible while a part is spotlit) -->
+  <path class="ov-link" aria-hidden="true" d="M60 300 L208 362 L92 440 Z M208 362 L372 300 M208 362 L318 446 L470 400 L372 300 L530 280 L618 360 L470 400 L594 452 L732 424 L618 360 L708 284 L732 424"/>
+
+  <!-- agents (not a part either; they light up with the agent and roles boxes) -->
+  <g class="ov-nodes" aria-hidden="true">
+    <g transform="translate(60 300)"><circle class="fm-agent" filter="url(#ov-node-shadow)" r="14"/><circle class="ov-node-glyph" cy="-3.5" r="3.5"/><path class="ov-node-glyph" d="M-6.5 8 a6.5 5.5 0 0 1 13 0"/></g>
+    <g transform="translate(92 440)"><circle class="fm-agent" filter="url(#ov-node-shadow)" r="14"/><circle class="ov-node-glyph" cy="-3.5" r="3.5"/><path class="ov-node-glyph" d="M-6.5 8 a6.5 5.5 0 0 1 13 0"/></g>
+    <g transform="translate(318 446)"><circle class="fm-agent" filter="url(#ov-node-shadow)" r="14"/><circle class="ov-node-glyph" cy="-3.5" r="3.5"/><path class="ov-node-glyph" d="M-6.5 8 a6.5 5.5 0 0 1 13 0"/></g>
+    <g transform="translate(372 300)"><circle class="fm-agent" filter="url(#ov-node-shadow)" r="14"/><circle class="ov-node-glyph" cy="-3.5" r="3.5"/><path class="ov-node-glyph" d="M-6.5 8 a6.5 5.5 0 0 1 13 0"/></g>
+    <g transform="translate(470 400)"><circle class="fm-agent" filter="url(#ov-node-shadow)" r="14"/><circle class="ov-node-glyph" cy="-3.5" r="3.5"/><path class="ov-node-glyph" d="M-6.5 8 a6.5 5.5 0 0 1 13 0"/></g>
+    <g transform="translate(530 280)"><circle class="fm-agent" filter="url(#ov-node-shadow)" r="14"/><circle class="ov-node-glyph" cy="-3.5" r="3.5"/><path class="ov-node-glyph" d="M-6.5 8 a6.5 5.5 0 0 1 13 0"/></g>
+    <g transform="translate(618 360)"><circle class="fm-agent" filter="url(#ov-node-shadow)" r="14"/><circle class="ov-node-glyph" cy="-3.5" r="3.5"/><path class="ov-node-glyph" d="M-6.5 8 a6.5 5.5 0 0 1 13 0"/></g>
+    <g transform="translate(708 284)"><circle class="fm-agent" filter="url(#ov-node-shadow)" r="14"/><circle class="ov-node-glyph" cy="-3.5" r="3.5"/><path class="ov-node-glyph" d="M-6.5 8 a6.5 5.5 0 0 1 13 0"/></g>
+    <g transform="translate(732 424)"><circle class="fm-agent" filter="url(#ov-node-shadow)" r="14"/><circle class="ov-node-glyph" cy="-3.5" r="3.5"/><path class="ov-node-glyph" d="M-6.5 8 a6.5 5.5 0 0 1 13 0"/></g>
+    <g transform="translate(594 452)"><circle class="fm-agent" filter="url(#ov-node-shadow)" r="14"/><circle class="ov-node-glyph" cy="-3.5" r="3.5"/><path class="ov-node-glyph" d="M-6.5 8 a6.5 5.5 0 0 1 13 0"/></g>
+    <!-- the agent the agent box describes, a little bigger than the rest -->
+    <g transform="translate(208 362) scale(1.25)"><circle class="fm-agent" filter="url(#ov-node-shadow)" r="14"/><circle class="ov-node-glyph" cy="-3.5" r="3.5"/><path class="ov-node-glyph" d="M-6.5 8 a6.5 5.5 0 0 1 13 0"/></g>
+  </g>
+
+  <!-- Part: agent (its box points to one agent; roles sit inside it) -->
+  <a href="#getting-started-agents" class="fm-part fm-part--agents" aria-label="Agent, step 1: address, lifecycle, inbox, scheduler">
+    <title>Agent: an autonomous entity with an address, a lifecycle, an inbox and a scheduler</title>
+    <path class="ov-leader" d="M208 202 V341"/>
+    <circle class="ov-leader-dot" cx="208" cy="341" r="3.5"/>
+    <rect class="fm-card" filter="url(#ov-shadow)" x="24" y="54" width="368" height="148" rx="12"/>
+    <g class="fm-icon" transform="translate(40 70)">
+      <rect class="fm-icon-bg" width="28" height="28" rx="8"/>
+      <circle class="fm-icon-agent" cx="14" cy="11" r="4"/>
+      <path d="M7 22 a7 6 0 0 1 14 0"/>
+    </g>
+    <text class="fm-title" x="78" y="90">Agent</text>
+    <text class="fm-kw" x="40" y="126">address <tspan class="fm-sep">·</tspan> lifecycle</text>
+    <text class="fm-kw ov-code" x="40" y="150">on_ready <tspan class="fm-sep">·</tspan> on_stop</text>
+    <rect class="fm-pill fm-pill--msg" x="40" y="164" width="58" height="20" rx="10"/>
+    <text class="fm-pill-text" x="69" y="178.5">inbox</text>
+    <rect class="fm-pill fm-pill--time" x="104" y="164" width="90" height="20" rx="10"/>
+    <text class="fm-pill-text" x="149" y="178.5">scheduler</text>
+  </a>
+
+  <!-- Part: roles (drawn inside the agent: an agent can be composed of roles) -->
+  <a href="#getting-started-roles" class="fm-part fm-part--roles" aria-label="Roles, step 2: agent_composed_of, emit_event, @on_event">
+    <title>Roles: compose an agent from reusable parts</title>
+    <rect class="fm-card fm-card--inset" x="212" y="66" width="168" height="124" rx="9"/>
+    <g class="fm-icon" transform="translate(228 80)">
+      <rect class="fm-icon-bg" width="28" height="28" rx="8"/>
+      <rect x="7" y="7" width="6" height="6" rx="1.5"/>
+      <rect x="15" y="7" width="6" height="6" rx="1.5"/>
+      <rect x="7" y="15" width="6" height="6" rx="1.5"/>
+      <rect class="fm-fill" x="15" y="15" width="6" height="6" rx="1.5"/>
+    </g>
+    <text class="fm-title" x="266" y="100">Roles</text>
+    <!-- three role blocks on the agent's in-process event bus -->
+    <g class="fm-glyph" aria-hidden="true">
+      <rect class="fm-bus" x="320" y="100" width="46" height="4" rx="2"/>
+      <path class="fm-bus-link" d="M328 93 V100 M343 93 V100 M358 93 V100"/>
+      <rect class="fm-role" x="322" y="81" width="12" height="12" rx="3.5"/>
+      <rect class="fm-role" x="337" y="81" width="12" height="12" rx="3.5"/>
+      <rect class="fm-role fm-role--alt" x="352" y="81" width="12" height="12" rx="3.5"/>
+    </g>
+    <text class="fm-kw ov-code" x="228" y="132">agent_composed_of</text>
+    <text class="fm-kw ov-code" x="228" y="154">emit_event</text>
+    <text class="fm-kw ov-code" x="228" y="176">@on_event</text>
+  </a>
+
+  <!-- Part: messaging (its box, a message in flight, and pulses running along the links) -->
+  <a href="#getting-started-messages" class="fm-part ov-part--messaging" aria-label="Messaging, step 1: send_message, reply_to, @on_message">
+    <title>Messaging: send a message to an address, handle it by its type</title>
+    <path class="fm-msg" d="M389 288 Q452 260 513 270" marker-end="url(#ov-arrow)"/>
+    <rect class="fm-envelope" x="439.5" y="261" width="24" height="17" rx="3"/>
+    <path class="fm-envelope-flap" d="M440.5 262 L451.5 270.5 L462.5 262"/>
+    <g class="ov-pulses">
+      <circle class="ov-pulse" r="3.5" opacity="0">
+        <animateMotion dur="3.6s" repeatCount="indefinite" path="M208 362 L318 446"/>
+        <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.2;0.8;1" dur="3.6s" repeatCount="indefinite"/>
+      </circle>
+      <circle class="ov-pulse" r="3.5" opacity="0">
+        <animateMotion dur="3s" begin="1.2s" repeatCount="indefinite" path="M470 400 L618 360"/>
+        <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.2;0.8;1" dur="3s" begin="1.2s" repeatCount="indefinite"/>
+      </circle>
+      <circle class="ov-pulse" r="3.5" opacity="0">
+        <animateMotion dur="3.4s" begin="0.6s" repeatCount="indefinite" path="M708 284 L732 424"/>
+        <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.2;0.8;1" dur="3.4s" begin="0.6s" repeatCount="indefinite"/>
+      </circle>
+      <circle class="ov-pulse" r="3.5" opacity="0">
+        <animateMotion dur="4s" begin="2s" repeatCount="indefinite" path="M92 440 L60 300"/>
+        <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.2;0.8;1" dur="4s" begin="2s" repeatCount="indefinite"/>
+      </circle>
+    </g>
+    <path class="ov-leader" d="M451.5 202 V257"/>
+    <circle class="ov-leader-dot" cx="451.5" cy="257" r="3.5"/>
+    <rect class="fm-card" filter="url(#ov-shadow)" x="408" y="54" width="176" height="148" rx="12"/>
+    <g class="fm-icon" transform="translate(424 70)">
+      <rect class="fm-icon-bg" width="28" height="28" rx="8"/>
+      <path d="M7 11 H20 M17 8 L20 11 L17 14"/>
+      <path d="M21 18 H8 M11 15 L8 18 L11 21"/>
+    </g>
+    <text class="fm-title" x="462" y="90">Messaging</text>
+    <text class="fm-kw ov-code" x="424" y="126">send_message</text>
+    <text class="fm-kw ov-code" x="424" y="150">reply_to</text>
+    <text class="fm-kw ov-code" x="424" y="174">@on_message</text>
+  </a>
+
+  <!-- Part: scheduling (its box, and one agent's periodic task ticking on its clock) -->
+  <a href="#getting-started-scheduling" class="fm-part ov-part--scheduling" aria-label="Scheduling, step 3: @periodic, schedule_task, current_timestamp">
+    <title>Scheduling: agents run their own tasks on the runtime's clock</title>
+    <path class="ov-sched-arc" d="M686 284 A22 22 0 1 1 708 306" marker-end="url(#ov-arrow-time)"/>
+    <g class="ov-sched-badge" transform="translate(724 268)"><circle r="9"/><path d="M0 -4.5 V0 L3 2"/></g>
+    <path class="ov-leader" d="M724 202 V259"/>
+    <rect class="fm-card" filter="url(#ov-shadow)" x="600" y="54" width="176" height="148" rx="12"/>
+    <g class="fm-icon fm-icon--time" transform="translate(616 70)">
+      <rect class="fm-icon-bg" width="28" height="28" rx="8"/>
+      <circle cx="14" cy="14" r="8"/>
+      <path d="M14 9.5 V14 L17 16"/>
+    </g>
+    <text class="fm-title" x="654" y="90">Scheduling</text>
+    <text class="fm-kw ov-code" x="616" y="126">@periodic</text>
+    <text class="fm-kw ov-code" x="616" y="150">schedule_task</text>
+    <text class="fm-kw ov-code" x="616" y="174">current_timestamp</text>
+  </a>
+
+  <!-- ============ 2: the same agents go to either runtime ============
+       (drawn 36 units further down than its coordinates say) -->
+  <g transform="translate(0 36)">
+    <g class="fm-layer-label" aria-hidden="true">
+      <text class="fm-eyebrow" x="24" y="487">RUNTIME</text>
+    </g>
+    <g class="ov-handoff" aria-hidden="true">
+      <path class="ov-handoff-line" d="M400 446 V476"/>
+      <path class="ov-handoff-line" d="M274 487 H190 Q180 487 180 497 V562" marker-end="url(#ov-arrow-big)"/>
+      <path class="ov-handoff-line" d="M526 487 H610 Q620 487 620 497 V562" marker-end="url(#ov-arrow-big)"/>
+      <rect class="ov-handoff-pill" x="274" y="476" width="252" height="22" rx="11"/>
+      <text class="ov-handoff-text" x="400" y="491.5">hand the same agents to a runtime</text>
+    </g>
+
+    <!-- Part: real time (containers on real protocols; the environment lives outside mango) -->
+    <a href="?runtime=realtime#getting-started-run" class="fm-part ov-part--realtime" aria-label="Real time, step 4: create_tcp_container, wall-clock time, TCP or MQTT, external environment">
+      <title>Real time: containers exchange messages over TCP or MQTT on wall-clock time; the environment lives outside mango</title>
+      <rect class="fm-card" filter="url(#ov-shadow)" x="24" y="570" width="312" height="306" rx="12"/>
+      <g class="fm-icon" transform="translate(40 586)">
+        <rect class="fm-icon-bg" width="28" height="28" rx="8"/>
+        <rect x="6" y="8" width="16" height="13" rx="2.5"/>
+        <path d="M6 17 H22"/>
+      </g>
+      <text class="fm-title" x="78" y="606">Real time</text>
+      <text class="fm-kw ov-code" x="40" y="634">create_tcp_container</text>
+      <g class="fm-glyph" aria-hidden="true">
+        <!-- mango ends at the dashed line: two containers, a message on the wire between them -->
+        <rect class="ov-boundary" x="40" y="650" width="280" height="76" rx="9"/>
+        <rect class="ov-boundary-tab" x="50" y="643" width="50" height="14" rx="4"/>
+        <text class="ov-boundary-text" x="75" y="654">mango</text>
+        <rect class="fm-box" x="56" y="664" width="104" height="48" rx="8"/>
+        <rect class="fm-box" x="200" y="664" width="104" height="48" rx="8"/>
+        <g class="fm-clock" transform="translate(308 662)"><circle r="6.5"/><path d="M0 -3.5 V0 L2.5 1.5"/></g>
+        <path class="fm-msg" d="M137 688 H215" marker-end="url(#ov-arrow)"/>
+        <rect class="fm-envelope" x="168" y="679.5" width="24" height="17" rx="3"/>
+        <path class="fm-envelope-flap" d="M169 680.5 L180 689 L191 680.5"/>
+        <circle class="fm-agent" cx="84" cy="688" r="7"/>
+        <circle class="fm-agent" cx="128" cy="688" r="7"/>
+        <circle class="fm-agent" cx="228" cy="688" r="7"/>
+        <circle class="fm-agent" cx="272" cy="688" r="7"/>
+        <!-- agents reach across the boundary into the environment outside mango -->
+        <path class="ov-env-link" d="M84 697 V740 M272 697 V740" marker-start="url(#ov-arrow-muted)" marker-end="url(#ov-arrow-muted)"/>
+        <rect class="ov-real" x="40" y="740" width="280" height="32" rx="8"/>
+        <g class="ov-thing" transform="translate(64 756)">
+          <rect x="-2.5" y="-9" width="5" height="11" rx="2.5"/><circle cx="0" cy="4.5" r="3.5"/>
+        </g>
+        <g class="ov-thing" transform="translate(86 756)">
+          <rect x="-6" y="-3" width="12" height="9" rx="2"/><path d="M-3 -3 V-8 M3 -3 V-8"/>
+        </g>
+        <g class="ov-thing" transform="translate(110 756)">
+          <path d="M-7 5 H6 a4 4 0 0 0 0 -8 a5.5 5.5 0 0 0 -10.5 -1 a4.5 4.5 0 0 0 -2.5 9 Z"/>
+        </g>
+        <text class="ov-strip-text" x="128" y="760.5">external environment</text>
+      </g>
+      <text class="fm-kw ov-row-text" x="40" y="804">wall clock</text>
+      <text class="fm-kw ov-row-text" x="40" y="832">TCP or MQTT, encoded by a codec</text>
+      <text class="fm-kw ov-row-text" x="40" y="860">outside mango, integrated by your code</text>
+    </a>
+
+    <!-- "or" between the runtimes -->
+    <g class="fm-or" aria-hidden="true">
+      <rect class="fm-or-pill" x="385" y="700" width="30" height="22" rx="11"/>
+      <text class="fm-or-text" x="400" y="715.5">or</text>
+    </g>
+
+    <!-- Part: simulation (one world, simulated time; the environment is an entity inside it) -->
+    <a href="?runtime=simulation#getting-started-run" class="fm-part ov-part--simulation" aria-label="Simulation, step 4: create_world, simulated time, in-process messages with optional delay and loss, Environment entity">
+      <title>Simulation: one world on simulated time, with a simulated network and environment</title>
+      <rect class="fm-card" filter="url(#ov-shadow)" x="464" y="570" width="312" height="306" rx="12"/>
+      <g class="fm-icon" transform="translate(480 586)">
+        <rect class="fm-icon-bg" width="28" height="28" rx="8"/>
+        <circle cx="14" cy="14" r="8"/>
+        <ellipse cx="14" cy="14" rx="3.5" ry="8"/>
+        <path d="M6 14 H22"/>
+      </g>
+      <text class="fm-title" x="518" y="606">Simulation</text>
+      <text class="fm-kw ov-code" x="480" y="634">create_world</text>
+      <g class="fm-glyph" aria-hidden="true">
+        <!-- the world holds everything, the environment included; its clock moves in steps -->
+        <rect class="fm-box" x="480" y="650" width="280" height="122" rx="9"/>
+        <rect class="fm-env" x="480" y="650" width="280" height="122" rx="9" fill="url(#ov-grid)"/>
+        <path class="fm-steps" d="M500 650 V656 M520 650 V656 M540 650 V656 M560 650 V656 M580 650 V656 M600 650 V656 M620 650 V656 M640 650 V656 M660 650 V656 M680 650 V656 M700 650 V656 M720 650 V656"/>
+        <g class="fm-clock" transform="translate(748 662)"><circle r="6.5"/><path d="M0 -3.5 V0 L2.5 1.5"/></g>
+        <!-- simulated network: one message delayed, one lost -->
+        <path class="fm-msg" d="M577 681 Q616 662 653 681" marker-end="url(#ov-arrow)"/>
+        <path class="fm-msg fm-msg--lost" d="M674 694 Q690 704 700 698"/>
+        <path class="fm-lost" d="M703 691 L711 699 M711 691 L703 699"/>
+        <circle class="fm-agent" cx="524" cy="694" r="7"/>
+        <circle class="fm-agent" cx="570" cy="688" r="7"/>
+        <circle class="fm-agent" cx="664" cy="688" r="7"/>
+        <circle class="fm-agent" cx="730" cy="710" r="7"/>
+        <!-- agents read the environment entity on every step -->
+        <path class="ov-env-link" d="M524 703 V732 M664 697 V732" marker-start="url(#ov-arrow-muted)" marker-end="url(#ov-arrow-muted)"/>
+        <rect class="ov-env" x="492" y="732" width="256" height="30" rx="7"/>
+        <rect class="ov-env-hatch" x="492" y="732" width="256" height="30" rx="7" fill="url(#ov-hatch)"/>
+        <g class="ov-thing" transform="translate(552 747)">
+          <rect x="-2.5" y="-9" width="5" height="11" rx="2.5"/><circle cx="0" cy="4.5" r="3.5"/>
+        </g>
+        <g class="ov-thing" transform="translate(574 747)">
+          <rect x="-6" y="-3" width="12" height="9" rx="2"/><path d="M-3 -3 V-8 M3 -3 V-8"/>
+        </g>
+        <text class="ov-strip-text ov-code" x="592" y="751.5">Environment</text>
+      </g>
+      <text class="fm-kw ov-row-text" x="480" y="804">simulated, advanced in steps</text>
+      <text class="fm-kw ov-row-text" x="480" y="832">in process, optional delay and loss</text>
+      <text class="fm-kw ov-row-text" x="480" y="860">an entity inside the world</text>
+    </a>
+
+    <!-- comparison rows: one label per row between the two runtimes -->
+    <g class="ov-rows" aria-hidden="true">
+      <path class="ov-row-line" d="M24 784 H776 M24 812 H776 M24 840 H776"/>
+      <text class="ov-row-label" x="400" y="804">TIME</text>
+      <text class="ov-row-label" x="400" y="832">NETWORK</text>
+      <text class="ov-row-label" x="400" y="860">ENVIRONMENT</text>
+    </g>
+  </g>
+</svg>
