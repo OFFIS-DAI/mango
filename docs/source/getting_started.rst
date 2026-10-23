@@ -2,8 +2,7 @@
 Getting started
 ===============
 In this section you will get to know the necessary steps to create a simple multi-agent system
-using *mango*. For an introduction to the different features that mango offers, we refer to the
-:doc:`tutorial`.
+using *mango*. For a guided first project, see :doc:`first-simulation-tutorial`.
 
 *****************
 Creating an agent

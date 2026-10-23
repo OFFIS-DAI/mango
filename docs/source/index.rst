@@ -23,7 +23,7 @@ mango: modular python agent framework
 
       .. grid-item::
 
-         .. button-ref:: tutorial
+         .. button-ref:: first-simulation-tutorial
             :ref-type: doc
             :color: secondary
             :outline:
@@ -209,12 +209,12 @@ Where to go next
       Install mango and write your first agent in minutes.
 
    .. grid-item-card:: Tutorials
-      :link: tutorial
+      :link: first-simulation-tutorial
       :link-type: doc
       :text-align: center
       :shadow: sm
 
-      End-to-end worked examples including simulation.
+      Simulate a solar street with a shared battery, no programming background needed.
 
    .. grid-item-card:: User guide
       :link: features
@@ -245,6 +245,8 @@ Where to go next
    :maxdepth: 1
    :caption: Tutorials
 
+   first-simulation-tutorial
+   advanced-simulation-tutorial
    tutorial
    simulation-ev-tutorial
 
