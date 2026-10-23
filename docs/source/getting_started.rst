@@ -1,222 +1,347 @@
+.. _getting-started:
 
+===============
 Getting started
 ===============
-In this section you will get to know the necessary steps to create a simple multi-agent system
-using *mango*. For an introduction to the different features that mango offers, we refer to the
-:doc:`tutorial`.
 
-*****************
-Creating an agent
-*****************
-In our first example, we create a very simple agent that simply prints the content of
-all messages it receives:
+mango is a Python framework for multi-agent systems, built on asyncio. A mango
+application has two halves. The **agent system** is what you write: agents that
+exchange messages, can be composed of roles and schedule their own tasks. A
+**runtime** executes it, either in real time, as containers that talk over TCP
+or MQTT, or as a simulation world on simulated time. The same agents run in
+both.
 
-.. testcode::
+.. raw:: html
+   :file: _static/getting-started/overview.svg
+   :class: mango-feature-map-frame
 
-    from mango import Agent, on_message
+.. only:: html
 
-    class RepeatingAgent(Agent):
+   .. div:: sd-text-center mango-feature-map-caption
 
-        def __init__(self):
-            super().__init__()
-            print(f"Creating a RepeatingAgent. At this point self.addr={self.addr}")
+      Each part of the picture links to the step that introduces it.
 
-        @on_message(str)
-        def handle_text(self, content, meta):
-            # Every message whose content is a str is delivered to this method.
-            print(f"Received a message with the following content: {content}!")
+.. only:: latex
 
-        def on_register(self):
-            print(f"The agent has been registered to a container: {self.addr}!")
+   The agent system consists of agents that exchange messages
+   (:ref:`step 1 <getting-started-agents>`), can be composed of roles
+   (:ref:`step 2 <getting-started-roles>`) and schedule their own tasks
+   (:ref:`step 3 <getting-started-scheduling>`). A runtime executes it
+   (:ref:`step 4 <getting-started-run>`): containers in real time, or a
+   simulation world on simulated time.
 
-        def on_ready(self):
-            print("All containers have been activated!")
+Step 1 introduces agents and messages with two greeters. Steps 2 and 3 build a
+weather station that reports the temperature to a collector every hour, and
+step 4 runs it in real time and in a simulation.
 
-    RepeatingAgent()
+Install mango with pip (Python 3.10 or newer, see :doc:`installation`):
 
-.. testoutput::
+.. code-block:: console
 
-    Creating a RepeatingAgent. At this point self.addr=None
-
-Agents must be a subclass of :class:`mango.Agent`. An agent declares which messages it handles:
-:func:`mango.on_message` subscribes a method to a message type, and every message whose content is
-an instance of that type is delivered there. Declare one handler per message type.
-:ref:`Handling messages <agent-handlers>` covers the rest: the ``where`` and ``priority`` options,
-and the catch-all :meth:`mango.Agent.handle_message`.
-
-Agent's are notified when they are registered :meth:`mango.Agent.on_register`
-and when the container(s) has been activated :meth:`mango.Agent.on_ready`. Consequenty, most agent features (like scheduling,
-sending internal messages, the agent address) are available after registration, and only after :meth:`mango.Agent.on_ready` has
-been called, all features are available (sending external messages).
-
-********************
-Creating a container
-********************
-
-Agents live in containers, so we need to know how to create a mango container.
-The container is responsible for message exchange between agents. More information about container and agents can be
-found in :doc:`Agents and container <agents-container>`
-
-.. testcode::
-
-    from mango import create_tcp_container
-
-    # Containers have to be created using a factory method
-    # Other container types are available through create_mqtt_container and create_ec_container
-    container = create_tcp_container(addr=('127.0.0.1', 5555))
-    print(container.addr)
-
-.. testoutput::
-
-    ('127.0.0.1', 5555)
+   $ pip install mango-agents
 
 
-This is how a tcp container is created. While container creation, it is possible to set the codec, the address information (depending on the type)
-and the clock (see :ref:`ClockDocs`).
+.. _getting-started-agents:
 
-*******************************************
-Running your first agent within a container
-*******************************************
+1. Agents and messages
+======================
 
-The container and the contained agents need `asyncio` (see `asyncio docs <https://docs.python.org/3.10/library/asyncio.html>`_) to work, therefore we need write a coroutine
-function and execute it using `asyncio.run`.
-
-The following script will create a RepeatingAgent, register it, and let it run within a container for 50ms and then shutdown the container:
+An agent is an autonomous entity: subclass :class:`~mango.Agent` and register
+it in a runtime. The runtime gives it an **address** and drives its
+**lifecycle**: :meth:`~mango.Agent.on_register` once it has an address,
+:meth:`~mango.Agent.on_ready` once the runtime has started, and
+:meth:`~mango.Agent.on_stop` (``async``) at shutdown. Every agent has an inbox
+for incoming messages and a scheduler for its own tasks.
 
 .. testcode::
 
     import asyncio
-    from mango import create_tcp_container, Agent, activate, on_message
+    from mango import Agent, on_message, run_with_tcp, sender_addr
 
-    class RepeatingAgent(Agent):
-        def __init__(self):
-            super().__init__()
-            print(f"Creating a RepeatingAgent. At this point self.addr={self.addr}")
+    class Greeter(Agent):
+        def on_ready(self):
+            print(f"ready: {self.addr}")
 
         @on_message(str)
-        def handle_text(self, content, meta):
-            print(f"Received a message with the following content: {content}!")
+        async def greet_back(self, text, meta):
+            print(f"{self.aid} got {text!r} from {sender_addr(meta).aid}")
+            if text == "hello":
+                await self.reply_to("hello back", meta)
 
-        def on_register(self):
-            print(f"The agent has been registered to a container: {self.addr}!")
+    async def main():
+        alice, bob = Greeter(), Greeter()
+        async with run_with_tcp(1, alice, bob):
+            await alice.send_message("hello", bob.addr)
+            await asyncio.sleep(0.1)  # let the reply arrive before the container stops
 
-        def on_ready(self):
-            print("All containers have been activated!")
-
-
-    async def run_container_and_agent(addr, duration):
-        first_container = create_tcp_container(addr=addr)
-        first_agent = first_container.register(RepeatingAgent())
-
-        async with activate(first_container) as container:
-            await asyncio.sleep(duration)
-
-    asyncio.run(run_container_and_agent(addr=('127.0.0.1', 5555), duration=0.05))
+    asyncio.run(main())
 
 .. testoutput::
 
-    Creating a RepeatingAgent. At this point self.addr=None
-    The agent has been registered to a container: AgentAddress(protocol_addr=('127.0.0.1', 5555), aid='agent0')!
-    All containers have been activated!
+    ready: AgentAddress(protocol_addr=('127.0.0.1', 5555), aid='agent0')
+    ready: AgentAddress(protocol_addr=('127.0.0.1', 5555), aid='agent1')
+    agent1 got 'hello' from agent0
+    agent0 got 'hello back' from agent1
 
-In this example no messages are sent, nor does the Agent do anything, but the call order of the hook-in functions is clearly visible.
-The function :py:meth:`mango.activate` will start the container and shut it down after the
-code in its scope has been execute (here, after the sleep).
+.. _getting-started-messages:
 
-**************************
-Creating a proactive Agent
-**************************
+**Messages** go to an address: the protocol address of the agent's container
+plus its agent id (``aid``). :meth:`~mango.Agent.send_message` sends any Python
+object; across containers, the codec must be able to encode it (step 2 shows
+how). :meth:`~mango.Agent.reply_to` answers the sender of a received message.
+:func:`~mango.on_message` routes each incoming message by the type of its
+content, here ``str``, to a handler that receives the content and the message's
+``meta`` data, such as the sender.
 
-Let's implement another agent that is able to send a hello world message
-to another agent:
+A **container** hosts agents in your Python process. :func:`~mango.run_with_tcp`
+starts one TCP container on ``127.0.0.1:5555``, registers both agents in it and
+shuts it down at the end of the ``async with`` block. Its agents share one
+asyncio event loop, so a handler must never block.
+
+
+.. _getting-started-roles:
+
+2. Roles
+========
+
+Instead of putting all behaviour into one agent class, you can compose an agent
+of **roles**: reusable building blocks, each covering one responsibility. A role
+uses the same handlers as an agent (``@on_message`` and the lifecycle hooks, but
+:meth:`~mango.Role.setup` instead of ``on_register``). Through ``self.context``
+it sends messages and emits in-process events to the other roles of its agent.
+
+The station is one agent composed of two roles with
+:func:`~mango.agent_composed_of`: a sensor that measures (step 3), and
+``Report``, which sends every measurement to the collector. The collector is a
+plain agent.
 
 .. testcode::
 
-    import asyncio
-    from mango import Agent, on_message
+    from mango import Agent, Role, json_serializable, on_event, on_message
 
-    class HelloWorldAgent(Agent):
-        async def greet(self, other_addr):
-            await self.send_message("Hello world!", other_addr)
+    @json_serializable
+    class Reading:
+        def __init__(self, celsius):
+            self.celsius = celsius
 
-        @on_message(str)
-        def handle_text(self, content, meta):
-            print(f"Received a message with the following content: {content}")
+    class Collector(Agent):
+        @on_message(Reading)
+        def collect(self, reading, meta):
+            print(f"collector got {reading.celsius} °C")
 
-    async def run_container_and_agent(addr, duration):
-        first_container = create_tcp_container(addr=addr)
-        first_hello_agent = first_container.register(HelloWorldAgent())
-        second_hello_agent = first_container.register(HelloWorldAgent())
+    class Report(Role):
+        def __init__(self, collector):
+            super().__init__()
+            self.collector = collector  # the collector's address
 
-        async with activate(first_container) as container:
-            await first_hello_agent.greet(second_hello_agent.addr)
+        @on_event(Reading)
+        def send(self, reading, source):
+            self.context.schedule_instant_message(reading, self.collector)
 
-    asyncio.run(run_container_and_agent(addr=('127.0.0.1', 5555), duration=0.05))
+A ``Reading`` is both an event and a message. The sensor role emits it with
+``emit_event``, and :func:`~mango.on_event` hands it to ``Report.send``, which
+sends it on to the collector. Event handlers run synchronously, so ``send``
+schedules the message with :meth:`~mango.RoleContext.schedule_instant_message`
+instead of awaiting ``send_message``. :func:`~mango.json_serializable` lets the
+JSON codec encode a ``Reading`` when it travels over TCP or MQTT (step 4
+registers it with the codec).
 
-.. testoutput::
 
-    Received a message with the following content: Hello world!
+.. _getting-started-scheduling:
 
+3. Scheduling
+=============
 
-If you do not want to await sending the message, and just let asyncio/mango schedule it, you can use :meth:`mango.Agent.schedule_instant_message` instead of
-:meth:`mango.Agent.send_message`.
+Agents do not only react to messages, they also act on their own.
+:func:`@periodic(every=seconds) <mango.periodic>` on an async method of an agent
+or a role starts a task once the agent is ready and repeats it. The scheduler
+also runs tasks once (:meth:`~mango.Agent.schedule_instant_task`), at a given
+time (:meth:`~mango.Agent.schedule_timestamp_task`) or from any task object
+(:meth:`~mango.Agent.schedule_task`).
 
-*********************
-Connecting two agents
-*********************
-We can now connect an instance of a HelloWorldAgent with an instance of
-a RepeatingAgent and let them run.
+Tasks run on the runtime's clock: wall-clock time in real time, simulated time
+in a simulation. ``current_timestamp`` on the agent or role context reads it. A
+task that waits through the scheduler and reads time this way, never with
+``asyncio.sleep`` or ``time.time``, works in both runtimes:
 
 .. testcode::
 
-    import asyncio
-    from mango import Agent, create_tcp_container, activate, on_message
+    from mango import periodic
+
+    class Sensor(Role):
+        @periodic(every=3600)
+        async def measure(self):
+            self.context.emit_event(Reading(await self.read()), event_source=self)
+
+        async def read(self):
+            raise NotImplementedError
+
+``measure`` runs once when the station is ready and then every hour. ``read``
+is the one part that depends on the runtime, because that is where the station
+meets its environment.
 
 
-    class RepeatingAgent(Agent):
-        def __init__(self):
-            super().__init__()
-            print(f"Creating a RepeatingAgent. At this point self.addr={self.addr}")
+.. _getting-started-run:
 
-        @on_message(str)
-        def handle_text(self, content, meta):
-            print(f"Received a message with the following content: {content}!")
+4. Run it: real time or simulation
+==================================
 
-        def on_register(self):
-            print(f"The agent has been registered to a container: {self.addr}!")
+Both tabs register the same collector and station in a runtime; only the
+sensor subclass and the runtime differ. To run a tab, put the code of steps 2
+and 3 and of the tab into one file, in this order.
 
-        def on_ready(self):
-            print("All containers have been activated!")
+.. tab-set::
+   :sync-group: runtime
 
-    class HelloWorldAgent(Agent):
-        async def greet(self, other_addr):
-            await self.send_message("Hello world!", other_addr)
+   .. tab-item:: Real time
+      :sync: realtime
 
-        @on_message(str)
-        def handle_text(self, content, meta):
-            print(f"Received a message with the following content: {content}")
+      Time is wall-clock time: the station measures at once, and ``sleep(0.1)``
+      ends the run long before the next hour. Two TCP containers host the
+      collector and the station, so the reading travels over TCP, encoded by
+      the codec, which has to know the ``Reading`` type. The environment lives
+      **outside mango**, and your code connects the agents to it:
+      ``ExternalSensor`` reads from whatever provides the temperature.
+
+      .. testcode::
+
+          import asyncio
+          from mango import JSON, activate, agent_composed_of, create_tcp_container
+
+          class ExternalSensor(Sensor):
+              async def read(self):
+                  return 21.5  # stand-in: await your device, service or model here
+
+          async def main():
+              codec = JSON()
+              codec.add_serializer(*Reading.__serializer__())
+              hub = create_tcp_container(("127.0.0.1", 5555), codec=codec)
+              field = create_tcp_container(("127.0.0.1", 5556), codec=codec)
+
+              collector = hub.register(Collector())
+              field.register(agent_composed_of(ExternalSensor(), Report(collector.addr)))
+
+              async with activate(hub, field):
+                  await asyncio.sleep(0.1)  # a real-time system runs until it is shut down
+
+          asyncio.run(main())
+
+      .. testoutput::
+
+          collector got 21.5 °C
+
+   .. tab-item:: Simulation
+      :sync: simulation
+
+      Time is simulated: :func:`~mango.discrete_step_until` runs a
+      discrete-event simulation, moving the world's clock from event to event
+      (a task waking up, a message arriving), so four simulated hours take
+      milliseconds and every run gives the same result. Each step first
+      advances the environment, then moves the clock and runs what is due: the
+      readings at hours 0 to 4 show 10 to 14 °C. One
+      :class:`~mango.SimulationWorld` hosts both agents. The environment is an
+      **entity in mango**: ``Weather``, a :class:`~mango.Behavior` of the
+      world's :class:`~mango.DefaultEnvironment`, which ``SimSensor`` reads
+      like a device.
+
+      .. testcode::
+
+          import asyncio
+          from mango import (
+              Behavior, DefaultEnvironment, agent_composed_of, create_world, discrete_step_until,
+          )
+
+          class Weather(Behavior):
+              celsius = 10.0
+
+              def on_step(self, environment, clock, step_size_s):
+                  self.celsius += step_size_s / 3600  # warms by 1 °C per hour
+
+          class SimSensor(Sensor):
+              def __init__(self, weather):
+                  super().__init__()
+                  self.weather = weather
+
+              async def read(self):
+                  return self.weather.celsius
+
+          async def main():
+              weather = Weather()
+              world = create_world(environment=DefaultEnvironment(behavior=weather))
+
+              collector = world.register(Collector())
+              world.register(agent_composed_of(SimSensor(weather), Report(collector.addr)))
+
+              async with world:
+                  await discrete_step_until(world, max_advance_time_s=4 * 3600)
+              print(f"simulated {world.clock.time / 3600:.0f} h")
+
+          asyncio.run(main())
+
+      .. testoutput::
+
+          collector got 10.0 °C
+          collector got 11.0 °C
+          collector got 12.0 °C
+          collector got 13.0 °C
+          collector got 14.0 °C
+          simulated 4 h
+
+``Reading``, ``Collector``, ``Report`` and the ``Sensor`` base class are the
+same in both tabs, and ``register`` works on a simulation world just as on a
+container. That is the usual way to work with mango: develop and test the agent
+system in a simulation, then run the same agents in real time, in containers
+that exchange real messages and connect to their environment.
+
+.. list-table::
+   :widths: 16 42 42
+   :header-rows: 1
+
+   * -
+     - Real time
+     - Simulation
+   * - Start with
+     - :func:`~mango.create_tcp_container` and :func:`~mango.activate`, or
+       :func:`~mango.run_with_tcp` (:func:`~mango.run_with_mqtt` for MQTT, with
+       a broker)
+     - :func:`~mango.create_world`, or :func:`~mango.run_with_simulation`
+   * - Time
+     - wall clock (Unix time): tasks wait in real seconds
+     - simulated, from 0: :func:`~mango.step_simulation` in fixed steps,
+       :func:`~mango.discrete_step_until` from event to event
+   * - Network
+     - TCP or MQTT, content encoded by a codec
+     - in process, not encoded; instant unless you add delay and loss
+       (:class:`~mango.SimpleCommunicationSimulation`)
+   * - Environment
+     - outside mango, integrated by your own code
+     - an :class:`~mango.Environment` entity inside the world, stepped with it
+       and read in ``on_step`` or, like ``SimSensor``, through a reference
 
 
-    async def run_container_and_two_agents(first_addr, second_addr):
-        first_container = create_tcp_container(addr=first_addr)
-        second_container = create_tcp_container(addr=second_addr)
+Next steps
+==========
 
-        first_agent = first_container.register(RepeatingAgent())
-        second_agent = second_container.register(HelloWorldAgent())
+.. grid:: 1 2 2 3
+   :gutter: 3
 
-        async with activate(first_container, second_container) as cl:
-            await second_agent.greet(first_agent.addr)
-            await asyncio.sleep(.1)
+   .. grid-item-card:: Feature overview
+      :link: features
+      :link-type: doc
+      :shadow: sm
 
-    asyncio.run(run_container_and_two_agents(
-        first_addr=('127.0.0.1', 5555), second_addr=('127.0.0.1', 5556))
-    )
+      A map of every part of mango, and where to read about it.
 
-.. testoutput::
+   .. grid-item-card:: Real-time tutorial
+      :link: tutorial
+      :link-type: doc
+      :shadow: sm
 
-    Creating a RepeatingAgent. At this point self.addr=None
-    The agent has been registered to a container: AgentAddress(protocol_addr=('127.0.0.1', 5555), aid='agent0')!
-    All containers have been activated!
-    Received a message with the following content: Hello world!!
+      Solar power plants and a controller, step by step in TCP containers.
 
-You have now successfully created two agents and connected them.
+   .. grid-item-card:: Simulation tutorial
+      :link: simulation-ev-tutorial
+      :link-type: doc
+      :shadow: sm
+
+      Electric vehicles in a 2-D space, with recording and plots.

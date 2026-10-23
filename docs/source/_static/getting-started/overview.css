@@ -1,0 +1,92 @@
+/* mango overview: the hero picture of the "Getting started" page.
+ *
+ * Markup: _static/getting-started/overview.svg, pasted inline by
+ * getting_started.rst with :class: mango-feature-map-frame.
+ *
+ * The <svg> carries both classes, mango-feature-map and mango-overview: it
+ * reuses the tokens, part cards, glyphs, spotlight and small-screen frame of
+ * features/feature-map.css, which must load first. This file only styles
+ * what the feature map does not draw: the stage with its agents, the callout
+ * leaders, the hand-off arrow, the environment strips and the comparison rows.
+ */
+
+.mango-overview .ov-code { font-family: var(--font-stack--monospace); }
+
+/* the stage the agent system is drawn on, and the links between its agents */
+.mango-overview .ov-stage { fill: var(--fm-card); stroke: var(--fm-line); }
+.mango-overview .ov-stage-grid { stroke: none; }
+.mango-overview .ov-link { fill: none; stroke: var(--fm-line-strong); stroke-width: 1.5; stroke-linejoin: round; }
+/* the person glyph sits on the yellow agent fill in both themes */
+.mango-overview .ov-node-glyph { fill: none; stroke: #8a5300; stroke-width: 1.5; stroke-linecap: round; }
+/* hovering or focusing the agent or roles box rings every agent in the text
+ * colour and fades the links back, so the agents stand out */
+.mango-overview .ov-nodes .fm-agent { transition: stroke 160ms ease, stroke-width 160ms ease; }
+.mango-overview .ov-link { transition: opacity 160ms ease; }
+.mango-overview:has(:is(.fm-part--agents, .fm-part--roles):focus-visible) .ov-nodes .fm-agent {
+  stroke: var(--color-foreground-primary);
+  stroke-width: 2.5;
+}
+.mango-overview:has(:is(.fm-part--agents, .fm-part--roles):focus-visible) .ov-link { opacity: 0.3; }
+@media (hover: hover) {
+  .mango-overview:has(:is(.fm-part--agents, .fm-part--roles):hover) .ov-nodes .fm-agent {
+    stroke: var(--color-foreground-primary);
+    stroke-width: 2.5;
+  }
+  .mango-overview:has(:is(.fm-part--agents, .fm-part--roles):hover) .ov-link { opacity: 0.3; }
+}
+
+/* messages in flight */
+.mango-overview .ov-pulse { fill: var(--fm-msg); }
+/* the pulses run only while the messaging box is hovered or focused (WCAG
+ * 2.2.2), and never take the pointer, so they cannot trigger the spotlight */
+.mango-overview .ov-pulses { visibility: hidden; pointer-events: none; }
+.mango-overview .ov-part--messaging:focus-visible .ov-pulses { visibility: visible; }
+@media (hover: hover) {
+  .mango-overview .ov-part--messaging:hover .ov-pulses { visibility: visible; }
+}
+
+/* scheduling: one agent's periodic task, ticking on its clock */
+.mango-overview .ov-sched-arc { fill: none; stroke: var(--fm-time); stroke-width: 1.5; stroke-dasharray: 3 3; }
+.mango-overview .ov-arrowhead-time { fill: var(--fm-time); }
+.mango-overview .ov-sched-badge circle { fill: var(--fm-card); stroke: var(--fm-time); stroke-width: 1.5; }
+.mango-overview .ov-sched-badge path { fill: none; stroke: var(--fm-time); stroke-width: 1.5; stroke-linecap: round; }
+
+/* callout leaders */
+.mango-overview .ov-leader { stroke: var(--color-foreground-muted); stroke-width: 1.25; stroke-dasharray: 2 3; }
+.mango-overview .ov-leader-dot { fill: var(--color-foreground-muted); }
+
+/* hand-off arrow from the agent system to the runtimes */
+.mango-overview .ov-handoff-line { fill: none; stroke: var(--color-foreground-muted); stroke-width: 2.5; stroke-linecap: round; }
+.mango-overview .ov-arrowhead-strong { fill: var(--color-foreground-muted); }
+.mango-overview .ov-arrowhead-muted { fill: var(--color-foreground-muted); }
+.mango-overview .ov-handoff-pill { fill: var(--fm-card); stroke: var(--fm-line-strong); }
+.mango-overview .ov-handoff-text { font-size: 13.5px; font-weight: 600; text-anchor: middle; fill: var(--color-foreground-primary); }
+
+/* real time: mango ends at the dashed boundary, the environment lies outside */
+.mango-overview .ov-boundary { fill: none; stroke: var(--color-foreground-muted); stroke-width: 1.25; stroke-dasharray: 5 4; }
+.mango-overview .ov-boundary-tab { fill: var(--fm-card); }
+.mango-overview .ov-boundary-text { font-size: 12px; font-weight: 600; text-anchor: middle; fill: var(--color-foreground-secondary); }
+.mango-overview .ov-real { fill: var(--fm-wire-tint); stroke: var(--fm-wire); stroke-width: 1.25; }
+/* simulation: the environment is an entity inside the world */
+.mango-overview .ov-env { fill: var(--fm-inset); stroke: var(--fm-time); stroke-width: 1.25; }
+.mango-overview .ov-env-hatch { stroke: none; }
+.mango-overview .ov-env-link { fill: none; stroke: var(--color-foreground-muted); stroke-width: 1.5; stroke-dasharray: 2 3; }
+.mango-overview .ov-thing { fill: none; stroke: var(--fm-wire); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.mango-overview .ov-env ~ .ov-thing { stroke: var(--fm-time); }
+.mango-overview .ov-strip-text { font-size: 13.5px; font-weight: 600; fill: var(--color-foreground-primary); }
+
+/* comparison rows under both runtimes */
+.mango-overview .ov-row-line { stroke: var(--fm-line); stroke-width: 1; }
+.mango-overview .ov-row-label { font-size: 13px; font-weight: 700; letter-spacing: 0.8px; text-anchor: middle; fill: var(--color-foreground-secondary); }
+.mango-overview .ov-row-text { fill: var(--color-foreground-primary); }
+
+/* the moving message pulses are decoration: hide them for reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .mango-overview .ov-pulses { display: none; }
+}
+
+/* the scroll hint calls this graphic a picture, not a map; it overrides the
+ * hint of feature-map.css inside the same media query */
+@media (max-width: 46.4em) {
+  .mango-feature-map-frame:has(.mango-overview)::before { content: "Scroll sideways to see the whole picture \2192"; }
+}

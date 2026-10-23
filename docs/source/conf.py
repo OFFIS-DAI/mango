@@ -53,8 +53,8 @@ html_theme = "furo"
 html_static_path = ["_static"]
 
 # Styles for the "Feature overview" page (features.rst): its feature map,
-# jump list and goal table.
-html_css_files = ["features/feature-map.css"]
+# jump list and goal table; the "Getting started" overview builds on them.
+html_css_files = ["features/feature-map.css", "getting-started/overview.css"]
 
 html_theme_options = {
     "light_logo": "Logo_mango_ohne_sub.svg",

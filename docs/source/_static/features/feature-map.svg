@@ -1,4 +1,4 @@
-<svg class="mango-feature-map" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 684" role="group" aria-labelledby="fm-title fm-desc">
+<svg class="mango-feature-map" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 684" role="group" aria-labelledby="fm-title" aria-describedby="fm-desc">
   <title id="fm-title">Map of mango's parts</title>
   <desc id="fm-desc">Four layers, from your code down to the wire. Your code: agents, composed of roles. Interaction: messaging and conversations, and topologies, a graph of neighbours that may span several containers. Time: every agent has a scheduler that runs on the clock of its runtime. Runtime and wire: containers, each with one codec that encodes outgoing and decodes incoming messages, which travel over TCP or MQTT; agents may also run in their own process. Instead of containers, a simulation world can deliver the messages with simulated delay and loss. Tracing runs alongside every layer: it records what happens in each, links event, message and task records to their causes, and shows them in a viewer. Each part links to its section below.</desc>
 
